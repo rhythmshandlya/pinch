@@ -54,6 +54,10 @@ PRESETS = {
                  unroll_length=20, num_updates_per_batch=4, episode_length=600,
                  num_evals=20, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,
                  discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
+    "gait_v2": dict(num_timesteps=150_000_000, num_envs=2048, batch_size=256, num_minibatches=32,
+                 unroll_length=20, num_updates_per_batch=4, episode_length=600,
+                 num_evals=20, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,
+                 discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
     "terrain": dict(num_timesteps=100_000_000, num_envs=2048, batch_size=256, num_minibatches=32,
                  unroll_length=20, num_updates_per_batch=4, episode_length=600,
                  num_evals=20, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,
@@ -89,6 +93,13 @@ def make_env(name):
         import training.terrain_env as te
         te.HARD = 1.5
         return te.CrabTerrainEnv()
+    if name == "gait_v2":        # walking v2: 48 commands + pushing (paddle, crouched), bench-strength shoves
+        from training.gait_env import (GAIT_CMDS_V2, CrabGaitEnv, concat_references, push_references,
+                                       walk_references)
+        env = CrabGaitEnv(refs=concat_references([walk_references(GAIT_CMDS_V2), push_references()]),
+                          push_vel=0.12, push_interval_s=2.5)
+        env.covers = ["walk", "push"]
+        return env
     if name == "gait3":          # gait-v1's rewards, shoves as hard as the robustness bench's (0.12 m/s, every 2.5 s)
         from training.gait_env import CrabGaitEnv
         return CrabGaitEnv(push_vel=0.12, push_interval_s=2.5)
@@ -128,7 +139,8 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
     out.mkdir(parents=True, exist_ok=True)
     environment = make_env(env)
     (out / "config.json").write_text(json.dumps(dict(cfg, preset=preset, env=env, randomize=randomize,
-                                                     action_scale=float(getattr(environment, "action_scale", 0.15))),
+                                                     action_scale=float(getattr(environment, "action_scale", 0.15)),
+                                                     covers=list(getattr(environment, "covers", ["walk"]))),
                                                 indent=2))
 
     print(f"devices: {jax.devices()}  |  env {env}  |  run -> {out}", flush=True)
@@ -184,7 +196,7 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preset", choices=list(PRESETS), default="smoke")
-    ap.add_argument("--env", choices=["walk", "gait", "gait2", "gait3", "terrain", "terrain_hard", "emote", "emote2", "grasp",
+    ap.add_argument("--env", choices=["walk", "gait", "gait2", "gait3", "terrain", "terrain_hard", "gait_v2", "emote", "emote2", "grasp",
                                         "push"], default="walk")
     ap.add_argument("--timesteps", type=int, help="override num_timesteps")
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")

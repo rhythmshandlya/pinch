@@ -38,9 +38,43 @@ REWARD_SCALES = dict(_EMOTE_SCALES, track_legs=1.0, track_attitude=1.5, track_he
                      residual=-0.1)
 
 
-def walk_references(cmds=GAIT_CMDS, seconds=6.0, hz=50.0, sim_dt=0.002, sub=10):
+# walking v2 (decision 65): curves, diagonals, backwards and speeds in between - 48 commands
+GAIT_CMDS_V2 = GAIT_CMDS + [
+    (0.03, 0.0, 0.3), (0.03, 0.0, -0.3), (0.05, 0.0, 0.5), (0.05, 0.0, -0.5), (0.02, 0.0, 0.6), (0.02, 0.0, -0.6),
+    (0.0, 0.03, 0.3), (0.0, -0.03, -0.3), (0.0, 0.04, -0.4), (0.0, -0.04, 0.4),
+    (-0.03, 0.03, 0.0), (-0.03, -0.03, 0.0), (0.05, 0.02, 0.0), (0.05, -0.02, 0.0), (0.015, 0.0, 0.0),
+    (0.0, 0.015, 0.0), (0.0, -0.015, 0.0), (-0.015, 0.0, 0.0), (0.0, 0.0, 0.2), (0.0, 0.0, -0.2),
+    (0.04, 0.04, 0.0), (0.04, -0.04, 0.0), (-0.04, 0.0, 0.4), (-0.04, 0.0, -0.4), (0.06, 0.0, 0.2), (0.06, 0.0, -0.2),
+    (0.0, 0.05, 0.2), (0.0, -0.05, -0.2), (0.03, 0.03, 0.3), (0.03, -0.03, -0.3), (0.025, 0.0, 0.0)]
+# pushing (Body.Manipulation._push_to): crouched 11 mm, one claw a paddle, ~4 cm/s with small steering
+PUSH_CMDS = [(0.042, 0.0, 0.0), (0.03, 0.0, 0.0), (0.015, 0.0, 0.0), (0.042, 0.015, 0.0), (0.042, -0.015, 0.0),
+             (0.042, 0.0, 0.3), (0.042, 0.0, -0.3), (0.03, 0.01, 0.2), (-0.035, 0.0, 0.0)]
+
+
+def push_references(seconds=6.0, hz=50.0, sim_dt=0.002, sub=10):
+    """The scripted gait as Body drives it while pushing: paddle arm (either claw), the crouch easing in."""
+    from pinch.body.common import PADDLE_CLAW, PADDLE_PITCH, PUSH_LOWER, arm_pose
+    from crab.emotes import crouch, pose
+    out = []
+    for side in ("left", "right"):
+        paddle = arm_pose(arm_pose(pose(crouch(0.25)), side, pitch=PADDLE_PITCH, yaw=0.0, claw=PADDLE_CLAW),
+                          "right" if side == "left" else "left", pitch=0.5)
+        out.append(walk_references(PUSH_CMDS, seconds, hz, sim_dt, sub, arms=paddle, lower=PUSH_LOWER))
+    return concat_references(out)
+
+
+def concat_references(refs):
+    T = max(r["q"].shape[1] for r in refs)
+    return dict(q=np.concatenate([r["q"] for r in refs]), grav=np.concatenate([r["grav"] for r in refs]),
+                h=np.concatenate([r["h"] for r in refs]), n=np.concatenate([r["n"] for r in refs]),
+                v=np.concatenate([r["v"] for r in refs])) if all(r["q"].shape[1] == T for r in refs) else None
+
+
+def walk_references(cmds=GAIT_CMDS, seconds=6.0, hz=50.0, sim_dt=0.002, sub=10, arms=None, lower=0.0):
     """Run the scripted trot on the nominal CPU twin for each command and record the reference:
-    q (E,T,18) joint targets, grav (E,T,3), h (E,T), n (E,), and v (E,2) the commanded body velocity."""
+    q (E,T,18) joint targets, grav (E,T,3), h (E,T), n (E,), and v (E,2) the commanded body velocity.
+    arms / lower: walk with the arms posed (e.g. a pushing paddle) and crouched, the crouch easing in at
+    0.4 mm per tick as Body does it."""
     m = mujoco.MjModel.from_xml_path(str(MODEL))
     m.opt.timestep = sim_dt
     d = mujoco.MjData(m)
@@ -52,12 +86,14 @@ def walk_references(cmds=GAIT_CMDS, seconds=6.0, hz=50.0, sim_dt=0.002, sub=10):
     body = m.body("body").id
     for e, cmd in enumerate(cmds):
         gait = Gait(GAITS["trot"], com_offset=np.array([0.015 * _S, 0.0]))
+        gait.arms = arms
         mujoco.mj_resetDataKeyframe(m, d, m.key("stand").id)
         for _ in range(int(0.5 / sim_dt)):
             d.ctrl[act] = STAND
             mujoco.mj_step(m, d)
         target = STAND
         for k in range(T):
+            gait.lower += float(np.clip(lower - gait.lower, -0.0004, 0.0004))
             for i in range(sub):
                 out = gait.step(1 / hz / sub, cmd, solve=(i == sub - 1))
                 target = out if out is not None else target

@@ -6,6 +6,7 @@ patterns that look unnatural - it never changes behaviour (decision 64).
 
 Checks:
   oscillation       two activities swapping back and forth (A B A B ...) within a short window
+  alternation       the same, slowly (minutes): usually an activity that keeps failing and being retried
   failure_loop      the same activity started again and again after failing / timing out
   unexplained       a switch with no recorded reason
   state_lock        one top-level state holding more than its share of a long run (e.g. 90 % "idle")
@@ -42,6 +43,8 @@ def observe(mind, duration_s=None):
 def observe_records(decisions, phases, log, duration_s):
     out = []
     out += _oscillation(decisions)
+    if not any(f.kind == "oscillation" for f in out):
+        out += _oscillation(decisions, window=600.0, flips=3, kind="alternation", severity="warn")
     out += _failure_loops(decisions)
     out += _unexplained(decisions)
     out += _state_lock(decisions, duration_s)
@@ -50,7 +53,7 @@ def observe_records(decisions, phases, log, duration_s):
     return out
 
 
-def _oscillation(decs, window=30.0, flips=3):
+def _oscillation(decs, window=30.0, flips=3, kind="oscillation", severity="error"):
     out = []
     for i in range(len(decs) - 2 * flips):
         seq = decs[i:i + 2 * flips + 1]
@@ -58,7 +61,7 @@ def _oscillation(decs, window=30.0, flips=3):
         a, b = names[0], names[1]
         if a != b and all(n == (a if k % 2 == 0 else b) for k, n in enumerate(names)) \
                 and seq[-1]["t"] - seq[0]["t"] < window:
-            out.append(Finding("oscillation", "error", seq[0]["t"], seq[-1]["t"],
+            out.append(Finding(kind, severity, seq[0]["t"], seq[-1]["t"],
                                f"{a} <-> {b} {len(seq)} times in {seq[-1]['t'] - seq[0]['t']:.0f} s",
                                "add hysteresis (min_s / a larger 'better' margin) or fix the utility that flips",
                                dict(pair=(a, b))))

@@ -17,6 +17,8 @@ def test_it_catches_planted_problems():
     loop = [_d(i * 20.0, "tidy", "tidy", "previous activity finished") for i in range(5)]
     assert "failure_loop" in {f.kind for f in observe_records(loop, [], [], 120.0)}
     assert "unexplained" in {f.kind for f in observe_records([_d(0, None, "idle", "")], [], [], 1.0)}
+    slow = [_d(i * 60.0, None, "idle" if i % 2 == 0 else "tidy") for i in range(9)]
+    assert "alternation" in {f.kind for f in observe_records(slow, [], [], 600.0)}
     rep = [_d(i * 10.0, None, n) for i, n in enumerate(["a", "b", "c"] * 5)]
     assert "repetition" in {f.kind for f in observe_records(rep, [], [], 150.0)}
     lock = [_d(0.0, None, "idle", state=("idle", "idle"))]

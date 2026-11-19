@@ -64,7 +64,10 @@ class Locomotion:
         self.gait.lower += float(np.clip(lower - self.gait.lower, -0.0004, 0.0004))   # sink / rise smoothly
         for k in range(SUB):                                   # leg IK only once per tick, after the last substep
             q = self.gait.step(DT / SUB, cmd, solve=k == SUB - 1)
-        return self._residual(q, cmd, arms is None and self.gait.lower < 1e-4)
+        covers = getattr(self.walk_policy, "meta", {}).get("covers", ["walk"]) if self.walk_policy else []
+        plain = arms is None and self.gait.lower < 1e-4
+        pushing = "push" in covers and self.gait.lower > 1e-4        # (a policy trained on pushes: decision 65)
+        return self._residual(q, cmd, plain or pushing)
 
     def _residual(self, ref, cmd, plain):
         """The trained walking corrections (policies/gait.npz) on top of the scripted trot. Its look-ahead (the
