@@ -679,6 +679,30 @@ class Body:
 
     walk_dir = None
 
+    def _right_self(self, timeout=8.0):
+        """Roll back over off its back with the righting swing (crab/righting.py); done once the body has been
+        upright for 0.2 s (then stand). False if it is still on its back after `timeout`."""
+        from crab import righting
+        self.held = None                                     # (whatever it held is gone)
+        t, up = 0.0, 0
+        while t < timeout:
+            yield righting.target(t)
+            t += DT
+            try:
+                _, grav = self.crab.hw.read_imu()
+            except Exception:                                # noqa: BLE001 - a sensor hiccup: keep swinging
+                continue
+            up = up + 1 if grav[2] < -0.85 else 0
+            if up >= int(0.2 / DT):
+                self.trace("righted", after=round(t, 2))
+                yield from self._blend_to(STAND, 0.6)
+                yield from self._settle(0.4)
+                self.gait.cmd[:] = 0.0
+                return True
+        self.trace("righting_failed")
+        yield from self._blend_to(STAND, 0.6)
+        return False
+
     def _recover(self, seconds=2.5):
         """Work free. A foot over the edge: shuffle the body back toward the middle of the desk with short steps
         (the stuck leg is dragged back up), then settle. All feet on the desk, so caught on something (a

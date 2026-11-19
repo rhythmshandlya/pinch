@@ -689,3 +689,37 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
         (cosine 0.94–0.98), at 10 ms a frame on the laptop.
     - **Not tested:** telling two *different* people apart. There is only one face photo here, so this
       relies on SFace's published accuracy (99.4 % on LFW). Check it on the robot with two people.
+58. **Hurdles and ramps: measured, then trained** (the owner asked for "proper hurdle training like ramps").
+    - **Measurement first** (`sim/hurdle_test.py`, capability table in `docs/HURDLES.md`): one bar or
+      ramp straight across the path, 3 robots per case.
+      - The scripted trot gets over almost no bars.
+      - gait-v1 crosses bars up to 6 mm forward and 8 mm sideways, and ramps up to ~15° forward and
+        20° sideways.
+    - **Robustness worlds** `terrain` and `terrain_hard` (`crab/terrain.py`): two hurdles and a ramp
+      onto a plateau, in a ring round the start. gait-v1 already passes both with 0 falls (83 % / 79 %
+      tracking). Average tracking hides the obstacle moments, which is why the capability test exists.
+    - **Training** (`training/terrain_env.py`, run terrain-v1 on Modal, ≤3 h):
+      - Every training robot gets its own course (domain randomisation of the obstacle boxes'
+        positions; heights by how deep each box sits in the floor).
+      - Shins collide with obstacles.
+      - Larger corrections (0.25 rad; the scale travels with the exported policy as `action_scale`).
+      - Following the flat reference counts less.
+    - **Adopted only if** it beats gait-v1 on the capability test without losing the robustness worlds.
+59. **Pinch rights itself** (audit A11; `crab/righting.py`, `Body._right_self`, the RightSelf activity).
+    - **How the motion was found:** by search, not design. 3000 random two-pose swings were tried from
+      on its back; 51 turned it over. Those were re-tried from 8 different starts (rolled ±15°, any
+      heading, friction ×0.4–1.2, masses ±15 %). The chosen one got upright in all 8, after 0.55 s on
+      average.
+    - **In the pet:** being on its back breaks through any activity. Pinch squeaks, swings until it
+      has been upright for 0.2 s, then stands. After two failed tries it pleads for help.
+    - **One lesson per fall:** BodySense reports "upside down" on every tick while it lasts. The danger
+      map now learns once per fall; before, it re-learned many times a second.
+    - **Scenario "falls on its back: rolls itself back over":** upright again after 0.8 s, still on the
+      desk.
+    - The shell redesign (A11's alternative) isn't needed.
+60. **The owner's PRD is the primary feature reference.** It is private: `docs/PRD.md` and the matrix that
+    quotes it are kept locally and out of git (`.gitignore`).
+    - `docs/TRACEABILITY.md` maps all of its IDs to code, tests and an honest status (first pass:
+      62 Done, 109 implemented but untested, 139 partial, 103 missing, 1 hardware-only).
+    - Behaviour stays explicit, testable code. RL is for motor skills where contact physics is hard to
+      hand-tune: walking corrections, terrain, emote balance, grasping, possibly pushing.

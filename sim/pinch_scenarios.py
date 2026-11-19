@@ -141,6 +141,26 @@ def ask_help():
     return asked and "beg" in emotes(sim), f"asked for help: {asked}, pointed: {'point' in emotes(sim)}"
 
 
+@scenario("falls on its back: rolls itself back over")
+def right_self():
+    import mujoco
+    sim = fresh()
+    q = sim.d.qpos
+    q[2] = 0.07
+    q[3:7] = [0.0, 1.0, 0.0, 0.0]                               # upside down
+    mujoco.mj_forward(sim.m, sim.d)
+    upright_at = None
+    for k in range(200):
+        sim.run(0.1)
+        R = sim.d.xmat[sim.m.body("body").id].reshape(3, 3)
+        if upright_at is None and R[2, 2] > 0.85 and k > 5:
+            upright_at = sim.t
+    tried = any(mo[1][0] == "right_self" for mo in sim.motions)
+    R = sim.d.xmat[sim.m.body("body").id].reshape(3, 3)
+    ok = tried and R[2, 2] > 0.85 and sim.desk.inside(sim.pose()[:2], 0.0)
+    return ok, f"tried righting: {tried}, upright again after {upright_at - 2.0 if upright_at else None} s, on desk {sim.desk.inside(sim.pose()[:2], 0.0)}"
+
+
 @scenario("something about to fall off the desk: raises the alarm")
 def edge_alert():
     sim = fresh()
@@ -223,7 +243,7 @@ def main():
     print("Pinch behaviour scenarios (digital twin)")
     only = sys.argv[1:]
     for fn in (tricks, memory_restart, meeting, tidy_cap, tidy_spontaneous, ask_help, edge_alert, comfort, needy,
-               touch, scolded, long_life):
+               touch, scolded, right_self, long_life):
         if not only or fn.__name__ in only:
             fn()
     n = sum(ok for _, ok, _, _ in RESULTS)

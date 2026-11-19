@@ -27,61 +27,12 @@ from mujoco import mjx
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from crab.terrain import N_U, OBSTACLES, add_obstacles, terrain_layout  # noqa: E402
 from training.crab_env import LEG_IDS, MODEL, domain_randomize  # noqa: E402
 from training.gait_env import REWARD_SCALES as _GAIT_SCALES, CrabGaitEnv  # noqa: E402
 
-OBSTACLES = [  # name, box half sizes (x radial, y tangent, z)
-    ("hurdle_a", (0.006, 0.15, 0.006)),
-    ("hurdle_b", (0.006, 0.15, 0.006)),
-    ("ramp", (0.05, 0.12, 0.003)),
-    ("ramp_top", (0.06, 0.12, 0.015)),
-]
-N_U = 10                     # uniforms per layout
 ACTION_SCALE = 0.25
 REWARD_SCALES = dict(_GAIT_SCALES, track_legs=0.4, track_attitude=0.8, track_height=0.2, residual=-0.05)
-
-
-def _quat_yaw_pitch(xp, yaw, pitch):
-    """q = yaw about z, then pitch about the (new) y axis; (w, x, y, z)."""
-    cy, sy, cp, sp = xp.cos(yaw / 2), xp.sin(yaw / 2), xp.cos(pitch / 2), xp.sin(pitch / 2)
-    return xp.stack([cy * cp, -sy * sp, cy * sp, sy * cp])
-
-
-def terrain_layout(xp, u):
-    """u: N_U uniforms in [0, 1). Returns pos (4, 3) and quat (4, 4) for OBSTACLES, around the origin."""
-    two_pi = 2 * xp.pi
-    a1 = u[0] * two_pi
-    r1 = 0.13 + 0.06 * u[1]
-    h1 = 0.003 + 0.007 * u[2]
-    a2 = a1 + xp.pi + (u[3] - 0.5) * 1.2
-    r2 = 0.13 + 0.06 * u[4]
-    h2 = 0.003 + 0.007 * u[5]
-    a3 = a1 + xp.pi / 2 + (u[6] - 0.5) * 1.0
-    r3 = 0.12 + 0.04 * u[7]
-    th = xp.radians(14.0) * u[8]
-    hx, hz = OBSTACLES[2][1][0], OBSTACLES[2][1][2]
-    top_h = 2 * hx * xp.sin(th)                                    # the ramp's high end
-    ramp_c = r3 + hx * xp.cos(th)
-    top_c = r3 + 2 * hx * xp.cos(th) + OBSTACLES[3][1][0]
-    pos = xp.stack([
-        xp.stack([r1 * xp.cos(a1), r1 * xp.sin(a1), h1 - 0.006]),
-        xp.stack([r2 * xp.cos(a2), r2 * xp.sin(a2), h2 - 0.006]),
-        xp.stack([ramp_c * xp.cos(a3), ramp_c * xp.sin(a3), hx * xp.sin(th) - hz * xp.cos(th)]),
-        xp.stack([top_c * xp.cos(a3), top_c * xp.sin(a3), top_h - OBSTACLES[3][1][2]]),
-    ])
-    zero = a1 * 0.0
-    quat = xp.stack([_quat_yaw_pitch(xp, a1, zero), _quat_yaw_pitch(xp, a2, zero),
-                     _quat_yaw_pitch(xp, a3, -th), _quat_yaw_pitch(xp, a3, zero)])
-    return pos, quat
-
-
-def add_obstacles(spec, pos=None, quat=None):
-    """Add the obstacle boxes to a MjSpec's world body (at the given layout, or parked out of the way)."""
-    for i, (name, size) in enumerate(OBSTACLES):
-        p = [5.0 + i, 5.0, -0.5] if pos is None else [float(v) for v in pos[i]]
-        q = [1, 0, 0, 0] if quat is None else [float(v) for v in quat[i]]
-        spec.worldbody.add_geom(name=name, type=mujoco.mjtGeom.mjGEOM_BOX, size=list(size), pos=p, quat=q,
-                                rgba=[0.55, 0.45, 0.35, 1], friction=[0.8, 0.02, 0.001])
 
 
 def load_terrain_model(sim_dt: float) -> mujoco.MjModel:

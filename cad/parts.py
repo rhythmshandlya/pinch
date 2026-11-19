@@ -653,8 +653,8 @@ def top_shell():
     # tilted back FACE_TILT so it looks up at you, its lower edge above the shoulder brackets. The module
     # goes in from inside the dome (the pocket is open at the back), glass against the bezel; four M2 screws
     # from the front go through the bezel, short spacer posts and the module's corner holes, nuts behind.
-    visor = FACE_LOC * (box(-3.0, 3.4, -FACE_HOUSING[0] / 2, FACE_HOUSING[0] / 2, -FACE_HOUSING[1] / 2,
-                            FACE_HOUSING[1] / 2))                                # bezel 1.6 mm in front of the glass
+    visor = FACE_LOC * (box(-3.0, 3.5, -FACE_HOUSING[0] / 2, FACE_HOUSING[0] / 2, -FACE_HOUSING[1] / 2,
+                            FACE_HOUSING[1] / 2))                                # bezel 1.7 mm in front of the glass
     shell = shell.fuse(visor)
     shell -= FACE_LOC * box(-2.2, 1.8, -FACE_MODULE[0] / 2 - 0.3, FACE_MODULE[0] / 2 + 0.3,
                             -FACE_MODULE[1] / 2 - 0.3, FACE_MODULE[1] / 2 + 0.3)          # module pocket
@@ -666,9 +666,12 @@ def top_shell():
     # through-holes: M2x8 screws from the front, through the bezel, the posts and the board, nuts behind
     pcb = 1.8 - FACE_GLASS_T                                 # the board's front face (visor frame x)
     for hy, hz in FACE_HOLES:
-        post = FACE_LOC * (Pos((pcb + 2.3) / 2, hy, hz) * Rot(0, 90, 0) * Cylinder(2.2, 2.3 - pcb))
+        # the post: 4.9 mm across with a 1.6 mm pilot the M2 screw threads into (1.65 mm walls; it was a 4.4 mm
+        # tube round a 2.2 mm clearance hole - 1.1 mm walls, walls check); clearance only through the bezel
+        post = FACE_LOC * (Pos((pcb + 2.3) / 2, hy, hz) * Rot(0, 90, 0) * Cylinder(2.45, 2.3 - pcb))
         shell = shell.fuse(post)
-        shell -= FACE_LOC * Pos(1.0, hy, hz) * Rot(0, 90, 0) * Cylinder(M2_CLEAR / 2, 8.0)
+        shell -= FACE_LOC * Pos(3.45, hy, hz) * Rot(0, 90, 0) * Cylinder(M2_CLEAR / 2, 2.3)      # bezel x 2.3..4.6
+        shell -= FACE_LOC * Pos(0.0, hy, hz) * Rot(0, 90, 0) * Cylinder(0.8, 6.0)               # pilot x -3..3
     dome_mid = Pos(cx, 0, Z_RIM) * b3d_scale(Sphere(1), by=(a - 0.5, b - 0.5, c - 0.5))
     above = box(-200, 200, -200, 200, Z_RIM, 100)
     # magnet bosses matching the chassis

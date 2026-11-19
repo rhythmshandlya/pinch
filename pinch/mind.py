@@ -25,7 +25,8 @@ from pinch.safety import NO_GO, DangerMap, hunger
 from pinch.touch import GESTURE_EVENT
 from pinch.world import WorldModel, situations
 
-MOTION_STEPS = {"emote", "walk", "goto", "turn_to", "pose", "push", "pick", "drop", "release", "recover"}
+MOTION_STEPS = {"emote", "walk", "goto", "turn_to", "pose", "push", "pick", "drop", "release", "recover",
+                "right_self"}
 MOOD_REPLY = {   # "how are you?" -> face, sound, emote
     "happy": ("happy", "happy_trill", "happy"), "excited": ("excited", "giggle", "excited"),
     "content": ("content", "purr", "fidget"), "love": ("love", "purr", "handshake"),
@@ -74,6 +75,7 @@ class Mind:
         self.activity, self.gen, self.started = None, None, 0.0
         self.waiting_motion, self.wait_until, self.praise_until = False, -1.0, -1.0
         self.stuck = False                      # StuckSense says so (a foot over the edge, caught, going nowhere)
+        self.flipped_t = -1e9                   # last time BodySense said "upside down" (it says so every tick)
         self.next_choice = 0.0
         self.log = []                        # (t, kind, text) for the app's diary and tests
         self._was_present = False
@@ -196,8 +198,13 @@ class Mind:
                 self.learn_danger(xy, "near_fall" if over else "stuck")
                 self._interrupt()
             return
-        if gesture == "upside_down":                         # it fell over: that spot is scary now
-            self.learn_danger(self.world.pose[:2], "fell")
+        if gesture == "upside_down":
+            new_fall = self.t - self.flipped_t > 2.0
+            self.flipped_t = self.t
+            if not new_fall:                                     # (still on its back: nothing new to learn)
+                return
+            self.learn_danger(self.world.pose[:2], "fell")       # it fell over: that spot is scary now
+            self._interrupt()
         ev = GESTURE_EVENT.get(gesture)
         if ev:
             self._blame(ev)
@@ -262,6 +269,11 @@ class Mind:
         self.tidy_tries.setdefault(name, []).append((self.t, ok))
         if not ok and sum(1 for t, k in self.tidy_tries[name] if not k and self.t - t < 600) >= 3:
             self.memory.remember("tidy", f"I couldn't put the {name} back, I'll leave it for now")
+
+    @property
+    def flipped(self):
+        """On its back right now (BodySense reports it every tick while it lasts)."""
+        return self.t - self.flipped_t < 0.6
 
     def take_request(self):
         r, self.request = self.request, None
@@ -386,7 +398,7 @@ class Mind:
         elapsed = self.t - self.started
         urgent = scores[best] >= 1.5 and scores[best] > scores.get(cur.name, 0) + 0.1
         better = scores[best] > scores.get(cur.name, 0) + 0.15 and elapsed > cur.min_s
-        if (cur.interruptible and (urgent or better)) or (not cur.interruptible and urgent and best in ("startle",)):
+        if (cur.interruptible and (urgent or better)) or (not cur.interruptible and urgent and best in ("startle", "right_self")):
             self._start(best)
             return True
         return False

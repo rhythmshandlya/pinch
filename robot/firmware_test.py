@@ -105,7 +105,7 @@ def main():
     hw.audio_mode = "quiet"
     check("never fell, servo safety never tripped", fw.bodysense is not None and hw.d.qpos[2] > 0.02
           and fw.stats["errors"] == 0, f"body height {hw.d.qpos[2] * 1000:.0f} mm, I2C errors {fw.stats['errors']}")
-    ms = fw.timing()
+    ms = fw.timing()                          # wall time: run on an otherwise idle machine (other load inflates it)
     check("control tick: its own work fits the 20 ms budget with room for a 5x slower CPU (RK3566)",
           ms["p95"] < 4.0, f"{ms} ms on this computer")
     srv.shutdown()

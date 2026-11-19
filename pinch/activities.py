@@ -396,6 +396,34 @@ class LowPower(Activity):
             yield ("wait", 30.0)
 
 
+class RightSelf(Activity):
+    """On its back (it fell, or someone put it down that way): a startled squeak, then roll back over with the
+    righting swing (crab/righting.py); if two tries fail, wave its legs and plead for help."""
+    name, min_s, quiet_ok, interruptible = "right_self", 1.0, True, False
+
+    def utility(self, m):
+        return 6.0 if m.flipped else 0.0
+
+    def run(self, m):
+        yield ("face", "scared")
+        if not m.affect.quiet:
+            yield ("sound", "startled_squeak")
+        for _ in range(2):
+            yield ("right_self",)
+            if m.last_step_ok:
+                yield ("face", "happy")
+                if not m.affect.quiet:
+                    yield ("sound", "happy_trill")
+                m.memory.remember("fell", "fell on my back and got up again")
+                return
+            yield ("wait", 1.0)
+        yield ("face", "sad")
+        if not m.affect.quiet:
+            yield ("sound", "whimper")
+        m.memory.remember("help", "fell on my back and couldn't get up")
+        yield ("wait", 15.0)
+
+
 class Unstick(Activity):
     """Stuck (a foot over the edge, caught on something, or walking without getting anywhere): grumble, try
     twice to work free, then ask for help - with long gaps, so it pleads rather than nags."""
@@ -692,4 +720,4 @@ class Greet(Activity):
 
 
 LIBRARY = [Idle(), Obey(), GoQuiet(), AfterMeeting(), SeekAttention(), Comfort(), Celebrate(), ReactTouch(),
-           Startle(), Unstick(), Hide(), Shy(), HeadHome(), LowPower(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet()]
+           Startle(), RightSelf(), Unstick(), Hide(), Shy(), HeadHome(), LowPower(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet()]
