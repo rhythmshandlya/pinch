@@ -53,6 +53,7 @@ class Pinch:
         self.viewer = None
         self.last_user = time.time()
         self.meeting_audio = None              # generator of 1 s chunks while a pretend call is on
+        self.visitors = {}                      # pretend people here now: id -> name
         self.mic_q = queue.Queue()
         self.mic_stream = None
         self.mic_level = 0.0
@@ -89,6 +90,23 @@ class Pinch:
                         break
                 self.sim.place(name, p, rng.uniform(-np.pi, np.pi))
         self.do(f)
+
+    def visitor(self, pid, name, here, rough=False):
+        """Pretend people (on the robot, the camera recognises faces): while someone is here Pinch sees them
+        every second. A rough visitor shakes Pinch when they arrive."""
+        def f():
+            if here:
+                self.visitors[pid] = name
+                self.sim.mind.see_person(pid, 0.9, name=name)
+                if rough:
+                    self.sim.mind.touch("shaken")
+            else:
+                self.visitors.pop(pid, None)
+        self.do(f)
+
+    def battery(self, frac):
+        """Pretend battery level (moving it up = charging)."""
+        self.do(lambda: setattr(self.sim.mind.world, "battery", float(frac)))
 
     def pen_to_edge(self):
         self.do(lambda: self.sim.place("pen", (0.05, -0.205), 0.0))
@@ -148,6 +166,9 @@ class Pinch:
             self.actions.get()()
         if time.time() - self.last_user > 300 and sim.user_active:     # nobody around for 5 minutes
             sim.user_active = False
+        if self.visitors and sim.k % int(1.0 / DT) == 0:
+            for pid, name in self.visitors.items():
+                sim.mind.see_person(pid, 0.9, name=name)
         if self.meeting_audio is not None and sim.k % int(1.0 / DT) == 0:
             sim.hear_audio(next(self.meeting_audio))
         while not self.mic_q.empty():
@@ -261,8 +282,20 @@ def build_ui(p: Pinch):
     ttk.Checkbutton(f, text="Mute", variable=mute_var,
                     command=lambda: setattr(p, "muted", mute_var.get())).grid(row=0, column=3, padx=6)
 
+    buttons(9, [("Friend Alex comes", lambda: p.visitor("alex", "Alex", True)),
+                ("Alex leaves", lambda: p.visitor("alex", "Alex", False)),
+                ("Stranger comes", lambda: p.visitor("stranger", "", True)),
+                ("Stranger leaves", lambda: p.visitor("stranger", "", False)),
+                ("Rough visitor (shakes)", lambda: p.visitor("rex", "Rex", True, rough=True)),
+                ("Rex leaves", lambda: p.visitor("rex", "Rex", False))])
+    bf = tk.Frame(root, bg=bg)
+    bf.grid(row=10, column=0, columnspan=3, padx=10, pady=2, sticky="w")
+    tk.Label(bf, text="Battery %", bg=bg, fg="#c8ccd6").grid(row=0, column=0)
+    tk.Scale(bf, from_=0, to=100, orient="horizontal", length=260, bg=bg, fg="#c8ccd6", highlightthickness=0,
+             command=lambda v: p.battery(float(v) / 100)).grid(row=0, column=1)
+    bf.winfo_children()[-1].set(100)
     diary = tk.Listbox(root, height=7, width=64, bg="#1d2027", fg="#c8ccd6", borderwidth=0, font=("Consolas", 9))
-    diary.grid(row=9, column=0, columnspan=3, padx=10, pady=(4, 10))
+    diary.grid(row=11, column=0, columnspan=3, padx=10, pady=(4, 10))
     root.bind_all("<Motion>", lambda e: setattr(p, "last_user", time.time()))
     state = {"img": None, "log": 0}
 
