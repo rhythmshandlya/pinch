@@ -1,0 +1,18 @@
+[Unit]
+Description=Pinch the robot crab (firmware: body, mind, senses, face)
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/pinch
+EnvironmentFile=-/etc/pinch.env
+ExecStart=/opt/pinch/venv/bin/python /opt/pinch/robot/pinch_main.py
+Restart=on-failure
+RestartSec=5
+# a safety stop exits the loop with the servos off; a restart waits 5 s so it can't thrash
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

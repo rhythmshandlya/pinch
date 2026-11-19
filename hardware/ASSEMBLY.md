@@ -53,7 +53,8 @@ weighing about 610 g. Every wire is inside the body except the short loops that 
    Then SSH in from your laptop.
 3. Copy this project folder to the Radxa, for example `scp -r robotic-crab <user>@<radxa-ip>:~`.
 4. Turn on the hardware it needs: `sudo rsetup` → **Overlays** → enable
-   - **I2C3-M0** (pins 3 / 5: IMU, battery monitor, distance sensors)
+   - **I2C3-M0** (pins 3 / 5: IMU, battery monitor, distance sensors, touch board)
+   - **I2C4-M0** (pins 27 / 28: the face screen, on its own bus so the eyes never slow the IMU)
    - **PWM8-M0, PWM9-M0, PWM12-M1, PWM13-M1, PWM14-M0, PWM15-M1** (the six arm servos)
    - the **Raspberry Pi Camera v1.3** overlay (our OV5647 camera)
    - and install our audio overlay: **Install overlay from source** → `robotic-crab/hardware/radxa/crab-audio.dts`,
@@ -189,11 +190,22 @@ Turn every joint gently by hand over its range (`crab/params.py`). The CAD check
    5. Screw the tray onto its 4 posts (M2×8).
 7. **Camera:** push the camera head into the pocket behind the lens hole in the chassis front wall (between
    the arms). Its flex goes up through the slot to the Radxa's camera connector.
-8. **Speaker and touch pads (inside the dome):**
+8. **Face, speaker and touch pads (inside the dome):**
+   - Slide the face OLED (set to I2C, see the wiring table) into the visor from inside the dome, screen
+     facing out through the window, and fix it with the two M2 screws from below.
    - Glue the 28 mm speaker face-up into its ring under the grille.
-   - Tape the two TTP223 boards inside the dome, one at the head and one at the back.
+   - Touch pads: stick strips of copper tape inside the dome (head, back left, back right, both sides,
+     below the face) and on the inside of each claw's palm; solder a thin wire to each and run them to
+     the MPR121 (E0–E7, order in the wiring table). Test each with `python robot/pinch_main.py` and
+     `curl localhost:8080/status` while touching it.
+   - Two microphones under the two small mic holes (left and right), 70 mm apart.
 9. **Magnets:** glue 4 magnets into the chassis bosses and 4 into the shell posts. **Check that each pair
    attracts before the glue sets** (mark the faces with a pen). The shell then clicks on and pulls off by hand.
+
+**The desk tray** (printed with the robot): print `docs/marker_7.png` at 100 % (the black square must
+measure 30.0 mm), cut it out along the grey line and stick it in the recess on the tray's back tab.
+Put the tray on the right side of your desk, open side facing you. That's where Pinch tidies things
+to, and how it knows where it is on the desk.
 
 ## Stage 6: first power-up
 

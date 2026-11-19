@@ -31,8 +31,10 @@ from crab.policy_np import POLICY_DIR, NumpyPolicy  # noqa: E402
 
 MODEL = ROOT / "sim" / "models" / "crab.xml"
 V, W = _S / _T, 1 / _T
+# commands inside the trained policy's envelope (it learned "clearly moving" or "stopped"; slower requests
+# are raised to its minimum by the body, and precise slow moves use the scripted gait)
 WALK_CMDS = [(0.0, (0.0, 0.0, 0.0)), (1.0, (0.05 * V, 0, 0)), (3.5, (0, 0.06 * V, 0)), (6.0, (0, 0, 0.5 * W)),
-             (8.5, (-0.04 * V, 0, 0)), (10.5, (0.03 * V, 0.03 * V, 0))]
+             (8.5, (-0.09 * V, 0, 0)), (10.5, (0.045 * V, 0.045 * V, 0))]
 SUB = 10
 
 

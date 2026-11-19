@@ -37,6 +37,11 @@ PRESETS = {
                   unroll_length=20, num_updates_per_batch=4, episode_length=200,
                   num_evals=16, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
                   discounting=0.97, policy_layers=(256, 256, 128), value_layers=(256, 256, 256)),
+    # push skill (hierarchical: 10 Hz decisions over the walking policy), 15 s episodes
+    "push": dict(num_timesteps=15_000_000, num_envs=2048, batch_size=256, num_minibatches=16,
+                 unroll_length=20, num_updates_per_batch=4, episode_length=150,
+                 num_evals=10, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
+                 discounting=0.99, policy_layers=(128, 128), value_layers=(256, 256)),
     # emote tracking: shorter episodes (one or two emotes), fewer steps
     "emote": dict(num_timesteps=40_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
                   unroll_length=20, num_updates_per_batch=4, episode_length=500,
@@ -62,6 +67,9 @@ def make_env(name):
     if name == "grasp":
         from training.grasp_env import CrabGraspEnv
         return CrabGraspEnv()
+    if name == "push":
+        from training.push_env import CrabPushEnv
+        return CrabPushEnv()
     from training.crab_env import CrabWalkEnv
     return CrabWalkEnv()
 
@@ -130,7 +138,7 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preset", choices=list(PRESETS), default="smoke")
-    ap.add_argument("--env", choices=["walk", "emote", "grasp"], default="walk")
+    ap.add_argument("--env", choices=["walk", "emote", "grasp", "push"], default="walk")
     ap.add_argument("--timesteps", type=int, help="override num_timesteps")
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")
     ap.add_argument("--run", default=None, help="run name (default: env-preset-timestamp)")

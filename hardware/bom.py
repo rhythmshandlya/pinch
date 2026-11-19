@@ -38,8 +38,8 @@ ITEMS = [
      "required", "15 in stock", "Replaces the sold-out Pi Zero 2 W: same size, 40-pin header and mounting holes"),
     ("Brain & senses", "SanDisk Ultra 32 GB microSD (A1, class 10)", RB, "R268040", 1, 1629.00,
      "required", "in stock", "Radxa OS (Debian)"),
-    ("Brain & senses", "Raspberry Pi Zero 5 MP mini camera (Waveshare 12039, OV5647)", EV, "061-12039", 1, 1184.72,
-     "required", "7 in stock", "Slim 11.5 mm strip with built-in flex; sits in the front wall"),
+    ("Brain & senses", "160 deg wide-angle camera for Pi Zero (OV5647 fisheye, 22-pin)", AZ, "B083XMGSVP", 1, 3346.00,
+     "required", "listed", "Pinch's eyes: sees the claw's workspace, the desk around it and your face (decision 16)"),
     ("Brain & senses", "Amkette USB-C (male) to USB-A (female) OTG adapter", AZ, "B0F48DGQLY", 1, 99.00,
      "required", "listed", "Radxa's USB-C port -> FE-URT-1. Evelta's (083-USB2-F-C-MOD) was sold out"),
     ("Brain & senses", "7Semi BNO055 9-DOF IMU breakout", EV, "004-ES-12149", 1, 1341.66,
@@ -52,10 +52,14 @@ ITEMS = [
      "required", "14 in stock", "Tones and chirps (the pet never talks)"),
     ("Brain & senses", "28 mm 8 ohm 0.5 W speaker (GSPK2805TN)", RB, "R210811", 1, 82.00,
      "required", "in stock", "Glued into the seat inside the dome"),
-    ("Brain & senses", "DFRobot I2S MEMS microphone module", RB, "1074722", 1, 629.00,
-     "required", "in stock", "Listens (claps, voice level, 'hello'); INMP441 was sold out"),
-    ("Brain & senses", "TTP223 capacitive touch module (pack of 2)", RB, "29793", 1, 19.00,
-     "required", "in stock", "Head and back 'petting' pads inside the dome"),
+    ("Brain & senses", "DFRobot I2S MEMS microphone module", RB, "1074722", 2, 629.00,
+     "required", "in stock", "Two (left + right on one I2S line): hears you, your mood, meetings, and where you are"),
+    ("Brain & senses", "2.42 inch 128x64 white OLED, SSD1309, I2C/SPI (Teyleten Robot)", AZ, "B09LND6QJ1", 1, 2300.00,
+     "required", "listed", "Pinch's face (animated eyes). Set to I2C (resistor jumpers on the back), own bus"),
+    ("Brain & senses", "MPR121 12-channel capacitive touch controller (Robocraze)", AZ, "B07KF5FNBL", 1, 229.00,
+     "required", "listed", "Touch zones under the shell: head, back, sides, face, claws (strokes, tickles, boops)"),
+    ("Brain & senses", "Conductive copper foil tape, 10 mm x 10 m", AZ, "B0FGQCPFSP", 1, 294.00,
+     "required", "listed", "The touch pads: strips stuck inside the shell, wired to the MPR121"),
     ("Brain & senses", "40-pin female-female jumper wires, 20 cm", EV, "083-JW-254-F-F-40", 1, 68.44,
      "required", "54 in stock", "Peel off what you need for the sensor wiring"),
     # ------------------------------------------------------------- power
@@ -117,9 +121,9 @@ ITEMS = [
 
 
 PRINT_SERVICE_NOTE = (
-    "Upload the 12 STL files from cad/out/print/ to robu.in's 3D printing service "
+    "Upload the 13 STL files from cad/out/print/ to robu.in's 3D printing service "
     "(https://robu.in/product/3d-printing-service1/, SKU 901845) and set the quantities from "
-    "cad/out/print_sheet.csv (26 pieces). Choose PETG, and TPU for the 4 foot tips. robu shows the price "
+    "cad/out/print_sheet.csv (27 pieces, incl. the desk tray). Choose PETG, and TPU for the 4 foot tips. robu shows the price "
     "(material, service, shipping and tax) after the upload; there is no published per-gram rate.")
 
 

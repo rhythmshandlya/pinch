@@ -93,3 +93,66 @@ be revisited. **Review** marks the ones worth a second look from you.
 15. **The LLM is gemma4:e4b, not llama3.2:3b.** Only gemma4:e4b was installed in Ollama, and I didn't
     pull a 2 GB model unasked. Set `PINCH_LLM=llama3.2:3b` after `ollama pull llama3.2:3b` to switch;
     it will be faster on the CPU. Instant keyword rules handle the common phrases either way.
+16. **Wide-angle camera (your suggestion): 160° OV5647 fisheye with a Pi Zero connector** (Amazon.in,
+    ₹3,346). From 4.5 cm above the desk, one camera has to see three things: the claw's workspace right
+    in front, the desk around Pinch, and your face about 60 cm up. A narrow lens can't do all three. The
+    twin's eye camera is now 80° vertical (96° horizontal, roughly what's left after correcting the
+    fisheye distortion).
+    - **Review:** the fisheye module is bigger than the slim camera the chassis front-wall pocket was
+      sized for. Measure it when it arrives and widen the pocket (`CAM_HEAD` in cad/parts.py).
+17. **Where am I on the desk: an ArUco marker on the desk tray's tab.** OpenCV finds it, and solvePnP
+    turns the corners into Pinch's position and heading. In the twin, the vision code on rendered
+    camera images averages 8.6 mm and 0.9° of error. Between sightings, Pinch dead-reckons from its
+    walking commands. Desk things are found by colour (blue pen, pink eraser, red cap, yellow ball)
+    and placed on the desk plane, within 0.3–16 mm. Fiducial localization is the standard robust choice
+    for a known workspace.
+    - **Review:** colour works for Pinch's own toys. Arbitrary objects on your desk would need a
+      learned detector (the RK3566 has a small NPU), which is not done.
+18. **The face visor replaces the eye stalks** (CAD). A forehead housing on the dome holds the 2.42"
+    OLED, tilted back 25° so it looks up at you.
+    - Its lower edge is about 16 mm up, above the shoulder brackets.
+    - The module slides in from inside the dome and two M2 screws hold it.
+    - Pinch is now about 10 cm tall, was 9; the mass is unchanged (the stalks went), and the standing
+      load is the same, 33 % of rated.
+    - Every emote still passes.
+19. **Jaw lips (CAD and twin)**: 1.2 mm ledges along the bottom of each finger's last 10 mm; they just
+    meet when the claw closes.
+20. **Review: picking up still needs a claw redesign.** Measured in the twin:
+    - With the pen placed perfectly, the jaws close on it but can't lift it.
+    - The fingers point 40° down along the pen, so near the hinge they sit about 4 mm higher than at
+      the tips. They land on the pen's shoulders and pinch above its widest point, and it wedges out.
+    - The lips end up beside the pen, not under it.
+
+    The RL grasp run (reach → grasp → lift rewards, gated, with a success metric) diverged to NaN at
+    5.6 M steps with 0 % success, and I stopped it (about $0.5). The fix is mechanical: tongs-style jaws
+    that come down near vertical (fingers angled down from the arm, the hinge tilted to match), then
+    retrain. Until then, tidying pushes, and fetch/pick-up is marked not ready.
+21. **Walking: the learned policy for free walking, the scripted gait for precise moves.**
+    - v2 inside its trained envelope (normal conditions): forward, sideways and turning track 91–98 %
+      of the command; it never fell in 40 harsh episodes. But it stands still for commands below
+      ~35 % of its top speed (the training's minimum), and on the harsh bench it tracked 44 % against
+      69 % for the scripted gait.
+    - v3 (training now): randomization made as harsh as the bench (friction to 0.3, motors 35 % weaker,
+      desk tilt to 5°, bigger shoves) and slow commands down to 20 %.
+    - On the robot, the body raises too-small commands to the policy's minimum, and precise moves
+      (lining up the claw, pushing) keep the scripted gait. That's the usual hierarchical split.
+22. **Tidying by pushing: scripted, but brittle → RL push next.** In the twin, pushes work:
+    - the cap into the tray when asked (94 s)
+    - the eraser, noticed and tidied without asking (109 s)
+    - "I can't reach it, help me" when a thing sits too close to the back edge
+
+    But every object needed a different hand-tuned threshold, and changing one broke another. Following
+    the loco-manipulation literature, the next step is a learned push skill: a high-level policy that
+    sends walking commands to the walking policy and moves the arm, rewarded for moving the object
+    toward its goal. Not done yet.
+23. **Firmware**:
+    - robot/pinch_main.py runs the same brain and body as the twin.
+    - Senses run in threads: touch (MPR121), cliff (VL53L0X), the camera, the stereo microphones, and
+      the face OLED on its own I2C bus.
+    - A local HTTP API (`/say`, `/touch`, `/status`).
+    - A systemd service and an install script (deploy/).
+
+    robot/firmware_test.py runs the deployable firmware on emulated hardware: the real I2C drivers talk
+    to fake chips, the camera is the twin's render, and the mics play synthetic voices. 8/8 checks pass.
+    - **Review:** the VL53L0X driver is a minimal init without ST's calibration. It's enough to tell
+      the desk from a drop, but check it on the real sensor.

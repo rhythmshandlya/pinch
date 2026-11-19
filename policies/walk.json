@@ -1,6 +1,6 @@
 {
- "run": "walk-v1",
- "steps": 91914240,
+ "run": "walk-v2",
+ "steps": 100000000,
  "num_timesteps": 100000000,
  "num_envs": 4096,
  "batch_size": 256,

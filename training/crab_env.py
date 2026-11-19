@@ -92,7 +92,7 @@ class CrabWalkEnv(Env):
         v, w = PARAMS.scale / PARAMS.scale ** 0.5, 1 / PARAMS.scale ** 0.5      # speeds scale with size
         if cmd_ranges is None:
             cmd_ranges = ((-0.10 * v, 0.12 * v), (-0.12 * v, 0.12 * v), (-0.7 * w, 0.7 * w))
-        push_vel = 0.15 * v if push_vel is None else push_vel
+        push_vel = 0.2 * v if push_vel is None else push_vel        # v3: bigger shoves (v2: 0.15 v)
         self.mj_model = load_training_model(sim_dt)
         self.sys = mjx.put_model(self.mj_model)   # attribute name expected by brax DR wrapper
         self.sim_dt = sim_dt
@@ -149,7 +149,7 @@ class CrabWalkEnv(Env):
         cmd = jax.random.uniform(k1, (3,), minval=self.cmd_lo, maxval=self.cmd_hi)
         # each component either clearly on or off, so "walk slowly" never looks like "stand"
         on = jax.random.uniform(k3, (3,)) < 0.6
-        cmd = jp.where(on & (jp.abs(cmd) < 0.35 * self.cmd_hi), jp.sign(cmd) * 0.35 * self.cmd_hi, cmd) * on
+        cmd = jp.where(on & (jp.abs(cmd) < 0.2 * self.cmd_hi), jp.sign(cmd) * 0.2 * self.cmd_hi, cmd) * on   # v3: 0.2 (v2: 0.35)
         stand = jax.random.uniform(k2) < 0.08                        # 8 %: stand still
         return jp.where(stand, jp.zeros(3), cmd)
 
@@ -293,8 +293,8 @@ def domain_randomize(sys: mjx.Model, rng: jax.Array):
     """
     @jax.vmap
     def rand(key):
-        k = jax.random.split(key, 6)
-        friction = sys.geom_friction.at[:, 0].set(jax.random.uniform(k[0], minval=0.5, maxval=1.25))
+        k = jax.random.split(key, 8)
+        friction = sys.geom_friction.at[:, 0].set(jax.random.uniform(k[0], minval=0.3, maxval=1.25))   # v3: 0.3
         body_mass = sys.body_mass * jax.random.uniform(k[1], sys.body_mass.shape, minval=0.85, maxval=1.15)
         # servo stiffness: Open Duck runs ~0.74x of the BAM-derived kp, so cover that and a bit above
         kp_scale = jax.random.uniform(k[2], (sys.nu,), minval=0.75, maxval=1.25)   # unknown firmware P gains
@@ -303,7 +303,7 @@ def domain_randomize(sys: mjx.Model, rng: jax.Array):
         # Motor strength: the micro servos have no published lab measurements, so their
         # datasheet models are randomised widely (-25% .. +15%); force limit and back-EMF
         # damping move together (a weaker motor is also slower).
-        s = jax.random.uniform(k[3], (sys.nu,), minval=0.75, maxval=1.15)
+        s = jax.random.uniform(k[3], (sys.nu,), minval=0.65, maxval=1.15)                          # v3: 0.65
         frange = sys.actuator_forcerange * s[:, None]
         damp_scale = s
         noise = jax.random.uniform(k[5], (sys.nu,), minval=0.85, maxval=1.15)
@@ -311,12 +311,16 @@ def domain_randomize(sys: mjx.Model, rng: jax.Array):
             (damp_scale * noise)[jp.asarray(_ACT_IDS)])
         damping = sys.dof_damping * dof_scale
         armature = sys.dof_armature * jax.random.uniform(k[4], sys.dof_armature.shape, minval=0.8, maxval=1.2)
-        return friction, body_mass, gain, bias, frange, armature, damping
+        # v3: the desk is never perfectly level - tilt gravity up to 5 deg in a random direction
+        tilt = jax.random.uniform(k[6], minval=0.0, maxval=jp.radians(5.0))
+        az = jax.random.uniform(k[7], minval=0.0, maxval=2 * jp.pi)
+        gravity = 9.81 * jp.array([jp.sin(tilt) * jp.cos(az), jp.sin(tilt) * jp.sin(az), -jp.cos(tilt)])
+        return friction, body_mass, gain, bias, frange, armature, damping, gravity
 
-    friction, body_mass, gain, bias, frange, armature, damping = rand(rng)
+    friction, body_mass, gain, bias, frange, armature, damping, gravity = rand(rng)
     fields = dict(geom_friction=friction, body_mass=body_mass, actuator_gainprm=gain,
                   actuator_biasprm=bias, actuator_forcerange=frange,
                   dof_armature=armature, dof_damping=damping)
     in_axes = jax.tree_util.tree_map(lambda _: None, sys)
-    in_axes = in_axes.tree_replace({k: 0 for k in fields})
-    return sys.tree_replace(fields), in_axes
+    in_axes = in_axes.tree_replace({**{k: 0 for k in fields}, "opt.gravity": 0})
+    return sys.tree_replace({**fields, "opt.gravity": gravity}), in_axes

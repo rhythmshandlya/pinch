@@ -121,7 +121,7 @@
       <camera name="track" mode="trackcom" pos="0.2184 -0.26 0.156" xyaxes="0.7657 0.6432 -0 -0.2685 0.3197 0.9087"/>
       <camera name="eye_cam" pos="0.04893 0 0.001" xyaxes="0 -1 0 0 0 1" fovy="41.4"/>
       <site name="imu" pos="0 0 0" size="0.0052" rgba="0 0 0 0"/>
-      <inertial pos="2.658793e-03 1.004280e-05 -6.246010e-03" mass="0.322577" fullinertia="3.487040e-04 2.242482e-04 4.304114e-04 4.199581e-08 -2.596268e-06 -6.139437e-08"/>
+      <inertial pos="2.601833e-03 8.517051e-06 -6.236518e-03" mass="0.320993" fullinertia="3.543353e-04 2.277107e-04 4.318262e-04 2.754236e-08 -3.098998e-06 -4.805697e-08"/>
         <geom class="visual" type="mesh" mesh="body_chassis" material="printed"/>
         <geom class="visual" type="mesh" mesh="body_top_shell" material="shell"/>
         <geom class="visual" type="mesh" mesh="body_belly_door" material="printed"/>
@@ -273,7 +273,7 @@
         <body name="L_upper" pos="0.016 0 0">
           <joint name="L_shoulder_pitch" class="srv_GS4308" axis="0 -1 0" range="-0.6981 1.257"/>
         <joint name="L_shoulder_pitch_backlash" class="bl_GS4308" axis="0 -1 0"/>
-          <inertial pos="2.457143e-02 2.140835e-03 -3.725530e-03" mass="0.010963" fullinertia="6.466734e-07 1.346760e-06 1.387182e-06 3.600456e-07 9.811283e-08 -4.336661e-08"/>
+          <inertial pos="2.458585e-02 2.139424e-03 -3.728290e-03" mass="0.010970" fullinertia="6.468527e-07 1.350819e-06 1.391136e-06 3.604237e-07 9.885201e-08 -4.343895e-08"/>
         <geom class="visual" type="mesh" mesh="L_upper_upper_arm" material="claw"/>
         <geom class="visual" type="mesh" mesh="L_upper_pitch_horn" material="horn"/>
         <geom class="visual" type="mesh" mesh="L_upper_claw_servo" material="servo"/>
@@ -286,7 +286,7 @@
           <body name="L_dactyl" pos="0.0300 0 0">
             <joint name="L_claw" class="srv_GS4308" axis="0 0 1" range="0 0.9599"/>
         <joint name="L_claw_backlash" class="bl_GS4308" axis="0 0 1"/>
-            <inertial pos="7.251695e-03 1.043732e-03 5.953580e-03" mass="0.001338" fullinertia="9.461622e-08 1.710890e-07 9.399388e-08 -1.055709e-08 6.529942e-08 1.066037e-08"/>
+            <inertial pos="7.311605e-03 1.039684e-03 5.880384e-03" mass="0.001345" fullinertia="9.602720e-08 1.734944e-07 9.499720e-08 -1.049346e-08 6.644999e-08 1.058263e-08"/>
         <geom class="visual" type="mesh" mesh="L_dactyl_dactyl" material="claw"/>
         <geom class="visual" type="mesh" mesh="L_dactyl_claw_horn" material="horn"/>
             <geom type="box" pos="0.0144 0.0025 -0.005" size="0.0096 0.002 0.004" mass="0.0015" material="claw"/>
@@ -306,7 +306,7 @@
         <body name="R_upper" pos="0.016 0 0">
           <joint name="R_shoulder_pitch" class="srv_GS4308" axis="0 -1 0" range="-0.6981 1.257"/>
         <joint name="R_shoulder_pitch_backlash" class="bl_GS4308" axis="0 -1 0"/>
-          <inertial pos="2.457143e-02 -2.140835e-03 -3.725530e-03" mass="0.010963" fullinertia="6.466734e-07 1.346760e-06 1.387182e-06 -3.600456e-07 9.811283e-08 4.336661e-08"/>
+          <inertial pos="2.458585e-02 -2.139424e-03 -3.728290e-03" mass="0.010970" fullinertia="6.468527e-07 1.350819e-06 1.391136e-06 -3.604237e-07 9.885201e-08 4.343895e-08"/>
         <geom class="visual" type="mesh" mesh="R_upper_upper_arm" material="claw"/>
         <geom class="visual" type="mesh" mesh="R_upper_pitch_horn" material="horn"/>
         <geom class="visual" type="mesh" mesh="R_upper_claw_servo" material="servo"/>
@@ -319,7 +319,7 @@
           <body name="R_dactyl" pos="0.0300 0 0">
             <joint name="R_claw" class="srv_GS4308" axis="0 0 -1" range="0 0.9599"/>
         <joint name="R_claw_backlash" class="bl_GS4308" axis="0 0 -1"/>
-            <inertial pos="7.251695e-03 -1.043732e-03 5.953580e-03" mass="0.001338" fullinertia="9.461622e-08 1.710890e-07 9.399388e-08 1.055709e-08 6.529942e-08 -1.066037e-08"/>
+            <inertial pos="7.311605e-03 -1.039684e-03 5.880384e-03" mass="0.001345" fullinertia="9.602720e-08 1.734944e-07 9.499720e-08 1.049346e-08 6.644999e-08 -1.058263e-08"/>
         <geom class="visual" type="mesh" mesh="R_dactyl_dactyl" material="claw"/>
         <geom class="visual" type="mesh" mesh="R_dactyl_claw_horn" material="horn"/>
             <geom type="box" pos="0.0144 -0.0025 -0.005" size="0.0096 0.002 0.004" mass="0.0015" material="claw"/>

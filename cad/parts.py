@@ -248,12 +248,14 @@ def upper_arm():
     jaw = Pos(0, 0, JAW_Z[0]) * extrude(jaw, JAW_Z[1] - JAW_Z[0])
     for x in (xf + 4.0, xf + 7.5, xf + 11.0):                # teeth on the gripping edge
         jaw -= box(x, x + 1.6, -1.6, 0.5, JAW_Z[0] - 1, JAW_Z[1] + 1)
+    jaw += box(tip - 10.0, tip, -0.5, 0.0, JAW_Z[0], JAW_Z[0] + LIP_T)    # lip: meets the moving finger's
     p += jaw
     p -= cyl_y(1.3, YU0 - 1, YU1 + 1, 0, 0)                  # horn screw
     return p
 
 
 ZD0 = Z_CA + GS.horn_face             # 13.0 moving finger's plate on the claw horn
+LIP_T = 1.2                            # jaw lips: 1.2 mm thick ledges along the bottom of the last 10 mm
 
 
 def dactyl(side=1):
@@ -266,6 +268,7 @@ def dactyl(side=1):
     jaw = Pos(0, 0, JAW_Z[0]) * extrude(jaw, JAW_Z[1] - JAW_Z[0])
     for x in (D_DROP[1] + 1.5, D_DROP[1] + 5.0):              # (none near the narrow tip)
         jaw -= box(x, x + 1.6, -0.5, 1.6, JAW_Z[0] - 1, JAW_Z[1] + 1)
+    jaw += box(tip - 10.0, tip, 0.0, 0.5, JAW_Z[0], JAW_Z[0] + LIP_T)     # lip (meets the fixed finger's)
     p += jaw
     p -= disc(1.3, ZD0 - 1, ZD0 + GS_PLATE + 1)
     return p if side > 0 else mirror(p, about=Plane.XZ)
@@ -315,6 +318,12 @@ SPEAKER = (-15.0, 0.0, 14.2)      # x, y, radius of the 28 mm speaker seat insid
 SWITCH = (-26.0, 0.0, 13.4, 19.4) # power switch cutout in the floor (behind the battery): x, y, size x, size y
 MIC = (24.0, -20.0)               # microphone board on the tray, under a 1.6 mm port in the dome
 TOF = (-8.0, -17.0)               # x, z of the distance-sensor windows in the side walls (y ~ +-51)
+FACE_TILT = 25.0                  # deg the face screen leans back (it looks up at you)
+FACE_CENTRE = (36.0, 0.0, 36.0)   # centre of the OLED module, body frame (mm): lower edge ~16 mm up
+FACE_MODULE = (61.5, 39.5)        # 2.42" SSD1309 module (width, height)
+FACE_ACTIVE = (55.0, 27.5)        # its lit area
+FACE_HOUSING = (67.5, 45.0)       # visor outline
+FACE_LOC = Pos(*FACE_CENTRE) * Rot(0, -FACE_TILT, 0)     # local x = out of the screen, y = across, z = up
 
 
 def _xf(pts, x, y, yaw_deg):
@@ -537,6 +546,23 @@ def pi_tray():
 
 
 
+def desk_tray():
+    """Pinch's desk tray: where pens and small things live (16 x 7 cm inside), a 1 mm floor with a 2 cm
+    ramped front lip Pinch can push things up, low walls on three sides, and an upright tab at the back
+    for the 40 mm ArUco marker sticker (docs/marker_7.png) that tells Pinch where it is on the desk."""
+    ix, iy = 160.0, 70.0
+    t = 2.0
+    p = box(-ix / 2 - t, ix / 2 + t, -iy / 2, iy / 2 + t, 0, 1.0)                  # floor
+    p += box(-ix / 2 - t, ix / 2 + t, iy / 2, iy / 2 + t, 0, 12.0)                 # back wall
+    p += box(-ix / 2 - t, -ix / 2, -iy / 2, iy / 2 + t, 0, 12.0)                    # side walls
+    p += box(ix / 2, ix / 2 + t, -iy / 2, iy / 2 + t, 0, 12.0)
+    ramp = Plane.YZ * Polygon((0, 0), (20.0, 0), (20.0, 1.0), align=None)          # rises 1 mm over 20 mm
+    p += Pos(-ix / 2 - t, -iy / 2 - 20.0, 0) * extrude(ramp, ix + 2 * t)
+    p += box(-24.0, 24.0, iy / 2, iy / 2 + 3.0, 0, 52.0)                          # marker tab
+    p -= box(-20.5, 20.5, iy / 2 - 0.5, iy / 2 + 0.6, 6.0, 46.5)                  # sticker recess (0.5 mm)
+    return p
+
+
 def belly_door():
     """Battery door: screws under the floor (2 x M2)."""
     bx0, bx1, by0, by1 = BAY
@@ -565,13 +591,20 @@ def top_shell():
     def top(x, y):
         return Z_RIM + c * max(0.0, 1 - ((x - cx) / a) ** 2 - (y / b) ** 2) ** 0.5
 
-    # eye stalks, set back from the front edge so they stand on solid shell
-    safe = pf.buffer(-7.0, 16)
-    ex = next(x / 2 for x in range(int(bounds[2] * 2), 0, -1) if safe.contains(Point(x / 2, 11.0)))
-    for s in (1, -1):
-        zt = top(ex, 11.0)
-        stalk = Pos(ex, s * 11.0, zt + 3.5) * Cylinder(3.0, 11) + Pos(ex, s * 11.0, zt + 10.0) * Sphere(5.5)
-        shell = shell.fuse(stalk)
+    # the face: a forehead visor holding the 2.42" OLED (61.5 x 39.5 mm module, 55 x 27.5 mm active area),
+    # tilted back FACE_TILT so it looks up at you, its lower edge above the shoulder brackets. The module
+    # slides in from inside the dome (its flex/wires stay inside) and is held by two M2 screws.
+    visor = FACE_LOC * (box(-3.0, 3.0, -FACE_HOUSING[0] / 2, FACE_HOUSING[0] / 2, -FACE_HOUSING[1] / 2,
+                            FACE_HOUSING[1] / 2))
+    shell = shell.fuse(visor)
+    shell -= FACE_LOC * box(-2.2, 1.8, -FACE_MODULE[0] / 2 - 0.3, FACE_MODULE[0] / 2 + 0.3,
+                            -FACE_MODULE[1] / 2 - 0.3, FACE_MODULE[1] / 2 + 0.3)          # module pocket
+    shell -= FACE_LOC * box(1.0, 4.0, -FACE_ACTIVE[0] / 2 - 0.5, FACE_ACTIVE[0] / 2 + 0.5,
+                            -FACE_ACTIVE[1] / 2 - 0.5, FACE_ACTIVE[1] / 2 + 0.5)          # window
+    shell -= FACE_LOC * box(-30, -2.0, -FACE_MODULE[0] / 2 + 3, FACE_MODULE[0] / 2 - 3,
+                            -FACE_MODULE[1] / 2 + 3, FACE_MODULE[1] / 2 - 3)              # open to the dome
+    for sy in (-1, 1):                                       # two M2 screws from below into the module's holes
+        shell -= FACE_LOC * Pos(-0.2, sy * 28.25, -FACE_HOUSING[1] / 2 - 1) * Cylinder(M2_CLEAR / 2, 6)
     dome_mid = Pos(cx, 0, Z_RIM) * b3d_scale(Sphere(1), by=(a - 0.5, b - 0.5, c - 0.5))
     above = box(-200, 200, -200, 200, Z_RIM, 100)
     # magnet bosses matching the chassis

@@ -12,9 +12,10 @@ Where things sit (see the CAD, `cad/parts.py`):
 | **Deck** (between the six yaw servos) | FE-URT-1 bus adapter, servo hub (12 bus + 6 arm headers), fuse, BNO055 IMU (foam tape) |
 | **Under the brain tray** (taped to its underside) | Two 5 V 5 A regulators, INA219 battery monitor |
 | **Belly** | Main power switch (behind the battery door) |
-| **Brain tray** (under the dome, lifts out) | Radxa ZERO 3W, MAX98357A amp, I2S microphone |
-| **Front wall** (between the arms) | Camera head behind the lens hole |
-| **Inside the dome** | 28 mm speaker in its seat under the grille; two TTP223 touch pads (head and back) |
+| **Brain tray** (under the dome, lifts out) | Radxa ZERO 3W, MAX98357A amp, two I2S microphones (left + right), MPR121 touch board |
+| **Front wall** (between the arms) | 160° wide-angle camera behind the lens hole |
+| **Face visor** (front of the dome) | 2.42" 128×64 OLED face (SSD1309), slid in from inside the dome |
+| **Inside the dome** | 28 mm speaker in its seat under the grille; copper-tape touch pads (head, back left/right, sides, face bezel) wired to the MPR121 |
 | **Side walls** | Two VL53L0X distance modules behind small windows (cliff + obstacle, left and right) |
 
 ## Block diagram
@@ -40,9 +41,10 @@ flowchart LR
     PI -- "I2C" --> INA
     PI -- "I2C + 2 GPIO" --> TOF["2 × VL53L0X"]
     PI -- "I2S" --> AMP["MAX98357A amp → speaker"]
-    PI -- "I2S" --> MIC["I2S microphone"]
-    PI -- "2 GPIO" --> TOUCH["2 × TTP223 touch"]
-    PI -- "CSI" --> CAM["Camera (front face)"]
+    PI -- "I2S (stereo)" --> MIC["2 × I2S microphone (L/R)"]
+    PI -- "I2C3" --> TOUCH["MPR121 touch (8 copper-tape pads)"]
+    PI -- "I2C4 (own bus)" --> FACE["2.42 in OLED face"]
+    PI -- "CSI" --> CAM["160° camera (front face)"]
 ```
 
 ## Why it's built this way
@@ -106,9 +108,10 @@ charge**. Numbers from `python sim/power.py`.
 | BNO055 | Radxa pin 1 (3.3 V), 3 (SDA), 5 (SCL), 9 (GND) | 28 AWG | I2C address 0x28 (bus `/dev/i2c-3`) |
 | VL53L0X #1 / #2 | Radxa pins 1, 3, 5, 9 (shared I2C) + XSHUT to pin 11 / pin 13 | 28 AWG | Both start at 0x29; the software re-addresses them at boot using XSHUT |
 | MAX98357A | 5 V (pin 4), GND (pin 14), BCLK pin 12, LRC pin 35, DIN pin 40 | 28 AWG | Speaker on its + / − terminals. These are the Radxa's I2S3-M0 pins (same places as on a Pi) |
-| I2S microphone (DFRobot) | 3.3 V (pin 17), GND (pin 20), SCK pin 12, WS pin 35, SD pin 38, L/R (SEL) → GND | 28 AWG | Shares the I2S clocks with the amp (see ASSEMBLY.md stage 1 for the audio overlay) |
-| TTP223 head / back | 3.3 V, GND, OUT → pin 29 / pin 31 | 28 AWG | Pads face the inside of the dome; 2 mm PETG is thin enough to touch through |
-| Camera | Radxa camera connector (22-pin, same as the Pi Zero's) | Its own flex | The head sits in the front-wall pocket; the flex goes up through the slot to the tray |
+| I2S microphones ×2 (DFRobot) | both: 3.3 V (pin 17), GND (pin 20), SCK pin 12, WS pin 35, SD pin 38. **Left mic SEL → GND, right mic SEL → 3.3 V** | 28 AWG | One stereo stream (left/right) on one data line; sit them ~70 mm apart in the dome, under the two mic holes. The direction of your voice comes from the time difference |
+| MPR121 touch | 3.3 V, GND, SDA pin 3, SCL pin 5 (shared I2C3), address 0x5A | 28 AWG | Electrodes E0–E7: head, back left, back right, side left, side right, face bezel, claw left, claw right. Each is a strip of copper tape inside the shell with a thin wire soldered to it |
+| Face OLED (SSD1309) | 3.3 V, GND, SDA **pin 27**, SCL **pin 28** (I2C4, its own bus), address 0x3C | 28 AWG | Set the module to I2C first (move its two 0 Ω resistors to the I2C position, as printed on its back). Enable the I2C4-M0 overlay |
+| Camera (160°, OV5647) | Radxa camera connector (22-pin, same as the Pi Zero's) | Its own flex | Behind the front-wall lens hole; the flex goes up through the slot to the tray. **Measure its lens board first: the pocket was sized for a slimmer camera** |
 
 ### Arm servo signals (Radxa hardware PWM)
 
