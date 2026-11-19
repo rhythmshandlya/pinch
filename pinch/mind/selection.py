@@ -131,6 +131,7 @@ class Selection:
                     self.sounds.append(step[1])
             elif kind == "look_at":
                 self.gaze = self._gaze_to(step[1])
+                self.gaze_set_t = self.t
             elif kind == "wait":
                 self.wait_until = self.t + step[1]
                 return None

@@ -894,3 +894,21 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Unchanged without faults:** with no fault injected nothing changes (the golden trace is
       identical).
     - **Ordered to-do list:** `docs/TODO.md`.
+72. **Attention** (`pinch/attention.py`, the Orient activity).
+    - **Stimuli:** a voice (with the direction the two microphones give), a touch, a person appearing or
+      returning after a minute, and a loud noise each get a salience: base strength by kind × how strong
+      this one is.
+    - **The research plan's mechanisms:**
+      - salience fades with a 3 s half-life;
+      - **habituation:** the same stimulus from the same place counts for less each time, recovering with
+        a 60 s half-life;
+      - **inhibition of return:** what it just looked at is damped ×0.35 for 20 s;
+      - **hysteresis:** focus switches only to something 25 % more salient.
+    - **Gaze:** the eyes follow the focus whenever no activity has aimed them in the last 3 s.
+    - **Orient** (alert state): turns toward a fresh, off-axis focus, looks for 1.5 s, then marks it
+      attended. Its utility only beats idling, so a voice doesn't interrupt a job you asked for.
+    - **Tests** (`tests/test_attention.py`): habituation and recovery; inhibition of return and no
+      flicker; a voice from the left makes Pinch look and turn toward it and then move on; a voice during
+      a requested tidy doesn't interrupt it. The golden trace is unchanged.
+    - **Not yet:** seeing motion and new things in the camera feed as stimuli. That needs the vision
+      pipeline to report them.

@@ -98,6 +98,7 @@ class Senses:
             o.present = True
             if voice_dir is not None:
                 o.voice_dir = voice_dir
+                self.attention.notice("voice", self.t, strength=min(1.0, s.speech * 1.5), direction=voice_dir)
         was = self.meeting.in_meeting
         now = self.meeting.update(s, call_cue=self.pending_call_cue, usual_time=self.memory.meeting_likely())
         self.pending_call_cue = False
@@ -109,13 +110,18 @@ class Senses:
 
     def hear_event(self, kind):
         if kind == "loud_noise":
+            self.attention.notice("loud", self.t, 1.0, direction=self.world.owner.voice_dir)
             self.affect.feel("loud_noise")
         elif kind == "double_clap":
             self.affect.feel("name_called")
             self.world.owner.last_attention = self.t
             self.request = ("come", "")
 
+    TOUCH_DIR = {"stroke": 0.0, "tickle": 0.0, "boop": 0.0, "tap": 0.0, "hold": 0.0, "claw_hold": 0.0}
+
     def touch(self, gesture):
+        if gesture in self.TOUCH_DIR:
+            self.attention.notice("touch", self.t, 1.0, direction=self.TOUCH_DIR[gesture], key=f"touch:{gesture}")
         if gesture in ("stuck", "unstuck"):                  # from StuckSense, not from a person
             self.stuck = gesture == "stuck"
             self.affect.feel(gesture)

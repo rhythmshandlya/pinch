@@ -1,5 +1,6 @@
 """Startle and caution: flinching, keeping its distance from someone it fears, hiding."""
 
+import numpy as np
 from pinch.activities.base import (  # noqa: F401
     Activity,
 )
@@ -18,6 +19,34 @@ class Startle(Activity):
             yield ("sound", "startled_squeak")
         yield ("emote", "scared")
         yield ("walk", -0.04, 0.0, 0.0, 1.0)
+
+
+class Orient(Activity):
+    """Something off to one side called its attention (pinch/attention.py): turn toward it, look a moment,
+    then let attention move on - whatever it was doing comes back (the state layer resumes it). Weak stimuli
+    don't win over a job in hand: the utility only beats idling."""
+    state, max_s = "alert", 15.0
+    name, min_s, quiet_ok = "orient", 1.0, True
+
+    def utility(self, m):
+        f, sal = m.attention.update(m.t)
+        if f is None or f.direction is None or abs(f.direction) < 0.4 or m.t - f.t > 2.0:
+            return 0.0
+        return 0.15 + 0.9 * sal
+
+    def run(self, m):
+        f, _ = m.attention.update(m.t)
+        if f is None or f.direction is None:
+            return
+        x, y, h = m.world.pose
+        a = h + f.direction
+        target = (x + 0.3 * np.cos(a), y + 0.3 * np.sin(a))
+        yield ("phase", f"orient_{f.kind}")
+        yield ("face", "curious")
+        yield ("look_at", target)
+        yield ("turn_to", target)
+        yield ("wait", 1.5)
+        m.attention.attended(f, m.t)
 
 
 class Shy(Activity):

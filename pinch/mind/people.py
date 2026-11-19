@@ -8,6 +8,9 @@ class PeopleAware:
         """A person seen (on the robot: a recognised face; in the twin and the app: simulated)."""
         now = self.world.clock()
         known = pid in self.people.people
+        last = self.people.get(pid)["last_seen"] if known else None
+        if last is None or now - last > 60.0:                # someone (re)appearing catches its eye
+            self.attention.notice("person", self.t, confidence, key=f"person:{pid}")
         away_h = self.people.see(pid, confidence, now, name=name, owner=owner)
         p = self.people.get(pid)
         if p["R"] > 0.45:                                     # someone it's afraid of

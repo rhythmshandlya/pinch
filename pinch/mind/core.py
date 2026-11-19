@@ -64,6 +64,9 @@ class MindCore:
         self.stuck = False                      # StuckSense says so (a foot over the edge, caught, going nowhere)
         self.flipped_t = -1e9
         self.estopped = False                    # an emergency stop is on: the mind issues no motion
+        from pinch.attention import Attention
+        self.attention = Attention()             # what it is paying attention to (pinch/attention.py)
+        self.gaze_set_t = -1e9                   # when an activity last aimed the eyes (attention waits)
         self.estop_request = False               # someone said "freeze": the firmware acts on it                   # last time BodySense said "upside down" (it says so every tick)
         self.next_choice = 0.0
         self.log = []                        # (t, kind, text) for the app's diary and tests
@@ -151,6 +154,13 @@ class MindCore:
         return (float(np.clip(-ang / 0.8, -1, 1)), 0.2)
 
     def outputs(self):
-        """Face expression (the feeling unless an activity set one recently), gaze, sounds to play."""
+        """Face expression (the feeling unless an activity set one recently), gaze, sounds to play. Gaze: where
+        an activity aimed it in the last 3 s, otherwise the focus of attention, otherwise ahead."""
         s, self.sounds = self.sounds, []
+        if self.t - self.gaze_set_t > 3.0:
+            f, sal = self.attention.update(self.t)
+            if f is not None and f.direction is not None and sal > 0.1:
+                self.gaze = (float(max(-1.0, min(1.0, -f.direction / 0.8))), 0.2)
+            elif f is None:
+                self.gaze = (0.0, 0.0)
         return self.face_expr, self.gaze, s
