@@ -319,6 +319,11 @@ def main():
     ina = INA219(smbus=FakeIna({0x02: bus_reg, 0x01: 5000}))    # + 50 mV across the shunt
     check("battery monitor driver: pack voltage from the INA219 registers", abs(ina.read() - 7.45) < 0.005,
           f"{ina.read():.3f} V")
+    check("...and the current through its 10 mOhm shunt (50 mV -> 5 A)", abs(ina.current() - 5.0) < 1e-6
+          and INA219.SHUNT_OHM == 0.01, f"{ina.current():.2f} A")
+    from robot.setup_servo import VOLTAGE_LIMITS
+    check("servo setup: max input 6.5 V (STS3032 rated 4.8-6 V; the bus is a regulated 5 V)",
+          VOLTAGE_LIMITS["sts3215"][0] == 65)
 
     from robot.run import hardware_check
     lines = []

@@ -11,6 +11,7 @@ import mujoco
 import numpy as np
 
 from pinch.hearing import RATE, synth_speech
+from pinch.touch import cliff_beams, twin_sensor
 from pinch.world import Desk
 from robot.backends import SimBackend
 from robot.claw_fk import ClawFK
@@ -43,8 +44,11 @@ class EmulatedHardware:
         self.oled = SSD1309(FakeBus(self.oled_chip))
         self.touch_chip = FakeTouch()
         self.touch = MPR121(FakeBus(self.touch_chip))
-        self.rangers = [FakeRanger(0x29), FakeRanger(0x29)]
-        self.cliff = [VL53L0X(FakeBus(r)) for r in self.rangers]
+        # the cliff ring: one fake VL53L0X per beam the twin models, fed from its rangefinders
+        names = {self.m.sensor(i).name for i in range(self.m.nsensor)}
+        self.cliff_beams = [b[0] for b in cliff_beams() if twin_sensor(b[0]) in names]
+        self.rangers = {n: FakeRanger(0x29) for n in self.cliff_beams}
+        self.cliff = {n: VL53L0X(FakeBus(r)) for n, r in self.rangers.items()}
         self.camera_model = Camera.from_mujoco(self.m)
         self._renderer = None
         self.audio_mode = "quiet"        # quiet | talk | meeting
@@ -75,9 +79,17 @@ class EmulatedHardware:
         return out
 
     def update_cliff(self):
-        for r, name in zip(self.rangers, ("cliff_left", "cliff_right")):
-            v = float(self.d.sensor(name).data[0])
+        for name, r in self.rangers.items():
+            v = float(self.d.sensor(twin_sensor(name)).data[0])
             r.mm = 9999 if v < 0 else int(v * 1000)
+
+    powered_off = False
+
+    def cpu_temp(self):
+        return 45.0
+
+    def poweroff(self):
+        self.powered_off = True
 
     def play(self, name):
         self.played.append(name)

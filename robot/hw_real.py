@@ -19,8 +19,16 @@ from robot.claw_fk import ClawFK
 from robot.servos import Calibration
 
 log = logging.getLogger("pinch")
-SENSOR_BUS, FACE_BUS = 3, 4             # I2C3-M0 (pins 3/5), I2C4-M0 (pins 27/28)
-XSHUT_LINES = (("gpiochip3", 1), ("gpiochip3", 2))    # pins 11 / 13 = GPIO3_A1 / GPIO3_A2
+SENSOR_BUS, FACE_BUS, CLIFF_BUS = 3, 4, 5      # I2C3-M0 (pins 3/5), I2C4-M0 (27/28), I2C5-M0 (29/31)
+# The cliff ring (hardware/electronics.md): beam -> its I2C address and XSHUT line. The one at 0x29 wakes
+# last. GPIO3_xn is line 8 * (x - A) + n of gpiochip3 (check with `gpioinfo gpiochip3` on the first boot).
+CLIFF_WIRING = {
+    "front_left": (0x30, ("gpiochip3", 1)),       # pin 11, GPIO3_A1
+    "front_right": (0x29, ("gpiochip3", 2)),      # pin 13, GPIO3_A2
+    "rear": (0x31, ("gpiochip3", 8)),             # pin 15, GPIO3_B0
+    "side_left": (0x32, ("gpiochip3", 17)),       # pin 22, GPIO3_C1
+    "side_right": (0x33, ("gpiochip3", 7)),       # pin 36, GPIO3_A7
+}
 AUDIO_CARD = "plughw:CARD=crabaudio"     # hardware/radxa/crab-audio.dts (mics and amp)
 AUDIO_CHUNK = 1600                       # frames per read: 0.1 s at 16 kHz
 
@@ -73,12 +81,7 @@ class RealHardware:
             self.touch = MPR121(smbus(SENSOR_BUS))                   # its own handle (see the module docstring)
         except OSError as e:
             log.warning("touch controller not found: %s", e)
-        try:
-            from robot.drivers.i2c_devices import cliff_pair
-            self._gpio = [gpio_output(c, n, gpiod) for c, n in XSHUT_LINES]
-            self.cliff = cliff_pair(smbus(SENSOR_BUS), *self._gpio)  # both rangers: one handle, one thread
-        except Exception as e:                       # noqa: BLE001 - the robot still runs without them
-            log.warning("cliff sensors not available (%s): Pinch won't walk forward", e)
+        self.cliff = self._cliff_ring(smbus, gpiod)
         self.camera_model = None
         self.camera = None
         self._cap = None
@@ -100,6 +103,28 @@ class RealHardware:
         self._arec = None
         self.audio = self._read_audio if shutil.which("arecord") else None
         self._play_lock = threading.Lock()
+
+    def _cliff_ring(self, smbus, gpiod):
+        """{beam: VL53L0X or None}. Whatever fails, the beam stays in the dict as None, so the firmware
+        knows it is missing and won't walk toward its side."""
+        from robot.drivers.i2c_devices import cliff_ring
+        ring = dict.fromkeys(CLIFF_WIRING)
+        try:
+            bus = smbus(CLIFF_BUS)                    # only the cliff thread uses this bus
+        except OSError as e:
+            log.warning("cliff sensor bus I2C%d not found (%s): enable I2C5-M0 in rsetup", CLIFF_BUS, e)
+            return ring
+        sensors = []
+        for name, (addr, (chip, line)) in CLIFF_WIRING.items():
+            try:
+                set_level = gpio_output(chip, line, gpiod)
+            except Exception as e:                   # noqa: BLE001 - one bad line costs one beam
+                log.warning("cliff sensor %s: XSHUT line %s/%d not available (%s)", name, chip, line, e)
+                continue
+            self._gpio.append(set_level)
+            sensors.append((name, addr, set_level))
+        ring.update(cliff_ring(bus, sensors, log=log.warning))
+        return ring
 
     def tip(self, side, q):
         return self.fk.tip(side, q)
@@ -125,6 +150,19 @@ class RealHardware:
             with self._play_lock:
                 subprocess.run(["aplay", "-q", "-D", AUDIO_CARD, "-"], input=render(name), check=False)
         threading.Thread(target=go, daemon=True).start()
+
+    def cpu_temp(self, path="/sys/class/thermal/thermal_zone0/temp"):
+        """The RK3566's temperature, C (it sits in a closed shell with a stick-on heatsink), or None."""
+        try:
+            with open(path) as f:
+                return int(f.read().strip()) / 1000.0
+        except (OSError, ValueError):
+            return None
+
+    def poweroff(self):
+        """The pack is empty: shut the computer down cleanly, so the Radxa and the screen stop draining it
+        (the 2S protection board is the hard floor if this never happens)."""
+        subprocess.run(["systemctl", "poweroff"], check=False)
 
     def battery_fraction(self):
         v = self.backend.battery_voltage()

@@ -434,3 +434,40 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Blame:** goes to the person seen most recently (who just walked up), at reduced confidence when several are present. A tie had blamed the owner for a visitor's shaking.
     - **Verified in the brain:** the owner liked +0.75; a rough visitor feared after shaking, and Pinch hides when he returns; four days later only shy; the owner greeted warmly after 8 h; forgetting works.
     - **Recognition:** simulated in the twin and app. On the robot it needs the face models (YuNet + SFace, ~39 MB): **your decision to download.**
+45. **The firmware drives the five-beam cliff ring** (code side of 39, and of 43's firmware items).
+    - **Bring-up:** `robot/drivers/i2c_devices.py cliff_ring()` holds all five in reset and wakes them
+      one at a time on I2C5, giving each its own address (front-left 0x30, rear 0x31, side-left 0x32,
+      side-right 0x33; front-right keeps 0x29 and wakes last). Wiring is in `robot/hw_real.py`
+      `CLIFF_WIRING`, as `gpiochip3` lines. **Check them with `gpioinfo gpiochip3` on the first boot.**
+    - **A sensor that doesn't come up:** it is held back in reset, so it can't answer at 0x29 for
+      another one. It is reported as missing, and the other four work.
+    - **Reading:** `read_ring()` starts all five measurements at once, then collects them. Done one
+      after another, five 30 ms measurements would be 150 ms stale.
+    - **Each beam guards its own side.**
+      - Each beam guards the horizontal direction it looks in (from `CLIFF_BEAMS`). Its threshold is
+        1.6x its flat-desk reading, computed from the same table: 81 mm front and rear, 172 mm on the
+        sides.
+      - **Reflex:** a beam that sees no desk *while Pinch walks toward its side* makes Pinch back off
+        directly away from it, once. It is latched until those beams see desk again.
+      - **Blocking:** a beam that sees no desk, or that is missing or stale, blocks every motion toward
+        its side, never "cliff". `pinch/touch.py limit_velocity` keeps the closest allowed velocity,
+        so walking along an edge carries on and only motion into it is removed.
+      - **Shared:** the twin (`pinch/sim_runner.py`) and the firmware use the same class.
+      - **Tested:** the firmware test checks the front-right, rear and left-side beams, walking along
+        an edge, a dead rear beam, and the ring's bring-up with both libgpiod APIs (with and without a
+        dead sensor).
+    - **With no cliff sensors at all,** Pinch can only turn on the spot. That is the strict reading of
+      "missing means stop".
+    - **Ground flow fix (A8):** with Pinch held in place, the claws' motion fooled the flow into
+      reporting 12 cm of travel. Now a marker fix less than 0.6 s old outranks flow, and flow faster
+      than 0.1 m/s is rejected. "Stuck" is now noticed after 3.9 s (it was 6.6 s).
+    - **Hardware audit, firmware side:**
+      - The servos' max input is 6.5 V (`setup_servo.py`).
+      - `INA219.SHUNT_OHM = 0.01`, with a new `current()`. The pack voltage never depended on the shunt
+        value, so that was already right.
+      - **An empty pack** (a battery safety stop) plays a `low_battery` beep, saves memory and powers
+        the Radxa off (`systemctl poweroff`). The 2S protection board stays the hard floor.
+      - The CPU temperature is in `/status` and logged every minute, as a warning above 80 °C.
+    - **Seen in the twin:** the side beams sometimes read 10 mm, because a leg swings through the beam.
+      A short reading means "desk", so it can't cause a false stop. But a leg in the beam could hide a
+      real drop for that instant.

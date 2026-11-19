@@ -136,49 +136,110 @@ class StuckSense:
         return out
 
 
+STAND_BODY_Z = 0.0487          # m: body origin above the desk when standing (the twin's stand keyframe)
+
+
+def cliff_beams(beams=None, body_z=STAND_BODY_Z, margin=1.6):
+    """The cliff ring from crab/params.py CLIFF_BEAMS: [(name, guard, nominal_mm, cliff_mm)].
+    guard: unit vector (body frame, x forward, y left) of the horizontal direction the beam looks - the way
+    of walking it vouches for. nominal_mm: what it reads standing on a flat desk; cliff_mm: margin x that,
+    beyond which there's no desk under it (front/rear look 40 deg down from low on the wall: ~51 mm -> 82;
+    the sides look 30 deg down from high up: ~107 mm -> 171)."""
+    if beams is None:
+        from crab.params import CLIFF_BEAMS as beams
+    out = []
+    for name, _x, _y, z_mm, d in beams:
+        d = np.asarray(d, float) / np.linalg.norm(d)
+        g = d[:2] / np.linalg.norm(d[:2])
+        nominal = (body_z + z_mm / 1000.0) / -d[2] * 1000.0
+        out.append((name, (float(g[0]), float(g[1])), float(nominal), float(margin * nominal)))
+    return out
+
+
+def twin_sensor(name):
+    """The twin's rangefinder for a beam (sim/desk.py keeps the old names for the front pair)."""
+    return "cliff_" + {"front_left": "left", "front_right": "right"}.get(name, name)
+
+
+def limit_velocity(v, blocked):
+    """The closest velocity to v (vx, vy) that doesn't move toward any blocked direction (unit vectors):
+    v . d <= 0 for every d. Each constraint is a half-plane through the origin, so the answer is v itself,
+    v slid along one boundary, or standing still."""
+    v = np.asarray(v, float)
+    ok = lambda u: all(u @ d <= 1e-9 for d in blocked)          # noqa: E731
+    if ok(v):
+        return v
+    best = np.zeros(2)
+    for d in blocked:
+        u = v - (v @ d) * np.asarray(d)
+        if ok(u) and u @ u > best @ best:
+            best = u
+    return best
+
+
 class CliffReflex:
-    """The two cliff sensors under the front corners -> the edge reflex (shared by the firmware and the twin).
+    """The cliff ring (five VL53L0X: front pair, rear, both sides) -> the edge reflex, shared by the firmware
+    and the twin. Each beam guards the direction it looks in:
 
-      * either beam sees no desk (max of the two, not min: one corner over the edge is enough) while the
-        body is moving at all (its walking command, not the task's name) -> stop and back off, once:
-        the reflex latches until both beams see desk again, so its own backing-off can't re-trigger it;
-      * a beam that is missing, failing or stale is "don't know", which means no walking forward (the
-        direction the sensors guard) - never "cliff", which would back off forever.
-    Forward walking also stays blocked while latched. Body reads `forward_ok` through its edge guard."""
+      * a beam that sees no desk (beyond its own threshold) while Pinch walks toward its side (from the
+        walking command, whatever the task) -> stop and back off away from it, once: the reflex latches
+        until the beams that fired see desk again, so its own backing-off can't re-trigger it;
+      * a beam that sees no desk, or is missing, failing or stale ("don't know"), blocks walking toward its
+        side - never "cliff" for a sensor that's just broken, which would back off forever.
+    `blocked` (unit vectors) goes to Body.cliff_blocked; its edge guard removes any motion toward them."""
 
-    BACK = ("walk", -0.03, 0.0, 0.0, 1.0)
+    SPEED, BACK_S = 0.03, 1.0
 
-    def __init__(self, cliff_mm=110, stale_s=0.3, clear_s=0.2):
-        self.cliff_mm, self.stale_s, self.clear_s = cliff_mm, stale_s, clear_s
-        self.state = "unknown"              # ok | cliff | unknown
-        self.latched = False
+    def __init__(self, beams=None, stale_s=0.3, clear_s=0.2):
+        self.beams = cliff_beams() if beams is None else beams
+        self.stale_s, self.clear_s = stale_s, clear_s
+        self.states = {b[0]: "unknown" for b in self.beams}      # ok | cliff | unknown
+        self.latched = set()                                     # beams whose back-off is still in effect
         self.clear_since = None
         self.stops = 0
 
     @property
-    def forward_ok(self):
-        return self.state == "ok" and not self.latched
+    def state(self):
+        """One word for the whole ring: cliff > unknown > ok."""
+        v = set(self.states.values())
+        return "cliff" if "cliff" in v else "unknown" if "unknown" in v else "ok"
 
-    def update(self, t, readings_mm, age_s, moving):
-        """readings_mm: the two beams (mm; None = no answer) or None if there are no sensors; age_s: how
-        old they are. Returns the motion to start ("walk" backwards) or None."""
-        if readings_mm is None or age_s is None or age_s > self.stale_s or any(r is None for r in readings_mm):
-            self.state = "unknown"
-        else:
-            self.state = "cliff" if max(readings_mm) > self.cliff_mm else "ok"
+    @property
+    def blocked(self):
+        return [np.array(g) for name, g, _, _ in self.beams if self.states[name] != "ok" or name in self.latched]
+
+    @property
+    def forward_ok(self):
+        return not any(g[0] > 0.5 for g in self.blocked)
+
+    def update(self, t, readings_mm, ages_s, cmd_vel):
+        """readings_mm: {beam: mm or None (no answer)}, or None if there are no sensors; ages_s: {beam: s} or
+        one age for all; cmd_vel: the walking command (vx, vy, wz). Returns a walk to start, or None."""
+        readings_mm = readings_mm or {}
+        for name, _, _, cliff in self.beams:
+            r = readings_mm.get(name)
+            age = ages_s.get(name) if isinstance(ages_s, dict) else ages_s
+            if r is None or age is None or age > self.stale_s:
+                self.states[name] = "unknown"
+            else:
+                self.states[name] = "cliff" if r > cliff else "ok"
         if self.latched:
-            if self.state == "ok":
+            if all(self.states[n] == "ok" for n in self.latched):
                 self.clear_since = t if self.clear_since is None else self.clear_since
                 if t - self.clear_since >= self.clear_s:
-                    self.latched = False
+                    self.latched = set()
             else:
                 self.clear_since = None
             return None
-        if self.state == "cliff" and moving:
-            self.latched, self.clear_since = True, None
-            self.stops += 1
-            return self.BACK
-        return None
+        v = np.asarray(cmd_vel[:2], float)
+        fired = [(n, np.array(g)) for n, g, _, _ in self.beams if self.states[n] == "cliff" and v @ g > 1e-4]
+        if not fired:
+            return None
+        self.latched, self.clear_since = {n for n, _ in fired}, None
+        self.stops += 1
+        away = -sum(g for _, g in fired)
+        away = away / (np.linalg.norm(away) + 1e-9) * self.SPEED
+        return ("walk", float(away[0]), float(away[1]), 0.0, self.BACK_S)
 
 
 class BodySense:

@@ -30,7 +30,9 @@ fi
 mkdir -p /var/lib/pinch
 
 echo "== checks"
-i2cdetect -y 3 || true          # expect 0x28 (IMU), 0x40 (battery), 0x5A (touch), 0x29/0x30 (cliff)
+i2cdetect -y 3 || true          # expect 0x28 (IMU), 0x40 (battery), 0x5A (touch)
+i2cdetect -y 5 || true          # cliff sensors: 0x29 after a power-up (all five wake there), 0x29-0x33 once the
+                                # firmware has run; nothing at all: check I2C5-M0 in rsetup and the wiring
 i2cdetect -y 4 || true          # expect 0x3C (face screen)
 ls /sys/class/pwm/ || true      # expect six pwmchipN (arm servos)
 aplay -l | grep -i crab || echo "  ! crab-audio card not found: install hardware/radxa/crab-audio.dts in rsetup"

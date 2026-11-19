@@ -24,7 +24,7 @@ from pinch.face import Face  # noqa: E402
 from pinch.hearing import Hearing  # noqa: E402
 from pinch.memory import Memory  # noqa: E402
 from pinch.mind import Mind  # noqa: E402
-from pinch.touch import BodySense, CliffReflex, StuckSense  # noqa: E402
+from pinch.touch import BodySense, CliffReflex, StuckSense, twin_sensor  # noqa: E402
 from pinch.world import Desk  # noqa: E402
 from robot.backends import SimBackend  # noqa: E402
 from robot.crab_robot import DT, Crab  # noqa: E402
@@ -225,11 +225,9 @@ class PinchSim:
                 self.motions.append((round(self.t, 2), motion))
             for s in self.mind.outputs()[2]:
                 self.sounds_played.append((round(self.t, 2), s))
-            # reflex: a cliff sensor sees no desk ahead while moving -> stop and back off (latched)
-            mm = [9999 if v < 0 else v * 1000 for v in (self.d.sensor("cliff_left").data[0],
-                                                         self.d.sensor("cliff_right").data[0])]
-            back = self.cliff.update(self.t, mm, 0.0, any(abs(c) > 1e-6 for c in self.body.cmd_vel))
-            self.body.forward_ok = self.cliff.forward_ok
+            # reflex: a cliff beam sees no desk while walking toward its side -> back off (latched)
+            back = self.cliff.update(self.t, self.cliff_mm(), 0.0, self.body.cmd_vel)
+            self.body.cliff_blocked = self.cliff.blocked
             if back is not None:
                 self.body.cancel()
                 self.body.start(back)
@@ -261,6 +259,14 @@ class PinchSim:
         self.body.tick()                                   # 20 ms of physics through the robot runtime
         self.k += 1
         self.t += DT
+
+    def cliff_mm(self):
+        """The cliff ring's readings (mm; the rangefinder's -1 = nothing within reach = 9999)."""
+        out = {}
+        for name, *_ in self.cliff.beams:
+            v = float(self.d.sensor(twin_sensor(name)).data[0])
+            out[name] = 9999 if v < 0 else v * 1000
+        return out
 
     def run(self, seconds, every=None):
         for _ in range(int(seconds / DT)):

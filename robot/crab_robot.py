@@ -55,7 +55,12 @@ def joint_limits():
 
 
 class SafetyStop(RuntimeError):
-    pass
+    """kind: "battery" (the pack is empty: the firmware also shuts the computer down), "bus_voltage",
+    "temperature", "servo_bus" or "stopped"."""
+
+    def __init__(self, why, kind="other"):
+        super().__init__(why)
+        self.kind = kind
 
 
 class Crab:
@@ -79,7 +84,7 @@ class Crab:
             try:
                 self._state = self.hw.read_state()
             except OSError as e:                 # a servo stayed silent past the backend's tolerance
-                self.emergency_stop(f"servo bus: {e}")
+                self.emergency_stop(f"servo bus: {e}", "servo_bus")
             self._state_tick = self.ticks
         return self._state
 
@@ -101,7 +106,7 @@ class Crab:
     # -- the safety-checked tick -----------------------------------------
     def tick(self, q_target):
         if self.stopped:
-            raise SafetyStop("stopped")
+            raise SafetyStop("stopped", "stopped")
         q_target = np.clip(np.asarray(q_target, float), self.lo, self.hi)          # joint limits (CAD)
         step = np.clip(q_target - self.q_cmd, -MAX_STEP, MAX_STEP)                  # servo speed limit
         q_new = self.q_cmd + step
@@ -133,26 +138,27 @@ class Crab:
         temp = max(s.temperature for s in st)
         batt = self.hw.battery_voltage() if hasattr(self.hw, "battery_voltage") else None
         if temp > TEMP_STOP:
-            self.emergency_stop(f"servo temperature {temp:.0f} C")
+            self.emergency_stop(f"servo temperature {temp:.0f} C", "temperature")
         pack_low = batt is not None and batt < BATT_STOP
         if volts < V_STOP or pack_low:
             self.low_v_since = self.low_v_since or self.t
             if self.t - self.low_v_since > 1.0:          # ignore brief sags while a leg pushes off
-                self.emergency_stop(f"battery {batt:.2f} V" if pack_low else f"servo bus {volts:.2f} V")
+                self.emergency_stop(f"battery {batt:.2f} V" if pack_low else f"servo bus {volts:.2f} V",
+                                    "battery" if pack_low else "bus_voltage")
         else:
             self.low_v_since = None
             if volts < V_WARN or (batt is not None and batt < BATT_WARN):
                 log.warning("battery low (pack %s V, bus %.2f V) - finish up and recharge",
                             "?" if batt is None else f"{batt:.2f}", volts)
 
-    def emergency_stop(self, why):
+    def emergency_stop(self, why, kind="other"):
         log.error("SAFETY STOP: %s -> torque off", why)
         self.stopped = True
         try:
             self.hw.torque(False)
         except OSError as e:                        # the bus itself may be what failed
             log.error("torque off failed: %s", e)
-        raise SafetyStop(why)
+        raise SafetyStop(why, kind)
 
     # -- behaviours ------------------------------------------------------
     def move_to(self, q, seconds=1.5):

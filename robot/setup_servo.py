@@ -29,7 +29,9 @@ SETTINGS = {           # register -> value
     "p_gain": 32, "i_gain": 0, "d_gain": 0,
     "return_delay": 0,
 }
-VOLTAGE_LIMITS = {"sts3215": (70, 40), "scs0009": (70, 40)}   # max / min input, 0.1 V units (5 V bus)
+# max / min input voltage, 0.1 V units. The bus is a regulated 5 V; the STS3032 is rated 4.8-6 V, so a
+# reading above 6.5 V means a regulator fault and the servo should refuse rather than cook (hardware audit)
+VOLTAGE_LIMITS = {"sts3215": (65, 40), "scs0009": (65, 40)}
 
 
 def setup(bus: FeetechBus, target_id: int, current_id: int = 1, log=print):

@@ -2,9 +2,10 @@
 
   SSD1309  2.42" 128x64 OLED (the face) - its own bus, I2C4-M0 (pins 27/28), address 0x3C
   MPR121   12-channel capacitive touch (copper-tape pads inside the shell) - I2C3, 0x5A
-  VL53L0X  time-of-flight distance, two of them looking forward-down (cliff + obstacle) - I2C3,
-           both start at 0x29; at boot the XSHUT pins bring them up one at a time and the first is
-           moved to 0x30.
+  VL53L0X  time-of-flight distance: the cliff ring, five beams looking out and down (front pair, rear,
+           both sides; crab/params.py CLIFF_BEAMS) on their own bus, I2C5-M0 (pins 29/31). All start
+           at 0x29; at boot cliff_ring() brings them up one at a time with their XSHUT pins and moves each
+           to its own address.
 
 Every class takes any object with the smbus2 SMBus methods it uses, so the self-test can drive the
 exact same code against fake chips (robot/drivers/fakes.py).
@@ -68,6 +69,8 @@ class VL53L0X:
     """Minimal single-shot ranging for cliff detection: the default settings, no fine tuning. Plenty to
     tell 'desk 5 cm away' from 'nothing within 50 cm'. (Verify on the real sensor: README section.)"""
 
+    DEFAULT = 0x29                  # every VL53L0X wakes at this address
+
     def __init__(self, bus, address=0x29):
         self.bus, self.addr = bus, address
         w = lambda r, v: self.bus.write_byte_data(self.addr, r, v)
@@ -83,14 +86,18 @@ class VL53L0X:
 
     FAR = 9999          # "nothing in range": no desk under the beam (a real reading, not a failure)
 
-    def range_mm(self, timeout=0.05):
-        """Distance in mm; FAR when nothing is in range; None when the sensor didn't answer in time
-        (a failure: the caller must not read it as either desk or cliff)."""
+    def start(self):
+        """Begin one single-shot measurement (~30 ms); several sensors can measure at the same time."""
         w = lambda r, v: self.bus.write_byte_data(self.addr, r, v)
         for r, v in ((0x80, 0x01), (0xFF, 0x01), (0x00, 0x00), (0x91, self.stop), (0x00, 0x01), (0xFF, 0x00),
                      (0x80, 0x00), (0x00, 0x01)):
             w(r, v)
-        t0 = time.monotonic()
+        self._t0 = time.monotonic()
+
+    def result(self, timeout=0.05):
+        """The measurement start() began: mm; FAR when nothing is in range; None when the sensor didn't
+        answer in time (a failure: the caller must read it as neither desk nor cliff)."""
+        t0 = getattr(self, "_t0", time.monotonic())
         while self.bus.read_byte_data(self.addr, 0x00) & 0x01:          # start bit clears when it starts
             if time.monotonic() - t0 > timeout:
                 return None
@@ -98,25 +105,60 @@ class VL53L0X:
             if time.monotonic() - t0 > timeout:
                 return None
         hi, lo = self.bus.read_i2c_block_data(self.addr, 0x14 + 10, 2)
-        w(0x0B, 0x01)                                                    # clear interrupt
+        self.bus.write_byte_data(self.addr, 0x0B, 0x01)                  # clear interrupt
         mm = (hi << 8) | lo
         return self.FAR if mm >= 8000 else mm
 
+    def range_mm(self, timeout=0.05):
+        self.start()
+        return self.result(timeout)
 
-def cliff_pair(bus, xshut_left, xshut_right):
-    """Bring up both VL53L0X: right held in reset while the left moves to 0x30. xshut_* are callables
-    set(level) for the two GPIO lines (pins 11 / 13)."""
-    xshut_left(0)
-    xshut_right(0)
+
+def cliff_ring(bus, sensors, log=None):
+    """Bring up a ring of VL53L0X that all wake at 0x29. sensors: [(name, address, xshut)] where xshut is
+    set(level) for that sensor's XSHUT pin. All are held in reset, then woken one at a time and moved to their
+    address; the one that keeps 0x29 comes last. A sensor that doesn't come up is put back in reset (so it
+    can't sit on 0x29 and answer for another) and returned as None: the firmware then treats its direction as
+    "don't know" (no walking that way). Returns {name: VL53L0X or None}."""
+    for _, _, xshut in sensors:
+        xshut(0)
     time.sleep(0.01)
-    xshut_left(1)
-    time.sleep(0.01)
-    left = VL53L0X(bus)
-    left.set_address(0x30)
-    xshut_right(1)
-    time.sleep(0.01)
-    right = VL53L0X(bus)
-    return left, right
+    out = {}
+    for name, addr, xshut in sorted(sensors, key=lambda s: s[1] == VL53L0X.DEFAULT):
+        xshut(1)
+        time.sleep(0.01)                                         # boot: 1.2 ms typical
+        try:
+            dev = VL53L0X(bus)
+            if addr != VL53L0X.DEFAULT:
+                dev.set_address(addr)
+            out[name] = dev
+        except OSError as e:
+            xshut(0)
+            out[name] = None
+            if log:
+                log(f"cliff sensor {name} (0x{addr:02x}) not answering: {e}")
+    return out
+
+
+def read_ring(ring, timeout=0.05):
+    """One reading from every sensor of a ring, all measuring at once (5 x 30 ms one after another would
+    make the readings 150 ms old): {name: mm, FAR or None}. A sensor that raises is None."""
+    started = {}
+    for name, dev in ring.items():
+        if dev is None:
+            continue
+        try:
+            dev.start()
+            started[name] = dev
+        except OSError:
+            pass
+    out = {name: None for name in ring}
+    for name, dev in started.items():
+        try:
+            out[name] = dev.result(timeout)
+        except OSError:
+            pass
+    return out
 
 
 def pages_to_image(pages: bytes) -> np.ndarray:

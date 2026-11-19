@@ -85,9 +85,9 @@ class Body:
         self.status = ""
         self.edge_guarded = 0                   # walking commands the edge guard trimmed
         self.cmd_vel = (0.0, 0.0, 0.0)          # the walking command right now (body frame)
-        self.forward_ok = True                  # False: the cliff sensors can't vouch for the desk ahead
+        self.cliff_blocked = []                 # unit vectors (body frame) the cliff ring can't vouch for
         self.pose_sigma_fn = None               # () -> how far off pose_fn() may be (m); widens the edge margin
-        self.forward_blocked = 0                # walking commands with their forward part removed
+        self.cliff_trimmed = 0                  # walking commands the cliff ring trimmed
 
     def trace(self, what, **kw):
         self.log.append((round(self.t, 2), what, kw))
@@ -183,9 +183,12 @@ class Body:
         """Block the parts of a walking command that would carry a foot over the desk edge in the next 0.4 s
         (moving along the edge, or away from it, stays allowed). Uses Pinch's own desk position (the marker),
         so it works backwards and sideways too, where the cliff sensors can't see."""
-        if not self.forward_ok and cmd[0] > 0:            # nothing vouches for the desk ahead: no forward
-            cmd = (0.0, cmd[1], cmd[2])
-            self.forward_blocked += 1
+        if self.cliff_blocked:                             # no walking toward a side no beam vouches for
+            from pinch.touch import limit_velocity
+            v = limit_velocity(cmd[:2], self.cliff_blocked)
+            if abs(v[0] - cmd[0]) > 1e-9 or abs(v[1] - cmd[1]) > 1e-9:
+                cmd = (float(v[0]), float(v[1]), cmd[2])
+                self.cliff_trimmed += 1
         if self.pose_fn is None or not any(abs(c) > 1e-6 for c in cmd):
             return cmd
         x, y, h = self.pose_fn()

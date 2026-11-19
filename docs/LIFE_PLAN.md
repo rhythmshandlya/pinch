@@ -127,10 +127,9 @@ The hardware/BOM audit is still running; its findings will be added here. Sensor
 - **Optional:** an LD2410 radar (~₹444) to notice a person sitting still.
 - **Fix before printing:** the CAD and assembly guide aim the two existing sensors sideways from 29 mm up, so they only see a side drop after the feet are already over it. The twin and firmware treat them as front-corner sensors. Use the five-beam layout above, with **open windows** (a cover fools the sensor into reading desk over empty air).
 - **Software:**
-  - **Done:** StuckSense's tilt limit lowered from 12° to 7° (belly on an edge tilts 7.7–11°; trotting stays under 4.8°).
+  - **Done:** StuckSense's tilt limit lowered from 12° to 7° (belly on an edge tilts 7.7–11°; trotting stays under 4.8°). The firmware drives all five beams, each guarding its own side (decision 45). Optical flow from the camera for "am I moving" (decision 37).
   - **To do:**
     - foot load from the femur servos (in the twin too: contact counting called a foot resting on the edge "down")
-    - optical flow from the camera for "am I moving"
     - back up only along the path just walked
     - a virtual camera view aimed upward for faces
 - **Decision for you:** spend ~₹800–2,200 of the remaining ~₹9k on the three sensors (my recommendation: yes).

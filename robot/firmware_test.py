@@ -30,6 +30,7 @@ sys.path.insert(0, str(ROOT))
 
 from robot.drivers.i2c_devices import pages_to_image  # noqa: E402
 from robot.hw_emulated import EmulatedHardware  # noqa: E402
+from pinch.touch import cliff_beams  # noqa: E402
 from robot.pinch_main import PinchFirmware, serve  # noqa: E402
 
 results = []
@@ -168,7 +169,7 @@ def reflexes_and_errors():
     print("robustness: errors, cliff reflex")
     hw, fw = quiet_firmware()
     hw.touch.bus = Flaky(hw.touch.bus, 3)
-    for r in hw.cliff:
+    for r in hw.cliff.values():
         r.bus = Flaky(r.bus, 7)
     feet = hw.feet_down
     n = [0]
@@ -186,40 +187,97 @@ def reflexes_and_errors():
         ok = False
     check("transient I2C / bus errors are counted and ridden out (the loop keeps running)",
           ok and fw.errors["touch"] > 0 and fw.errors["cliff"] > 0 and fw.errors["feet"] > 0, dict(fw.errors))
+    hw0, fw0 = quiet_firmware()
+    steps(fw0, 0.5)
+    check("the twin's five cliff beams are all wired through the firmware, all seeing desk",
+          sorted(hw0.cliff) == sorted(b[0] for b in cliff_beams()) and fw0.cliff_reflex.state == "ok",
+          f"{ {n: int(v) for n, v in fw0.cliff.items()} } mm")
 
-    # the desk ends ahead: one beam sees nothing. The reflex backs off once; its own backing-off (the beam
-    # still sees nothing) must not trigger it again
-    hw2, fw2 = quiet_firmware()
-    hw2.update_cliff = lambda: None
-    fw2.body.start(("walk", 0.03, 0.0, 0.0, 6.0))
-    steps(fw2, 0.5)
-    hw2.rangers[0].mm, hw2.rangers[1].mm = 55, 9999                       # max of the two, not min
-    steps(fw2, 0.5)
-    backing = fw2.body.status == "walk" and fw2.body.cmd_vel[0] < 0
-    steps(fw2, 1.5)
-    check("cliff reflex: one corner over the edge -> backs off once (latched, no re-trigger while backing)",
-          fw2.stats["edge_stops"] == 1 and backing and fw2.cliff_reflex.latched,
-          f"{fw2.stats['edge_stops']} back-offs, state {fw2.cliff_reflex.state}")
+    guard = {b[0]: np.array(b[1]) for b in cliff_beams()}
+
+    def moved_body(hw_, p0, yaw0=0.4):
+        """Displacement since p0 in the body frame (Pinch barely turns in these tests)."""
+        d = hw_.d.qpos[0:2] - p0
+        c, s_ = np.cos(yaw0), np.sin(yaw0)
+        return np.array([c * d[0] + s_ * d[1], -s_ * d[0] + c * d[1]])
+
+    def over_edge(walk, beam, label):
+        """Walking toward one beam's side when it sees no desk: one back-off, away from it, latched."""
+        hw2, fw2 = quiet_firmware()
+        hw2.update_cliff = lambda: None
+        for r in hw2.rangers.values():
+            r.mm = 55 if r is not hw2.rangers.get("side_left") and r is not hw2.rangers.get("side_right") else 110
+        fw2.body.start(("walk", *walk, 0.0, 6.0))
+        steps(fw2, 0.5)
+        hw2.rangers[beam].mm = 9999
+        steps(fw2, 0.5)
+        away = fw2.body.status == "walk" and np.asarray(fw2.body.cmd_vel[:2]) @ guard[beam] < 0
+        steps(fw2, 1.5)
+        check(f"cliff ring: {label} -> backs off away from it once (latched: no re-trigger while backing)",
+              fw2.stats["edge_stops"] == 1 and away and beam in fw2.cliff_reflex.latched,
+              f"{fw2.stats['edge_stops']} back-offs, latched {sorted(fw2.cliff_reflex.latched)}")
+        return hw2, fw2
+
+    hw2, fw2 = over_edge((0.03, 0.0), "front_right", "front-right corner over the edge, walking forward")
     fw2.body.start(("walk", 0.03, 0.0, 0.0, 1.0))
-    before = fw2.body.forward_blocked
+    before = fw2.body.cliff_trimmed
     steps(fw2, 0.5)
-    check("...and while it still sees no desk ahead, it won't walk forward", fw2.body.forward_blocked > before
-          and fw2.stats["edge_stops"] == 1 and abs(fw2.body.cmd_vel[0]) < 1e-9)
-    hw2.rangers[1].mm = 55
+    toward = np.asarray(fw2.body.cmd_vel[:2]) @ guard["front_right"]
+    check("...and while that beam sees no desk, nothing walks toward its side", fw2.body.cliff_trimmed > before
+          and fw2.stats["edge_stops"] == 1 and toward <= 1e-9, f"speed toward it {toward * 1000:.1f} mm/s")
+    hw2.rangers["front_right"].mm = 55
     steps(fw2, 0.6)
     check("...desk seen again: the reflex re-arms", not fw2.cliff_reflex.latched and fw2.cliff_reflex.forward_ok)
+    over_edge((-0.03, 0.0), "rear", "rear over the edge, walking backward")
+    over_edge((0.0, 0.03), "side_left", "left side over the edge, crab-walking left")
 
-    # a cliff sensor that stops answering is "don't know": no forward walking - and no backing off
-    hw3, fw3 = quiet_firmware()
-    steps(fw3, 0.3)
-    hw3.cliff[1].bus = Dead()
-    fw3.body.start(("walk", 0.03, 0.0, 0.0, 2.0))
-    x0 = hw3.d.qpos[0]
-    steps(fw3, 1.5)
-    check("a dead cliff sensor -> 'don't know': no walking forward, and no backing off either",
-          fw3.cliff_reflex.state == "unknown" and fw3.stats["edge_stops"] == 0 and fw3.body.forward_blocked > 0
-          and abs(hw3.d.qpos[0] - x0) < 0.01,
-          f"moved {(hw3.d.qpos[0] - x0) * 1000:.0f} mm, state {fw3.cliff_reflex.state}")
+    # walking along an edge, not toward it: the beam that sees over it only blocks its own side
+    hw4, fw4 = quiet_firmware()
+    hw4.update_cliff = lambda: None
+    for r in hw4.rangers.values():
+        r.mm = 55
+    hw4.rangers["side_left"].mm = hw4.rangers["side_right"].mm = 110
+    hw4.rangers["front_left"].mm = hw4.rangers["front_right"].mm = 9999        # the edge is ahead
+    fw4.body.start(("walk", 0.0, -0.03, 0.0, 2.0))                           # crab-walk right along it
+    p0 = hw4.d.qpos[0:2].copy()
+    steps(fw4, 2.0)
+    m = moved_body(hw4, p0)
+    check("walking along the edge (not toward it): no back-off, the sideways walk goes on",
+          fw4.stats["edge_stops"] == 0 and m[1] < -0.01, f"moved {m[1] * 1000:.0f} mm sideways")
+
+    # a cliff sensor that stops answering is "don't know": no walking toward its side - and no backing off
+    back = {}
+    for dead in (False, True):
+        hw3, fw3 = quiet_firmware()
+        steps(fw3, 0.3)
+        if dead:
+            hw3.cliff["rear"].bus = Dead()
+        fw3.body.start(("walk", -0.03, 0.0, 0.0, 2.0))
+        p0 = hw3.d.qpos[0:2].copy()
+        steps(fw3, 1.5)
+        back[dead] = moved_body(hw3, p0) @ guard["rear"]
+    # (starting to walk shifts the body a few mm by itself: compare with the same walk, sensor alive)
+    check("a dead cliff sensor -> 'don't know': no walking toward its side, and no backing off either",
+          fw3.cliff_reflex.states["rear"] == "unknown" and fw3.stats["edge_stops"] == 0
+          and fw3.body.cliff_trimmed > 0 and back[True] < 0.01 and back[False] > 0.025,
+          f"backed {back[True] * 1000:.0f} mm (sensor alive: {back[False] * 1000:.0f} mm)")
+
+    from pinch.touch import limit_velocity
+    both = [guard["front_left"], guard["front_right"]]
+    v1 = limit_velocity((0.03, 0.0), both)
+    v2 = limit_velocity((0.0, 0.03), [guard["front_left"]])
+    check("velocity limit: both front beams blocked stops forward; one only slides along it",
+          np.allclose(v1, 0) and v2 @ guard["front_left"] <= 1e-12 and np.linalg.norm(v2) > 0.02)
+
+    # an empty pack: safety stop, a beep, the computer shuts down (or the Radxa drains the cells)
+    hw5 = EmulatedHardware(start=START, pose=(0.0, 0.0, 0.4))
+    fw5 = PinchFirmware(hw5, llm=False, memory_path=False)
+    hw5.backend.battery = 6.2
+    fw5.run(seconds=30, realtime=False)
+    check("battery empty -> safety stop, low-battery beep, computer powered off",
+          fw5.stop_kind == "battery" and hw5.powered_off and "low_battery" in hw5.played and fw5.t < 10,
+          f"stopped at {fw5.t:.1f} s ({fw5.stop_kind})")
+    check("CPU temperature in /status", fw5.status()["cpu_c"] == 45.0)
 
 
 def stuck_from_measured_motion():
@@ -354,66 +412,78 @@ def real_hardware_glue():
     from robot.backends import SimBackend
     from robot.servos import Calibration, NotCalibrated
 
+    from robot.hw_real import CLIFF_WIRING
+    line_of = {line: name for name, (_, (_, line)) in CLIFF_WIRING.items()}
     for api in ("v1", "v2"):
-        rangers = {1: FakeRanger(0x29), 2: FakeRanger(0x29)}
-        powered = {1: True, 2: True}
+        for broken in (None, "rear"):
+            rangers = {n: FakeRanger(0x29) for n in CLIFF_WIRING if n != broken}   # a broken one never answers
+            powered = {n: True for n in CLIFF_WIRING}
 
-        def on_set(path, line, v):
-            powered[line] = bool(v)
+            def on_set(path, line, v, powered=powered):
+                powered[line_of[line]] = bool(v)
 
-        class SensorBus(FakeBus):                       # bus 3: touch + two rangers behind XSHUT lines
-            def _chip(self, addr):
-                for k, r in rangers.items():
-                    if powered[k] and r.addr == addr:
-                        return r
-                return super()._chip(addr)
+            class RingBus(FakeBus):                 # bus 5: five rangers behind their XSHUT lines
+                def _chip(self, addr, rangers=rangers, powered=powered):
+                    on = [r for n, r in rangers.items() if powered[n] and r.addr == addr]
+                    if len(on) > 1:
+                        raise OSError(5, "two devices answered at once")
+                    if on:
+                        return on[0]
+                    return super()._chip(addr)
 
-            def write_byte_data(self, addr, reg, val):
-                self._chip(addr).write(reg, [val])
+                def write_byte_data(self, addr, reg, val):
+                    self._chip(addr).write(reg, [val])
 
-        handles = []
+            handles = []
 
-        def smbus(n):
-            b = SensorBus(FakeTouch()) if n == 3 else FakeBus(FakeOLED())
-            handles.append((n, b))
-            return b
+            def smbus(n, handles=handles, rangers=rangers, powered=powered):
+                b = {3: lambda: FakeBus(FakeTouch()), 4: lambda: FakeBus(FakeOLED()),
+                     5: lambda: RingBus()}[n]()
+                handles.append((n, b))
+                return b
 
-        class NoCamera:
-            def __init__(self, i):
-                pass
+            class NoCamera:
+                def __init__(self, i):
+                    pass
 
-            def isOpened(self):
-                return False
+                def isOpened(self):
+                    return False
 
-            def release(self):
-                pass
+                def release(self):
+                    pass
 
-        gpiod = FakeGpiodV1(on_set) if api == "v1" else FakeGpiodV2(on_set)
-        with tempfile.TemporaryDirectory() as tmp:
-            old = servos.CAL_FILE
-            servos.CAL_FILE = Path(tmp) / "calibration.json"
-            try:
+            gpiod = FakeGpiodV1(on_set) if api == "v1" else FakeGpiodV2(on_set)
+            with tempfile.TemporaryDirectory() as tmp:
+                old = servos.CAL_FILE
+                servos.CAL_FILE = Path(tmp) / "calibration.json"
                 try:
-                    RealHardware(smbus=smbus, backend=SimBackend(), gpiod=gpiod, video=NoCamera)
-                    refused = False
-                except NotCalibrated:
-                    refused = True
-                Calibration().save()
-                handles.clear()
-                hw = RealHardware(smbus=smbus, backend=SimBackend(), gpiod=gpiod, video=NoCamera)
-            finally:
-                servos.CAL_FILE = old
-        sensor_handles = [b for k, b in handles if k == 3]
-        ok = (hw.cliff is not None and sorted(r.addr for r in rangers.values()) == [0x29, 0x30]
-              and hw.cliff[0].range_mm() == 55 and hw.cliff[1].range_mm() == 55)
-        check(f"libgpiod {api} API: both cliff sensors brought up (XSHUT), one moved to 0x30", ok,
-              f"addresses {sorted(hex(r.addr) for r in rangers.values())}")
-        if api == "v1":
-            check("no calibration file -> the firmware refuses to start", refused)
-            check("touch and cliff sensors get their own I2C handles (no cross-thread address race)",
-                  hw.touch.bus is not hw.cliff[0].bus and len(sensor_handles) == 2)
-            check("camera that doesn't open -> no camera (checked with isOpened), the rest carries on",
-                  hw.camera is None and hw.oled is not None)
+                    try:
+                        RealHardware(smbus=smbus, backend=SimBackend(), gpiod=gpiod, video=NoCamera)
+                        refused = False
+                    except NotCalibrated:
+                        refused = True
+                    Calibration().save()
+                    handles.clear()
+                    hw = RealHardware(smbus=smbus, backend=SimBackend(), gpiod=gpiod, video=NoCamera)
+                finally:
+                    servos.CAL_FILE = old
+            from robot.drivers.i2c_devices import read_ring
+            want = {n: a for n, (a, _) in CLIFF_WIRING.items() if n != broken}
+            got = {n: r.addr for n, r in rangers.items()}
+            readings = read_ring(hw.cliff)
+            ok = got == want and all(readings[n] == 55 for n in want) and \
+                (broken is None or (hw.cliff[broken] is None and readings[broken] is None
+                                    and not powered[broken]))
+            what = "all five" if broken is None else f"one dead ({broken}: None, held in reset), the other four"
+            check(f"libgpiod {api}: cliff ring brought up one by one with XSHUT - {what} at their addresses",
+                  ok, f"{ {n: hex(a) for n, a in got.items()} }")
+            if api == "v1" and broken is None:
+                check("no calibration file -> the firmware refuses to start", refused)
+                ring_bus = next(b for k, b in handles if k == 5)
+                check("touch and cliff ring get their own I2C handles (no cross-thread address race)",
+                      hw.touch.bus is not ring_bus and all(r.bus is ring_bus for r in hw.cliff.values()))
+                check("camera that doesn't open -> no camera (checked with isOpened), the rest carries on",
+                      hw.camera is None and hw.oled is not None)
 
 
 def fisheye_geometry():

@@ -336,7 +336,11 @@ class BNO055:
 
 class INA219:
     """Battery monitor over plain I2C registers (pip install smbus2), in the battery's + lead.
-    The servos sit behind the 5 V regulator, so they can't see the pack voltage - this can."""
+    The servos sit behind the 5 V regulator, so they can't see the pack voltage - this can.
+    The pack voltage is bus voltage + the drop across the shunt, both measured directly, so it doesn't
+    depend on the shunt's value; the current does (current() = drop / SHUNT_OHM)."""
+
+    SHUNT_OHM = 0.01          # the board's shunt resistor (R010: 10 mOhm; hardware/BOM.md - was 0.1 Ohm)
 
     def __init__(self, address=0x40, bus=None, smbus=None):
         if smbus is None:
@@ -348,11 +352,17 @@ class INA219:
         hi, lo = self.bus.read_i2c_block_data(self.addr, reg, 2)
         return (hi << 8) | lo
 
+    def shunt_v(self):
+        raw = self._reg(0x01)
+        return (raw - 65536 if raw & 0x8000 else raw) * 1e-5             # 10 uV per bit, +-320 mV
+
     def read(self):
         bus_v = (self._reg(0x02) >> 3) * 0.004                          # 4 mV per bit
-        shunt = self._reg(0x01)
-        shunt = (shunt - 65536 if shunt & 0x8000 else shunt) * 1e-5     # 10 uV per bit
-        return float(bus_v + shunt)                                     # pack voltage (before the shunt)
+        return float(bus_v + self.shunt_v())                            # pack voltage (before the shunt)
+
+    def current(self):
+        """Amps drawn from the pack (+ = discharging). +-32 A range with the 10 mOhm shunt."""
+        return float(self.shunt_v() / self.SHUNT_OHM)
 
 
 class BoardPWM:

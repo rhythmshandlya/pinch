@@ -7,7 +7,7 @@ One 50 Hz loop runs the body (robot.crab_robot.Crab: limits, speed, battery and 
 10 Hz (pinch/mind.py - the same brain as the digital twin and the laptop app) and the reflexes. The senses
 run in their own threads and only hand results to the loop, so nothing slow ever sits in the 20 ms tick:
   touch    MPR121 zones -> gestures (in the loop: one 2-byte read)
-  cliff    2 x VL53L0X, own thread               ears   2 I2S mics (stereo) -> hearing, own thread
+  cliff    5 x VL53L0X ring, own thread          ears   2 I2S mics (stereo) -> hearing, own thread
   eyes     wide camera, own thread: where am I (tray marker), how fast am I really moving (ground flow),
            my things, your face - the loop only receives the answers
   face     SSD1309 OLED, own I2C bus, own thread  sound  tones through the I2S amp (aplay)
@@ -45,13 +45,12 @@ from pinch.face import Face  # noqa: E402
 from pinch.hearing import AudioDirection, Hearing  # noqa: E402
 from pinch.memory import Memory  # noqa: E402
 from pinch.mind import Mind  # noqa: E402
-from pinch.touch import BodySense, CliffReflex, StuckSense, TouchGestures  # noqa: E402
+from pinch.touch import BodySense, CliffReflex, StuckSense, TouchGestures, cliff_beams  # noqa: E402
 from pinch.world import Desk  # noqa: E402
 from robot.crab_robot import DT, Crab, SafetyStop  # noqa: E402
 from robot.servos import Calibration  # noqa: E402
 
 log = logging.getLogger("pinch")
-CLIFF_MM = 110            # more than this below a front corner = no desk there
 DIR_N = 1024              # samples per mic for the voice direction (GCC-PHAT); a 0.1 s chunk has 1600
 SAVE_EVERY = 60.0         # s between memory saves (plus one at shutdown)
 
@@ -105,15 +104,23 @@ class Localizer:
         self.drift = 0.0
         self.meas, self.meas_t = (float(x), float(y)), t
 
+    FLOW_MAX = 0.1                           # m/s: faster than Pinch walks = a bad flow reading (a claw moving)
+
     def flow(self, v_body, t, dt):
-        """Ground flow measured the body moving at v_body (m/s, body frame) over the last dt seconds."""
+        """Ground flow measured the body moving at v_body (m/s, body frame) over the last dt seconds.
+        Marker fixes outrank it: while one is recent, flow doesn't move the measured track."""
+        if np.hypot(*v_body) > self.FLOW_MAX:
+            return False
         self.flow_v, self.flow_t = v_body, t
+        if t - self.last_fix < 0.6:
+            return True
         if self.meas is None or t - self.meas_t > 1.0:      # no recent anchor: start a new measured track
             self.meas = (self.x, self.y)
         c, s = np.cos(self.yaw), np.sin(self.yaw)
         vx, vy = v_body
         self.meas = (self.meas[0] + (c * vx - s * vy) * dt, self.meas[1] + (s * vx + c * vy) * dt)
         self.meas_t = t
+        return True
 
     def measured_xy(self, t, max_age=0.6):
         return self.meas if self.meas is not None and t - self.meas_t <= max_age else None
@@ -141,13 +148,17 @@ class PinchFirmware:
         self.gestures = TouchGestures()
         self.bodysense = BodySense()
         self.stuck_sense = StuckSense()
-        self.cliff_reflex = CliffReflex(CLIFF_MM)
+        # the ring the robot is built with (crab/params.py CLIFF_BEAMS): one that didn't come up stays in the
+        # list as "don't know"; emulated hardware may model fewer (hw.cliff_beams)
+        names = getattr(hw, "cliff_beams", None)
+        beams = cliff_beams()
+        self.cliff_reflex = CliffReflex([b for b in beams if names is None or b[0] in names])
         self.last_recover = -99.0
         self.hearing = Hearing()
         self.direction = AudioDirection()
         self.inbox = queue.Queue()           # things from the HTTP API / threads, applied in the loop
-        self.cliff = None                    # [left, right] mm (None = no answer), from the cliff thread
-        self.cliff_at = None                 # when they were read (self._now() clock)
+        self.cliff = None                    # {beam: mm or None (no answer)}, from the cliff thread
+        self.cliff_at = {}                   # beam -> when it last answered (self._now() clock)
         self.face_frame = None
         self.running = True
         self.autonomous = True               # False: the mind doesn't move the body (tests drive it)
@@ -167,8 +178,9 @@ class PinchFirmware:
             if not hw.camera_model.calibrated:
                 log.warning("camera lens not calibrated (robot/calibrate_camera.py): it won't be used to "
                             "tell where Pinch is - only for things and faces")
-        if hw.cliff is None:
-            log.warning("no cliff sensors: Pinch will not walk forward (sideways, turning and backing are fine)")
+        missing = [b[0] for b in self.cliff_reflex.beams if not hw.cliff or hw.cliff.get(b[0]) is None]
+        if missing:
+            log.warning("cliff sensors missing: %s - Pinch won't walk toward those sides", missing)
 
     # -- what the world tells us ---------------------------------------------------------------
     def object_belief(self, name):
@@ -213,16 +225,16 @@ class PinchFirmware:
             time.sleep(0.06)                                 # ~15 frames a second is plenty for eyes
 
     def _read_cliff(self):
-        vals = []
-        for r in self.hw.cliff:
-            try:
-                vals.append(r.range_mm())
-            except OSError as e:
-                self._error("cliff", e)
-                vals.append(None)
+        from robot.drivers.i2c_devices import read_ring
+        vals = read_ring(self.hw.cliff)                      # all beams measure at once
+        now = self._now()
+        for name, v in vals.items():
+            if v is None:
+                if self.hw.cliff.get(name) is not None:
+                    self._error("cliff", f"{name} didn't answer")
+            else:
+                self.cliff_at[name] = now
         self.cliff = vals
-        if all(v is not None for v in vals):
-            self.cliff_at = self._now()                      # only a full, good pair counts as fresh
 
     def _cliff_thread(self):
         while self.running and self.hw.cliff is not None:
@@ -286,8 +298,10 @@ class PinchFirmware:
                 self.loc.fix(data["pose"], self.t)
                 self.stats["vision_fixes"] += 1
             if data["flow"] is not None:
-                self.loc.flow(data["flow"][0], self.t, data["flow"][1])
-                self.stats["flow_updates"] += 1
+                if self.loc.flow(data["flow"][0], self.t, data["flow"][1]):
+                    self.stats["flow_updates"] += 1
+                else:
+                    self.stats["flow_rejected"] = self.stats.get("flow_rejected", 0) + 1
             for name, xy in data["things"].items():
                 if self.desk.inside(xy, -0.01):
                     m.world.see(name, xy, graspable=False)
@@ -334,11 +348,12 @@ class PinchFirmware:
                 for s in m.outputs()[2]:
                     self.hw.play(s)
                     self.stats["sounds"].append(s)
-            # reflex: a front corner sees no desk while moving -> stop and back off (latched, so its own
-            # backing-off can't re-trigger it); sensors missing or stale -> no walking forward
-            age = None if self.cliff_at is None else self._now() - self.cliff_at
-            back = self.cliff_reflex.update(self.t, self.cliff, age, any(abs(c) > 1e-6 for c in self.body.cmd_vel))
-            self.body.forward_ok = self.cliff_reflex.forward_ok
+            # reflex: a beam sees no desk while walking toward its side -> back off away from it (latched,
+            # so its own backing-off can't re-trigger it); a beam missing or stale -> no walking that way
+            now = self._now()
+            ages = {n: now - t for n, t in self.cliff_at.items()}
+            back = self.cliff_reflex.update(self.t, self.cliff, ages, self.body.cmd_vel)
+            self.body.cliff_blocked = self.cliff_reflex.blocked
             if back is not None:
                 self.body.cancel()
                 self.body.start(back)
@@ -431,9 +446,13 @@ class PinchFirmware:
                     ms = self.timing()
                     if ms["p95"] > 0.75 * DT * 1000:
                         log.warning("control loop slow: %s ms per tick (budget %d)", ms, DT * 1000)
+                    cpu = self._cpu_temp()
+                    if cpu is not None:
+                        (log.warning if cpu > 80 else log.info)("CPU %.0f C", cpu)
         except SafetyStop as e:
             log.error("safety stop: %s", e)
-            self.face.update(0.1, "dizzy")
+            self.stop_kind = e.kind
+            self.face.update(0.1, "sleep" if e.kind == "battery" else "dizzy")
             if self.hw.oled is not None:
                 try:
                     self.hw.oled.show(self.face.ssd1309_pages())
@@ -446,6 +465,17 @@ class PinchFirmware:
             except Exception as e:                             # noqa: BLE001 - still save the memory
                 log.error("shutdown: %s", e)
             self.save_memory(wait=True)
+            if self.stop_kind == "battery" and hasattr(self.hw, "poweroff"):
+                # empty pack: say so, then power the computer down instead of draining the cells further
+                log.error("battery empty: shutting the computer down")
+                self.hw.play("low_battery")
+                time.sleep(1.5 if getattr(self.hw, "realtime", True) else 0.0)
+                self.hw.poweroff()
+
+    stop_kind = None
+
+    def _cpu_temp(self):
+        return self.hw.cpu_temp() if hasattr(self.hw, "cpu_temp") else None
 
     def timing(self):
         a = np.array(self.tick_ms) if self.tick_ms else np.zeros(1)
@@ -459,7 +489,7 @@ class PinchFirmware:
                     busy=m.world.owner.busy, pose=[round(v, 3) for v in self.loc.pose()], t=round(self.t, 1),
                     pose_sigma_m=round(self.loc.sigma(), 3), stuck=self.stuck_sense.stuck,
                     battery=round(self._safe("battery", self.hw.battery_fraction, 0.0), 2), cliff_mm=self.cliff,
-                    cliff=self.cliff_reflex.state, tick_ms=self.timing(),
+                    cliff=dict(self.cliff_reflex.states), tick_ms=self.timing(), cpu_c=self._cpu_temp(),
                     errors=dict(self.errors) | dict(getattr(self.hw.backend, "errors", {})),
                     diary=[f"{t:.0f}s {k}: {x}" for t, k, x in m.log[-8:]])
 
