@@ -1,0 +1,29 @@
+{
+ "run": "emote-v1",
+ "steps": 40000000,
+ "num_timesteps": 40000000,
+ "num_envs": 4096,
+ "batch_size": 256,
+ "num_minibatches": 32,
+ "unroll_length": 20,
+ "num_updates_per_batch": 4,
+ "episode_length": 500,
+ "num_evals": 16,
+ "num_eval_envs": 256,
+ "learning_rate": 0.0003,
+ "entropy_cost": 0.005,
+ "discounting": 0.97,
+ "policy_layers": [
+  128,
+  128,
+  128
+ ],
+ "value_layers": [
+  256,
+  256,
+  256
+ ],
+ "preset": "emote",
+ "env": "emote",
+ "randomize": true
+}

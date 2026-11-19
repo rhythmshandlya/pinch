@@ -92,7 +92,8 @@ def _cycloid(s):
 class Gait:
     params: GaitParams
     com_offset: np.ndarray = field(default_factory=lambda: np.zeros(2))  # CoM xy in body frame
-    arms: np.ndarray = None           # 20-vector whose arm entries are used; default STAND
+    arms: np.ndarray = None           # 18-vector whose arm entries are used; default STAND
+    lower: float = 0.0                # m: walk crouched this much lower (claws reach the desk)
 
     def __post_init__(self):
         from .kinematics import _mirror, _mount
@@ -205,7 +206,7 @@ class Gait:
             n = np.linalg.norm(self.offset[lg])
             if n > 1.4 * P.max_step:                              # backstop; governor should prevent this
                 self.offset[lg] *= 1.4 * P.max_step / n
-            feet[lg] = self.neutral[lg] + np.array([*self.offset[lg], z])
+            feet[lg] = self.neutral[lg] + np.array([*self.offset[lg], z + self.lower])
 
         # weight shift: move the body so the CoM sits over the loaded feet
         if P.weight_shift > 0:

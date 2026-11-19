@@ -15,7 +15,9 @@ from pathlib import Path
 import modal
 
 ROOT = Path(__file__).resolve().parents[1]
-APP, VOLUME, GPU = "pinch-train", "pinch-checkpoints", "L4"
+import os
+APP, VOLUME = "pinch-train", "pinch-checkpoints"
+GPU = os.environ.get("PINCH_GPU", "L4")          # L4 ~$0.80/h; A10G ~$1.10/h when L4s are queued
 TIMEOUT_S = 90 * 60
 
 image = (

@@ -57,7 +57,7 @@ class ServoState:
 class SimBackend:
     """MuJoCo stands in for the robot. `mount_offsets` = physical horn offsets (rad) per joint."""
 
-    def __init__(self, mount_offsets=None, render=False, voltage=None, pwm_travel=1.0):
+    def __init__(self, mount_offsets=None, render=False, voltage=None, pwm_travel=1.0, model=None):
         from crab.params import PARAMS, JOINT_SPECS
         voltage = PARAMS.bus_voltage if voltage is None else voltage
         self._flim = {j: s.force_limit for j, s in zip(JOINT_NAMES, JOINT_SPECS)}
@@ -65,7 +65,7 @@ class SimBackend:
         from pathlib import Path
         self.mj = mujoco
         root = Path(__file__).resolve().parents[1]
-        self.m = mujoco.MjModel.from_xml_path(str(root / "sim" / "models" / "crab.xml"))
+        self.m = model if model is not None else mujoco.MjModel.from_xml_path(str(root / "sim" / "models" / "crab.xml"))
         self.d = mujoco.MjData(self.m)
         mujoco.mj_resetDataKeyframe(self.m, self.d, self.m.key("stand").id)
         mujoco.mj_forward(self.m, self.d)          # body poses valid before the first step (IMU reads)

@@ -61,20 +61,23 @@ def load_training_model(sim_dt: float) -> mujoco.MjModel:
     return m
 
 
+# v2 (2026-11-19): v1 learned to stand still - Pinch's commands are only a few cm/s, and with a loose
+# speed tolerance standing earned ~60 % of the tracking reward with none of walking's costs. Now the
+# tolerance is tight (standing earns ~1 %), tracking counts double and effort penalties are lighter.
 REWARD_SCALES = dict(
-    tracking_lin_vel=1.5,
+    tracking_lin_vel=3.0,
     tracking_ang_vel=0.8,
     lin_vel_z=-2.0,
     ang_vel_xy=-0.05,
-    orientation=-5.0,
-    torques=-0.01,
+    orientation=-2.0,
+    torques=-0.002,
     torque_limit=-1.0,
-    action_rate=-0.05,
-    energy=-0.002,
-    feet_air_time=1.0,
+    action_rate=-0.02,
+    energy=-0.0005,
+    feet_air_time=2.0,
     foot_slip=-0.5,
     stand_still=-0.5,
-    pose=-0.1,
+    pose=-0.05,
     termination=-5.0,
 )
 
@@ -125,7 +128,8 @@ class CrabWalkEnv(Env):
         self.torque_soft_limit = jp.array([s.rated_torque for s in leg_specs])
         self.ke = jp.array([s.back_emf for s in leg_specs])
         self.fall_height = 0.37 * float(m.key("stand").qpos[2])
-        self.vel_sigma = 0.05 * PARAMS.scale / PARAMS.scale ** 0.5
+        self.vel_sigma = 0.015                      # m/s on the smoothed velocity (v1: 0.036 instantaneous)
+        self.yaw_sigma = 0.15                       # rad/s (v1: 0.3)
 
     # brax Env interface ---------------------------------------------------
     @property
@@ -141,9 +145,12 @@ class CrabWalkEnv(Env):
         return "mjx"
 
     def _sample_command(self, rng):
-        k1, k2 = jax.random.split(rng)
+        k1, k2, k3 = jax.random.split(rng, 3)
         cmd = jax.random.uniform(k1, (3,), minval=self.cmd_lo, maxval=self.cmd_hi)
-        stand = jax.random.uniform(k2) < 0.1                         # 10%: stand still
+        # each component either clearly on or off, so "walk slowly" never looks like "stand"
+        on = jax.random.uniform(k3, (3,)) < 0.6
+        cmd = jp.where(on & (jp.abs(cmd) < 0.35 * self.cmd_hi), jp.sign(cmd) * 0.35 * self.cmd_hi, cmd) * on
+        stand = jax.random.uniform(k2) < 0.08                        # 8 %: stand still
         return jp.where(stand, jp.zeros(3), cmd)
 
     def reset(self, rng):
@@ -165,6 +172,7 @@ class CrabWalkEnv(Env):
             feet_air_time=jp.zeros(4),
             last_contact=jp.zeros(4, dtype=bool),
             last_foot_pos=data.geom_xpos[self.foot_geoms],
+            v_filt=jp.zeros(3),                        # body velocity smoothed over ~a gait cycle
         )
         metrics = {k: jp.array(0.0) for k in self.scales}
         obs = self._obs(data, info, jax.random.PRNGKey(0))
@@ -205,10 +213,12 @@ class CrabWalkEnv(Env):
         foot_vel = (foot_pos - info["last_foot_pos"]) / self.dt
         cmd = info["command"]
         moving = jp.linalg.norm(cmd) > 0.01
+        # a walking body surges and slows within every step: score the speed averaged over ~a cycle
+        v_filt = 0.85 * info["v_filt"] + 0.15 * jp.array([v_body[0], v_body[1], w_body[2]])
 
         r = dict(
-            tracking_lin_vel=jp.exp(-jp.sum((cmd[:2] - v_body[:2]) ** 2) / self.vel_sigma ** 2 / 2),
-            tracking_ang_vel=jp.exp(-((cmd[2] - w_body[2]) ** 2) / 0.3 ** 2 / 2),
+            tracking_lin_vel=jp.exp(-jp.sum((cmd[:2] - v_filt[:2]) ** 2) / self.vel_sigma ** 2 / 2),
+            tracking_ang_vel=jp.exp(-((cmd[2] - v_filt[2]) ** 2) / self.yaw_sigma ** 2 / 2),
             lin_vel_z=v_body[2] ** 2,
             ang_vel_xy=jp.sum(w_body[:2] ** 2),
             orientation=jp.sum(gravity[:2] ** 2),
@@ -239,6 +249,7 @@ class CrabWalkEnv(Env):
             feet_air_time=air * ~contact,
             last_contact=contact,
             last_foot_pos=foot_pos,
+            v_filt=jp.where(resample, jp.zeros(3), v_filt),
         )
         done = fell.astype(jp.float32)
         metrics = dict(state.metrics)        # keep keys wrappers add (e.g. "reward")

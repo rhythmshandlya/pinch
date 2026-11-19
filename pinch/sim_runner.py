@@ -1,0 +1,205 @@
+"""Pinch in the digital twin: desk world + robot runtime + body + mind + face, one 50 Hz loop.
+
+    sim = PinchSim()
+    sim.say("Pinch, put the pen back")
+    sim.run(60)                         # simulated seconds
+    sim.in_tray("pen")
+
+Used by the virtual pet app (pinch/app.py) and the scenario tests (sim/pinch_scenarios.py).
+"""
+
+import sys
+from pathlib import Path
+
+import mujoco
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from crab.params import JOINT_NAMES  # noqa: E402
+from pinch.body import Body  # noqa: E402
+from pinch.face import Face  # noqa: E402
+from pinch.hearing import Hearing  # noqa: E402
+from pinch.memory import Memory  # noqa: E402
+from pinch.mind import Mind  # noqa: E402
+from pinch.touch import BodySense  # noqa: E402
+from pinch.world import Desk  # noqa: E402
+from robot.backends import SimBackend  # noqa: E402
+from robot.crab_robot import DT, Crab  # noqa: E402
+from robot.servos import Calibration  # noqa: E402
+from sim.desk import OBJECTS, START, build_desk_model, object_pose, set_face  # noqa: E402
+
+MIND_EVERY = 5                        # mind at 10 Hz
+FACE_EVERY = 3                        # face texture at ~17 Hz
+
+
+class PinchSim:
+    def __init__(self, memory=None, llm=False, seed=0, start=None, render=False, policies=True):
+        self.desk = Desk()
+        self.m = build_desk_model(self.desk, start=start or START)
+        self.hw = SimBackend(model=self.m, render=render)
+        self.d = self.hw.d
+        self.crab = Crab(self.hw, calibration=Calibration())
+        self.crab.start()                                  # ease into the stand pose (2 s)
+        self.mind = Mind(memory=memory if memory is not None else Memory(path=None), llm=llm, seed=seed)
+        self.face = Face(seed=seed)
+        self.rng = np.random.default_rng(seed)
+        self.senses = BodySense()
+        self.hearing = Hearing()
+        self._tip_d = mujoco.MjData(self.m)
+        emote_pol = walk_pol = None
+        if policies:
+            from crab.policy_np import load_policies
+            emote_pol, walk_pol = load_policies()
+        self.body = Body(self.crab, self.pose, self.obj, self.desk, tip_fn=self.tip, emote_policy=emote_pol,
+                         walk_policy=walk_pol)
+        self.body.grip_fn = self.gripping
+        self.k = 0
+        self.t = 0.0
+        self.sounds_played = []           # (t, name)
+        self.motions = []                 # (t, step)
+        self.falls = 0
+        self.edge_stops = 0
+        for name in OBJECTS:              # Pinch knows its desk things where they start (homes are learned)
+            self.mind.world.see(name, self.obj(name)[0][:2], graspable=OBJECTS[name][4])
+        self.mind.memory.teach_home("pen", self.desk.tray_xy)
+        self.mind.memory.teach_home("eraser", (self.desk.tray_xy[0] - 0.04, self.desk.tray_xy[1]))
+        self.user_active = False          # the app sets this while you interact
+        self.autonomous = True            # False: the mind doesn't move the body (skill tests)
+
+    # ---------------------------------------------------------------- state readers
+    def pose(self):
+        q = self.d.qpos
+        w, x, y, z = q[3:7]
+        yaw = np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+        return float(q[0]), float(q[1]), float(yaw)
+
+    def obj(self, name):
+        return object_pose(self.m, self.d, name)
+
+    def in_tray(self, name):
+        (x, y, _), z = self.obj(name)
+        return self.desk.in_tray((x, y)) and z < 0.03
+
+    GAP = 0.008          # the open claw's gap centre sits this far from the grip line, toward the moving finger
+
+    def tip(self, side, q):
+        """Centre of the open claw's gap, in Pinch's body frame, for joint targets q (forward kinematics).
+        The fixed finger is on one side of the grip line and the moving finger swings in from the other,
+        so a thing to grab has to sit a few mm toward the moving finger."""
+        dd = self._tip_d
+        dd.qpos[:] = self.m.qpos0
+        dd.qpos[3:7] = (1, 0, 0, 0)
+        for i, n in enumerate(JOINT_NAMES):
+            dd.qpos[self.m.jnt_qposadr[self.m.joint(n).id]] = q[i]
+        mujoco.mj_kinematics(self.m, dd)
+        s = "L" if side == "left" else "R"
+        site = self.m.site(f"{s}_grip_site").id
+        p = dd.site_xpos[site] - dd.qpos[:3]
+        R = dd.site_xmat[site].reshape(3, 3)
+        # the open claw's gap: 4 mm back from the grip line's end, 8 mm off the fixed finger (measured from the
+        # finger geometry: at full open the moving finger is 14-20 mm out there, the fixed one 0.5 mm in)
+        off = R @ np.array([-0.004, (1 if side == "left" else -1) * self.GAP, 0.0])
+        return float(p[0] + off[0]), float(p[1] + off[1])
+
+    def gripping(self, name, side):
+        """Both claw fingers touch the thing (on the robot: the camera sees it between the fingers)."""
+        s = "L" if side == "left" else "R"
+        g = self.m.geom(f"{name}_geom").id
+        pollex = self.m.geom(f"{s}_pollex").id
+        dactyl = self.m.body(f"{s}_dactyl").id
+        touch_p = touch_d = False
+        for i in range(self.d.ncon):
+            c = self.d.contact[i]
+            if g not in (c.geom1, c.geom2):
+                continue
+            o = c.geom2 if c.geom1 == g else c.geom1
+            touch_p |= o == pollex
+            touch_d |= self.m.geom_bodyid[o] == dactyl
+        return touch_p and touch_d
+
+    # ---------------------------------------------------------------- the user, simulated or from the app
+    def say(self, text):
+        self.user_active = True
+        return self.mind.hear_text(text)
+
+    def touch(self, gesture):
+        self.mind.touch(gesture)
+
+    def hear_audio(self, chunk):
+        for s in self.hearing.feed(chunk):
+            self.mind.hear_summary(s)
+        for kind, _ in self.hearing.take_events():
+            self.mind.hear_event(kind)
+
+    def place(self, name, xy, yaw=0.0):
+        """Put a desk thing somewhere (you moving the pen while you work)."""
+        b = self.m.body(name)
+        adr = self.m.jnt_qposadr[b.jntadr[0]]
+        z = OBJECTS[name][1][0] + 0.001
+        self.d.qpos[adr:adr + 3] = (xy[0], xy[1], z)
+        self.d.qpos[adr + 3:adr + 7] = (np.cos(yaw / 2), 0, 0, np.sin(yaw / 2))   # lying flat, turned by yaw
+        self.d.qvel[self.m.jnt_dofadr[b.jntadr[0]]:self.m.jnt_dofadr[b.jntadr[0]] + 6] = 0
+        mujoco.mj_forward(self.m, self.d)
+
+    # ---------------------------------------------------------------- the loop
+    def perceive(self):
+        """What Pinch's camera sees: things within its field of view (with a little noise)."""
+        x, y, h = self.pose()
+        w = self.mind.world
+        w.pose = (x, y, h)
+        for name in OBJECTS:
+            (ox, oy, oyaw), oz = self.obj(name)
+            on_desk = oz > -0.02
+            bearing = np.arctan2(oy - y, ox - x) - h
+            bearing = (bearing + np.pi) % (2 * np.pi) - np.pi
+            dist = np.hypot(ox - x, oy - y)
+            held = self.body.held and self.body.held[0] == name
+            if (abs(bearing) < 0.9 and 0.05 < dist < 0.6) or held or not on_desk:
+                noise = self.rng.normal(0, 0.004, 2)
+                w.see(name, (ox + noise[0], oy + noise[1]), oyaw, graspable=OBJECTS[name][4], on_desk=on_desk)
+                if not held and self.mind.world.objects[name].still_since < self.t - 30:
+                    pass
+        if self.user_active:
+            w.owner.present = True
+            w.owner.last_seen = self.mind.t
+
+    def step(self):
+        if self.k % MIND_EVERY == 0 and not self.autonomous:
+            self.perceive()
+        elif self.k % MIND_EVERY == 0:
+            self.perceive()
+            motion, cancel = self.mind.tick(DT * MIND_EVERY, self.body.busy, self.body.ok)
+            if cancel:
+                self.body.cancel()
+            if motion is not None:
+                self.body.start(motion)
+                self.motions.append((round(self.t, 2), motion))
+            for s in self.mind.outputs()[2]:
+                self.sounds_played.append((round(self.t, 2), s))
+            # reflex: the cliff sensors see no desk ahead -> stop and back off
+            if min(self.d.sensor("cliff_left").data[0], self.d.sensor("cliff_right").data[0]) > 0.11 \
+                    or min(self.d.sensor("cliff_left").data[0], self.d.sensor("cliff_right").data[0]) < 0:
+                if self.body.busy and self.body.status in ("goto", "walk", "push"):
+                    self.body.cancel()
+                    self.body.start(("walk", -0.03, 0.0, 0.0, 1.0))
+                    self.edge_stops += 1
+            gyro, grav = self.hw.read_imu()
+            for ev in self.senses.update(DT * MIND_EVERY, gyro, grav):
+                self.mind.touch(ev)
+            if grav[2] > -0.5:
+                self.falls += 1
+        if self.k % FACE_EVERY == 0:
+            expr, gaze, _ = self.mind.face_expr, self.mind.gaze, None
+            self.face.update(DT * FACE_EVERY, expr, gaze)
+            set_face(self.m, self.face.rgb(scale=2))
+        self.body.tick()                                   # 20 ms of physics through the robot runtime
+        self.k += 1
+        self.t += DT
+
+    def run(self, seconds, every=None):
+        for _ in range(int(seconds / DT)):
+            self.step()
+            if every:
+                every(self)
