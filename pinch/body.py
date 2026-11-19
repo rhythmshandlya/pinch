@@ -241,6 +241,11 @@ class Body:
     # -- moving around the desk ------------------------------------------------------------
     def _goto(self, xy, tol=0.03, heading=None, timeout=40.0, slow=1.0, htol=0.15):
         xy = np.array(self.desk.clamp(xy))
+        h_end = heading if heading is not None else self.pose_fn()[2]
+        fitted = np.array(self.desk.fit_feet(xy, h_end, self.FEET_EDGE + 0.005))
+        if np.linalg.norm(fitted - xy) > 1e-4:                # (the feet wouldn't fit there: stop short)
+            self.trace("goto_fitted", asked=tuple(np.round(xy, 3)), to=tuple(np.round(fitted, 3)))
+            xy = fitted
         settle_n = 0
         for _ in range(int(timeout / DT)):
             x, y, h = self.pose_fn()
@@ -325,7 +330,8 @@ class Body:
             c, s = np.cos(heading), np.sin(heading)
             tip_w = np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
             start = np.array((ox, oy)) - u * (radius + 0.03) - tip_w
-            if not self.desk.inside(start, self.desk.edge_margin - 0.004):   # can't get behind it from the desk
+            # can't get behind it from the desk (its feet, not just its centre, must fit there)
+            if not self.desk.inside(start, self.desk.edge_margin - 0.004) or                     self.desk.feet_margin(start, heading) < self.FEET_EDGE:
                 if RAKE_ENABLED:
                     ok = yield from self._rake(name, goal, radius)
                     if ok is not None:
@@ -468,7 +474,7 @@ class Body:
                     hd = _wrap(a - arm_dir)
                     c, s = np.cos(hd), np.sin(hd)
                     st = g - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
-                    room = self.desk.edge_distance(st)
+                    room = min(self.desk.edge_distance(st), self.desk.feet_margin(st, hd) + 0.066 - self.FEET_EDGE)
                     cost = abs(_wrap(hd - h)) + 5 * (room < 0.068) + 3 * max(0.0, 0.12 - room) / 0.12
                     if best is None or cost < best[0]:
                         best = (cost, hd, st, g)
@@ -480,7 +486,7 @@ class Body:
             self.trace("pick_plan", side=side, tip=tuple(np.round(tip, 3)), stand=tuple(np.round(stand_xy, 3)),
                        heading=round(float(heading), 2), obj=(round(ox, 3), round(oy, 3), round(oyaw, 2)))
             fwd = np.array((np.cos(heading), np.sin(heading)))
-            if self.desk.edge_distance(stand_xy) < 0.066:
+            if self.desk.edge_distance(stand_xy) < 0.066 or self.desk.feet_margin(stand_xy, heading) < self.FEET_EDGE:
                 self.trace("pick_unreachable")                     # (too near an edge: push it, or ask for help)
                 return False
             # line up 5 cm short of the spot, facing the final way, then walk the last bit straight in: the

@@ -32,7 +32,7 @@ OBJECTS = {
     "cap":    ("cylinder", (0.014, 0.006), 0.003, (0.85, 0.15, 0.12, 1), False),
     "ball":   ("sphere", (0.015,), 0.006, (0.98, 0.82, 0.10, 1), False),
 }
-START = {"pen": (-0.18, -0.02, 0.6), "eraser": (0.10, -0.12, 0.3), "cap": (-0.12, 0.13, 0.0), "ball": (0.05, 0.15, 0.0)}
+START = {"pen": (-0.18, -0.02, 0.6), "eraser": (0.10, -0.12, 0.3), "cap": (-0.12, 0.06, 0.0), "ball": (0.05, 0.15, 0.0)}
 
 
 def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True) -> mujoco.MjModel:

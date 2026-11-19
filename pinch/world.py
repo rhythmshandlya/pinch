@@ -31,6 +31,19 @@ class Desk:
     # the front edge in a 10-minute twin run, and Pinch stood there, lopsided, without noticing)
     FEET = ((0.05, 0.10), (0.05, -0.10), (-0.05, 0.10), (-0.05, -0.10))
 
+    def fit_feet(self, xy, heading, margin=0.035):
+        """The nearest spot to xy (moving straight toward the desk's middle) where Pinch, facing `heading`, has
+        every foot at least `margin` inside the desk - so planners never aim at a spot the edge guard forbids."""
+        p = np.array(xy, float)
+        for _ in range(60):
+            if self.feet_margin(p, heading) >= margin:
+                break
+            n = np.linalg.norm(p)
+            if n < 1e-3:
+                break
+            p -= p / n * min(0.005, n)
+        return (float(p[0]), float(p[1]))
+
     def feet_margin(self, xy, heading):
         """How far Pinch's feet stay inside the desk (m; negative: a foot is over the edge)."""
         c, s = np.cos(heading), np.sin(heading)
