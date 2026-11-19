@@ -54,6 +54,10 @@ class Mind:
         self.voice_mood = OwnerVoiceMood()
         self.t = 0.0
         self.decisions = deque(maxlen=1000)  # recent activity switches with reasons (_record_decision)
+        self.phases = deque(maxlen=1000)     # (t, activity, phase): where it is inside an activity
+        self.phase = ""                      # the current activity's phase ("" until it says)
+        self.suspended = None                # (activity, t): cut short by something urgent, may resume
+        self.timed_out = None                # (activity, t): ended by its max_s
         self.danger_map = DangerMap(self.memory.data.get("danger"))   # learned fears of desk spots (safety.py)
         self.playbook = PlayBook(self.memory.data.get("play"))      # games it invented and how fun they were
         self.people = People(self.memory.data.get("people"))        # who it knows and how it feels about them
@@ -254,8 +258,10 @@ class Mind:
         and how it felt - so any choice can be explained after the fact."""
         scores = getattr(self, "scores", {})
         top = sorted(scores.items(), key=lambda kv: -kv[1])[:4]
+        nxt = next(x for x in LIBRARY if x.name == name)
         rec = dict(t=round(self.t, 2), clock=round(self.world.clock(), 2),
                    prev=self.activity.name if self.activity else None, to=name, reason=reason,
+                   state=[self.state, nxt.state],
                    top=[[k, round(v, 3)] for k, v in top],
                    noticed=[[s.kind, s.target, round(s.strength, 2)] for s in self.situations[:5]],
                    feeling=self.affect.feeling(), valence=round(self.affect.valence, 3),
@@ -336,6 +342,7 @@ class Mind:
         self.affect.tick(dt, owner_present=present, owner_attending=self.world.owner_attending(60),
                          battery=self.world.battery)
         self._self_preservation(dt)
+        timed_out = self._timeout()
         if self.t >= self.next_choice or self._force:
             self.situations = situations(self.world, self.affect, self.memory)
             self.affect.needs.tidy = min(1.0, self.affect.needs.tidy + 0.02 * len(
@@ -343,7 +350,7 @@ class Mind:
             self.next_choice = self.t + 0.5
             cancel = self._choose()
             self._force = False
-            if cancel:
+            if cancel or timed_out:
                 return None, True
         return self._advance(body_busy, body_ok), False
 
@@ -409,12 +416,16 @@ class Mind:
             self.charging = False
         self._last_battery = b
 
+    RESUME_S, RESUME_BONUS = 60.0, 0.1   # an activity cut short by something urgent is preferred back for 60 s
+
     def _choose(self):
         scores = {}
         for a in LIBRARY:
             u = a.utility(self)
             if self.affect.quiet and not a.quiet_ok:
                 u = 0.0
+            if u > 0 and self.suspended and self.suspended[0] == a.name and self.t - self.suspended[1] < self.RESUME_S:
+                u += self.RESUME_BONUS
             scores[a.name] = u + 0.02 * self.rng.random()
         cur = self.activity
         # commitment: an activity under way keeps most of the priority it started with, so a job doesn't
@@ -432,16 +443,40 @@ class Mind:
         urgent = scores[best] >= 1.5 and scores[best] > scores.get(cur.name, 0) + 0.1
         better = scores[best] > scores.get(cur.name, 0) + 0.15 and elapsed > cur.min_s
         if (cur.interruptible and (urgent or better)) or (not cur.interruptible and urgent and best in ("startle", "right_self")):
+            if urgent and cur.name != best:
+                self.suspended = (cur.name, self.t)              # (it may come back to it afterwards)
             self._start(best, ("urgent" if urgent else "clearly better") + f" than {cur.name}"
                         + (" (after an interrupt)" if self._force else ""))
             return True
         return False
 
+    def _timeout(self):
+        """An activity that has run past its max_s ends now (reason "timeout"): nothing stays stuck in a state."""
+        cur = self.activity
+        if cur is None or self.gen is None or self.t - self.started <= cur.max_s:
+            return False
+        self._say("timeout", f"{cur.name} ran {self.t - self.started:.0f} s (limit {cur.max_s:.0f} s)")
+        self.gen = None
+        self.timed_out = (cur.name, self.t)
+        self._interrupt()
+        return True
+
+    @property
+    def state(self):
+        """The top-level behaviour state now (activities/base.py STATES)."""
+        return self.activity.state if self.activity is not None else "idle"
+
     start_score = 0.0
 
     def _start(self, name, reason=""):
+        if self.suspended and self.suspended[0] == name:
+            reason += " (resumed)"
+            self.suspended = None
+        if self.timed_out and self.timed_out[0] == name and self.t - self.timed_out[1] < 1.0:
+            reason = "restarted after a timeout"
         self._record_decision(name, reason)
         a = next(x for x in LIBRARY if x.name == name)
+        self.phase = ""
         self.start_score = getattr(self, "scores", {}).get(name, 0.0)
         self.activity, self.gen, self.started = a, a.run(self), self.t
         self.waiting_motion, self.wait_until = False, -1.0
@@ -478,6 +513,10 @@ class Mind:
             elif kind == "praise_wait":
                 self.praise_until = self.t + step[1]
                 return None
+            elif kind == "phase":                                # which part of the activity it is in
+                if step[1] != self.phase:
+                    self.phase = step[1]
+                    self.phases.append((round(self.t, 2), self.activity.name, step[1]))
             elif kind == "quiet":
                 self.affect.quiet = step[1]
             elif kind == "remember":

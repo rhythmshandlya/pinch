@@ -760,3 +760,24 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
         next things to speed up if needed.
     - **Also:** the face detector now runs single-threaded (decision 57). On the robot it stays in the
       vision thread, outside the control loop.
+63. **An explicit state layer under utility selection** (the research plan's recommended shape; decision 60).
+    - **Structure:** `pinch/activities.py` (723 lines) became the package `pinch/activities/` by family:
+      - `rest`, `social`, `defensive`, `recovery`, `tasks`, `play`;
+      - `base`: the Activity contract.
+      LIBRARY keeps its order, since ties go to the first. The golden trace was identical.
+    - **The Activity contract now says, for every activity:**
+      - its top-level **state**: idle, explore, social, play, alert, defensive, rest, recover, or task.
+        "task" is desk work you asked for, an addition to the usual animal set;
+      - **max_s**, a time limit;
+      - its **phases**: steps can say `("phase", name)`. Tidy has pick / carry / push / ask_help;
+        righting has roll; unstick has work_free / ask_help; play announces its game; explore has go_look.
+    - **The mind:**
+      - reports `state` and `phase`;
+      - logs both state change and phase in the decision log (`phases` holds the sub-state history);
+      - ends any activity that overruns its `max_s` (reason "timeout", then a fresh choice);
+      - gives an activity that something *urgent* cut short a small preference to come back (+0.1 for
+        60 s). Its decision is then labelled "(resumed)".
+    - **Tests** (`tests/test_states.py`): every activity has a valid state and limits; an overrunning
+      activity times out; in the twin, a tidy interrupted by a stroke resumes and logs its phases.
+    - **Golden trace:** re-recorded only because the reason labels gained "(resumed)". Every decision,
+      motion, sound and the final pose were otherwise identical.
