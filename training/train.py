@@ -66,6 +66,11 @@ PRESETS = {
                  unroll_length=20, num_updates_per_batch=4, episode_length=600,
                  num_evals=20, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,
                  discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
+    # get up off its back (decision 76): 4 s episodes, all 18 joints, no reference motion
+    "righting": dict(num_timesteps=60_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
+                  unroll_length=20, num_updates_per_batch=4, episode_length=200,
+                  num_evals=15, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
+                  discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
     "emote": dict(num_timesteps=40_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
                   unroll_length=20, num_updates_per_batch=4, episode_length=500,
                   num_evals=16, num_eval_envs=256, learning_rate=3e-4, entropy_cost=5e-3,
@@ -116,6 +121,12 @@ def make_env(name):
     if name == "emote2":          # the emote balance policy in 2 ms physics, like the twin (emote-v1: 4 ms)
         from training.emote_env import CrabEmoteEnv
         return CrabEmoteEnv(sim_dt=0.002)
+    if name == "righting":       # get up off its back with all 18 joints (decision 76)
+        from training.righting_env import CrabRightingEnv
+        return CrabRightingEnv()
+    if name == "righting2":      # the same without the energy cost: does the penalty hold back getting up?
+        from training.righting_env import CrabRightingEnv
+        return CrabRightingEnv(reward_scales=dict(energy=0.0, action_rate=-0.005))
     if name == "grasp":
         from training.grasp_env import CrabGraspEnv
         return CrabGraspEnv()
@@ -204,7 +215,7 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preset", choices=list(PRESETS), default="smoke")
-    ap.add_argument("--env", choices=["walk", "gait", "gait2", "gait3", "terrain", "terrain_hard", "gait_v2", "push2", "emote", "emote2", "grasp",
+    ap.add_argument("--env", choices=["walk", "gait", "gait2", "gait3", "terrain", "terrain_hard", "gait_v2", "push2", "emote", "emote2", "righting", "righting2", "grasp",
                                         "push"], default="walk")
     ap.add_argument("--timesteps", type=int, help="override num_timesteps")
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")
