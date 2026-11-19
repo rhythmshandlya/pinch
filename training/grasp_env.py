@@ -48,7 +48,9 @@ MODEL = ROOT / "sim" / "models" / "crab.xml"
 P_LOW = -0.11          # arm pitch at which the jaws' lower edges reach the desk in the grasp crouch (measured)
 GAP_Y = 0.006          # aim the grab point this far off the fixed jaw, into the open gap (toward the moving jaw)
 # rigid things in hand: MuJoCo's default soft contacts let a servo squeeze a 9 g pen 3 mm deep
-STIFF = dict(solref=(0.01, 1.0), solimp=(0.95, 0.99, 0.001, 0.5, 2.0))
+# rigid things in hand, as in the twin (sim/desk.py): 4 ms contacts on 2 ms physics. grasp-v3 trained at 4 ms with
+# 10 ms contacts and fell apart in the twin (decision 47)
+STIFF = dict(solref=(0.004, 1.0), solimp=(0.95, 0.99, 0.001, 0.5, 2.0))
 KINDS = pio.GRASP_KINDS
 KIND_P = (0.6, 0.4, 0.0)                       # how often each kind comes up (no balls: see above)
 # default sizes (the pen, the eraser, a marble); each training environment draws its own (grasp_randomize)
@@ -60,7 +62,7 @@ REWARD_SCALES = dict(reach=5.0, align=1.0, grasp=4.0, lift=10.0, success=20.0, p
                      action_rate=-0.01, termination=-10.0)
 
 
-def load_grasp_model(sim_dt=0.004):
+def load_grasp_model(sim_dt=0.002):
     spec = mujoco.MjSpec.from_file(str(MODEL))
     for s in list(spec.sensors):
         spec.delete(s)
@@ -171,7 +173,7 @@ def grasp_randomize(sys: mjx.Model, rng: jax.Array):
 
 
 class CrabGraspEnv(Env):
-    def __init__(self, sim_dt=0.004, episode_seconds=4.0, obs_noise=0.01, reward_scales=None, pos_noise=0.008,
+    def __init__(self, sim_dt=0.002, episode_seconds=4.0, obs_noise=0.01, reward_scales=None, pos_noise=0.008,
                  yaw_noise=0.25):
         self.mj_model, fingers = load_grasp_model(sim_dt)
         self.sys = mjx.put_model(self.mj_model)
@@ -246,7 +248,8 @@ class CrabGraspEnv(Env):
         data = mjx.make_data(self.sys).replace(qpos=self.init_qpos)
         ready = pio.grasp_targets(jp, self.nominal, jp.zeros(pio.GRASP_N_ACT).at[13].set(0.3).at[14].set(1.0))
         data = data.replace(ctrl=ready)
-        data = jax.lax.fori_loop(0, 120, lambda _, d: mjx.step(self.sys, d.replace(ctrl=ready)), data)  # settle 0.5 s
+        n_settle = int(round(0.5 / float(self.mj_model.opt.timestep)))           # settle 0.5 s (in time, not steps)
+        data = jax.lax.fori_loop(0, n_settle, lambda _, d: mjx.step(self.sys, d.replace(ctrl=ready)), data)
         # where the open claw's gap will be once the arm is lowered to the desk (the arm sweeps forward
         # and down as it lowers, so this is the spot the approach lines up with)
         low = data.qpos.at[self.pitch_q].set(P_LOW).at[self.claw_q].set(pio.ARM_RANGES[2][1])

@@ -35,7 +35,7 @@ PRESETS = {
                  num_evals=20, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
                  discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
     # grasp skill: 4 s episodes, contact-rich (slower per step)
-    "grasp": dict(num_timesteps=28_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
+    "grasp": dict(num_timesteps=30_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
                   unroll_length=20, num_updates_per_batch=4, episode_length=200,
                   num_evals=16, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
                   discounting=0.97, policy_layers=(256, 256, 128), value_layers=(256, 256, 256)),
@@ -45,6 +45,11 @@ PRESETS = {
                  num_evals=10, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
                  discounting=0.99, policy_layers=(128, 128), value_layers=(256, 256)),
     # emote tracking: shorter episodes (one or two emotes), fewer steps
+    # residual walking on the scripted trot (decision 47): like emotes, longer episodes of walking clips
+    "gait": dict(num_timesteps=60_000_000, num_envs=2048, batch_size=256, num_minibatches=32,
+                 unroll_length=20, num_updates_per_batch=4, episode_length=600,
+                 num_evals=15, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,
+                 discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
     "emote": dict(num_timesteps=40_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
                   unroll_length=20, num_updates_per_batch=4, episode_length=500,
                   num_evals=16, num_eval_envs=256, learning_rate=3e-4, entropy_cost=5e-3,
@@ -63,6 +68,9 @@ def network_factory(cfg):
 
 
 def make_env(name):
+    if name == "gait":
+        from training.gait_env import CrabGaitEnv
+        return CrabGaitEnv()
     if name == "emote":
         from training.emote_env import CrabEmoteEnv
         return CrabEmoteEnv()
@@ -145,7 +153,7 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preset", choices=list(PRESETS), default="smoke")
-    ap.add_argument("--env", choices=["walk", "emote", "grasp", "push"], default="walk")
+    ap.add_argument("--env", choices=["walk", "gait", "emote", "grasp", "push"], default="walk")
     ap.add_argument("--timesteps", type=int, help="override num_timesteps")
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")
     ap.add_argument("--run", default=None, help="run name (default: env-preset-timestamp)")

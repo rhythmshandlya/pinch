@@ -38,6 +38,7 @@ REWARD_SCALES = dict(
     action_rate=-0.1,
     torque_limit=-1.0,
     residual=-0.2,
+    track_vel=0.0,
     termination=-10.0,
 )
 
@@ -87,6 +88,7 @@ class CrabEmoteEnv(Env):
         self.push_vel = push_vel
         self.scales = dict(REWARD_SCALES, **(reward_scales or {}))
         refs = refs or nominal_references(1 / self.dt)
+        self.ref_v = jp.array(refs["v"]) if "v" in refs else None    # (E, 2) body velocity to walk at
         self.ref_q = jp.array(refs["q"])
         self.ref_grav = jp.array(refs["grav"])
         self.ref_h = jp.array(refs["h"])
@@ -137,7 +139,7 @@ class CrabEmoteEnv(Env):
         data = mjx.make_data(self.sys).replace(qpos=qpos, ctrl=self.ref_q[e, 0])
         data = mjx.forward(self.sys, data)
         info = dict(rng=rng, emote=e, k=jp.array(0), step=jp.array(0), last_act=jp.zeros(pio.N_ACT),
-                    last_foot_pos=data.geom_xpos[self.foot_geoms])
+                    last_foot_pos=data.geom_xpos[self.foot_geoms], v_filt=jp.zeros(2))
         metrics = {k: jp.array(0.0) for k in self.scales}
         obs = self._obs(data, info, jax.random.PRNGKey(0))
         return State(data, obs, jp.array(0.0), jp.array(0.0), metrics, info)
@@ -167,7 +169,11 @@ class CrabEmoteEnv(Env):
         contact = foot_pos[:, 2] < self.foot_radius * 1.5
         foot_vel = (foot_pos - info["last_foot_pos"]) / self.dt
         legs_ref = ref_q[self.leg_act]
+        v_body = (R.T @ data.qvel[0:3])[:2]
+        v_filt = 0.85 * info["v_filt"] + 0.15 * v_body             # averaged over ~a gait cycle
+        v_goal = self.ref_v[e] if self.ref_v is not None else jp.zeros(2)
         r = dict(
+            track_vel=jp.exp(-jp.sum((v_filt - v_goal) ** 2) / (2 * 0.015 ** 2)),
             track_legs=jp.exp(-jp.sum((q - legs_ref) ** 2) / (2 * 0.15 ** 2)),
             track_attitude=jp.exp(-jp.sum((gravity[:2] - ref_g[:2]) ** 2) / (2 * 0.05 ** 2)),
             track_height=jp.exp(-((data.qpos[2] - ref_h) ** 2) / (2 * 0.006 ** 2)),
@@ -186,7 +192,8 @@ class CrabEmoteEnv(Env):
         over = k_next >= self.ref_n[e] - 1
         e_new = jax.random.randint(k_e, (), 0, self.n_emotes)
         info.update(rng=rng, emote=jp.where(over, e_new, e), k=jp.where(over, 0, k_next),
-                    step=info["step"] + 1, last_act=action, last_foot_pos=foot_pos)
+                    step=info["step"] + 1, last_act=action, last_foot_pos=foot_pos,
+                    v_filt=jp.where(over, jp.zeros(2), v_filt))
         metrics = dict(state.metrics)
         metrics.update(r)
         obs = self._obs(data, info, k_noise)
