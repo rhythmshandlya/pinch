@@ -912,3 +912,13 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       a requested tidy doesn't interrupt it. The golden trace is unchanged.
     - **Not yet:** seeing motion and new things in the camera feed as stimuli. That needs the vision
       pipeline to report them.
+73. **Candidates benched and not adopted.**
+    - **terrain-hard-v1** (92M steps; half the robots on bars to 15 mm and ramps to 21°):
+      - better than terrain-v1 over sideways bars (6 mm 3/3, 10 mm 2/3, 15 mm 1/3);
+      - slightly worse up a 15° ramp forward (2/3).
+      Mixed and marginal, so terrain-v1 stays.
+    - **emote2-v1** (msi-1, 42M steps, emotes in 2 ms physics): 0/40 falls with the same tilt as
+      emote-v1 (1.4° RMS, 7.4° worst). Its actions differ from v1's, but there is no measurable gain, so
+      emote-v1 stays.
+    - **Bench:** `sim/robustness.py` now takes `PINCH_EMOTE_POLICY` to bench an emote candidate without
+      overwriting the report.

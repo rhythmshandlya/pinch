@@ -123,7 +123,8 @@ def episode(args):
     act = np.array([m.actuator(j).id for j in JOINT_NAMES])
     sens = Sensors(m)
     stand_h = float(m.key("stand").qpos[2])
-    pol = NumpyPolicy.load(POLICY_DIR / f"{'walk' if kind == 'walk' else 'emote'}.npz") if ctrl == "policy" else None
+    name = "walk" if kind == "walk" else os.environ.get("PINCH_EMOTE_POLICY", "emote")   # (a candidate emote policy)
+    pol = NumpyPolicy.load(POLICY_DIR / f"{name}.npz") if ctrl == "policy" else None
     if ctrl == "residual":                       # the scripted trot + learned corrections (training/gait_env.py)
         pol = NumpyPolicy.load(POLICY_DIR / f"{os.environ.get('PINCH_GAIT_POLICY', 'gait')}.npz")
     look = int(round(0.1 / pio.CTRL_DT))
@@ -279,7 +280,7 @@ def main():
     if a.world != "desk":
         lines.insert(3, f"World: **{a.world}** - see the module docstring.")
     out = "ROBUSTNESS.md" if a.world == "desk" else f"ROBUSTNESS_{a.world}.md"
-    if os.environ.get("PINCH_GAIT_POLICY", "gait") == "gait":      # (a candidate policy doesn't overwrite the report)
+    if os.environ.get("PINCH_GAIT_POLICY", "gait") == "gait" and "PINCH_EMOTE_POLICY" not in os.environ:
         (ROOT / "docs" / out).write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
 
