@@ -19,6 +19,7 @@ from pinch.affect import Affect, Personality
 from pinch.hearing import MeetingDetector, OwnerVoiceMood
 from pinch.language import LLMUnderstanding, understand_rules
 from pinch.memory import Memory
+from pinch.safety import NO_GO, DangerMap, hunger
 from pinch.touch import GESTURE_EVENT
 from pinch.world import WorldModel, situations
 
@@ -45,6 +46,9 @@ class Mind:
         self.meeting = MeetingDetector()
         self.voice_mood = OwnerVoiceMood()
         self.t = 0.0
+        self.danger_map = DangerMap(self.memory.data.get("danger"))   # learned fears of desk spots (safety.py)
+        self.charging, self._last_battery, self._safe_check_t = False, None, 0.0
+        self.lifted_since, self._lift_fear_t = None, 0.0
         # requests and timers the activities read
         self.request = None
         self.tidy_request = None
@@ -175,9 +179,20 @@ class Mind:
             self._say("body", "I'm stuck!" if self.stuck else "free again")
             if self.stuck:
                 self.memory.remember("stuck", "got stuck")
+                xy, h = self.world.pose[:2], self.world.pose[2]
+                over = self.world.desk.feet_margin(xy, h) < 0
+                self.learn_danger(xy, "near_fall" if over else "stuck")
                 self._interrupt()
             return
+        if gesture == "upside_down":                         # it fell over: that spot is scary now
+            self.learn_danger(self.world.pose[:2], "fell")
         ev = GESTURE_EVENT.get(gesture)
+        if gesture == "lifted":
+            self.lifted_since = self.t
+        if gesture == "put_down" and self.lifted_since is not None:
+            held = self.t - self.lifted_since                  # relief, bigger after a long scary hold
+            self.lifted_since = None
+            self.affect.feel("put_down_relief", min(1.0, 0.4 + held / 20.0))
         if gesture == "put_down":
             self.touch_event = (gesture, self.t)
             return
@@ -259,6 +274,7 @@ class Mind:
         self.affect.quiet = o.busy == "meeting" or self.t < self.quiet_until
         self.affect.tick(dt, owner_present=present, owner_attending=self.world.owner_attending(60),
                          battery=self.world.battery)
+        self._self_preservation(dt)
         if self.t >= self.next_choice or self._force:
             self.situations = situations(self.world, self.affect, self.memory)
             self.affect.needs.tidy = min(1.0, self.affect.needs.tidy + 0.02 * len(
@@ -269,6 +285,42 @@ class Mind:
             if cancel:
                 return None, True
         return self._advance(body_busy, body_ok), False
+
+    # ------------------------------------------------------------------ self-preservation (safety.py)
+    def danger(self, xy):
+        return self.danger_map.danger(xy)
+
+    def hunger(self):
+        return hunger(self.world.battery)
+
+    def learn_danger(self, xy, what):
+        spot = self.danger_map.learn(xy, what)
+        self.danger_map.cap(self.world.desk)
+        self.memory.data["danger"] = self.danger_map.to_list()
+        self.memory.remember("danger", f"{what} near ({spot['x']:.2f}, {spot['y']:.2f}): fear {spot['v']:.2f}")
+        self._say("danger", f"learned: {what} here is dangerous (fear {spot['v']:.2f})")
+
+    def _self_preservation(self, dt):
+        self.danger_map.decay(dt / 3600.0)
+        if self.t - self._safe_check_t > 5.0:                 # walking through a feared spot safely unlearns it
+            self._safe_check_t = self.t
+            if not self.stuck and self.danger(self.world.pose[:2]) > 0.05:
+                self.danger_map.safe_pass(self.world.pose[:2])
+        # held up in the air: fear grows the longer it lasts (fear of heights), calmed by being petted
+        if self.lifted_since is not None and self.t - self._lift_fear_t > 2.0:
+            self._lift_fear_t = self.t
+            held = self.t - self.lifted_since
+            calm = 0.6 if self.t - self.world.owner.last_touch < 5.0 else 0.0   # a trusted hand on it
+            self.affect.feel("high_up", (1 - calm) * min(1.0, 0.25 + held / 20.0))
+        b = self.world.battery
+        if self._last_battery is not None and b > self._last_battery + 1e-5 and not self.charging:
+            self.charging = True                              # put on charge: relief, scaled by how hungry it was
+            self.affect.feel("fed", 0.5 + 1.5 * hunger(self._last_battery))
+            self.memory.remember("charged", f"charged from {self._last_battery:.0%}")
+            self._say("battery", "charging - ahh")
+        elif self._last_battery is not None and b < self._last_battery - 1e-5:
+            self.charging = False
+        self._last_battery = b
 
     def _choose(self):
         scores = {}

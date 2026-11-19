@@ -55,6 +55,8 @@ EVENT_EFFECTS = {
     "tickled":       (+0.40, +0.45, dict(social=-0.25, play=-0.30)),
     "held_leg":      (-0.05, +0.20, dict(social=-0.10)),
     "lifted":        (-0.25, +0.60, dict(safety=+0.55)),
+    "high_up":       (-0.20, +0.25, dict(safety=+0.35)),     # still held in the air (repeats, grows with time)
+    "put_down_relief": (+0.30, -0.30, dict(safety=-0.50)),
     "shaken":        (-0.50, +0.70, dict(safety=+0.70)),
     "bumped":        (-0.15, +0.40, dict(safety=+0.30)),
     "loud_noise":    (-0.20, +0.60, dict(safety=+0.50)),

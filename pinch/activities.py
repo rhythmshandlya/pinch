@@ -307,6 +307,55 @@ class Startle(Activity):
         yield ("walk", -0.04, 0.0, 0.0, 1.0)
 
 
+class HeadHome(Activity):
+    """Battery getting low: go home and ask to be charged (a rumbly tummy at 40 %, walking home and pleading
+    with long gaps below 25 %), then wait there, sleepy. Relief when put on charge (mind._self_preservation)."""
+    name, min_s = "head_home", 5.0
+    quiet_ok = True
+
+    def utility(self, m):
+        if m.charging:
+            return 0.0
+        return 3.0 * max(0.0, m.hunger() - 0.3)                 # 0.79 at 25 %, 1.53 at 10 %
+
+    def run(self, m):
+        home = m.memory.home_of("pinch") or m.world.desk.home_xy
+        yield ("face", "sleepy")
+        if not m.affect.quiet:
+            yield ("sound", "sleepy_hum")
+        yield ("goto", home, 0.03)
+        asks = 0
+        while not m.charging and m.world.battery > 0.10 and asks < 6:
+            asks += 1
+            yield ("turn_to", m.world.desk.owner_xy)
+            yield ("face", "sad")
+            if not m.affect.quiet and m.world.owner_here(120):
+                yield ("sound", "attention_chirp")
+                yield ("emote", "beg")
+            yield ("wait", 90.0)
+
+
+class LowPower(Activity):
+    """Almost empty (10 %): stop walking, save memory, say goodnight, and doze until charged."""
+    name, min_s = "low_power", 5.0
+    quiet_ok = True
+    interruptible = False
+
+    def utility(self, m):
+        return 5.0 if (m.world.battery <= 0.10 and not m.charging) else 0.0
+
+    def run(self, m):
+        m.memory.data["danger"] = m.danger_map.to_list()
+        m.memory.save()
+        yield ("face", "sleepy")
+        if not m.affect.quiet:
+            yield ("sound", "yawn")
+        yield ("emote", "sleep")
+        yield ("face", "asleep")
+        while m.world.battery <= 0.12 and not m.charging:
+            yield ("wait", 30.0)
+
+
 class Unstick(Activity):
     """Stuck (a foot over the edge, caught on something, or walking without getting anywhere): grumble, try
     twice to work free, then ask for help - with long gaps, so it pleads rather than nags."""
@@ -372,6 +421,12 @@ class Tidy(Activity):
             goal = m.world.desk.owner_xy if kind == "fetch" else (m.memory.home_of(name) or m.world.desk.tray_xy)
             if kind == "fetch":
                 goal = (goal[0], m.world.desk.owner_xy[1] + 0.29)
+            if m.danger(ob.xy) >= 0.5:                           # a spot it learned to fear: don't go
+                yield ("face", "scared")
+                yield ("turn_to", m.world.desk.owner_xy)
+                yield ("emote", "point")
+                m.tidy_attempt(name, False)
+                continue
             yield ("face", "focused")
             yield ("look_at", ob.xy)
             picked = False
@@ -444,7 +499,7 @@ class Play(Activity):
         if m.affect.quiet or m.world.owner.busy == "meeting":
             return 0.0
         n = m.affect.needs
-        return 0.8 * m.affect.personality.playfulness * max(0.0, n.play - 0.35) * (1 - n.sleep)
+        return 0.8 * m.affect.personality.playfulness * max(0.0, n.play - 0.35) * (1 - n.sleep) * (1 - m.hunger())
 
     def run(self, m):
         ball = m.world.objects.get("ball")
@@ -501,11 +556,14 @@ class Explore(Activity):
     def utility(self, m):
         if m.affect.quiet:
             return 0.0
-        return 0.65 * max(0.0, m.affect.needs.curiosity - 0.35) * (1 - m.affect.needs.sleep)
+        return 0.65 * max(0.0, m.affect.needs.curiosity - 0.35) * (1 - m.affect.needs.sleep) * (1 - m.hunger())
 
     def run(self, m):
         d = m.world.desk
-        target = d.clamp((m.rng.uniform(-d.half_x, d.half_x), m.rng.uniform(-d.half_y, d.half_y)), 0.1)
+        for _ in range(8):                                    # somewhere it isn't afraid of
+            target = d.clamp((m.rng.uniform(-d.half_x, d.half_x), m.rng.uniform(-d.half_y, d.half_y)), 0.1)
+            if m.danger(target) < 0.15:
+                break
         yield ("face", "curious")
         yield ("goto", target, 0.05)
         yield ("emote", "look_around")
@@ -565,4 +623,4 @@ class Greet(Activity):
 
 
 LIBRARY = [Idle(), Obey(), GoQuiet(), AfterMeeting(), SeekAttention(), Comfort(), Celebrate(), ReactTouch(),
-           Startle(), Unstick(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet()]
+           Startle(), Unstick(), HeadHome(), LowPower(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet()]

@@ -389,3 +389,21 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Print files:** the STLs were regenerated after the CAD changes: 14 files, 31 pieces, TPU for the feet and jaw pads.
     - **BOM:** ₹88,566 (estimates marked).
     - **Still open:** the power switch type (does it latch?), vents if the CPU runs hot, and the real arm-servo plug and lead length.
+44. **Self-preservation in the brain** (`pinch/safety.py`, `HeadHome` and `LowPower` in `activities.py`, hooks in `mind.py`).
+    - **A learned danger map of the desk:**
+      - A foot over the edge, getting stuck, or falling teaches fear of that spot (Rescorla–Wagner): one near-fall gives 0.48, two give 0.67, a no-go.
+      - It is remembered across restarts and halves in 8 awake hours.
+      - Safe passes unlearn it, and fear partly comes back an hour later (extinction is learning on top, not erasure).
+      - A cap stops it fearing the whole desk.
+      - Exploring and tidying avoid feared spots; tidying asks for help instead.
+    - **Battery hunger (1−charge)²:**
+      - Play and exploring fade as the battery drops.
+      - From ~25 % Pinch walks home and pleads for charging, at 90 s intervals.
+      - At 10 % it saves its memory, yawns and sleeps.
+      - Charging brings relief, larger the hungrier it was.
+    - **Fear of heights:** held up in the air, fear grows with time ("scared" by 10 s). A stroking hand keeps it calm, and putting it down brings relief.
+    - **Verified:**
+      - A unit test of the danger map.
+      - A twin run draining the battery from 60 % to 5 % (HeadHome at 26 %, LowPower at 10 %, charging detected, then back to tidying; no falls).
+      - Held 20 s alone vs stroked: scared vs calm.
+    - **Not yet:** height from the cliff sensors (the fear scales with time, not height), a charging dock, and servo heat (needs the servos' temperature in the brain).
