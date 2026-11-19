@@ -29,11 +29,15 @@ J = {n: i for i, n in enumerate(JOINT_NAMES)}
 SUB = 10                                               # gait integrates at 500 Hz inside each 20 ms tick
 POSES = {"stand": STAND, "low": pose(crouch(0.25)), "nap": EMOTES["sleep"].keyframes[1][1]}
 V_MAX, W_MAX = 0.06, 0.8
-REACH_LOW = {"crouch": 0.38, "pitch": -0.69}           # claw fingers touch the desk (measured in the sim)
-CARRY_PITCH = -0.38                                     # carrying: near end ~2 cm up, a pen's far end drags
-PUSH_LOWER = 0.011
-PEN_HALF = 0.069
-RAKE_ENABLED = False          # pulling things in from beyond them: flung a pen off the desk in tests, so off                                        # half length of a pen (65 mm + rounded ends)                                      # walk 11 mm lower while pushing: claw flat on the desk
+REACH_LOW = {"crouch": 0.38, "pitch": -0.13}           # jaws flat on the desk, pressing lightly (measured: -0.11)
+CARRY_PITCH = 0.45                                      # carrying: the held part ~3 cm up, the short end clear of the legs
+PUSH_LOWER = 0.011                                      # walk 11 mm lower while pushing: claw flat on the desk
+PEN_HALF = 0.069                                        # half length of a pen (65 mm + rounded ends)
+PEN_GRAB = 0.055                                        # hold a pen this far from its middle: its short end stays clear of the front leg
+RAKE_ENABLED = False          # pulling things in from beyond them: flung a pen off the desk in tests, so off
+# things the jaws must run along (their long side between the jaws): name -> grab point's offset from the middle
+LONG_THINGS = {"pen": PEN_GRAB, "eraser": 0.0}
+GRASP_ARM0 = (0.17, 0.08, 0.96)          # the arm when the learned grab takes over (training/grasp_env.py ARM0)
 
 
 def _wrap(a):
@@ -61,11 +65,14 @@ def arm_pose(base, side, pitch=None, yaw=None, claw=None):
 
 
 class Body:
-    def __init__(self, crab, pose_fn, objects_fn=None, desk=None, tip_fn=None, emote_policy=None, walk_policy=None):
+    def __init__(self, crab, pose_fn, objects_fn=None, desk=None, tip_fn=None, emote_policy=None, walk_policy=None,
+                 grasp_policy=None):
         self.crab, self.pose_fn, self.objects_fn = crab, pose_fn, objects_fn
         self.desk = desk or Desk()
         self.tip_fn = tip_fn                    # (side, arm joint q) -> claw tip (x, y) in the body frame
         self.emote_policy, self.walk_policy = emote_policy, walk_policy
+        self.grasp_policy = grasp_policy        # the learned grab (right claw; training/grasp_env.py), if exported
+        self.grasp_view_fn = None               # (thing, side) -> (rel, ang, kind, size): what the camera sees
         self.task, self.busy, self.ok = None, False, True
         self.hold = STAND.copy()
         self.held = None                        # (object, side) while carrying
@@ -314,21 +321,33 @@ class Body:
             yield from self._settle(0.3)
         return False
 
-    def _detour(self, frm, to, obj, clear=0.10):
-        """If the straight walk from frm to `to` would bump obj, go round it first."""
+    def _detour(self, frm, to, obj, clear=0.10, half=0.0, yaw=0.0):
+        """If the straight walk from frm to `to` would bump obj, go round it first. A long thing (a pen:
+        half-length `half` along `yaw`) is a line, not a point: the way round passes beyond its nearer end."""
         a, b, o = np.array(frm), np.array(to), np.array(obj)
         ab = b - a
         L = np.linalg.norm(ab)
         if L < 1e-6:
             return
-        k = np.clip(np.dot(o - a, ab) / L ** 2, 0, 1)
-        if np.linalg.norm(a + k * ab - o) > clear or k in (0.0, 1.0) and np.linalg.norm(o - b) > clear:
+        u = np.array((np.cos(yaw), np.sin(yaw)))
+        pts = [o + u * t for t in np.linspace(-half, half, 9)] if half > 0 else [o]
+
+        def gap(p, q0, q1):                                      # distance from p to the segment q0-q1
+            d = q1 - q0
+            k = np.clip(np.dot(p - q0, d) / max(np.dot(d, d), 1e-12), 0, 1)
+            return np.linalg.norm(q0 + k * d - p)
+
+        if min(gap(p, a, b) for p in pts) > clear:
             return
-        n = np.array((-ab[1], ab[0])) / L
-        w1, w2 = o + n * (clear + 0.05), o - n * (clear + 0.05)
-        w = max((w1, w2), key=lambda p: self.desk.edge_distance(p))
+        if half > 0:                                             # round the nearer end of the line
+            cands = [o + u * (half + clear + 0.03), o - u * (half + clear + 0.03)]
+        else:
+            n = np.array((-ab[1], ab[0])) / L
+            cands = [o + n * (clear + 0.05), o - n * (clear + 0.05)]
+        cands = [self.desk.clamp(w) for w in cands]
+        w = min(cands, key=lambda p: np.linalg.norm(p - a) + np.linalg.norm(b - p) - 0.5 * self.desk.edge_distance(p))
         self.trace("detour", via=tuple(np.round(w, 3)))
-        yield from self._goto(self.desk.clamp(w), tol=0.04, timeout=20.0)
+        yield from self._goto(w, tol=0.04, timeout=20.0)
 
     def _rake(self, name, goal, radius=0.015, timeout=40.0):
         """Reach past the thing with the flat claw and walk backwards, pulling it toward the goal."""
@@ -390,23 +409,26 @@ class Body:
             (ox, oy, oyaw), oz = o
             x, y, h = self.pose_fn()
             side = self._side_for(x, y, h, ox, oy)
+            if self.grasp_policy is not None and self.grasp_view_fn is not None:
+                side = "right"                                   # the learned grab is the right claw's
             sgn = 1 if side == "left" else -1
             reach = arm_pose(pose(crouch(REACH_LOW["crouch"], "F?"), crouch(-0.20, "R?")), side,
                              pitch=REACH_LOW["pitch"], yaw=0.12, claw=0.9)            # nose down: jaws come in low
             tip = np.array(self.tip_fn(side, reach) if self.tip_fn else (0.088, sgn * 0.035))
             arm_dir = np.arctan2(tip[1], tip[0])
-            # a pen is held near one end like a person holds it: the finger runs along the pen and the
-            # rest of the pen points forward, away from Pinch's own legs. Other things: face them.
+            # a pen: the jaws run along it, gripping it a little off its middle so the longer part points
+            # forward, away from Pinch's own legs (the palm clears the shorter part). Other things: face them.
             grab = np.array((ox, oy))
-            if name == "pen":
+            if name in LONG_THINGS:
                 best = None
                 for a in (oyaw, oyaw + np.pi):
                     ax = np.array((np.cos(a), np.sin(a)))
-                    g = grab - ax * (PEN_HALF - 0.018)               # grab point; the pen extends along +ax
+                    g = grab - ax * LONG_THINGS[name]                # grab point; the pen extends along +ax
                     hd = _wrap(a - arm_dir)
                     c, s = np.cos(hd), np.sin(hd)
                     st = g - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
-                    cost = abs(_wrap(hd - h)) + 5 * (not self.desk.inside(st, self.desk.edge_margin - 0.004))
+                    room = self.desk.edge_distance(st)
+                    cost = abs(_wrap(hd - h)) + 5 * (room < 0.068) + 3 * max(0.0, 0.12 - room) / 0.12
                     if best is None or cost < best[0]:
                         best = (cost, hd, st, g)
                 _, heading, stand_xy, grab = best
@@ -416,10 +438,19 @@ class Body:
                 stand_xy = grab - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
             self.trace("pick_plan", side=side, tip=tuple(np.round(tip, 3)), stand=tuple(np.round(stand_xy, 3)),
                        heading=round(float(heading), 2), obj=(round(ox, 3), round(oy, 3), round(oyaw, 2)))
-            if not self.desk.inside(stand_xy, self.desk.edge_margin - 0.004):
-                self.trace("pick_unreachable")
+            fwd = np.array((np.cos(heading), np.sin(heading)))
+            if self.desk.edge_distance(stand_xy) < 0.066:
+                self.trace("pick_unreachable")                     # (too near an edge: push it, or ask for help)
                 return False
-            yield from self._detour((x, y), stand_xy, (ox, oy), clear=0.08)
+            # line up 5 cm short of the spot, facing the final way, then walk the last bit straight in: the
+            # legs never sweep across the thing (turning on the spot next to a pen kicks it)
+            pre = stand_xy - fwd * 0.05
+            half = PEN_HALF if name == "pen" else 0.0 if name not in LONG_THINGS else 0.011
+            if self.desk.edge_distance(pre) >= 0.066:                # (no room for it near an edge: walk straight in)
+                yield from self._detour((x, y), pre, (ox, oy), clear=0.12, half=half, yaw=oyaw)
+                yield from self._goto(pre, tol=0.015, heading=heading, timeout=30.0, slow=0.8, htol=0.08)
+            else:
+                yield from self._detour((x, y), stand_xy, (ox, oy), clear=0.12, half=half, yaw=oyaw)
             ok = yield from self._goto(stand_xy, tol=0.010, heading=heading, timeout=30.0, slow=0.6, htol=0.06)
             xx, yy, hh = self.pose_fn()
             self.trace("pick_at", ok=ok, err=round(float(np.hypot(xx - stand_xy[0], yy - stand_xy[1])), 4),
@@ -427,17 +458,20 @@ class Body:
             if not ok:
                 continue
             yaw = yield from self._align(name, side, grab, reach)
-            if abs(self.last_miss) > 0.003:
+            if abs(self.last_miss) > 0.004:
                 continue                                         # not lined up: walk round and try again
             reach = arm_pose(reach, side, yaw=yaw)
-            yield from self._blend_to(arm_pose(STAND, side, pitch=0.2, yaw=yaw, claw=0.9), 0.5)
-            yield from self._blend_to(reach, 0.9)
-            for _ in range(15):
-                yield reach
-            closed = arm_pose(reach, side, claw=0.0)
-            yield from self._blend_to(closed, 0.4)
-            for _ in range(10):
-                yield closed
+            if self.grasp_policy is not None and self.grasp_view_fn is not None and side == "right":
+                yaw = yield from self._learned_grasp(name)       # the last few centimetres, learned
+            else:
+                yield from self._blend_to(arm_pose(STAND, side, pitch=0.2, yaw=yaw, claw=0.9), 0.5)
+                yield from self._blend_to(reach, 0.9)
+                for _ in range(15):
+                    yield reach
+                closed = arm_pose(reach, side, claw=0.0)
+                yield from self._blend_to(closed, 0.4)
+                for _ in range(10):
+                    yield closed
             lift = arm_pose(pose(crouch(0.30)), side, pitch=CARRY_PITCH, yaw=yaw, claw=0.0)
             yield from self._blend_to(lift, 1.5)                   # slow: a pen held near its end pivots
             o = self._obj(name)
@@ -450,6 +484,33 @@ class Body:
             yield from self._blend_to(STAND, 0.5)
         return False
 
+    def _learned_grasp(self, name, seconds=4.0):
+        """The learned grab (training/grasp_env.py): from the grasp crouch with the claw raised and open, the
+        policy shifts and leans the body with the legs and swings, lowers, closes and lifts the right arm,
+        watching the thing through the camera. Returns the arm's swing at the end (for the carry pose)."""
+        arm = np.array(GRASP_ARM0, float)
+        q = np.array(pio.GRASP_NOMINAL, float)
+        q[pio.GRASP_ARM_IDX] = arm
+        yield from self._blend_to(q, 0.8)
+        last, t = np.zeros(pio.GRASP_N_ACT), 0.0
+        while t < seconds:
+            view = self.grasp_view_fn(name, "right")
+            if view is None:
+                break
+            rel, ang, kind, size = view
+            gyro, grav = self.crab.hw.read_imu()
+            qj, st = self.crab.read_joints()
+            qd = np.array([self.crab.cal.sign[j] * st[SERVO_IDS[j]].speed for j in JOINT_NAMES])
+            obs = pio.grasp_observation(np, gyro, grav, qj[pio.LEG_ACT_IDX], qd[pio.LEG_ACT_IDX], last, arm,
+                                        np.asarray(rel), ang, kind, np.asarray(size), t / 4.0)
+            last = np.clip(self.grasp_policy(obs), -1, 1)
+            q = pio.grasp_targets(np, pio.GRASP_NOMINAL, last, arm_prev=arm)
+            arm = q[pio.GRASP_ARM_IDX]
+            yield q
+            t += DT
+        self.trace("learned_grasp", t=round(t, 2), arm=tuple(np.round(arm, 2)))
+        return float(arm[0])
+
     def _lateral(self, name, side, grab, q):
         """Sideways miss (m) between the open claw's gap and the grab point, across the pen's axis."""
         x, y, h = self.pose_fn()
@@ -457,7 +518,7 @@ class Body:
         c, s = np.cos(h), np.sin(h)
         gap = np.array((x + c * tip[0] - s * tip[1], y + s * tip[0] + c * tip[1]))
         (ox, oy, oyaw), _ = self._obj(name)
-        if name == "pen":
+        if name in LONG_THINGS:
             n = np.array((-np.sin(oyaw), np.cos(oyaw)))
             ax = np.array((np.cos(oyaw), np.sin(oyaw)))
             g = np.array(grab) if grab is not None else np.array((ox, oy))
@@ -467,7 +528,7 @@ class Body:
         n = np.array((-s, c))
         return float(np.dot(d, n)), n
 
-    def _align(self, name, side, grab, reach, tol=0.0025):
+    def _align(self, name, side, grab, reach, tol=0.003):
         """Fine-tune the claw over the thing: swing the arm (its yaw moves the claw ~5 cm per radian),
         and take tiny side steps if the swing joint runs out of range."""
         yaw = 0.12
@@ -507,17 +568,17 @@ class Body:
         name, side = self.held
         goal = np.array(goal, float)
         x, y, h = self.pose_fn()
-        reach = arm_pose(pose(crouch(REACH_LOW["crouch"])), side, pitch=REACH_LOW["pitch"] + 0.25, yaw=0.12, claw=0.0)
+        reach = arm_pose(pose(crouch(REACH_LOW["crouch"])), side, pitch=REACH_LOW["pitch"] + 0.15, yaw=0.12, claw=0.0)
         tip = np.array(self.tip_fn(side, reach) if self.tip_fn else (0.085, (1 if side == "left" else -1) * 0.035))
         if name == "pen" and np.allclose(goal, self.desk.tray_xy):
-            # lay it lengthwise in the tray: claw at the tray's left end, the pen pointing right (+x)
-            goal = np.array((goal[0] - self.desk.tray_half[0] + 0.03, goal[1]))
+            # lay it lengthwise in the tray: claw near the tray's left end, the pen's longer part pointing right
+            goal = np.array((goal[0] - self.desk.tray_half[0] + 0.045, goal[1]))
             heading = float(-np.arctan2(tip[1], tip[0]))
         else:
             heading = float(np.arctan2(goal[1] - y, goal[0] - x) - np.arctan2(tip[1], tip[0]))
         c, s = np.cos(heading), np.sin(heading)
         stand_xy = goal - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
-        ok = yield from self._goto(self.desk.clamp(stand_xy, 0.06), tol=0.02, heading=heading, timeout=40.0, slow=0.7)
+        ok = yield from self._goto(self.desk.clamp(stand_xy, 0.06), tol=0.012, heading=heading, timeout=50.0, slow=0.5)
         yield from self._blend_to(reach, 0.8)
         yield from self._blend_to(arm_pose(reach, side, claw=0.9), 0.4)
         self.held = None

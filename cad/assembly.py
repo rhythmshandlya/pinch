@@ -40,6 +40,7 @@ PRINTED = {   # part -> (builder, material density, fill factor, material name, 
     "upper_arm":  (P.upper_arm, PETG, 0.85, "PETG", 2),
     "dactyl_L":   (lambda: P.dactyl(+1), PETG, 0.90, "PETG", 1),
     "dactyl_R":   (lambda: P.dactyl(-1), PETG, 0.90, "PETG", 1),
+    "jaw_pad":    (P.jaw_pad, TPU, 1.00, "TPU", 4),
 }
 from crab.params import ARM_SERVO, FEMUR_SERVO, MICRO_SERVO, SERVOS  # noqa: E402
 
@@ -100,9 +101,11 @@ def _left_groups():
                      ("shoulder pitch servo", P.L_PITCH * case(GS4308), GS_MASS)],
         "upper": [("upper_arm", part("upper_arm"), part_mass("upper_arm")),
                   ("pitch horn", H["pitch"] * horn(GS4308), GS_HORN),
-                  ("claw servo", P.L_CLAW * case(GS4308), GS_MASS)],
+                  ("claw servo", P.L_CLAW * case(GS4308), GS_MASS),
+                  ("jaw pad", part("jaw_pad"), part_mass("jaw_pad"))],
         "dactyl": [("dactyl", part("dactyl_L"), part_mass("dactyl_L")),
-                   ("claw horn", H["claw"] * horn(GS4308), GS_HORN)],
+                   ("claw horn", H["claw"] * horn(GS4308), GS_HORN),
+                   ("jaw pad", P.to_dactyl(P.mirror_jaw(part("jaw_pad"))), part_mass("jaw_pad"))],
     }
 
 

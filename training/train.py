@@ -12,6 +12,8 @@ evaluation, so a run that is stopped early still leaves its latest policy.
 import argparse
 import functools
 import json
+
+import numpy as np
 import pickle
 import sys
 import time
@@ -33,7 +35,7 @@ PRESETS = {
                  num_evals=20, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
                  discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
     # grasp skill: 4 s episodes, contact-rich (slower per step)
-    "grasp": dict(num_timesteps=40_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
+    "grasp": dict(num_timesteps=28_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
                   unroll_length=20, num_updates_per_batch=4, episode_length=200,
                   num_evals=16, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
                   discounting=0.97, policy_layers=(256, 256, 128), value_layers=(256, 256, 256)),
@@ -81,6 +83,7 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
     from brax.training.agents.ppo import train as ppo
 
     from training.crab_env import domain_randomize
+    from training.grasp_env import grasp_randomize
 
     cfg = dict(PRESETS[preset])
     if timesteps:
@@ -107,6 +110,8 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
               f"reward={rec.get('eval/episode_reward', float('nan')):8.3f}  "
               f"ep_len={rec.get('eval/avg_episode_length', float('nan')):6.1f}"
               + (f"  success={rec['success']:.2f}" if "success" in rec else ""), flush=True)
+        if step > 0 and not np.isfinite(rec.get("eval/episode_reward", 0.0)):
+            raise RuntimeError("training diverged (NaN reward): stopping so the GPU isn't wasted")
 
     def save(step, make_policy, params):
         with open(out / "params.pkl", "wb") as fh:
@@ -118,7 +123,7 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
     make_policy, params, _ = ppo.train(
         environment=make_env(env),
         eval_env=make_env(env),
-        randomization_fn=domain_randomize if randomize else None,
+        randomization_fn=(grasp_randomize if env == "grasp" else domain_randomize) if randomize else None,
         network_factory=network_factory(cfg),
         normalize_observations=True,
         reward_scaling=1.0,

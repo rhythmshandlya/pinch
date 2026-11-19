@@ -27,6 +27,7 @@ image = (
     .add_local_dir(ROOT / "crab", "/root/pinch/crab", ignore=["__pycache__"])
     .add_local_dir(ROOT / "training", "/root/pinch/training", ignore=["__pycache__", "checkpoints", "runs"])
     .add_local_dir(ROOT / "sim" / "models", "/root/pinch/sim/models")
+    .add_local_dir(ROOT / "policies", "/root/pinch/policies")             # skills that run on top of the walk policy
 )
 app = modal.App(APP, image=image)
 vol = modal.Volume.from_name(VOLUME, create_if_missing=True)

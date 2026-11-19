@@ -136,32 +136,46 @@ GRASP_NOMINAL = _pose(_crouch(0.38, "F?"), _crouch(-0.20, "R?"), {"R_shoulder_ya
                                                                      "R_shoulder_pitch": -0.1, "R_claw": 0.48})
 GRASP_N_ACT = 15
 GRASP_LEG_SCALE = 0.15
-GRASP_OBS_SIZE = 3 + 3 + N_ACT + N_ACT + GRASP_N_ACT + 3 + 2 + 1
+GRASP_KINDS = ("stick", "block", "ball")     # pens/pencils/markers, erasers/sharpeners, marbles: anything ~15 mm wide
+GRASP_OBS_SIZE = 3 + 3 + N_ACT + N_ACT + GRASP_N_ACT + 3 + 3 + 2 + 3 + 3 + 1
 ARM_RANGES = ((0.0, 0.34), (-0.69, 0.50), (0.0, 0.96))            # yaw, pitch, claw (CAD limits)
+ARM_RATE = (2.0, 2.0, 4.0)                   # rad/s the arm's targets may move (yaw, pitch, claw): eased like a servo
+GRASP_ARM_IDX = _R_ARM
 
 
-def grasp_targets(xp, nominal, action):
-    """15 actions -> 18 servo targets: legs = nominal + small corrections; right arm = absolute."""
+def grasp_targets(xp, nominal, action, arm_prev=None, dt=CTRL_DT):
+    """15 actions -> 18 servo targets: legs = nominal + small corrections; right arm = absolute positions,
+    eased toward at most ARM_RATE from arm_prev (the previous arm targets) when given."""
     legs = shin_clamp(xp, xp.asarray(nominal)[LEG_ACT_IDX] + GRASP_LEG_SCALE * action[:12])
-    arm = [lo + (hi - lo) * (action[12 + i] + 1) / 2 for i, (lo, hi) in enumerate(ARM_RANGES)]
+    arm = xp.stack([lo + (hi - lo) * (action[12 + i] + 1) / 2 for i, (lo, hi) in enumerate(ARM_RANGES)])
+    if arm_prev is not None:
+        rate = xp.asarray(ARM_RATE) * dt
+        arm = arm_prev + xp.clip(arm - arm_prev, -rate, rate)
     if xp is np:
         out = np.array(nominal, float).copy()
         out[LEG_ACT_IDX] = legs
         out[_R_ARM] = arm
         return out
     out = xp.asarray(nominal).at[LEG_ACT_IDX].set(legs)
-    return out.at[xp.array(_R_ARM)].set(xp.stack(arm))
+    return out.at[xp.array(_R_ARM)].set(arm)
 
 
-def grasp_observation(xp, gyro, gravity, q_legs, qd_legs, last_action, rel, ang, tfrac):
-    """rel: the thing's centre relative to the open claw's gap (body frame, m); ang: its direction (rad,
-    body frame); tfrac: time since the grasp started / 4 s."""
+def grasp_observation(xp, gyro, gravity, q_legs, qd_legs, last_action, arm, rel, ang, kind, size, tfrac):
+    """arm: the right arm's current targets (yaw, pitch, claw); rel: the grab point on the thing (nearest
+    point of its long axis) relative to the open claw's gap (body frame, m); ang: the thing's long-axis
+    direction (rad, body frame); kind: index into GRASP_KINDS; size: its half-extents (long, wide, high, m);
+    tfrac: time since the grasp started / 4 s. On the robot all of the thing's numbers come from the camera."""
+    lo = xp.asarray([r[0] for r in ARM_RANGES])
+    hi = xp.asarray([r[1] for r in ARM_RANGES])
     return xp.concatenate([
         gyro * GYRO_SCALE, gravity,
         q_legs - GRASP_NOMINAL[LEG_ACT_IDX],
         qd_legs * JOINT_VEL_SCALE,
         last_action,
+        2 * (xp.asarray(arm) - lo) / (hi - lo) - 1,
         rel * 20.0,
-        xp.array([xp.sin(2 * ang), xp.cos(2 * ang)]),          # a pen is the same either way round
+        xp.array([xp.sin(2 * ang), xp.cos(2 * ang)]),          # a stick is the same either way round
+        (xp.arange(3) == kind).astype(xp.float32) if xp is not np else (np.arange(3) == kind).astype(float),
+        xp.asarray(size) * 50.0,
         xp.array([tfrac]),
     ])

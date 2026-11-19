@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from crab.params import JOINT_NAMES  # noqa: E402
+from crab.policy_np import POLICY_DIR, NumpyPolicy  # noqa: E402
 from pinch.body import Body  # noqa: E402
 from pinch.face import Face  # noqa: E402
 from pinch.hearing import Hearing  # noqa: E402
@@ -52,9 +53,14 @@ class PinchSim:
         if policies:
             from crab.policy_np import load_policies
             emote_pol, walk_pol = load_policies()
+        grasp_pol = None
+        if policies and (POLICY_DIR / "grasp.npz").exists():
+            grasp_pol = NumpyPolicy.load(POLICY_DIR / "grasp.npz")
         self.body = Body(self.crab, self.pose, self.obj, self.desk, tip_fn=self.tip, emote_policy=emote_pol,
-                         walk_policy=walk_pol)
+                         walk_policy=walk_pol, grasp_policy=grasp_pol)
         self.body.grip_fn = self.gripping
+        self.body.grasp_view_fn = self.grasp_view
+        self.view_rng = np.random.default_rng(seed + 7)
         self.k = 0
         self.t = 0.0
         self.sounds_played = []           # (t, name)
@@ -82,7 +88,7 @@ class PinchSim:
         (x, y, _), z = self.obj(name)
         return self.desk.in_tray((x, y)) and z < 0.03
 
-    GAP = 0.008          # the open claw's gap centre sits this far from the grip line, toward the moving finger
+    GAP = 0.006          # aim a thing this far off the fixed jaw, into the open gap (mid-jaw)
 
     def tip(self, side, q):
         """Centre of the open claw's gap, in Pinch's body frame, for joint targets q (forward kinematics).
@@ -100,7 +106,7 @@ class PinchSim:
         R = dd.site_xmat[site].reshape(3, 3)
         # the open claw's gap: 4 mm back from the grip line's end, 8 mm off the fixed finger (measured from the
         # finger geometry: at full open the moving finger is 14-20 mm out there, the fixed one 0.5 mm in)
-        off = R @ np.array([-0.004, (1 if side == "left" else -1) * self.GAP, 0.0])
+        off = R @ np.array([0.0, (1 if side == "left" else -1) * self.GAP, 0.0])
         return float(p[0] + off[0]), float(p[1] + off[1])
 
     def feet_down(self):
@@ -116,6 +122,26 @@ class PinchSim:
                 if o in self._feet:
                     n.add(o)
         return len(n)
+
+    # what the learned grab sees (on the robot: the camera); kinds and half-extents as in training/grasp_env.py
+    GRASP_SHAPES = {"pen": (0, (0.0695, 0.0045, 0.0045), 0.055), "eraser": (1, (0.010, 0.006, 0.0045), 0.006)}
+
+    def grasp_view(self, name, side):
+        """(rel, ang, kind, size) for the learned grab: the thing's grab point (the point of its long axis
+        nearest the open claw's gap) relative to the gap, and its direction, in Pinch's body frame."""
+        if name not in self.GRASP_SHAPES or side != "right":
+            return None
+        kind, size, half = self.GRASP_SHAPES[name]
+        m, d = self.m, self.d
+        site = m.site("R_grip_site").id
+        gap = d.site_xpos[site] + d.site_xmat[site].reshape(3, 3) @ np.array([0.0, -0.006, 0.0])
+        b = m.body(name).id
+        c, ax = d.xpos[b], d.xmat[b].reshape(3, 3)[:, 0]
+        grab = c + np.clip(np.dot(gap - c, ax), -half, half) * ax
+        R = d.xmat[m.body("body").id].reshape(3, 3)
+        rel = R.T @ (grab - gap) + self.view_rng.normal(0, 0.002, 3)
+        ax_b = R.T @ ax
+        return rel, float(np.arctan2(ax_b[1], ax_b[0])), kind, np.array(size)
 
     def gripping(self, name, side):
         """Both claw fingers touch the thing (on the robot: the camera sees it between the fingers)."""

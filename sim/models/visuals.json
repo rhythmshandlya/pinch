@@ -287,6 +287,11 @@
    "mesh": "L_upper_claw_servo",
    "file": "L_upper_claw_servo.stl",
    "material": "servo"
+  },
+  {
+   "mesh": "L_upper_jaw_pad",
+   "file": "L_upper_jaw_pad.stl",
+   "material": "tip"
   }
  ],
  "L_dactyl": [
@@ -299,6 +304,11 @@
    "mesh": "L_dactyl_claw_horn",
    "file": "L_dactyl_claw_horn.stl",
    "material": "horn"
+  },
+  {
+   "mesh": "L_dactyl_jaw_pad",
+   "file": "L_dactyl_jaw_pad.stl",
+   "material": "tip"
   }
  ],
  "R_shoulder": [
@@ -333,6 +343,11 @@
    "mesh": "R_upper_claw_servo",
    "file": "R_upper_claw_servo.stl",
    "material": "servo"
+  },
+  {
+   "mesh": "R_upper_jaw_pad",
+   "file": "R_upper_jaw_pad.stl",
+   "material": "tip"
   }
  ],
  "R_dactyl": [
@@ -345,6 +360,11 @@
    "mesh": "R_dactyl_claw_horn",
    "file": "R_dactyl_claw_horn.stl",
    "material": "horn"
+  },
+  {
+   "mesh": "R_dactyl_jaw_pad",
+   "file": "R_dactyl_jaw_pad.stl",
+   "material": "tip"
   }
  ]
 }

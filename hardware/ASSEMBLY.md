@@ -21,13 +21,13 @@ weighing about 610 g. Every wire is inside the body except the short loops that 
 ## Stage 0: order, and check the servos when they arrive
 
 1. Order everything marked **required** in [BOM.md](BOM.md). The 3D prints go to robu.in's print service:
-   - upload the 12 STL files from `cad/out/print/`
-   - choose **PETG** (and **TPU** for `foot_tip`)
+   - upload the 14 STL files from `cad/out/print/`
+   - choose **PETG** (and **TPU 95A** for `foot_tip` and `jaw_pad`)
    - set the quantities from `print_sheet.csv`:
-     - chassis 1, top_shell 1, belly_door 1, pi_tray 1
+     - chassis 1, top_shell 1, belly_door 1, pi_tray 1, desk_tray 1
      - coxa_link 4, femur_link 4, tibia 4, foot_tip 4
      - shoulder 2, upper_arm 2
-     - dactyl_L 1, dactyl_R 1
+     - dactyl_L 1, dactyl_R 1, jaw_pad 4
 2. **When the servos arrive, measure one of each with the calliper** and compare it with `cad/servo.py`.
 
    | | STS3032 (legs) | GS-4308MG (arms) |
@@ -155,9 +155,12 @@ The spline only lets you fit a horn in steps of a few degrees. Calibration measu
    the swing servo's horn, pointing straight forward-out along the arrow on the deck.
 3. **Upper arm + claw servo:** the claw servo into the palm, shaft at the front (it's the claw's hinge).
    Then mount the upper arm on the lift servo's horn, arm horizontal.
-4. **Dactyl** (the moving claw finger) on the claw horn, with the claw closed: `dactyl_L` on the left arm,
-   `dactyl_R` on the right.
-5. **Leads:** each arm servo has its own 150 mm lead. Run the three along the arm and into the body
+4. **Jaw pads:** superglue a `jaw_pad` (TPU) onto the inside face of each jaw blade, flush with the
+   blade's lower edge: one on the fixed blade under the palm, one on each dactyl. They are what grips; if
+   the printed TPU feels slippery, a strip of rubber tape works too.
+5. **Dactyl** (the moving claw finger) on the claw horn, with the claw closed (the two pads' tips just
+   touching): `dactyl_L` on the left arm, `dactyl_R` on the right.
+6. **Leads:** each arm servo has its own 150 mm lead. Run the three along the arm and into the body
    through the front slot, and plug them into the hub's arm headers: left swing 0, left lift 1, left claw
    2, right swing 3, right lift 4, right claw 5.
 
@@ -191,8 +194,11 @@ Turn every joint gently by hand over its range (`crab/params.py`). The CAD check
 7. **Camera:** push the camera head into the pocket behind the lens hole in the chassis front wall (between
    the arms). Its flex goes up through the slot to the Radxa's camera connector.
 8. **Face, speaker and touch pads (inside the dome):**
-   - Slide the face OLED (set to I2C, see the wiring table) into the visor from inside the dome, screen
-     facing out through the window, and fix it with the two M2 screws from below.
+   - **Measure the face OLED first:** its corner holes and glass thickness against `FACE_HOLES` and
+     `FACE_GLASS_T` in cad/parts.py (both are estimates).
+   - Put the OLED (set to I2C, see the wiring table) into the visor's pocket from inside the dome, glass
+     against the bezel and the screen facing out through the window. Fix it with four M2×4 screws through
+     its corner holes into the standoffs behind the bezel.
    - Glue the 28 mm speaker face-up into its ring under the grille.
    - Touch pads: stick strips of copper tape inside the dome (head, back left, back right, both sides,
      below the face) and on the inside of each claw's palm; solder a thin wire to each and run them to

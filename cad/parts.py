@@ -20,7 +20,7 @@ the computer (Radxa ZERO 3W, Pi Zero size) rides on a tray under the dome.
 """
 
 import sys
-from math import cos, pi, radians, sin
+from math import cos, pi, radians, sin, tan
 from pathlib import Path
 
 from build123d import Cylinder, Location, Plane, Polygon, Pos, Rot, Sphere, extrude, mirror
@@ -29,7 +29,7 @@ from build123d import scale as b3d_scale
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from cad.servo import FIT, GS4308 as GS, M2_CLEAR, STS3032 as SC, box, disc  # noqa: E402
+from cad.servo import FIT, GS4308 as GS, M2_CLEAR, M2_PILOT, STS3032 as SC, box, disc  # noqa: E402
 from crab.params import PARAMS  # noqa: E402
 
 MM = 1000.0
@@ -212,10 +212,64 @@ def foot_tip():
 # ---------------------------------------------------------------- arms
 SPINE_A = (8.7, LS - GS.half_w - WIN_Y)     # shoulder spine x span (11.45): clears the swing servo's ears
 YU0, YU1 = Y_PA + GS.horn_face, Y_PA + GS.horn_face + PLATE   # 13.0 .. 15.5 arm plate on the lift horn
-JAW_Z = (Z_CA - 6.0, Z_CA + 2.0)            # fingers: z -9 .. -1
 PALM_X0 = LU + gs_extent()[0]               # 15.97 back of the palm
 PALM_X1 = LU + gs_extent()[1]               # 37.23 front of the palm
-D_DROP = (10.3, 12.5)                       # moving finger's drop: just clear of the palm's front corners
+D_DROP = (11.5, 15.0)                       # moving finger's drop (its frame): clear of the palm's front corners
+D_DROP_Y = (4.6, 8.4)                       # ... and of the gap between the jaws
+# Jaws (decision 24). Blades that hang ~11 mm below the palm, so a pen lying under the palm clears it, with
+# lower edges that lie flat on the desk when the arm points GRIP_PITCH down. They pinch a round thing at its
+# widest point (4.5 mm up, for a pen) along their whole length, instead of above it (which squeezed pens
+# out of the old jaws as they rose). TPU pads on the inner faces grip and resist twisting.
+GRIP_PITCH = 20.0                           # deg below horizontal (arm, in the world) for flat jaws
+JAW_X = (40.3, 55.5)                        # gripping strip, arm frame x
+GRIP_W = 9.0                                # the jaws are parallel when this far apart (a pen) ...
+CLAW_PARALLEL = 19.0                        # ... at this claw angle (deg); at 0 their tips just meet
+JAW_LOW = -24.5                             # arm-frame z of the blades' lower edge at JAW_X[0]
+STRIP_H = 10.0                              # grip pads' height (arm-frame z)
+PAD_T = 1.2                                 # TPU grip pad on each jaw's inner face
+BLADE_T = 2.4                               # PETG blade behind the pad
+
+
+def jaw_low(x):
+    """Arm-frame z of the jaw blades' lower edge at arm-frame x (rises toward the tip, so it is level with
+    the desk when the arm points GRIP_PITCH down)."""
+    return JAW_LOW + (x - JAW_X[0]) * tan(radians(GRIP_PITCH))
+
+
+def jaw_side(x_back, y0, y1, x_shift=0.0):
+    """A jaw blade: side profile in the arm's x-z plane, extruded across y0..y1. From x_back (the palm
+    front, or the moving finger's drop) to the tip; the lower edge follows jaw_low(), the top edge falls
+    gently to a rounded-off tip. x_shift moves it into another frame (the moving finger's: -LU)."""
+    xf = PALM_X1 - 1.0
+    x1 = JAW_X[1]
+
+    def top(x):
+        return -1.0 - (x - xf) * 0.22
+
+    pts = [(x_back, top(x_back)), (x1 - 3.0, top(x1 - 3.0)), (x1, top(x1 - 3.0) - 3.0),
+           (x1, jaw_low(x1)), (JAW_X[0], jaw_low(JAW_X[0]))]
+    if x_back < JAW_X[0] - 0.1:                              # under the palm: 45 deg back up to it
+        pts.append((x_back, jaw_low(JAW_X[0]) + (JAW_X[0] - x_back)))
+    return xz_slab([(x + x_shift, z) for x, z in pts], y0, y1)
+
+
+def xz_slab(pts, y0, y1):
+    """A plate: outline pts in the x-z plane, spanning y0..y1 (whichever way round the outline goes)."""
+    s = extrude(Plane.XZ * Polygon(*pts, align=None), y1 - y0)
+    return Pos(0, y0 - s.bounding_box().min.Y, 0) * s
+
+
+def jaw_pad_outline(x_shift=0.0):
+    """The grip pad's outline (arm frame x, z): the bottom STRIP_H of the blade, 0.4 mm in from its edges."""
+    xa, xb = JAW_X[0] + 0.4, JAW_X[1] - 0.4
+    return [(x + x_shift, z) for x, z in ((xa, jaw_low(xa) + 0.4), (xb, jaw_low(xb) + 0.4),
+                                         (xb, jaw_low(xb) + 0.4 + STRIP_H), (xa, jaw_low(xa) + 0.4 + STRIP_H))]
+
+
+def jaw_pad():
+    """TPU grip pad (4 per robot, superglued on): where it sits on the left arm's fixed finger (arm
+    frame, inner face 0.5 mm off the claw's centre plane); the assembly places the other three."""
+    return xz_slab(jaw_pad_outline(), -0.5 - PAD_T, -0.5)
 
 
 def shoulder():
@@ -242,34 +296,34 @@ def upper_arm():
     p += box(PALM_X0, PALM_X0 + 7, GS_SIDE - 0.6, YU0 + 0.5, bb.min.Z, bb.max.Z)   # web: plate -> palm
     p += cup
     xf = PALM_X1 - 1.0                                       # fixed finger grows out of the palm front
-    tip = LU + FINGER
-    jaw = Polygon((xf, -GS_SIDE + 0.5), (LU + 16, -GS_SIDE + 1.0), (tip - 3.0, -2.6), (tip, -2.4),
-                  (tip, -0.5), (xf, -0.5), align=None)                  # blunt 1.9 mm tip
-    jaw = Pos(0, 0, JAW_Z[0]) * extrude(jaw, JAW_Z[1] - JAW_Z[0])
-    for x in (xf + 4.0, xf + 7.5, xf + 11.0):                # teeth on the gripping edge
-        jaw -= box(x, x + 1.6, -1.6, 0.5, JAW_Z[0] - 1, JAW_Z[1] + 1)
-    jaw += box(tip - 10.0, tip, -0.5, 0.0, JAW_Z[0], JAW_Z[0] + LIP_T)    # lip: meets the moving finger's
-    p += jaw
+    p += jaw_side(xf, -0.5 - PAD_T - BLADE_T, -0.5 - PAD_T)   # blade (its TPU pad glues on the inside)
     p -= cyl_y(1.3, YU0 - 1, YU1 + 1, 0, 0)                  # horn screw
     return p
 
 
 ZD0 = Z_CA + GS.horn_face             # 13.0 moving finger's plate on the claw horn
-LIP_T = 1.2                            # jaw lips: 1.2 mm thick ledges along the bottom of the last 10 mm
+
+
+def to_dactyl(solid):
+    """Arm frame, claw at CLAW_PARALLEL -> the moving finger's frame (hinge at origin)."""
+    return Rot(0, 0, -CLAW_PARALLEL) * Pos(-LU, 0, 0) * solid
+
+
+def mirror_jaw(solid):
+    """Fixed jaw -> where the moving jaw is when the claw is CLAW_PARALLEL open (arm frame): the mirror image
+    across the plane midway between the pads when they are GRIP_W apart."""
+    return Pos(0, GRIP_W - 1.0, 0) * mirror(solid, about=Plane.XZ)
 
 
 def dactyl(side=1):
-    """Moving finger: plate on the claw servo's horn (the hinge), drops in front of the palm and closes
-    against the fixed finger. Frame: hinge at origin. side=+1 left arm, -1 right (mirror image)."""
-    p = disc(GS_HUB_R, ZD0, ZD0 + GS_PLATE) + box(0, D_DROP[1], -4.0, 4.5, ZD0, ZD0 + GS_PLATE)
-    p += box(D_DROP[0], D_DROP[1], 0.5, 4.5, JAW_Z[0], ZD0 + GS_PLATE)   # drop
-    tip = FINGER
-    jaw = Polygon((D_DROP[0], 0.5), (tip, 0.5), (tip, 2.4), (tip - 4.5, 4.3), (D_DROP[0], 4.5), align=None)
-    jaw = Pos(0, 0, JAW_Z[0]) * extrude(jaw, JAW_Z[1] - JAW_Z[0])
-    for x in (D_DROP[1] + 1.5, D_DROP[1] + 5.0):              # (none near the narrow tip)
-        jaw -= box(x, x + 1.6, -0.5, 1.6, JAW_Z[0] - 1, JAW_Z[1] + 1)
-    jaw += box(tip - 10.0, tip, 0.0, 0.5, JAW_Z[0], JAW_Z[0] + LIP_T)     # lip (meets the fixed finger's)
-    p += jaw
+    """Moving finger: plate on the claw servo's horn (the hinge), a drop in front of the palm, and a jaw blade.
+    A single pivot closes like scissors, so on a long thing (a pen) plain jaws touch only at the narrow end
+    of the V and it twists out. This blade is set at an angle so the two jaws are parallel when GRIP_W apart
+    (at CLAW_PARALLEL): a pen is pinched along the whole jaw; the tips meet at 0.
+    Frame: hinge at origin. side=+1 left arm, -1 right (mirror image)."""
+    p = disc(GS_HUB_R, ZD0, ZD0 + GS_PLATE) + box(0, D_DROP[1], -4.0, D_DROP_Y[1], ZD0, ZD0 + GS_PLATE)
+    p += box(D_DROP[0], D_DROP[1], D_DROP_Y[0], D_DROP_Y[1], -6.0, ZD0 + GS_PLATE)   # drop, into the blade
+    p += to_dactyl(mirror_jaw(jaw_side(JAW_X[0], -0.5 - PAD_T - BLADE_T, -0.5 - PAD_T)))  # (pad glues inside)
     p -= disc(1.3, ZD0 - 1, ZD0 + GS_PLATE + 1)
     return p if side > 0 else mirror(p, about=Plane.XZ)
 
@@ -323,6 +377,8 @@ FACE_CENTRE = (36.0, 0.0, 36.0)   # centre of the OLED module, body frame (mm): 
 FACE_MODULE = (61.5, 39.5)        # 2.42" SSD1309 module (width, height)
 FACE_ACTIVE = (55.0, 27.5)        # its lit area
 FACE_HOUSING = (67.5, 45.0)       # visor outline
+FACE_HOLES = [(sy * 28.25, sz * 17.25) for sy in (-1, 1) for sz in (-1, 1)]   # module's M2 holes (ESTIMATE)
+FACE_GLASS_T = 1.5                # glass in front of the module's board (ESTIMATE): standoffs stop at it
 FACE_LOC = Pos(*FACE_CENTRE) * Rot(0, -FACE_TILT, 0)     # local x = out of the screen, y = across, z = up
 
 
@@ -593,7 +649,8 @@ def top_shell():
 
     # the face: a forehead visor holding the 2.42" OLED (61.5 x 39.5 mm module, 55 x 27.5 mm active area),
     # tilted back FACE_TILT so it looks up at you, its lower edge above the shoulder brackets. The module
-    # slides in from inside the dome (its flex/wires stay inside) and is held by two M2 screws.
+    # goes in from inside the dome (the pocket is open at the back), glass against the bezel, and four M2
+    # screws go through its corner holes into standoffs behind the bezel.
     visor = FACE_LOC * (box(-3.0, 3.0, -FACE_HOUSING[0] / 2, FACE_HOUSING[0] / 2, -FACE_HOUSING[1] / 2,
                             FACE_HOUSING[1] / 2))
     shell = shell.fuse(visor)
@@ -601,10 +658,13 @@ def top_shell():
                             -FACE_MODULE[1] / 2 - 0.3, FACE_MODULE[1] / 2 + 0.3)          # module pocket
     shell -= FACE_LOC * box(1.0, 4.0, -FACE_ACTIVE[0] / 2 - 0.5, FACE_ACTIVE[0] / 2 + 0.5,
                             -FACE_ACTIVE[1] / 2 - 0.5, FACE_ACTIVE[1] / 2 + 0.5)          # window
-    shell -= FACE_LOC * box(-30, -2.0, -FACE_MODULE[0] / 2 + 3, FACE_MODULE[0] / 2 - 3,
-                            -FACE_MODULE[1] / 2 + 3, FACE_MODULE[1] / 2 - 3)              # open to the dome
-    for sy in (-1, 1):                                       # two M2 screws from below into the module's holes
-        shell -= FACE_LOC * Pos(-0.2, sy * 28.25, -FACE_HOUSING[1] / 2 - 1) * Cylinder(M2_CLEAR / 2, 6)
+    shell -= FACE_LOC * box(-30, -2.0, -FACE_MODULE[0] / 2 - 0.3, FACE_MODULE[0] / 2 + 0.3,
+                            -FACE_MODULE[1] / 2 - 0.3, FACE_MODULE[1] / 2 + 0.3)          # open to the dome
+    for hy, hz in FACE_HOLES:                                # standoffs at the module's corner holes
+        post = FACE_LOC * (Pos(FACE_GLASS_T / 2 + 0.3 + 0.5, hy, hz) * Rot(0, 90, 0) *
+                           Cylinder(2.0, 1.8 - 0.3 - FACE_GLASS_T + 1.0))
+        shell = shell.fuse(post)
+        shell -= FACE_LOC * Pos(0.0, hy, hz) * Rot(0, 90, 0) * Cylinder(M2_PILOT / 2, 5.4)
     dome_mid = Pos(cx, 0, Z_RIM) * b3d_scale(Sphere(1), by=(a - 0.5, b - 0.5, c - 0.5))
     above = box(-200, 200, -200, 200, Z_RIM, 100)
     # magnet bosses matching the chassis

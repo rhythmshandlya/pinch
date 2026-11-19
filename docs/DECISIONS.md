@@ -156,3 +156,100 @@ be revisited. **Review** marks the ones worth a second look from you.
     to fake chips, the camera is the twin's render, and the mics play synthetic voices. 8/8 checks pass.
     - **Review:** the VL53L0X driver is a minimal init without ST's calibration. It's enough to tell
       the desk from a drop, but check it on the real sensor.
+
+## 2026-11-19 (night): a claw that can pick things up
+
+Decisions 13, 19 and 20 are replaced by 24; 21 is corrected by 27; 22 is updated by 28; 18 is corrected by 29.
+
+24. **New claw jaws (CAD and twin).**
+    - **Research first:** I looked at how small grippers pick thin things off a flat surface. The main
+      approaches are:
+      - fingernail or scooping tips that slide under the thing: [SPARK Hand](https://arxiv.org/html/2504.20506v1),
+        DenseTact-Mini (ICRA 2024), [MIT's tactile scooping gripper](https://arxiv.org/html/2408.00610v1)
+      - compliant, underactuated fingers
+      - contact-triggered mode switching ([arXiv 2106.09957](https://arxiv.org/abs/2106.09957))
+    - **Then I measured the old claw in the twin.** It failed for three reasons:
+      - At the reach-down pose, the palm's front-bottom corner was 5.7 mm above the desk, lower than the
+        top of a pen (9 mm). So the palm hit any pen lying under it.
+      - The jaws met the pen above its widest point (4.5 mm up), so it squeezed out as they rose.
+      - A single pivot closes like scissors. On a long pen, the jaws touched only at the narrow end of the
+        V, near the hinge, and the pen twisted out when lifted.
+    - **The new jaws:**
+      - Blades hang about 11 mm below the palm, so the palm clears a pen lying under it by about 3 mm.
+      - The blades' lower edges lie flat on the desk when the arm points 20° down.
+      - TPU grip pads (printed, superglued) sit on their inner faces.
+      - The moving jaw is set at an angle, so the jaws are parallel when 9 mm apart (claw at 19°). A pen is
+        pinched along the whole jaw, at its widest point.
+      - The tips meet at claw 0, so "claw 0 = closed" kept its meaning in every emote.
+      - The maximum opening is about 18 mm mid-jaw.
+    - **Why not fingernail tips:** scooping needs compliant tips pressed onto the desk and about ±1 mm
+      placement. That's not realistic with by-eye-trimmed PWM servos that have no position feedback.
+      Flat pads at the widest point tolerate about ±4 mm.
+    - **Verified in the twin (a scripted lower, close, lift, with the thing placed between the open
+      jaws):**
+      - A pen was held 13/13 times, including ±4 mm off-centre and ±9° skewed.
+      - Pencils and pens (6–9 mm), erasers and small blocks were lifted.
+      - Things 13 mm or wider, and balls (two point contacts, so they roll out of flat jaws), were not.
+    - **In the app:** "pinch, put the pen away" now picks the pen up and puts it in the tray (22 s in the
+      twin). If the pick fails, it pushes the pen there instead.
+    - **Review:** from random spots, the scripted pick gets hold of the pen about half the time (5/10 in
+      the bench), and fewer reach the tray. That's the job of the learned grab (25).
+    - **Review:** the pad grip. The twin assumes TPU against plastic at μ ≈ 1.2. If printed TPU is too
+      slippery, use a strip of rubber tape.
+25. **One learned grab skill for any small thing, not just a pen** (your question). During training:
+    - Every environment gets its own random stick (6–11 mm thick, 5–15 cm long) or block
+      (12–24 × 7–12 × 6–11 mm).
+    - The policy is told the thing's kind and size, which is what the camera measures on the robot. This
+      is the usual way to make a grasp policy carry over to things it never saw (e.g. UniDexGrasp).
+    - What Pinch does after the grab is the brain's choice: tidy it into the tray, bring it to you, or
+      play with it.
+
+    **Fixes found on the way:**
+    - **Episode bookkeeping:** Brax's auto-reset restores only the physics, so my environments' own
+      values carried over from one episode to the next: the step counter (the "time" input kept
+      growing), the last actions and the "held" flag. They are now reset inside the environment when a
+      new episode starts.
+    - **NaN guard:** a physics blow-up now ends the episode, and training stops on a NaN evaluation.
+      push-v1 ran NaN for 25 minutes (about $0.45).
+    - **Shove penalty:** the per-step "shove" penalty dominated and taught grasp-v2 to stay away from the
+      pen. Now, pushing a thing more than 4 cm away ends the episode instead.
+    - **Arm speed:** arm commands are eased like a servo (≤ 2 rad/s, claw 4 rad/s), so early training
+      doesn't fling things.
+    - **Friction:** the grasp environment had borrowed the walking one's randomization, which overwrites
+      every surface's friction with one value (the grippy pads down to 0.3). It now has its own, which
+      scales friction instead.
+26. **Contact physics for small things.** MuJoCo's default contact behaves like a 20 ms soft spring, so a
+    dropped 9 g pen sank about 10 mm. That's past its own radius, and it fell through the desk.
+    - **In the twin:** small things and the claw pads now use 4 ms contacts (2 timesteps) with
+      priority, so they win against the desk.
+    - **The legs keep the default soft contact** the gaits were tuned on. A stiff foot-on-pen contact
+      squeezed pens out from under the feet and shot them off the desk.
+    - **In the MJX training environment:** 10 ms, since its 4 ms timestep can't go lower.
+27. **Walking: the scripted gait stays Pinch's walking** (corrects 21). On the robustness bench's harsh
+    world, the learned walkers tracked commanded speed less well than the scripted gait (all three never
+    fell):
+
+    | Controller | Speed tracking |
+    |---|---|
+    | scripted gait | 69 % |
+    | walk-v2 | 44 % |
+    | walk-v3 | 39 % |
+
+    walk-v3 was also worse than v2 in a mild world. Harsher randomization alone didn't close the gap
+    between the MJX training model and the full twin. walk-v2 stays in policies/ for sim-to-real
+    experiments and as the walking layer of future hierarchical skills.
+    - **Next step, if wanted:** train on the twin's own contact model.
+28. **No learned push skill for now** (updates 22).
+    - push-v1 diverged to NaN at once; this was before the NaN guard.
+    - The claw now picks up sticks and blocks, so pushing is needed only for things too big for it (the
+      cap, the ball).
+    - The scripted pusher stays, as the fallback.
+29. **The face module now actually fits** (corrects 18).
+    - **The fault:** the visor pocket was closed at the back, so the module couldn't go in, and its two
+      screws ran along the board instead of through its holes.
+    - **Now:** the pocket opens into the dome, and the glass sits against the bezel. Four M2 screws go
+      through the module's corner holes into short standoffs behind the bezel.
+    - **Review (estimates):** the hole positions (±28.25, ±17.25 mm) and the glass thickness (1.5 mm).
+      Measure the module before printing.
+    - **Also:** the desk tray's 1 mm floor and the ramp's tapering edge are thin on purpose (printed flat,
+      and robu's own minimum is 1 mm). The printability check now gives the tray its own limit.

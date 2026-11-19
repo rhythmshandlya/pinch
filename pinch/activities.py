@@ -13,7 +13,7 @@ matters clearly more, or at once for urgent things (a scare, a command, a meetin
 import numpy as np
 
 QUIET_OK = {"go_quiet", "rest", "react_touch", "comfort", "idle", "startle", "tidy", "guard_edge"}
-GRASP_ENABLED = False      # desk-level grabbing needs the wider claw (docs/DECISIONS.md); tidying pushes
+GRASP_ENABLED = True       # the redesigned claw picks up sticks and blocks (decision 24); pushing is the fallback
 
 
 class Activity:
@@ -340,12 +340,14 @@ class Tidy(Activity):
                 goal = (goal[0], m.world.desk.owner_xy[1] + 0.29)
             yield ("face", "focused")
             yield ("look_at", ob.xy)
+            picked = False
             if ob.graspable and GRASP_ENABLED:
-                yield ("pick", name)
-                if m.last_step_ok:
+                yield ("pick", name)                    # the claw first (decision 24) ...
+                picked = m.last_step_ok
+                if picked:
                     yield ("drop", goal)
-            else:
-                yield ("push", name, goal)
+            if not picked:
+                yield ("push", name, goal)              # ... and pushing when it can't get hold of it
             ok = m.last_step_ok
             if not ok and len([1 for t, k in m.tidy_tries.get(name, []) if not k and m.t - t < 600]) >= 1:
                 # second failure: ask my person for help instead of thrashing about

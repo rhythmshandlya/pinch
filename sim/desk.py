@@ -95,6 +95,16 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True)
         if g.name.endswith("_pollex") or parent.endswith("_dactyl") and g.type == mujoco.mjtGeom.mjGEOM_BOX:
             g.friction = [1.2, 0.02, 0.001]
             g.condim = 6
+        if g.name.endswith("_pollex") or g.name.endswith("_pollex_blade") or parent.endswith("_dactyl") or                 g.name.endswith("_geom") and g.name[:-5] in objects:
+            # small rigid things: MuJoCo's default contact is a 20 ms soft spring, so a 9 g pen landing at
+            # 0.7 m/s sinks ~10 mm - past its own radius, the contact flips and it drops through the desk.
+            # 4 ms (2 timesteps) keeps it under 3 mm. priority=1: these settings win against the desk and
+            # the robot, while the feet-on-desk contacts the gaits were tuned on stay as they were.
+            g.solref, g.solimp = [0.004, 1.0], [0.95, 0.99, 0.001, 0.5, 2.0]
+            g.priority = 1
+        elif any(k in parent for k in ("_coxa", "_femur", "_tibia")) or parent == "body":
+            g.priority = 2       # legs and shell keep MuJoCo's default (soft) contact, even against small things:
+                                 # a stiff foot-pen contact squeezes a pen against the desk and shoots it off
     body = next(b for b in spec.bodies if b.name == "body")
     # cliff sensors: VL53L0X behind the side windows, looking forward-down
     for side, y in (("left", 0.045), ("right", -0.045)):
@@ -109,12 +119,12 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True)
                          rgb1=[0.02, 0.02, 0.03], width=FACE_TEX[0], height=FACE_TEX[1])
         mat = spec.add_material(name="face_mat", emission=0.9, specular=0.3)
         mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = "face_tex"
-        # the 2.42" OLED: 55 x 27.5 mm active area, on the forehead, tilted back 25 deg
+        # the 2.42" OLED: 55 x 27.5 mm active area, in the forehead visor (cad/parts.py FACE_CENTRE, FACE_TILT),
+        # glass 1.8 mm in front of the module's centre, behind the visor's window (the visor is in the shell mesh)
+        n = np.array([np.cos(np.radians(25)), 0, np.sin(np.radians(25))])
+        centre = np.array([0.036, 0.0, 0.036]) + (0.0018 - 0.0012) * n
         body.add_geom(name="face_screen", type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.0012, 0.0275, 0.01375],
-                      pos=[0.047, 0, 0.026], euler=[0, np.radians(-25), 0], material="face_mat",
-                      contype=0, conaffinity=0, group=2, mass=0.0)
-        body.add_geom(name="face_bezel", type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.0018, 0.0310, 0.0180],
-                      pos=[0.0455, 0, 0.0255], euler=[0, np.radians(-25), 0], rgba=[0.08, 0.08, 0.1, 1],
+                      pos=list(centre), euler=[0, np.radians(-25), 0], material="face_mat",
                       contype=0, conaffinity=0, group=2, mass=0.0)
     for c in spec.cameras:                                  # the wide-angle face camera (decision 16)
         if c.name == "eye_cam":

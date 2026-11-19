@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT))
 
 from cad import assembly as A  # noqa: E402
 from cad.walls import MIN_WALL, check_part as wall_check  # noqa: E402
+THIN_BY_DESIGN = {"desk_tray": 0.45}   # 1 mm floor + a ramp that tapers to the desk: printed flat, fine
 from crab.emotes import EMOTES, STAND  # noqa: E402
 from crab.gait import _S, _T, GAITS, Gait  # noqa: E402
 from crab.params import JOINT_NAMES, PARAMS  # noqa: E402
@@ -81,6 +82,8 @@ def main():
         big = max(bb.size.X, bb.size.Y, bb.size.Z)
         one = len(p.solids()) == 1
         walls_ok, thinnest = wall_check(name, p, verbose=False)
+        if name in THIN_BY_DESIGN:                     # a flat floor / wedge that is thin on purpose
+            walls_ok = thinnest >= THIN_BY_DESIGN[name]
         ok = p.is_valid and one and big <= BUILD_VOLUME and walls_ok
         ok_print &= ok
         say(f"  {name:11s} {'ok ' if ok else 'BAD'} solids={len(p.solids())} valid={p.is_valid} "

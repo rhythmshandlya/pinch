@@ -122,6 +122,7 @@ def arm_xml(arm_id: str) -> str:
     (x, y, z), yaw = P.arm_mount
     A = P.arm
     h, fl = A.upper_len, A.finger_len
+    JAW = jaw_geoms(s)
     return f"""
       <body name="{arm_id}_shoulder" pos="{f(x, s*y, z)}" euler="0 0 {s*yaw:.4f}">
         {jnt(arm_id + "_shoulder_yaw", f"0 0 {s}", A.shoulder_yaw_range)}
@@ -133,18 +134,72 @@ def arm_xml(arm_id: str) -> str:
           {cad(arm_id + "_upper")}
           <geom type="capsule" fromto="0 0 0 {h - 0.010:.4f} 0 0" size="0.005" mass="{A.upper_mass * 0.3:.4f}" material="shell"/>
           <geom name="{arm_id}_palm" type="ellipsoid" pos="{h - 0.004:.4f} 0 -0.004" size="0.011 0.0065 0.009" mass="{A.upper_mass * 0.7:.4f}" material="shell"/>
-          <geom name="{arm_id}_pollex" type="box" pos="{h + 0.016:.4f} {-s*0.003:.4f} -0.005" size="0.008 0.0025 0.004" mass="0.0008" material="claw"/>
-          <!-- jaw lip: a 1 mm ledge along the bottom of the front 10 mm, so a round thing rests on it as the jaws rise -->
-          <geom name="{arm_id}_pollex_lip" type="box" pos="{h + 0.019:.4f} {s*0.0000:.4f} -0.0084" size="0.005 0.0005 0.0006" mass="0.0001" material="claw"/>
-          <site name="{arm_id}_grip_site" pos="{h + 0.018:.4f} 0 -0.005" size="0.005" rgba="0 0 0 0"/>
+          <!-- fixed finger: the gripping strip (blade + TPU pad, level with the desk at the grip pitch) and
+               the blade above it, hanging below the palm (cad/parts.py jaw_side) -->
+          <geom name="{arm_id}_pollex" type="box" pos="{f(*JAW['strip'][0])}" euler="0 {-JAW['pitch']:.4f} 0" size="{f(*JAW['strip'][1])}" mass="0.0008" material="claw"/>
+          <geom name="{arm_id}_pollex_blade" type="box" pos="{f(*JAW['blade'][0])}" size="{f(*JAW['blade'][1])}" mass="0.0006" material="claw"/>
+          <site name="{arm_id}_grip_site" pos="{f(*JAW['site'])}" euler="0 {-JAW['pitch']:.4f} 0" size="0.005" rgba="0 0 0 0"/>
           <body name="{arm_id}_dactyl" pos="{h:.4f} 0 0">
             {jnt(arm_id + "_claw", f"0 0 {s}", A.claw_range)}
             {cad(arm_id + "_dactyl")}
-            <geom type="box" pos="{0.6 * fl:.4f} {s*0.0025:.4f} -0.005" size="{0.4 * fl:.4f} 0.002 0.004" mass="{A.jaw_mass}" material="claw"/>
-            <geom name="{arm_id}_dactyl_lip" type="box" pos="{fl - 0.005:.4f} {s*0.0000:.4f} -0.0084" size="0.005 0.0005 0.0006" mass="0.0001" material="claw"/>
+            <geom name="{arm_id}_dactyl_jaw" type="box" pos="{f(*JAW['d_strip'][0])}" quat="{f(*JAW['d_strip'][2])}" size="{f(*JAW['d_strip'][1])}" mass="{A.jaw_mass}" material="claw"/>
+            <geom name="{arm_id}_dactyl_blade" type="box" pos="{f(*JAW['d_blade'][0])}" quat="{f(*JAW['d_blade'][2])}" size="{f(*JAW['d_blade'][1])}" mass="0.0004" material="claw"/>
+            <geom name="{arm_id}_dactyl_drop" type="box" pos="{f(*JAW['d_drop'][0])}" size="{f(*JAW['d_drop'][1])}" mass="0.0004" material="claw"/>
           </body>
         </body>
       </body>"""
+
+
+def jaw_geoms(s):
+    """Collision boxes for the claw's jaws, from the CAD numbers (cad/parts.py: GRIP_PITCH, JAW_X, JAW_LOW,
+    STRIP_H, PAD_T, BLADE_T, D_DROP) - kept here as plain numbers so the model builds without the CAD.
+    s = +1 left arm, -1 right (mirror). Returns {name: ((pos), (half sizes))} in metres, plus 'pitch'
+    and the grip site."""
+    pitch = np.radians(20.0)
+    x0, x1, low0, strip_h, pad_t, blade_t = 40.3, 55.5, -24.5, 10.0, 1.2, 2.4
+    grip_w, q_par = 9.0, np.radians(19.0)                # jaws parallel GRIP_W apart at CLAW_PARALLEL
+    lu, dd, dd_y = P.arm.upper_len * 1000, (11.5, 15.0), (4.6, 8.4)
+    c, sn = np.cos(pitch), np.sin(pitch)
+    ry = np.array([[c, 0, -sn], [0, 1, 0], [sn, 0, c]])       # rotation about y by -pitch (strip along x)
+
+    def rz(a):
+        return np.array([[np.cos(a), -np.sin(a), 0], [np.sin(a), np.cos(a), 0], [0, 0, 1]])
+
+    def quat(R):
+        w = np.sqrt(max(1e-12, 1 + R[0, 0] + R[1, 1] + R[2, 2])) / 2
+        return (w, (R[2, 1] - R[1, 2]) / (4 * w), (R[0, 2] - R[2, 0]) / (4 * w), (R[1, 0] - R[0, 1]) / (4 * w))
+
+    def to_dactyl(pos, R):
+        """Arm frame with the claw at q_par -> the moving finger's frame (mirrored for the right arm)."""
+        Rd = rz(-s * q_par)
+        return Rd @ (np.asarray(pos) - [lu, 0, 0]), Rd @ R
+
+    def low(x):
+        return low0 + (x - x0) * np.tan(pitch)
+
+    xm = (x0 + x1) / 2
+    hx = (x1 - x0) / 2 / c - 0.2                          # along the strip
+    hz = strip_h * c / 2                                  # across it
+    hy = (pad_t + blade_t) / 2
+    centre = (xm - hz * sn, low(xm) + hz * c)            # strip box centre (x, z): its bottom on the edge
+    m = 1e-3
+    mid = s * (grip_w - 1.0) / 2                          # plane midway between the pads when parallel
+    strip_c = np.array([centre[0], -s * (0.5 + hy), centre[1]])
+    blade_c = np.array([43.3, -s * (0.5 + pad_t + blade_t / 2), -8.25])
+    d_strip = to_dactyl(strip_c * [1, -1, 1] + [0, 2 * mid, 0], ry)
+    d_blade = to_dactyl(blade_c * [1, -1, 1] + [0, 2 * mid, 0], np.eye(3))
+    out = {
+        "pitch": float(pitch),
+        "strip": (tuple(strip_c * m), (hx * m, hy * m, hz * m)),
+        "blade": ((41.5 * m, -s * (0.5 + pad_t + blade_t / 2) * m, -11.0 * m), (4.8 * m, blade_t / 2 * m, 8.0 * m)),
+        # pen-sized things are held with their axis 3.5 mm above the strip's lower edge, mid-strip
+        "site": ((xm - 3.5 * sn) * m, 0.0, (low(xm) + 3.5 * c) * m),
+        "d_strip": (tuple(d_strip[0] * m), (hx * m, hy * m, hz * m), quat(d_strip[1])),
+        "d_blade": (tuple(d_blade[0] * m), (3.0 * m, blade_t / 2 * m, 5.75 * m), quat(d_blade[1])),
+        "d_drop": (((dd[0] + dd[1]) / 2 * m, s * (dd_y[0] + dd_y[1]) / 2 * m, 4.5 * m),
+                   ((dd[1] - dd[0]) / 2 * m, (dd_y[1] - dd_y[0]) / 2 * m, 10.5 * m)),
+    }
+    return out
 
 
 def eyes_xml() -> str:

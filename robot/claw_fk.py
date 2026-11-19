@@ -12,7 +12,7 @@ import numpy as np
 from crab.params import JOINT_NAMES
 
 MODEL = Path(__file__).resolve().parents[1] / "sim" / "models" / "crab.xml"
-GAP = 0.008            # the open claw's gap centre: 8 mm off the fixed finger, toward the moving one
+GAP = 0.006            # aim a thing this far off the fixed jaw, into the open gap (mid-jaw)
 
 
 class ClawFK:
@@ -32,5 +32,5 @@ class ClawFK:
         s = "L" if side == "left" else "R"
         site = self.m.site(f"{s}_grip_site").id
         R = d.site_xmat[site].reshape(3, 3)
-        p = d.site_xpos[site] + R @ np.array([-0.004, (1 if side == "left" else -1) * GAP, 0.0])
+        p = d.site_xpos[site] + R @ np.array([0.0, (1 if side == "left" else -1) * GAP, 0.0])
         return float(p[0]), float(p[1])

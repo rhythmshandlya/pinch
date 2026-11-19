@@ -153,7 +153,7 @@ class CrabPushEnv(Env):
         data = mjx.forward(self.sys, mjx.make_data(self.sys).replace(qpos=qpos, ctrl=jp.array(pio.FULL_DEFAULT)))
         info = dict(rng=rng, step=jp.array(0), goal=goal, cmd=jp.zeros(3), arm=jp.array(pio.FULL_DEFAULT)[jp.array(_R_ARM)],
                     walk_last=jp.zeros(12), t_walk=jp.array(0.0), last_act=jp.zeros(6),
-                    dist=jp.linalg.norm(puck[:2] - goal), puck0=puck[:2])
+                    dist=jp.linalg.norm(puck[:2] - goal), dist0=jp.linalg.norm(puck[:2] - goal), puck0=puck[:2])
         metrics = {k: jp.array(0.0) for k in self.scales}
         metrics["success_rate"] = jp.array(0.0)
         return State(data, self._obs(data, info, jax.random.PRNGKey(0)), jp.array(0.0), jp.array(0.0), metrics, info)
@@ -166,6 +166,11 @@ class CrabPushEnv(Env):
 
     def step(self, state, action):
         info = dict(state.info)
+        if "steps" in info:          # Brax's auto-reset restores only the physics: a new episode -> fresh bookkeeping
+            new = info["steps"] == 0
+            info.update(step=jp.where(new, 0, info["step"]), last_act=jp.where(new, 0.0, info["last_act"]),
+                        walk_last=jp.where(new, 0.0, info["walk_last"]), t_walk=jp.where(new, 0.0, info["t_walk"]),
+                        dist=jp.where(new, info["dist0"], info["dist"]), cmd=jp.where(new, 0.0, info["cmd"]))
         rng, k_noise = jax.random.split(info["rng"])
         action = jp.clip(action, -1, 1)
         cmd = action[:3] * self.cmd_max
@@ -197,17 +202,24 @@ class CrabPushEnv(Env):
             lost=(jp.linalg.norm(puck - info["puck0"]) > 0.45).astype(jp.float32),
         )
         r = {k: jp.asarray(v, jp.float32) for k, v in r.items()}
-        fell = (grav[2] > -0.7) | (data.qpos[2] < self.fall_height)
+        bad = ~(jp.all(jp.isfinite(data.qpos)) & jp.all(jp.isfinite(data.qvel)))   # a physics blow-up: end it
+        fell = (grav[2] > -0.7) | (data.qpos[2] < self.fall_height) | bad
         r["termination"] = fell.astype(jp.float32)
+        r = {k: jp.where(bad, 0.0, v) for k, v in r.items()}
         reward = jp.clip(sum(self.scales[k] * v for k, v in r.items()), -1.0, 10.0)
+        reward = jp.where(bad, -1.0, reward)
+        dist = jp.where(bad, info["dist0"], dist)
+        walk_last = jp.where(jp.all(jp.isfinite(walk_last)), walk_last, 0.0)
+        t_walk = jp.where(jp.isfinite(t_walk), t_walk, 0.0)
         info.update(rng=rng, step=info["step"] + 1, cmd=cmd, arm=arm, walk_last=walk_last, t_walk=t_walk,
                     last_act=action, dist=dist)
         metrics = dict(state.metrics)
         metrics.update(r)
         metrics["success_rate"] = (dist < 0.025).astype(jp.float32) / self.T * 20.0       # ~1 if done by the end
         done = fell.astype(jp.float32)
-        return state.replace(pipeline_state=data, obs=self._obs(data, info, k_noise), reward=reward, done=done,
-                             metrics=metrics, info=info)
+        obs = self._obs(data, info, k_noise)
+        obs = jp.where(jp.isfinite(obs), obs, 0.0)
+        return state.replace(pipeline_state=data, obs=obs, reward=reward, done=done, metrics=metrics, info=info)
 
     def _obs(self, data, info, rng):
         R = data.xmat[self.body_id]

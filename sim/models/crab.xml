@@ -100,16 +100,20 @@
     <mesh name="L_upper_upper_arm" file="L_upper_upper_arm.stl" scale="0.001 0.001 0.001"/>
     <mesh name="L_upper_pitch_horn" file="L_upper_pitch_horn.stl" scale="0.001 0.001 0.001"/>
     <mesh name="L_upper_claw_servo" file="L_upper_claw_servo.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L_upper_jaw_pad" file="L_upper_jaw_pad.stl" scale="0.001 0.001 0.001"/>
     <mesh name="L_dactyl_dactyl" file="L_dactyl_dactyl.stl" scale="0.001 0.001 0.001"/>
     <mesh name="L_dactyl_claw_horn" file="L_dactyl_claw_horn.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L_dactyl_jaw_pad" file="L_dactyl_jaw_pad.stl" scale="0.001 0.001 0.001"/>
     <mesh name="R_shoulder_shoulder" file="R_shoulder_shoulder.stl" scale="0.001 0.001 0.001"/>
     <mesh name="R_shoulder_shoulder_yaw_horn" file="R_shoulder_shoulder_yaw_horn.stl" scale="0.001 0.001 0.001"/>
     <mesh name="R_shoulder_shoulder_pitch_servo" file="R_shoulder_shoulder_pitch_servo.stl" scale="0.001 0.001 0.001"/>
     <mesh name="R_upper_upper_arm" file="R_upper_upper_arm.stl" scale="0.001 0.001 0.001"/>
     <mesh name="R_upper_pitch_horn" file="R_upper_pitch_horn.stl" scale="0.001 0.001 0.001"/>
     <mesh name="R_upper_claw_servo" file="R_upper_claw_servo.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="R_upper_jaw_pad" file="R_upper_jaw_pad.stl" scale="0.001 0.001 0.001"/>
     <mesh name="R_dactyl_dactyl" file="R_dactyl_dactyl.stl" scale="0.001 0.001 0.001"/>
     <mesh name="R_dactyl_claw_horn" file="R_dactyl_claw_horn.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="R_dactyl_jaw_pad" file="R_dactyl_jaw_pad.stl" scale="0.001 0.001 0.001"/>
   </asset>
 
   <worldbody>
@@ -121,7 +125,7 @@
       <camera name="track" mode="trackcom" pos="0.2184 -0.26 0.156" xyaxes="0.7657 0.6432 -0 -0.2685 0.3197 0.9087"/>
       <camera name="eye_cam" pos="0.04893 0 0.001" xyaxes="0 -1 0 0 0 1" fovy="41.4"/>
       <site name="imu" pos="0 0 0" size="0.0052" rgba="0 0 0 0"/>
-      <inertial pos="2.601833e-03 8.517051e-06 -6.236518e-03" mass="0.320993" fullinertia="3.543353e-04 2.277107e-04 4.318262e-04 2.754236e-08 -3.098998e-06 -4.805697e-08"/>
+      <inertial pos="2.509505e-03 8.603776e-06 -6.363337e-03" mass="0.319874" fullinertia="3.519555e-04 2.251980e-04 4.302027e-04 2.741071e-08 -2.059074e-06 -4.897559e-08"/>
         <geom class="visual" type="mesh" mesh="body_chassis" material="printed"/>
         <geom class="visual" type="mesh" mesh="body_top_shell" material="shell"/>
         <geom class="visual" type="mesh" mesh="body_belly_door" material="printed"/>
@@ -273,24 +277,28 @@
         <body name="L_upper" pos="0.016 0 0">
           <joint name="L_shoulder_pitch" class="srv_GS4308" axis="0 -1 0" range="-0.6981 1.257"/>
         <joint name="L_shoulder_pitch_backlash" class="bl_GS4308" axis="0 -1 0"/>
-          <inertial pos="2.458585e-02 2.139424e-03 -3.728290e-03" mass="0.010970" fullinertia="6.468527e-07 1.350819e-06 1.391136e-06 3.604237e-07 9.885201e-08 -4.343895e-08"/>
+          <inertial pos="2.568742e-02 1.926868e-03 -4.596811e-03" mass="0.011524" fullinertia="7.806459e-07 1.765838e-06 1.692617e-06 4.148875e-07 3.014694e-07 -8.710672e-08"/>
         <geom class="visual" type="mesh" mesh="L_upper_upper_arm" material="claw"/>
         <geom class="visual" type="mesh" mesh="L_upper_pitch_horn" material="horn"/>
         <geom class="visual" type="mesh" mesh="L_upper_claw_servo" material="servo"/>
+        <geom class="visual" type="mesh" mesh="L_upper_jaw_pad" material="tip"/>
           <geom type="capsule" fromto="0 0 0 0.0200 0 0" size="0.005" mass="0.0042" material="shell"/>
           <geom name="L_palm" type="ellipsoid" pos="0.0260 0 -0.004" size="0.011 0.0065 0.009" mass="0.0098" material="shell"/>
-          <geom name="L_pollex" type="box" pos="0.0460 -0.0030 -0.005" size="0.008 0.0025 0.004" mass="0.0008" material="claw"/>
-          <!-- jaw lip: a 1 mm ledge along the bottom of the front 10 mm, so a round thing rests on it as the jaws rise -->
-          <geom name="L_pollex_lip" type="box" pos="0.0490 0.0000 -0.0084" size="0.005 0.0005 0.0006" mass="0.0001" material="claw"/>
-          <site name="L_grip_site" pos="0.0480 0 -0.005" size="0.005" rgba="0 0 0 0"/>
+          <!-- fixed finger: the gripping strip (blade + TPU pad, level with the desk at the grip pitch) and
+               the blade above it, hanging below the palm (cad/parts.py jaw_side) -->
+          <geom name="L_pollex" type="box" pos="0.04629 -0.0023 -0.01732" euler="0 -0.3491 0" size="0.007888 0.0018 0.004698" mass="0.0008" material="claw"/>
+          <geom name="L_pollex_blade" type="box" pos="0.0415 -0.0029 -0.011" size="0.0048 0.0012 0.008" mass="0.0006" material="claw"/>
+          <site name="L_grip_site" pos="0.0467 0 -0.01844" euler="0 -0.3491 0" size="0.005" rgba="0 0 0 0"/>
           <body name="L_dactyl" pos="0.0300 0 0">
             <joint name="L_claw" class="srv_GS4308" axis="0 0 1" range="0 0.9599"/>
         <joint name="L_claw_backlash" class="bl_GS4308" axis="0 0 1"/>
-            <inertial pos="7.311605e-03 1.039684e-03 5.880384e-03" mass="0.001345" fullinertia="9.602720e-08 1.734944e-07 9.499720e-08 -1.049346e-08 6.644999e-08 1.058263e-08"/>
+            <inertial pos="1.163765e-02 3.078648e-03 -1.261773e-04" mass="0.002183" fullinertia="3.845083e-07 5.401999e-07 2.025427e-07 -2.782683e-08 1.973747e-07 3.504422e-08"/>
         <geom class="visual" type="mesh" mesh="L_dactyl_dactyl" material="claw"/>
         <geom class="visual" type="mesh" mesh="L_dactyl_claw_horn" material="horn"/>
-            <geom type="box" pos="0.0144 0.0025 -0.005" size="0.0096 0.002 0.004" mass="0.0015" material="claw"/>
-            <geom name="L_dactyl_lip" type="box" pos="0.0190 0.0000 -0.0084" size="0.005 0.0005 0.0006" mass="0.0001" material="claw"/>
+        <geom class="visual" type="mesh" mesh="L_dactyl_jaw_pad" material="tip"/>
+            <geom name="L_dactyl_jaw" type="box" pos="0.01876 0.004434 -0.01732" quat="0.9713 -0.02866 -0.1713 -0.1625" size="0.007888 0.0018 0.004698" mass="0.0015" material="claw"/>
+            <geom name="L_dactyl_blade" type="box" pos="0.01612 0.005976 -0.00825" quat="0.9863 0 0 -0.165" size="0.003 0.0012 0.00575" mass="0.0004" material="claw"/>
+            <geom name="L_dactyl_drop" type="box" pos="0.01325 0.0065 0.0045" size="0.00175 0.0019 0.0105" mass="0.0004" material="claw"/>
           </body>
         </body>
       </body>
@@ -306,24 +314,28 @@
         <body name="R_upper" pos="0.016 0 0">
           <joint name="R_shoulder_pitch" class="srv_GS4308" axis="0 -1 0" range="-0.6981 1.257"/>
         <joint name="R_shoulder_pitch_backlash" class="bl_GS4308" axis="0 -1 0"/>
-          <inertial pos="2.458585e-02 -2.139424e-03 -3.728290e-03" mass="0.010970" fullinertia="6.468527e-07 1.350819e-06 1.391136e-06 -3.604237e-07 9.885201e-08 4.343895e-08"/>
+          <inertial pos="2.568742e-02 -1.926868e-03 -4.596811e-03" mass="0.011524" fullinertia="7.806459e-07 1.765838e-06 1.692617e-06 -4.148875e-07 3.014694e-07 8.710672e-08"/>
         <geom class="visual" type="mesh" mesh="R_upper_upper_arm" material="claw"/>
         <geom class="visual" type="mesh" mesh="R_upper_pitch_horn" material="horn"/>
         <geom class="visual" type="mesh" mesh="R_upper_claw_servo" material="servo"/>
+        <geom class="visual" type="mesh" mesh="R_upper_jaw_pad" material="tip"/>
           <geom type="capsule" fromto="0 0 0 0.0200 0 0" size="0.005" mass="0.0042" material="shell"/>
           <geom name="R_palm" type="ellipsoid" pos="0.0260 0 -0.004" size="0.011 0.0065 0.009" mass="0.0098" material="shell"/>
-          <geom name="R_pollex" type="box" pos="0.0460 0.0030 -0.005" size="0.008 0.0025 0.004" mass="0.0008" material="claw"/>
-          <!-- jaw lip: a 1 mm ledge along the bottom of the front 10 mm, so a round thing rests on it as the jaws rise -->
-          <geom name="R_pollex_lip" type="box" pos="0.0490 -0.0000 -0.0084" size="0.005 0.0005 0.0006" mass="0.0001" material="claw"/>
-          <site name="R_grip_site" pos="0.0480 0 -0.005" size="0.005" rgba="0 0 0 0"/>
+          <!-- fixed finger: the gripping strip (blade + TPU pad, level with the desk at the grip pitch) and
+               the blade above it, hanging below the palm (cad/parts.py jaw_side) -->
+          <geom name="R_pollex" type="box" pos="0.04629 0.0023 -0.01732" euler="0 -0.3491 0" size="0.007888 0.0018 0.004698" mass="0.0008" material="claw"/>
+          <geom name="R_pollex_blade" type="box" pos="0.0415 0.0029 -0.011" size="0.0048 0.0012 0.008" mass="0.0006" material="claw"/>
+          <site name="R_grip_site" pos="0.0467 0 -0.01844" euler="0 -0.3491 0" size="0.005" rgba="0 0 0 0"/>
           <body name="R_dactyl" pos="0.0300 0 0">
             <joint name="R_claw" class="srv_GS4308" axis="0 0 -1" range="0 0.9599"/>
         <joint name="R_claw_backlash" class="bl_GS4308" axis="0 0 -1"/>
-            <inertial pos="7.311605e-03 -1.039684e-03 5.880384e-03" mass="0.001345" fullinertia="9.602720e-08 1.734944e-07 9.499720e-08 1.049346e-08 6.644999e-08 -1.058263e-08"/>
+            <inertial pos="1.163765e-02 -3.078648e-03 -1.261773e-04" mass="0.002183" fullinertia="3.845083e-07 5.401999e-07 2.025427e-07 2.782683e-08 1.973747e-07 -3.504422e-08"/>
         <geom class="visual" type="mesh" mesh="R_dactyl_dactyl" material="claw"/>
         <geom class="visual" type="mesh" mesh="R_dactyl_claw_horn" material="horn"/>
-            <geom type="box" pos="0.0144 -0.0025 -0.005" size="0.0096 0.002 0.004" mass="0.0015" material="claw"/>
-            <geom name="R_dactyl_lip" type="box" pos="0.0190 -0.0000 -0.0084" size="0.005 0.0005 0.0006" mass="0.0001" material="claw"/>
+        <geom class="visual" type="mesh" mesh="R_dactyl_jaw_pad" material="tip"/>
+            <geom name="R_dactyl_jaw" type="box" pos="0.01876 -0.004434 -0.01732" quat="0.9713 0.02866 -0.1713 0.1625" size="0.007888 0.0018 0.004698" mass="0.0015" material="claw"/>
+            <geom name="R_dactyl_blade" type="box" pos="0.01612 -0.005976 -0.00825" quat="0.9863 0 0 0.165" size="0.003 0.0012 0.00575" mass="0.0004" material="claw"/>
+            <geom name="R_dactyl_drop" type="box" pos="0.01325 -0.0065 0.0045" size="0.00175 0.0019 0.0105" mass="0.0004" material="claw"/>
           </body>
         </body>
       </body>

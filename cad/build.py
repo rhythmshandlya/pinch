@@ -30,14 +30,15 @@ PRINT = OUT / "print"
 MESH_DIR = ROOT / "sim" / "models" / "meshes"
 
 INFILL = {"chassis": "40% gyroid, 3 walls", "top_shell": "solid (2 mm wall), 3 walls",
-          "foot_tip": "TPU 95A, 50% gyroid", "default": "50% gyroid, 4 walls"}
+          "foot_tip": "TPU 95A, 50% gyroid", "jaw_pad": "TPU 95A, solid", "default": "50% gyroid, 4 walls"}
 ORIENT = {"chassis": "floor down (supports inside the camera pocket)",
           "top_shell": "rim down (supports under the eye stalks and the speaker ring)",
           "belly_door": "flat", "pi_tray": "flat, stand-offs up",
           "coxa_link": "cradle floor down", "femur_link": "thigh plate down",
           "tibia": "horn plate down", "foot_tip": "sphere up", "shoulder": "spine side down",
           "upper_arm": "arm plate down (supports under the palm)",
-          "dactyl_L": "hub plate up, supports under the jaw", "dactyl_R": "hub plate up, supports under the jaw"}
+          "dactyl_L": "outer face down (supports under the hub)", "dactyl_R": "outer face down (supports under the hub)",
+          "jaw_pad": "flat"}
 
 
 def material_of(label):
@@ -45,7 +46,7 @@ def material_of(label):
         return "servo"
     if "horn" in label:
         return "horn"
-    if "foot" in label:
+    if "foot" in label or "pad" in label:
         return "tip"
     if label in ("top_shell",):
         return "shell"

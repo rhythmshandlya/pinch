@@ -96,7 +96,12 @@ class Pinch:
     def meeting(self, on):
         def f():
             if on:
-                self.meeting_audio = iter(lambda: synth_speech(1.0, talk=0.55, seed=int(time.time())), None)
+                def talk():                                  # 1 s chunks of a pretend call, forever
+                    k = 0
+                    while True:
+                        k += 1
+                        yield synth_speech(1.0, talk=0.55, seed=int(time.time()) + k)
+                self.meeting_audio = talk()
                 self.sim.say("can you hear me? let's get started")       # what speech-to-text would hear
             else:
                 self.meeting_audio = None
