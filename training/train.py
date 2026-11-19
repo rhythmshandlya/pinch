@@ -71,6 +71,9 @@ def make_env(name):
     if name == "gait":
         from training.gait_env import CrabGaitEnv
         return CrabGaitEnv()
+    if name == "gait2":          # walking-research values: a filter over ~a step cycle, a kinder tolerance
+        from training.gait_env import CrabGaitEnv
+        return CrabGaitEnv(vel_alpha=0.06, vel_sigma=0.03)
     if name == "emote":
         from training.emote_env import CrabEmoteEnv
         return CrabEmoteEnv()
@@ -153,7 +156,7 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preset", choices=list(PRESETS), default="smoke")
-    ap.add_argument("--env", choices=["walk", "gait", "emote", "grasp", "push"], default="walk")
+    ap.add_argument("--env", choices=["walk", "gait", "gait2", "emote", "grasp", "push"], default="walk")
     ap.add_argument("--timesteps", type=int, help="override num_timesteps")
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")
     ap.add_argument("--run", default=None, help="run name (default: env-preset-timestamp)")

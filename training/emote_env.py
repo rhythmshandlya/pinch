@@ -89,6 +89,7 @@ class CrabEmoteEnv(Env):
         self.scales = dict(REWARD_SCALES, **(reward_scales or {}))
         refs = refs or nominal_references(1 / self.dt)
         self.ref_v = jp.array(refs["v"]) if "v" in refs else None    # (E, 2) body velocity to walk at
+        self.vel_alpha, self.vel_sigma = 0.15, 0.015                   # velocity filter and tolerance
         self.ref_q = jp.array(refs["q"])
         self.ref_grav = jp.array(refs["grav"])
         self.ref_h = jp.array(refs["h"])
@@ -170,10 +171,11 @@ class CrabEmoteEnv(Env):
         foot_vel = (foot_pos - info["last_foot_pos"]) / self.dt
         legs_ref = ref_q[self.leg_act]
         v_body = (R.T @ data.qvel[0:3])[:2]
-        v_filt = 0.85 * info["v_filt"] + 0.15 * v_body             # averaged over ~a gait cycle
+        a = self.vel_alpha
+        v_filt = (1 - a) * info["v_filt"] + a * v_body              # averaged over ~a gait cycle
         v_goal = self.ref_v[e] if self.ref_v is not None else jp.zeros(2)
         r = dict(
-            track_vel=jp.exp(-jp.sum((v_filt - v_goal) ** 2) / (2 * 0.015 ** 2)),
+            track_vel=jp.exp(-jp.sum((v_filt - v_goal) ** 2) / (2 * self.vel_sigma ** 2)),
             track_legs=jp.exp(-jp.sum((q - legs_ref) ** 2) / (2 * 0.15 ** 2)),
             track_attitude=jp.exp(-jp.sum((gravity[:2] - ref_g[:2]) ** 2) / (2 * 0.05 ** 2)),
             track_height=jp.exp(-((data.qpos[2] - ref_h) ** 2) / (2 * 0.006 ** 2)),

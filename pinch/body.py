@@ -176,7 +176,7 @@ class Body:
         self.hold = q.copy()
         return True
 
-    FEET_EDGE = 0.035         # m: no walking or turning that brings a foot closer than this to the desk edge
+    FEET_EDGE = 0.02          # m: no walking or turning that brings a foot closer than this to the desk edge
                               # (the gait swings each foot ~2 cm, and the desk position is good to ~1 cm)
 
     def _edge_guard(self, cmd):

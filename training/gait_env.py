@@ -71,7 +71,8 @@ def walk_references(cmds=GAIT_CMDS, seconds=6.0, hz=50.0, sim_dt=0.002, sub=10):
 
 class CrabGaitEnv(CrabEmoteEnv):
     def __init__(self, sim_dt=0.002, obs_noise=0.02, push_interval_s=3.0, push_vel=0.08, reward_scales=None,
-                 refs=None):
+                 refs=None, vel_alpha=0.15, vel_sigma=0.015):
         super().__init__(sim_dt=sim_dt, obs_noise=obs_noise, push_interval_s=push_interval_s,
                          push_vel=push_vel, reward_scales=dict(REWARD_SCALES, **(reward_scales or {})),
                          refs=refs or walk_references(sim_dt=sim_dt))
+        self.vel_alpha, self.vel_sigma = vel_alpha, vel_sigma

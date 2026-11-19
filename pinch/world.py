@@ -29,7 +29,7 @@ class Desk:
     # Pinch's feet when standing (body frame, m; a little generous): they reach ~10 cm from the body centre,
     # so keeping the centre edge_margin from the edge is not enough on its own (a rear foot ended up over
     # the front edge in a 10-minute twin run, and Pinch stood there, lopsided, without noticing)
-    FEET = ((0.05, 0.10), (0.05, -0.10), (-0.05, 0.10), (-0.05, -0.10))
+    FEET = ((0.047, 0.094), (0.047, -0.094), (-0.047, 0.094), (-0.047, -0.094))   # measured stance (twin)
 
     def fit_feet(self, xy, heading, margin=0.035):
         """The nearest spot to xy (moving straight toward the desk's middle) where Pinch, facing `heading`, has

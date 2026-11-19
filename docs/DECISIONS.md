@@ -434,7 +434,7 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Blame:** goes to the person seen most recently (who just walked up), at reduced confidence when several are present. A tie had blamed the owner for a visitor's shaking.
     - **Verified in the brain:** the owner liked +0.75; a rough visitor feared after shaking, and Pinch hides when he returns; four days later only shy; the owner greeted warmly after 8 h; forgetting works.
     - **Recognition:** simulated in the twin and app. On the robot it needs the face models (YuNet + SFace, ~39 MB): **your decision to download.**
-45. **The firmware drives the five-beam cliff ring** (code side of 39, and of 43's firmware items).
+47. **The firmware drives the five-beam cliff ring** (code side of 39, and of 43's firmware items).
     - **Bring-up:** `robot/drivers/i2c_devices.py cliff_ring()` holds all five in reset and wakes them
       one at a time on I2C5, giving each its own address (front-left 0x30, rear 0x31, side-left 0x32,
       side-right 0x33; front-right keeps 0x29 and wakes last). Wiring is in `robot/hw_real.py`
