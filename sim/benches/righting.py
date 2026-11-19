@@ -2,7 +2,7 @@
 from the same random starts on its back, in the CPU twin's physics (sim/models/crab.xml, 2 ms steps).
 
     python sim/benches/righting.py                      # swing + policies/righting.npz if there is one
-    python sim/benches/righting.py --policy righting_v1 --starts 200
+    python sim/benches/righting.py --policy <candidate> --starts 200
 
 Each start: rolled 180 +- 30 deg, pitched +- 25 deg, any heading, joints +-0.2 rad around the stand pose,
 dropped from 8 cm; floor friction x0.4-1.2, masses +-15 %, servo strength x0.7-1.1. Both controllers are

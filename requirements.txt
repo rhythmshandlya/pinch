@@ -2,7 +2,7 @@
 mujoco>=3.3
 numpy
 pillow
-matplotlib         # brain/run_pet.py timeline plot
+matplotlib         # (its sample photo is the face-recognition test image in robot/firmware_test.py)
 shapely            # 2D outlines for the body CAD
 build123d          # open-source code-CAD (cad/)
 

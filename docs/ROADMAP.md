@@ -17,7 +17,7 @@ the learned policy trains across a wide range of motor strengths.
 | A6 | Electronics | [electronics.md](../hardware/electronics.md), [wiring.svg](../hardware/wiring.svg): block diagram, wiring, Radxa pin map, power budget, safety | ✅ (board positions not yet fitted in the CAD: A12) |
 | A7 | Robot software | `robot/`: own Feetech driver, arm servos on the Radxa's hardware PWM, calibration (legs measured, leg directions checked, arms trimmed by eye with a travel check), safety (limits, speed, shin limit, battery, bus sag, arm guard), emotes, gait, policy, `--check` | ✅ 32/32 self-tests against emulated bus, PWM and MuJoCo |
 | A8 | RL pipeline | MJX + Brax PPO, domain randomisation, Modal GPUs and the msi-1 queue, CPU smoke test | ✅ |
-| A9 | Brain + pet mind | Gemma 4 (Ollama) sees + hears; reflexes / heart / mind layers; tones only, never speech | ✅ in sim ([PET_MIND.md](PET_MIND.md)) |
+| A9 | Pet mind | needs and emotions, activities chosen by utility, attention, memory, daily routine; voice by rules plus a local LLM; tones only, never speech | ✅ in sim (`pinch/`, [DECISIONS.md](DECISIONS.md)) |
 | A10 | Order pack | [BOM.md](../hardware/BOM.md): Evelta + robu + Amazon.in, prices incl. GST, stock status | ✅ everything in stock on 2026-11-18 (₹85k + prints) |
 | A11 | Beginner docs | [ASSEMBLY.md](../hardware/ASSEMBLY.md): order → Radxa setup → servo setup → mechanics → first power-up | ✅ |
 | A12 | Electronics layout in CAD | Every board modelled as a box inside the body and checked for fit (the deck is tight); dome or tray adjusted if needed | ⏳ next |

@@ -26,7 +26,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from brain.sounds import render as render_sound  # noqa: E402
+from pinch.sounds import render as render_sound  # noqa: E402
 from pinch.hearing import RATE, synth_speech  # noqa: E402
 from pinch.memory import Memory  # noqa: E402
 from pinch.twin import DT, PinchSim  # noqa: E402

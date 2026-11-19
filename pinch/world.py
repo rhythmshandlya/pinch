@@ -58,6 +58,10 @@ class Desk:
         # also keeping the shell off it cost tidies in the bench - 13/32 vs 16/32 - for no physical gain)
         return min(min(self.edge_distance(p) for p in pts), min(self.tray_gap(p) for p in pts) + self.TRAY_ALLOW)
 
+    def feet(self, xy, heading):
+        """Where Pinch's feet are, standing at xy facing heading."""
+        return self._feet(xy, heading)
+
     def _feet(self, xy, heading):
         c, s = np.cos(heading), np.sin(heading)
         return [(xy[0] + c * fx - s * fy, xy[1] + s * fx + c * fy) for fx, fy in self.FEET]
@@ -115,6 +119,10 @@ class WorldModel:
     battery: float = 1.0
     t: float = 0.0
     clock: callable = time.time
+
+    def things_on_desk(self):
+        """[(name, xy)] of everything believed to be on the desk (what the body keeps its feet off)."""
+        return [(n, o.xy) for n, o in self.objects.items() if o.on_desk]
 
     def see(self, name, xy, yaw=0.0, graspable=True, on_desk=True):
         """A sighting. Camera fixes jitter by several mm, so "it moved" means 2 cm from where it came to rest

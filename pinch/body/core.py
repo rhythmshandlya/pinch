@@ -27,6 +27,7 @@ class BodyCore:
         self.righting_policy = righting_policy  # the learned get-up (training/righting_env.py), if exported
         self.push_policy = push_policy          # walking corrections while crouched pushing, if a separate one (84)
         self._gpol = None                       # the walking policy that ran last tick
+        self.bystanders_fn = None               # () -> [(name, xy)]: the things believed on the desk (decision 86)
         self.grasp_view_fn = None               # (thing, side) -> (rel, ang, kind, size): what the camera sees
         self.task, self.busy, self.ok = None, False, True
         self.hold = STAND.copy()

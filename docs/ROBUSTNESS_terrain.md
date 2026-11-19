@@ -6,8 +6,11 @@ World: **terrain** - see the module docstring.
 | What | Controller | Episodes | Falls | Body tilt RMS | Worst tilt | Speed tracking |
 |---|---|---|---|---|---|---|
 | walk | scripted | 40 | 0 (0 %) | 2.2 deg | 10.9 deg | 66 % |
-| walk | residual | 40 | 0 (0 %) | 2.8 deg | 16.5 deg | 85 % |
+| walk | residual | 40 | 0 (0 %) | 2.3 deg | 12.0 deg | 83 % |
+| emote | scripted | 40 | 0 (0 %) | 1.4 deg | 7.2 deg | - |
+| emote | policy | 40 | 0 (0 %) | 1.4 deg | 7.4 deg | - |
 
 Pass criteria: the trained policy falls in at most 5 % of these episodes and does no worse than the scripted controller; walking tracks at least 60 % of the commanded speed.
 
 - **walk (residual): PASS**
+- **emote (policy): PASS**

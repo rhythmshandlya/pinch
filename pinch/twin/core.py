@@ -61,6 +61,7 @@ class TwinCore:
                          walk_policy=pols["walk"], push_policy=pols["push"], grasp_policy=pols["grasp"],
                          righting_policy=pols["righting"], life_seed=seed)
         self.body.grip_fn = self.gripping
+        self.body.bystanders_fn = self.mind.world.things_on_desk
         self.body.grasp_view_fn = self.grasp_view
         self.view_rng = np.random.default_rng(seed + 7)
         self.k = 0

@@ -18,3 +18,19 @@ models/faces/
 docs/PRD.md
 docs/TRACEABILITY.md
 media/
+
+# local working notes and research dumps (kept on the owner's machine, not published)
+docs/MORNING_REPORT.md
+docs/TODO.md
+docs/LIFE_PLAN.md
+docs/PET_MIND.md
+hardware/*_prices_raw*.md
+hardware/ST3215_reference_bigversion.md
+variants/
+# policies: only the ones Pinch runs (and terrain-v1, the documented alternative walker) are published;
+# benched candidates stay local
+/policies/*
+!/policies/emote.*
+!/policies/gait.*
+!/policies/righting.*
+!/policies/terrain_v1.*

@@ -7,7 +7,7 @@ twin as the body: the face screen gets frames, the camera localises Pinch from t
 speech through the HTTP API makes it perform, a stroke on the touch pads makes it purr, a meeting
 heard through the stereo mics makes it go quiet, and it never falls.
 
-Then the robustness checks from the firmware audit (docs/LIFE_PLAN.md A7, A8): the control tick's own cost,
+Then the robustness checks from the firmware audit (audit items A7, A8): the control tick's own cost,
 transient I2C errors ridden out, the cliff reflex (latched; a failing sensor means "don't walk forward",
 never "back off forever"), a stuck Pinch noticed from what the camera measures, SIGTERM -> servos off and
 memory saved, the real-hardware glue against fake smbus2 / libgpiod v1 and v2 / camera, and the fisheye

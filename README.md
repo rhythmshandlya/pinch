@@ -9,10 +9,32 @@ Everything was designed, simulated, trained and tested in software before buying
 are borrowed from KingKong's Jumper, MakeYourPet and Sesame ([docs/INSPIRATION.md](docs/INSPIRATION.md)).
 Every part was in stock in India on 2026-11-19, about ₹91k plus prints ([hardware/BOM.md](hardware/BOM.md)).
 
-**Start here:** [docs/MORNING_REPORT.md](docs/MORNING_REPORT.md) (status, what's verified, what's left)
-and [docs/DECISIONS.md](docs/DECISIONS.md) (every decision and why).
+## In simulation
+
+| | |
+|---|---|
+| ![a minute of pet life](docs/images/sim_pet_life.gif) | ![picks up a pen and puts it in the tray](docs/images/sim_pick_pen.gif) |
+| **A minute of pet life** (4× speed): it wanders, notices things, reacts | **Tidying:** picks up a pen and drops it in the desk tray |
+| ![gets up off its back](docs/images/sim_get_up.gif) | ![walks over a 6 mm bar](docs/images/sim_hurdle.gif) |
+| **Gets up off its back** with a learned policy (about half a second) | **Walks over obstacles:** a 6 mm bar, head-on |
 
 ![faces](docs/images/pinch_faces.png)
+
+## What's verified (in simulation)
+
+| Area | Result | Evidence |
+|---|---|---|
+| Walking | Learned corrections on a scripted trot: **0 falls** in 200 randomised episodes over five worlds (flat, rough, caught foot, hurdles, steeper hurdles), 80–86 % speed tracking (scripted alone: 65–69 %) | [docs/ROBUSTNESS.md](docs/ROBUSTNESS.md) and the `ROBUSTNESS_*` reports |
+| Obstacles | Cables, pens and a book, forward and sideways; bars and ramps in [docs/HURDLES.md](docs/HURDLES.md) | `sim/benches/obstacles.py`, `sim/benches/hurdles.py` |
+| Getting up | **200/200** random falls on its back, 0.54 s on average (the searched swing it replaced: 107/200) | `sim/benches/righting.py` |
+| Emotes | 22 emotes with a learned balance policy, 0 falls | [docs/ROBUSTNESS.md](docs/ROBUSTNESS.md) |
+| Behaviour | 12 of 13 scenarios, from tricks and learning your name to comforting you and raising the alarm when something nears the edge | [docs/BEHAVIOUR_TESTS.md](docs/BEHAVIOUR_TESTS.md) |
+| Tidying | Still the weakest skill: on a 24-layout bench the cap reaches the tray 11/24 times and the eraser 11/24, and the toy ball gets knocked off in about half the runs | `sim/benches/tidy.py` |
+| Firmware | 47/47 checks on emulated hardware, 40/40 selftest; the control tick fits the robot's CPU budget | `robot/firmware_test.py`, `robot/selftest.py` |
+| Code | 34 tests: exact replay, a golden trace for refactors, fault injection, fuzzed servo safety, layering rules | `python tests/run.py` |
+
+Every design decision and the measurements behind it are in [docs/DECISIONS.md](docs/DECISIONS.md); the
+research behind the approach is in [docs/APPROACH_PLAN.md](docs/APPROACH_PLAN.md).
 
 ## Play with Pinch on your laptop
 
@@ -27,10 +49,10 @@ python -m venv .venv
 - **3D desk:** Pinch on its desk with its live face. To pick it up or nudge it: double-click Pinch,
   then Ctrl + right-drag.
 - **Panel:** its eyes, how it feels and what it needs, and a box to talk to it. Try "hi, I'm …",
-  "dance", "play dead", "shake", "put the cap away", "I'm sad today", "I'm in a meeting". There are
-  buttons for petting, stroking, tickling, booping and holding its claw; for messing up the desk,
-  pushing the pen to the edge and starting a meeting; and **Listen**, which lets it hear you through
-  your microphone (on-device only, never saved).
+  "dance", "play dead", "shake", "put the cap away", "I'm sad today", "I'm in a meeting", "quiet hours
+  from 10 pm to 7 am". There are buttons for petting, stroking, tickling, booping and holding its claw;
+  for messing up the desk, pushing the pen to the edge and starting a meeting; and **Listen**, which lets
+  it hear you through your microphone (on-device only, never saved).
 
 It remembers you between runs (`~/.pinch/memory.json`).
 
@@ -38,32 +60,38 @@ It remembers you between runs (`~/.pinch/memory.json`).
 
 | Part | What | Where |
 |---|---|---|
-| Brain | Needs and emotions (needy by design), 17 activities picked by utility with commitment, memory, voice understanding (instant rules plus a local LLM), meeting detection from sound, touch gestures | [pinch/](pinch/) |
+| Mind | Needs and emotions (needy by design), 24 activities chosen by utility with commitment, attention, memory, a daily routine with quiet hours, voice understanding (instant rules plus a local LLM), meeting detection from sound, touch gestures, faces | [pinch/](pinch/) |
+| Body | Walking and turning with an edge guard, pushing things with a claw paddle, picking and dropping, idle life (breathing, fidgets), getting up | [pinch/body/](pinch/body/) |
 | Face | 25 animated expressions (Vector-style eyes, blinks, glyphs) on a 128×64 OLED | [pinch/face.py](pinch/face.py) |
-| Digital twin | MuJoCo desk with edges, a desk tray with ArUco marker, a pen, eraser, cap and ball; cliff sensors; wide-angle eye camera; live face texture | [sim/desk.py](sim/desk.py), [pinch/twin/](pinch/twin/) |
-| Motion | 21 emotes; scripted crawl/trot gait; learned walking and emote-balancing policies (Brax PPO on Modal, run as numpy) | [crab/](crab/), [training/](training/), [policies/](policies/) |
-| Skills | Walk to a spot, turn, push things into the tray with a claw paddle (detours around obstacles), ask for help | [pinch/body.py](pinch/body.py) |
-| Firmware | The robot's program (the same brain and body), drivers for the face, touch, cliff sensors, camera and mics, HTTP API, systemd service | [robot/pinch_main.py](robot/pinch_main.py), [deploy/](deploy/) |
+| Digital twin | MuJoCo desk with edges, a desk tray with ArUco marker, a pen, eraser, cap and ball; cliff sensors; wide-angle eye camera; live face texture; fault injection | [sim/desk.py](sim/desk.py), [pinch/twin/](pinch/twin/) |
+| Motion | 22 emotes; scripted trot; learned walking, emote-balance and get-up policies (Brax PPO on MJX, run on the robot as plain numpy) | [crab/](crab/), [training/](training/), [policies/](policies/) |
+| Firmware | The robot's program (the same mind and body), drivers for the face, touch, cliff sensors, camera and mics, an HTTP API, a systemd service | [robot/firmware/](robot/firmware/), [deploy/](deploy/) |
 | Hardware | 12 STS3032 leg servos, 6 GS-4308MG arm servos on the Radxa's PWM, Radxa ZERO 3W, 2.42" OLED face, MPR121 touch, two I2S mics, a 160° camera, 2S LiPo | [hardware/](hardware/) |
-| CAD | 13 printable parts (27 pieces) including the face visor and the desk tray | [cad/](cad/), [cad/out/print/](cad/out/print) |
+| CAD | 14 printable parts (31 pieces) including the face visor and the desk tray; 241/241 poses collision-free | [cad/](cad/), [cad/out/print/](cad/out/print) |
 
-## Tests (all run in software)
+## Tests and benches
 
 ```powershell
-.venv\Scripts\python sim\pinch_scenarios.py     # Pinch's behaviour in the twin -> docs/BEHAVIOUR_TESTS.md
-.venv\Scripts\python robot\firmware_test.py     # the robot's firmware on emulated hardware (8 checks)
-.venv\Scripts\python sim\robustness.py          # trained vs scripted motion under randomised physics -> docs/ROBUSTNESS.md
-.venv\Scripts\python robot\selftest.py          # servo bus, PWM, calibration, drivers, safety (32 checks)
-.venv\Scripts\python sim\check.py               # standing load + all 21 emotes within servo limits
-.venv\Scripts\python cad\check.py               # printability, servo fit, self-collision sweep (~25 min)
+.venv\Scripts\python tests\run.py                     # the test suite
+.venv\Scripts\python robot\firmware_test.py           # the firmware on emulated hardware
+.venv\Scripts\python robot\selftest.py                # servo bus, PWM, calibration, drivers, safety
+.venv\Scripts\python sim\benches\scenarios.py         # behaviour in the twin -> docs/BEHAVIOUR_TESTS.md
+.venv\Scripts\python sim\benches\robustness.py        # trained vs scripted motion -> docs/ROBUSTNESS.md
+.venv\Scripts\python sim\benches\hurdles.py           # bars and ramps -> docs/HURDLES.md
+.venv\Scripts\python sim\clips.py                     # these GIFs, freshly rendered -> media/
+.venv\Scripts\python cad\check.py                     # printability, servo fit, self-collision sweep (~25 min)
 ```
 
-**Training** runs on a Modal GPU and is exported to numpy for the robot:
+The other benches (tidy, pick, righting, soak, obstacles) are in [sim/benches/](sim/benches/); each takes
+`--json` to save its results.
+
+**Training** runs on a cloud GPU (Modal) and is exported to numpy for the robot:
 
 ```powershell
-$env:PINCH_GPU="A10G"; python -m modal run --detach training\modal_train.py::main --env walk --preset full --run walk-v3
-python -m modal run training\modal_train.py::fetch --run walk-v3
-.venv-rl\Scripts\python training\export_policy.py walk-v3 walk
+$env:PINCH_GPU="A10G"; python -m modal run --detach training\modal_train.py::launch --env righting --preset righting --run righting-v2
+python -m modal run training\modal_train.py::fetch --run righting-v2
+.venv-rl\Scripts\python training\export_policy.py righting-v2 righting_v2
+.venv\Scripts\python sim\benches\righting.py --policy righting_v2
 ```
 
 ## On the robot
@@ -82,10 +110,14 @@ the firmware won't start without it), then:
 sudo systemctl start pinch
 ```
 
-Talk to it from the laptop:
+Talk to it and control it from the laptop (HTTP on port 8080):
 
 ```bash
 curl -X POST pinch.local:8080/say -d '{"text":"hi pinch"}'
+curl pinch.local:8080/status                                         # how it feels, what it's doing
+curl pinch.local:8080/memory                                         # what it remembers about you
+curl -X POST pinch.local:8080/forget -d '{"what":"people"}'          # forget faces and people (or "everything")
+curl -X POST pinch.local:8080/settings -d '{"face_recognition":false}'
+curl -X POST pinch.local:8080/quiet_hours -d '{"start":22,"end":7}'
+curl -X POST pinch.local:8080/stop                                   # emergency stop (then /resume)
 ```
-
-The earlier, larger ST3215 design is archived in [variants/](variants/).

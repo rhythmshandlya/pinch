@@ -156,9 +156,12 @@ class Manipulation:
                         st = g - np.array((c * tp[0] - s_ * tp[1], s_ * tp[0] + c * tp[1]))
                         room = min(self.desk.edge_distance(st) - 0.066,
                                    self.desk.feet_clear(st, hd) - self.FEET_EDGE - 0.005)
-                        # cheapest: feet fit (some room to spare), little walking and turning, the nearer claw,
-                        # the usual arm swing
-                        cost = (100.0 if room < 0 else 0.0) + 3 * max(0.0, 0.03 - room) / 0.03 +                             np.hypot(st[0] - x, st[1] - y) / 0.10 + 0.3 * abs(_wrap(hd - h)) + 0.3 * si + abs(yw - 0.12)
+                        # cheapest: feet fit (some room to spare) and clear of the other things, little walking
+                        # and turning, the nearer claw, the usual arm swing
+                        cost = ((100.0 if room < 0 else 0.0) + 3 * max(0.0, 0.03 - room) / 0.03
+                                + self._bystander_cost(st, hd, exclude=(name,))
+                                + np.hypot(st[0] - x, st[1] - y) / 0.10 + 0.3 * abs(_wrap(hd - h)) + 0.3 * si
+                                + abs(yw - 0.12))
                         if best is None or cost < best[0]:
                             best = (cost, sd, rq, tp, hd, st, g)
             _, side, reach, tip, heading, stand_xy, grab = best
@@ -312,6 +315,19 @@ class Manipulation:
         self.hold = STAND.copy()
         return True
 
+    BYSTANDER_CLEAR = 0.035   # m from any foot to another thing's centre when choosing where to stand (86)
+
+    def _bystander_cost(self, xy, heading, exclude=()):
+        """0 when every foot stands BYSTANDER_CLEAR from the other things on the desk, rising to 4 as a foot
+        comes onto one: legs bump what they stand next to (the toy ball rolls off the desk)."""
+        if self.bystanders_fn is None:
+            return 0.0
+        things = [np.asarray(p) for n, p in self.bystanders_fn() if n not in exclude]
+        if not things:
+            return 0.0
+        gap = min(float(np.hypot(*(np.asarray(f) - p))) for f in self.desk.feet(xy, heading) for p in things)
+        return 4.0 * max(0.0, self.BYSTANDER_CLEAR - gap) / self.BYSTANDER_CLEAR
+
     def _drop(self, goal):
         """Carry the held thing to the goal and put it down there."""
         if not self.held:
@@ -329,14 +345,15 @@ class Manipulation:
             # face it from where Pinch is - or, if that puts a foot over an edge or in the tray, the nearest
             # heading that doesn't (round the tray's open front)
             direct = float(np.arctan2(goal[1] - y, goal[0] - x) - np.arctan2(tip[1], tip[0]))
-            best = None
+            # (and, among those, the nearest one that keeps its feet off the other things on the desk)
+            fits = []
             for dh in sorted(np.linspace(-np.pi, np.pi, 25), key=abs):
                 hd = direct + dh
                 c, s = np.cos(hd), np.sin(hd)
                 st = goal - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
                 if self.desk.feet_clear(st, hd) >= self.FEET_EDGE + 0.005:
-                    best = hd
-                    break
+                    fits.append((self._bystander_cost(st, hd, exclude=(name,)) > 0, abs(dh), hd))
+            best = min(fits)[2] if fits else None
             heading = _wrap(best if best is not None else direct)
         c, s = np.cos(heading), np.sin(heading)
         stand_xy = goal - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))

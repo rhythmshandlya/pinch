@@ -74,7 +74,8 @@ def _qmul(a, b):
             w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2, w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2]
 
 
-def case(args):
+def case(args, on_tick=None):
+    """One crossing attempt. on_tick(m, d, t), if given, is called every control tick (sim/clips.py records it)."""
     kind, size, way, ctrl, seed, policy = args
     m, along, near = world(kind, size, way, seed)
     d = mujoco.MjData(m)
@@ -111,6 +112,8 @@ def case(args):
         for _ in range(10):
             mujoco.mj_step(m, d)
         t += pio.CTRL_DT
+        if on_tick is not None:
+            on_tick(m, d, t)
         R = d.xmat[body].reshape(3, 3)
         if R[2, 2] < 0.5:
             fell = True

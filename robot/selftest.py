@@ -225,7 +225,7 @@ def main():
     dx = bb.sim.d.qpos[0] - x0
     check("walks with every command going through the byte-level bus", dx > 0.1, f"{dx * 100:.1f} cm in 3 s")
 
-    # firmware audit (docs/LIFE_PLAN.md A7): one SYNC_READ per state read, a silent servo ridden out for a
+    # firmware audit (item A7): one SYNC_READ per state read, a silent servo ridden out for a
     # moment, a dead one -> safety stop, and after a safety stop the arm servos get no pulses ever again
     port_log = bb.bus.port.log
     n0 = len(port_log)

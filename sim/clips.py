@@ -2,8 +2,8 @@
 
     python sim/clips.py                      # all clips -> media/
     python sim/clips.py right_self hurdle    # some
-Clips: right_self (on its back, rolls over), hurdle (walks sideways over an 8 mm bar with the trained walking
-corrections), pick (picks a pen up and drops it in the tray), life (a minute of pet life, 4x speed).
+Clips: right_self (on its back, gets up), hurdle (walks over a 6 mm bar with the trained walking corrections:
+the hurdle bench's own episode), pick (picks a pen up and drops it in the tray), life (a minute of pet life, 4x speed).
 """
 
 import copy
@@ -16,7 +16,6 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "sim"))
 
 OUT = ROOT / "media"
 W, H, FPS = 400, 300, 12
@@ -69,45 +68,23 @@ def clip_right_self():
     return rec.save("right_self")
 
 
-def clip_hurdle(height_mm=8, way="sideways", policy="gait"):
-    import hurdle_test as ht
+def clip_hurdle(height_mm=6, way="forward", policy="gait"):
+    """The hurdle bench's own episode (sim/benches/hurdles.py), recorded, with its verdict on the last frames."""
+    from sim.benches.hurdles import case
     from crab import policy_io as pio
-    from crab.emotes import STAND
-    from crab.gait import _S, GAITS, Gait
-    from crab.params import JOINT_NAMES
-    from crab.policy_np import POLICY_DIR, NumpyPolicy
-    m, along, near = ht.world("hurdle", height_mm, way, 0)
-    d = mujoco.MjData(m)
-    mujoco.mj_resetDataKeyframe(m, d, m.key("stand").id)
-    mujoco.mj_forward(m, d)
-    act = np.array([m.actuator(j).id for j in JOINT_NAMES])
-    leg_q = np.array([m.jnt_qposadr[m.joint(n).id] for n in pio.LEG_JOINT_NAMES])
-    leg_v = np.array([m.jnt_dofadr[m.joint(n).id] for n in pio.LEG_JOINT_NAMES])
-    pol = NumpyPolicy.load(POLICY_DIR / f"{policy}.npz")
-    k_scale = pol.meta.get("action_scale", pio.EMOTE_ACTION_SCALE) / pio.EMOTE_ACTION_SCALE
-    gait = Gait(GAITS["trot"], com_offset=np.array([0.015 * _S, 0.0]))
-    cmd = (0.0, ht.SPEED, 0.0) if way == "sideways" else (ht.SPEED, 0.0, 0.0)
-    rec = Recorder(m, d, azim=60.0 if way == "sideways" else 135.0)
-    last, t, target = np.zeros(12), 0.0, STAND.copy()
     every = max(1, int(round(1.0 / FPS / pio.CTRL_DT)))
-    for k in range(int(9.0 / pio.CTRL_DT)):
-        for i in range(10):
-            out = gait.step(pio.CTRL_DT / 10, cmd, solve=i == 9)
-            target = out if out is not None else target
-        g = copy.deepcopy(gait)
-        for i in range(5):
-            ahead = g.step(pio.CTRL_DT, cmd, solve=i == 4)
-        R = d.xmat[m.body("body").id].reshape(3, 3)
-        obs = pio.emote_observation(np, d.qvel[3:6], R.T @ np.array([0, 0, -1.0]), d.qpos[leg_q], d.qvel[leg_v],
-                                    last, target, ahead, None, (t % 6.0) / 6.0)
-        last = np.clip(pol(obs), -1, 1)
-        d.ctrl[act] = pio.emote_targets(np, target, last * k_scale)
-        for _ in range(10):
-            mujoco.mj_step(m, d)
-        t += pio.CTRL_DT
-        if k % every == 0:
-            rec.grab(f"{height_mm} mm bar, walking {way}  t={t:4.1f}s")
-    return rec.save(f"hurdle_{height_mm}mm_{way}")
+    st = {}
+
+    def tick(m, d, t):
+        if "rec" not in st:
+            st["rec"] = Recorder(m, d, azim=60.0 if way == "sideways" else 135.0)
+        if int(round(t / pio.CTRL_DT)) % every == 0:
+            st["rec"].grab(f"{height_mm} mm bar, walking {way}  t={t:4.1f}s")
+
+    res = case(("hurdle", height_mm, way, "policy", 0, policy), on_tick=tick)
+    for _ in range(FPS):                                   # a second on the verdict
+        st["rec"].grab(f"{height_mm} mm bar, walking {way}: {'crossed' if res['crossed'] else 'not crossed'}")
+    return st["rec"].save(f"hurdle_{height_mm}mm_{way}"), res["crossed"]
 
 
 def clip_pick(seed=1):

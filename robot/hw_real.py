@@ -144,7 +144,7 @@ class RealHardware:
         return a.reshape(-1, 2)
 
     def play(self, name):
-        from brain.sounds import render
+        from pinch.sounds import render
 
         def go():
             with self._play_lock:

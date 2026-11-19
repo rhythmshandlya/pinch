@@ -250,9 +250,8 @@ to, and how it knows where it is on the desk.
 
 * **Learned walking:** already trained and shipped as `policies/gait.npz` (the scripted trot plus learned
   corrections). The firmware loads it on its own; nothing to do on the robot.
-* **Pet mind:** see [docs/PET_MIND.md](../docs/PET_MIND.md). Gemma 4 runs on your PC (`ollama pull gemma4:e4b`).
-  The heart and mind already run in the simulator. On the robot, the next step is the senses layer
-  (camera, mic, touch → events), listed in the roadmap.
+* **Smarter listening (optional):** run a local LLM on your PC (`ollama pull gemma4:e4b`) and Pinch uses it
+  to understand sentences its built-in rules miss. Everything else runs on the robot.
 
 ## If something goes wrong
 

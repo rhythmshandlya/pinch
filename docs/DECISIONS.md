@@ -1058,3 +1058,61 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       fingerprints stay until people are forgotten.
     - **Tests:** `tests/test_privacy.py` (summary, each kind, everything keeps settings, the switch), and a
       firmware check over HTTP (47/47).
+84. **Walking v2 (gait-v2) becomes the walking policy** (`policies/gait.npz`; terrain-v1 stays stored).
+    - **What it is:** the residual walker trained on 48 commands (curves, diagonals) plus crouched pushing
+      with a paddle arm, with bench-strength shoves; 150M steps on Modal.
+    - **Tidying** (same 24 layouts, today's code):
+
+      | Walking policy | Cap | Eraser |
+      |---|---|---|
+      | terrain-v1 | 3/24 | 12/24 |
+      | terrain-v1 walking, gait-v2 pushing | 7/24 | 10/24 |
+      | gait-v2 for both | **11/24** | 11/24 |
+
+      Its plain walking lines up better for the push too, which is why the split loses.
+    - **Robustness:** level with terrain-v1, 0 falls, tracking 86 % desk, 83 % terrain, 81 % stuck.
+    - **Desk obstacles** (cable, pen, book; forward and sideways): all crossed. The book head-on now needs a
+      climb (49 s instead of 6 s).
+    - **Cost:** lower synthetic hurdles. Bars forward to 6 mm (was 8), sideways to 8 mm partial (was 12),
+      ramps forward to 10° (15° 1/3), sideways 20° unchanged. `terrain-push-v1` (training on Modal: the
+      hurdle worlds plus the same commands and pushing) is meant to get both back.
+    - **Framework:**
+      - `load_policies()` returns every learned skill by name (`SKILLS`); `PINCH_<FILE>_POLICY` benches a
+        candidate in the whole pet.
+      - Body chooses per tick between the walking policy and a separate push policy, if one is exported.
+    - **Golden trace:** re-recorded (an intended change).
+85. **The get-up from 40M steps replaces the 8.8M one.**
+    - **Bench, 200 random starts:**
+      - righting-v1 at 40M: **200/200**, 0.54 s mean, 0.90-percentile 0.56 s;
+      - the 8.8M one: 198/200, 0.66 s;
+      - the swing: 107/200, 0.84 s.
+    - **Real-robot risk, measured:** its targets change much faster than the swing's (95th percentile
+      17 rad/s against 3; median 1.6 against 0.5), close to bang-bang. The twin's servo model limits force
+      and damping, so the motion is physically bounded, but expect current spikes during a get-up.
+      Get-ups are rare and short. If the servo bench shows trouble, retrain with a stronger action-rate
+      cost (righting2 explores the other direction: no energy cost).
+86. **Standing clear of the other things on the desk** (`Body._bystander_cost`; `bystanders_fn` is the mind's
+    `things_on_desk()`, on the robot as in the twin).
+    - **Diagnosis:** the toy ball goes off the desk while Pinch is at the tray, not on the way there. It is
+      hit 10–14 cm from Pinch's centre: by the feet when it stands to pick or drop, and more often by the
+      arms (the claw swinging in to grab, the paddle while pushing).
+    - **Done:** pick and drop stances now prefer spots where every foot stays 3.5 cm from the other things.
+    - **Measured on the same 24 layouts:** tidying unchanged (cap 11/24, eraser 11/24). Knock-offs in
+      eraser runs fell from 15 to 12, unchanged in cap runs. On 8 traced runs: balls off 6/8 instead of 8/8.
+    - **Not done:** the arms' sweep. The same cost over the claw's path is the next step.
+87. **What the public repository holds.**
+    - **Local only now** (gitignored, kept on the owner's machine):
+      - the working notes (morning report, TODO, the life plan with audit notes) and the old pet-mind
+        write-up;
+      - the raw scraped vendor price pages;
+      - the archived first design (a 16 MB zip) and its servo notes;
+      - the benched policy candidates. Published policies are only the ones Pinch runs (emote, gait,
+        righting) plus terrain-v1, the documented alternative walker.
+    - **Removed:**
+      - the `brain/` prototype, superseded by `pinch/`. Its sound synthesiser moved to `pinch/sounds.py`.
+      - the two 5 MB scripted-walk GIFs.
+    - **Added:** four compressed simulation clips in the README (pet life, pen to tray, get-up, a 6 mm bar).
+      They come from `sim/clips.py`; the hurdle clip records the hurdle bench's own episode and shows its
+      verdict.
+    - **History:** git history still has the removed files. None of them are secret (the private PRD
+      was already rewritten out of history).

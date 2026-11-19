@@ -4,8 +4,8 @@
     python -m modal run training/modal_train.py::fetch --run walk-v1      # download into training/checkpoints/
     python -m modal app stop pinch-train                                  # stop anything still running
 
-Cost guard: every run has a hard timeout (TIMEOUT_S) and an L4 GPU (~$0.80/h). The spend log in
-docs/MORNING_REPORT.md adds up the runs. Nothing keeps running after a run: the function exits and the
+Cost guard: every run has a hard timeout (TIMEOUT_S) and an L4 GPU (~$0.80/h). Check spend on the Modal
+dashboard. Nothing keeps running after a run: the function exits and the
 app stops.
 """
 

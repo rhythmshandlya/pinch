@@ -1,7 +1,7 @@
 {
- "run": "terrain-v1",
- "steps": 86507520,
- "num_timesteps": 100000000,
+ "run": "gait-v2",
+ "steps": 150000000,
+ "num_timesteps": 150000000,
  "num_envs": 2048,
  "batch_size": 256,
  "num_minibatches": 32,
@@ -23,8 +23,12 @@
   256,
   256
  ],
- "preset": "terrain",
- "env": "terrain",
+ "preset": "gait_v2",
+ "env": "gait_v2",
  "randomize": true,
- "action_scale": 0.25
+ "action_scale": 0.15,
+ "covers": [
+  "walk",
+  "push"
+ ]
 }

@@ -1,6 +1,6 @@
 {
  "run": "righting-v1",
- "steps": 8847360,
+ "steps": 39813120,
  "num_timesteps": 60000000,
  "num_envs": 4096,
  "batch_size": 256,

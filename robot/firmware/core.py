@@ -50,6 +50,7 @@ class FirmwareCore:
                          walk_policy=pols["walk"], push_policy=pols["push"], grasp_policy=pols["grasp"],
                          righting_policy=pols["righting"], life_seed=None)   # (the robot: fresh every boot)
         self.body.pose_sigma_fn = self.loc.sigma
+        self.body.bystanders_fn = self.mind.world.things_on_desk
         self.gestures = TouchGestures()
         self.bodysense = BodySense()
         self.stuck_sense = StuckSense()

@@ -3,7 +3,7 @@ its claw and drops it in the tray, through the robot's own Body in the full twin
 skill, not the choice to use it.
 
     python sim/benches/pick.py                       # scripted grab
-    python sim/benches/pick.py --grasp grasp_v5      # with a learned grab (policies/grasp_v5.npz)
+    python sim/benches/pick.py --grasp <name>        # with a learned grab (policies/<name>.npz)
 """
 
 import argparse

@@ -5,7 +5,7 @@ Body frame: +x = front (eyes/claws), +y = left, +z = up.
 
 This is the hand-sized "pocket crab": 20 Feetech STS3032 micro serial-bus servos, the
 smallest legs that still walk, everything from parts in stock. The earlier ST3215 design is
-archived in variants/standard-st3215.zip. Every joint names its servo, so the simulator can
+archived outside this repository. Every joint names its servo, so the simulator can
 try other servos (env vars CRAB_MICRO_SERVO / CRAB_FEMUR_SERVO, bus voltage CRAB_BUS_V).
 """
 
@@ -123,7 +123,7 @@ SERVOS = {
                         datasheet_stall=0.059, datasheet_noload=7.8, rated_torque=0.020,
                         max_cmd_speed=6.5, backlash_deg=1.5, command_delay=0.020, mass=0.0058,
                         size_mm=(15.8, 8.5, 17.6)),
-    # The large design's servo (variants/standard-st3215.zip). Rhoban BAM m1: published measurements.
+    # The large design's servo (the archived first design). Rhoban BAM m1: published measurements.
     "ST3215": ServoSpec("ST3215", "sts3215", "Rhoban BAM m1 (measured) + Feetech datasheet", 7.4,
                         model_stall=3.516, model_noload=6.284, viscous=0.0599, frictionloss=0.0515,
                         armature=0.0261, kp=18.1, kt_current=1.1776,

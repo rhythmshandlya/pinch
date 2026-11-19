@@ -11,7 +11,7 @@ praise. Choosing follows intrinsic-motivation research:
 - competence in the sweet spot: 4p(1-p) peaks when it wins about half the time
 - your praise (memory likes "game:<id>"), and boredom that builds with each play and fades in ~20 minutes
 15 % of the time it tries a random allowed game. New *motor* skills are not invented here: they need
-training (docs/LIFE_PLAN.md section 5).
+training (training/).
 
 Hard safety rules, in code: the toy at least 10 cm from every edge and not in a feared spot, the target at
 least 8 cm from every edge, and a game whose toy ends up near an edge is banned for a week.
