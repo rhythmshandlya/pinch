@@ -13,7 +13,9 @@ back to back. A fall = tipped over 45 deg or body down on the desk.
 """
 
 import argparse
+import os
 import sys
+from collections import deque
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -89,6 +91,10 @@ def episode(args):
     sens = Sensors(m)
     stand_h = float(m.key("stand").qpos[2])
     pol = NumpyPolicy.load(POLICY_DIR / f"{'walk' if kind == 'walk' else 'emote'}.npz") if ctrl == "policy" else None
+    if ctrl == "residual":                       # the scripted trot + learned corrections (training/gait_env.py)
+        pol = NumpyPolicy.load(POLICY_DIR / f"{os.environ.get('PINCH_GAIT_POLICY', 'gait')}.npz")
+    look = int(round(0.1 / pio.CTRL_DT))
+    refbuf = deque([STAND.copy()] * (look + 1), maxlen=look + 1)   # the gait runs 0.1 s ahead of the servos
     gait = Gait(GAITS["trot"], com_offset=np.array([0.015 * _S, 0.0])) if kind == "walk" else None
     seq = rng.choice(pio.EMOTE_NAMES, 5) if kind == "emote" else None
     plan = []
@@ -110,7 +116,20 @@ def episode(args):
         gyro, grav, q, qd = sens.read(d, rng)
         if kind == "walk":
             cmd = next(c for t0, c in reversed(WALK_CMDS) if t >= t0)
-            if pol is None:
+            if ctrl == "residual":
+                t_ahead = t + look * pio.CTRL_DT
+                c_ahead = next(c for t0, c in reversed(WALK_CMDS) if t_ahead >= t0)
+                r = None
+                for _ in range(SUB):
+                    r = gait.step(pio.CTRL_DT / SUB, c_ahead)
+                refbuf.append(r if r is not None else refbuf[-1])
+                ref, ahead = refbuf[0], refbuf[-1]
+                t_seg = t - next(t0 for t0, c in reversed(WALK_CMDS) if t >= t0)
+                obs = pio.emote_observation(np, gyro, grav, q, qd, last, ref, ahead, None, min(t_seg / 6.0, 1.0))
+                a = np.clip(pol(obs), -1, 1)
+                target = pio.emote_targets(np, ref, prev if latency else a)
+                prev, last = a, a
+            elif pol is None:
                 for _ in range(SUB):
                     target = gait.step(pio.CTRL_DT / SUB, cmd)
             else:
@@ -154,7 +173,7 @@ def episode(args):
 def summary(rows):
     out = {}
     for kind in ("walk", "emote"):
-        for ctrl in ("scripted", "policy"):
+        for ctrl in ("scripted", "policy", "residual"):
             r = [x for x in rows if x["kind"] == kind and x["ctrl"] == ctrl]
             if not r:
                 continue
@@ -181,6 +200,9 @@ def main():
             if ctrl == "policy" and not (POLICY_DIR / f"{kind}.npz").exists():
                 continue
             jobs += [(kind, ctrl, 1000 + s, True) for s in range(n)]
+        gp = os.environ.get("PINCH_GAIT_POLICY", "gait")
+        if kind == "walk" and (POLICY_DIR / f"{gp}.npz").exists():
+            jobs += [(kind, "residual", 1000 + s, True) for s in range(n)]
     with ProcessPoolExecutor(max_workers=12) as ex:
         rows = list(ex.map(episode, jobs))
     s = summary(rows)

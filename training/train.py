@@ -45,7 +45,7 @@ PRESETS = {
                  num_evals=10, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
                  discounting=0.99, policy_layers=(128, 128), value_layers=(256, 256)),
     # emote tracking: shorter episodes (one or two emotes), fewer steps
-    # residual walking on the scripted trot (decision 47): like emotes, longer episodes of walking clips
+    # residual walking on the scripted trot (decision 50): like emotes, longer episodes of walking clips
     "gait": dict(num_timesteps=60_000_000, num_envs=2048, batch_size=256, num_minibatches=32,
                  unroll_length=20, num_updates_per_batch=4, episode_length=600,
                  num_evals=15, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,

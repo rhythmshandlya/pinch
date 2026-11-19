@@ -57,6 +57,14 @@ def main(env: str = "walk", preset: str = "full", run: str = "walk-v1", timestep
     print("finished:", train.remote(env, preset, run, timesteps))
 
 
+@app.local_entrypoint()
+def launch(env: str = "walk", preset: str = "full", run: str = "walk-v1", timesteps: int = 0):
+    """Start a run and return at once (use with `modal run --detach`): the run lives on Modal, not on this
+    laptop, so closing the terminal doesn't stop it. Its hard timeout still applies; `fetch` gets the results."""
+    call = train.spawn(env, preset, run, timesteps)
+    print(f"launched {env}/{preset} as {run} on a Modal {GPU} (timeout {TIMEOUT_S // 60} min): {call.object_id}")
+
+
 @app.function(volumes={"/ckpt": vol}, timeout=300)
 def read_run(run: str) -> dict:
     out = {}

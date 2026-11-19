@@ -49,7 +49,7 @@ P_LOW = -0.11          # arm pitch at which the jaws' lower edges reach the desk
 GAP_Y = 0.006          # aim the grab point this far off the fixed jaw, into the open gap (toward the moving jaw)
 # rigid things in hand: MuJoCo's default soft contacts let a servo squeeze a 9 g pen 3 mm deep
 # rigid things in hand, as in the twin (sim/desk.py): 4 ms contacts on 2 ms physics. grasp-v3 trained at 4 ms with
-# 10 ms contacts and fell apart in the twin (decision 47)
+# 10 ms contacts and fell apart in the twin (decision 51)
 STIFF = dict(solref=(0.004, 1.0), solimp=(0.95, 0.99, 0.001, 0.5, 2.0))
 KINDS = pio.GRASP_KINDS
 KIND_P = (0.6, 0.4, 0.0)                       # how often each kind comes up (no balls: see above)

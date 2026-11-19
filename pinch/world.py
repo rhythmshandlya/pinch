@@ -32,22 +32,44 @@ class Desk:
     FEET = ((0.047, 0.094), (0.047, -0.094), (-0.047, 0.094), (-0.047, -0.094))   # measured stance (twin)
 
     def fit_feet(self, xy, heading, margin=0.035):
-        """The nearest spot to xy (moving straight toward the desk's middle) where Pinch, facing `heading`, has
-        every foot at least `margin` inside the desk - so planners never aim at a spot the edge guard forbids."""
+        """The nearest spot to xy where Pinch, facing `heading`, has every foot at least `margin` inside the desk
+        and clear of the tray - so planners never aim at a spot the edge guard forbids. (Searches outward in 16
+        directions: sliding toward the desk's middle alone drags a spot beside the tray far away.)"""
         p = np.array(xy, float)
-        for _ in range(60):
-            if self.feet_margin(p, heading) >= margin:
-                break
-            n = np.linalg.norm(p)
-            if n < 1e-3:
-                break
-            p -= p / n * min(0.005, n)
+        if self.feet_clear(p, heading) >= margin:
+            return (float(p[0]), float(p[1]))
+        dirs = [np.array((np.cos(a), np.sin(a))) for a in np.linspace(0, 2 * np.pi, 16, endpoint=False)]
+        for r in np.arange(0.005, 0.25, 0.005):
+            fits = [p + r * d for d in dirs if self.feet_clear(p + r * d, heading) >= margin]
+            if fits:
+                best = max(fits, key=lambda q: self.feet_clear(q, heading))
+                return (float(best[0]), float(best[1]))
         return (float(p[0]), float(p[1]))
 
     def feet_margin(self, xy, heading):
         """How far Pinch's feet stay inside the desk (m; negative: a foot is over the edge)."""
+        return min(self.edge_distance(p) for p in self._feet(xy, heading))
+
+    def feet_clear(self, xy, heading):
+        """feet_margin for planning a spot to stand: the tray counts as off the desk too, but nearer - a foot
+        TRAY_ALLOW closer to it than to an edge reads the same (its 12 mm walls snag a foot; brushing past it is
+        fine, and a push into it brings the front feet up to its mouth). The reflexes use feet_margin."""
+        pts = self._feet(xy, heading)
+        return min(min(self.edge_distance(p) for p in pts), min(self.tray_gap(p) for p in pts) + self.TRAY_ALLOW)
+
+    def _feet(self, xy, heading):
         c, s = np.cos(heading), np.sin(heading)
-        return min(self.edge_distance((xy[0] + c * fx - s * fy, xy[1] + s * fx + c * fy)) for fx, fy in self.FEET)
+        return [(xy[0] + c * fx - s * fy, xy[1] + s * fx + c * fy) for fx, fy in self.FEET]
+
+    TRAY_ALLOW = 0.015
+
+    def tray_gap(self, p):
+        """Distance from p to the tray's footprint (negative inside it)."""
+        dx = abs(p[0] - self.tray_xy[0]) - self.tray_half[0]
+        dy = abs(p[1] - self.tray_xy[1]) - self.tray_half[1]
+        if dx <= 0 and dy <= 0:
+            return max(dx, dy)
+        return float(np.hypot(max(dx, 0.0), max(dy, 0.0)))
 
     def in_tray(self, xy):
         return (abs(xy[0] - self.tray_xy[0]) < self.tray_half[0] and abs(xy[1] - self.tray_xy[1]) < self.tray_half[1])
@@ -67,6 +89,7 @@ class ObjectBelief:
     still_since: float = 0.0
     graspable: bool = True
     on_desk: bool = True
+    rest_xy: tuple = None             # where it came to rest (still_since counts from then)
 
 
 @dataclass
@@ -93,13 +116,18 @@ class WorldModel:
     clock: callable = time.time
 
     def see(self, name, xy, yaw=0.0, graspable=True, on_desk=True):
+        """A sighting. Camera fixes jitter by several mm, so "it moved" means 2 cm from where it came to rest
+        (comparing one noisy fix with the last, it would never count as still); while still, the fixes average."""
         o = self.objects.get(name)
-        moved = o is None or np.hypot(xy[0] - o.xy[0], xy[1] - o.xy[1]) > 0.01
         if o is None:
             o = self.objects[name] = ObjectBelief(name, tuple(xy), yaw, self.t, self.t, graspable, on_desk)
-        o.xy, o.yaw, o.seen_t, o.on_desk, o.graspable = tuple(xy), yaw, self.t, on_desk, graspable
+        rest = o.rest_xy if o.rest_xy is not None else o.xy
+        moved = o.rest_xy is None or np.hypot(xy[0] - rest[0], xy[1] - rest[1]) > 0.02
         if moved:
-            o.still_since = self.t
+            o.still_since, o.rest_xy, o.xy = self.t, tuple(xy), tuple(xy)
+        else:
+            o.xy = (0.7 * o.xy[0] + 0.3 * xy[0], 0.7 * o.xy[1] + 0.3 * xy[1])
+        o.yaw, o.seen_t, o.on_desk, o.graspable = yaw, self.t, on_desk, graspable
         return o
 
     def owner_attending(self, within=60.0):

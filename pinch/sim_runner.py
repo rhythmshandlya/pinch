@@ -229,8 +229,7 @@ class PinchSim:
             back = self.cliff.update(self.t, self.cliff_mm(), 0.0, self.body.cmd_vel)
             self.body.cliff_blocked = self.cliff.blocked
             if back is not None:
-                self.body.cancel()
-                self.body.start(back)
+                self.body.reflex(back)
                 self.edge_stops += 1
             gyro, grav = self.hw.read_imu()
             for ev in self.senses.update(DT * MIND_EVERY, gyro, grav, feet_loaded=self.feet_down()):
@@ -241,8 +240,7 @@ class PinchSim:
             # reflex: a foot over the desk edge -> drop everything and shuffle back in (before anything else)
             if margin < -0.003 and not self.senses.lifted and self.body.status != "recover" \
                     and self.t - self.last_recover > 3.0:
-                self.body.cancel()
-                self.body.start(("recover",))
+                self.body.reflex(("recover",))
                 self.last_recover = self.t
                 self.edge_recovers += 1
             for ev in self.stuck_sense.update(DT * MIND_EVERY, grav, self.feet_down(any_surface=True), (x, y),

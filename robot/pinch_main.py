@@ -355,8 +355,7 @@ class PinchFirmware:
             back = self.cliff_reflex.update(self.t, self.cliff, ages, self.body.cmd_vel)
             self.body.cliff_blocked = self.cliff_reflex.blocked
             if back is not None:
-                self.body.cancel()
-                self.body.start(back)
+                self.body.reflex(back)
                 self.stats["edge_stops"] += 1
             gyro, grav = self.hw.backend.read_imu()          # the backend rides out IMU hiccups itself
             feet = self._safe("feet", lambda: self.hw.feet_down(self.crab.state), None)
@@ -368,8 +367,7 @@ class PinchFirmware:
             # reflex: a foot over the desk edge (from the marker position + leg layout) -> shuffle back in
             if margin < -0.003 and not self.bodysense.lifted and self.body.status != "recover" \
                     and self.t - self.last_recover > 3.0:
-                self.body.cancel()
-                self.body.start(("recover",))
+                self.body.reflex(("recover",))
                 self.last_recover = self.t
             # stuck: judged on what the camera measured, never on the integrated command
             for ev in self.stuck_sense.update(DT * 5, grav, feet, self.loc.measured_xy(self.t),

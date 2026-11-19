@@ -471,3 +471,96 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Seen in the twin:** the side beams sometimes read 10 mm, because a leg swings through the beam.
       A short reading means "desk", so it can't cause a false stop. But a leg in the beam could hide a
       real drop for that instant.
+
+## 2026-11-19 (afternoon): tidying that works, and why it didn't
+
+48. **Six fixes found by running the tidy scenarios, each traced to its cause.** A new bench,
+    `sim/tidy_bench.py`, runs both tidy scenarios: the cap put away when asked, and the eraser noticed
+    and tidied unasked. Seed 0 is the scenario layout; every other seed moves the desk things ±2 cm.
+    One layout is effectively one trajectory, and the twin's contacts are chaotic, so I judge on pass
+    rates. **HEAD tidied 0/4 of each and knocked 12 things off the desk; now cap 5/8, eraser 5/8, 0
+    falls.**
+    - **The side cliff beams looked too far out.**
+      - **Problem:** at 30° down they hit the desk 148 mm from the centre, 5.4 cm beyond the feet. Any
+        sideways walk the planners allow (feet ≥2 cm from the edge) tripped the reflex and aborted the
+        task. 4 false edge stops in one 4-minute scenario.
+      - **Change:** the side beams now look **45° down**, hitting 1.5 cm beyond the feet (flat-desk
+        reading 76 mm, threshold 121 mm). They now fire only on a real map error. Front and rear stay
+        at 40° (3.5 cm past the feet): walking forward is faster and needs the warning.
+      - **Affects:** `crab/params.py`. CAD windows, twin and firmware all read that table.
+    - **A reflex's success was taken for the interrupted step's.**
+      - **Problem:** the edge reflexes did `cancel()` then `start(back_off)`. When the back-off ended,
+        `ok` was True, and the mind read that as "the pick worked". It then tried to drop a pen it had
+        never picked up.
+      - **Change:** new `Body.reflex(step)`. The step it cuts short counts as failed. Used in the twin
+        and in `robot/pinch_main.py`.
+    - **Objects in view never counted as still.**
+      - **Problem:** `see()` reset an object's "still since" clock whenever a fix differed from the
+        last fix by more than 1 cm. With camera jitter (σ 4 mm) that happened in ~20 % of sightings,
+        so an object Pinch was looking at was never "out of place".
+      - **Change:** "moved" now means 2 cm from where it came to rest, and fixes average while it is
+        still.
+    - **The tray was invisible to planning.**
+      - **Problem:** pick stands put a foot in the tray, whose 12 mm walls snag it, and Pinch got stuck.
+      - **Change:** new `Desk.feet_clear` counts the tray as off-limits for feet, allowing 1.5 cm more
+        than the desk edge. It is used by the planners: goto fitting, push line-ups, pick stands and the
+        drop heading. The reflexes and the walking guard keep `feet_margin` (desk edge only).
+      - **Why the split:** putting the tray into the reflexes' margin fired "foot over the edge" in
+        mid-desk.
+      - **Related:** `fit_feet` now searches 16 directions for the nearest clear spot. Sliding toward
+        the desk's middle dragged a spot beside the tray 18 cm away. The drop tries headings until the
+        stand is clear.
+    - **Pushes:**
+      - Near an edge, the line-up stands 3, 2, 1 or 0 cm behind the thing before declaring it
+        unreachable.
+      - The push eases from 4.2 to 1.5 cm/s over its last 8 cm, so a shoved cap no longer slides past
+        the tray's mouth into its side wall.
+    - **The twin's pen rolled.**
+      - **Problem:** it was a smooth capsule with no rolling resistance. Nudged once, it rolled at
+        5 cm/s off the desk.
+      - **Change:** it now has hex-pen rolling resistance (condim 6, 3 mm).
+    - **Tried and dropped: walking round every known desk thing.**
+      - Correct in principle: a sideways crab is 19 cm wide and sweeps things in its path. Restricting
+        it to things near an edge didn't help either.
+      - It changed every approach, and in this bench it cost far more tidies than the knocks it saved
+        (tidies 7/8 → 2/8, ball knocks 4 → 2). Reverted.
+      - **Still open:** the toy ball starts 7.5 cm from the back edge and gets brushed off in about
+        half the eraser runs.
+49. **Modal runs are launched with `spawn`, not waited on.**
+    - **Problem:** walk-v4 (at 27M steps) and grasp-v4 (still compiling) stopped when this laptop's
+      client process died. `--detach` only keeps the *last triggered* function alive, and `main` was
+      blocked inside `train.remote()`.
+    - **Change:** `modal_train.py::launch` spawns the run and returns at once. The run lives on Modal
+      under its hard timeout, and `fetch` gets the results.
+    - **walk-v4 is dropped:** learning to walk from scratch tracked ~0 % at 27M steps, and the
+      residual gait (decision 47) replaces it.
+    - **msi-1** runs its training from a Windows scheduled task (`PinchTrain`, S4U, 4 h limit), with
+      wsl.exe in the foreground. A `setsid nohup` process inside WSL died when the SSH session closed,
+      because WSL shut the distro down.
+50. **Walking becomes the scripted trot plus learned corrections** (`training/gait_env.py`).
+    - **Problem:** walkers learned from scratch (v1–v4) tracked the commanded speed worse than the
+      scripted gait in the full twin. The emote policy, which is residual on keyframes, passed the
+      robustness bench.
+    - **The env:** the scripted trot is the reference, recorded on the 2 ms CPU twin for 17 commands.
+      - The policy adds ±0.15 rad to the leg targets. With zero output it *is* the scripted gait, so it
+        can't do much worse.
+      - **Rewards:** following the gait, keeping the body level and at height, and walking at the
+        commanded body speed (low-pass filtered; the new `track_vel` term).
+      - **Observation:** the emote one, the reference now and 0.1 s ahead plus progress, so the robot
+        uses the same code.
+    - **Two variants run in parallel:**
+      - **gait** on Modal: velocity filter α 0.15, σ 1.5 cm/s.
+      - **gait2** on msi-1, the research audit's suggestion: a filter over about a step cycle
+        (α 0.06), and a kinder σ of 3 cm/s, so early policies get a gradient.
+    - **On the robot (and the bench's `residual` controller):** the live scripted gait runs 0.1 s ahead
+      of what goes to the servos. That gives "ahead" for free, for 0.1 s of command latency. Progress
+      is the time since the command changed, over 6 s, as in training.
+51. **The grasp env now matches the twin's physics** (grasp-v4, relaunched as grasp-v5).
+    - **Problem:** grasp-v3 trained at 4 ms with 10 ms contacts and fell apart in the twin, which runs
+      2 ms physics with 4 ms contacts.
+    - **Change:**
+      - **Physics:** the env is built at `sim_dt=0.002`, with the twin's stiff contacts (`STIFF`).
+      - **Reset:** the drop-in settles by *time* (0.5 s), not by step count. 150 steps had been 0.6 s
+        at 4 ms but only 0.3 s at 2 ms, so the thing was still bouncing when the episode began.
+      - **Sizes:** each training environment draws its own sizes (`grasp_randomize`).
+      - **Budget:** 30M steps on an A10G, 150 min hard timeout.

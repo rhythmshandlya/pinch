@@ -104,6 +104,17 @@ class Body:
             return
         self.task = make(*args)
         self.busy, self.ok, self.status = True, True, kind
+        self._reflexed = False
+
+    def reflex(self, step):
+        """A safety reflex (backing off an edge) takes over from whatever was running. When it ends, the step
+        it cut short counts as failed - the mind must not take "backed off the edge" for "picked up the pen"."""
+        interrupted = self.busy
+        self.cancel()
+        self.start(step)
+        self._reflexed = interrupted
+
+    _reflexed = False
 
     def cancel(self):
         if self.task is not None:
@@ -118,8 +129,8 @@ class Body:
             try:
                 q = next(self.task)
             except StopIteration as e:
-                self.ok = e.value is not False
-                self.task, self.busy = None, False
+                self.ok = e.value is not False and not self._reflexed
+                self.task, self.busy, self._reflexed = None, False, False
                 q = self.hold
         else:
             q = self.hold
@@ -329,14 +340,21 @@ class Body:
             tip = np.array(self.tip_fn(side, paddle) if self.tip_fn else (0.085, 0.03 if side == "left" else -0.03))
             c, s = np.cos(heading), np.sin(heading)
             tip_w = np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
-            start = np.array((ox, oy)) - u * (radius + 0.03) - tip_w
+            # stand 3 cm behind it to line up; near an edge, stand closer (down to touching) before giving up
+            for gap in (0.03, 0.02, 0.01, 0.0):
+                start = np.array((ox, oy)) - u * (radius + gap) - tip_w
+                fits = (self.desk.inside(start, self.desk.edge_margin - 0.004) and
+                        self.desk.feet_clear(start, heading) >= self.FEET_EDGE)
+                if fits:
+                    break
             # can't get behind it from the desk (its feet, not just its centre, must fit there)
-            if not self.desk.inside(start, self.desk.edge_margin - 0.004) or                     self.desk.feet_margin(start, heading) < self.FEET_EDGE:
+            if not fits:
                 if RAKE_ENABLED:
                     ok = yield from self._rake(name, goal, radius)
                     if ok is not None:
                         continue
-                self.trace("unreachable", obj=(round(ox, 3), round(oy, 3)))
+                self.trace("unreachable", obj=(round(ox, 3), round(oy, 3)), start=tuple(np.round(start, 3)),
+                           feet=round(float(self.desk.feet_clear(start, heading)), 3))
                 return False
             self.trace("lineup", obj=(round(ox, 3), round(oy, 3)), start=tuple(np.round(start, 3)), side=side)
             yield from self._detour((x, y), start, (ox, oy))
@@ -362,7 +380,9 @@ class Body:
                                obj=(round(ox, 3), round(oy, 3)))
                     break                                          # slipped off the paddle: line up again
                 herr = _wrap(np.arctan2(goal[1] - oy, goal[0] - ox) - h)
-                yield self._gait_q((0.042, float(np.clip(1.5 * lateral, -0.02, 0.02)),
+                # ease off near the goal: a shoved cap slides on past it (into the tray's side wall)
+                v = float(np.clip(0.042 * np.linalg.norm(goal - (ox, oy)) / 0.08, 0.015, 0.042))
+                yield self._gait_q((v, float(np.clip(1.5 * lateral, -0.02, 0.02)),
                                     float(np.clip(1.5 * herr, -0.4, 0.4))), paddle, lower=PUSH_LOWER)
                 self.pushes = getattr(self, "pushes", 0) + 1
             yield from self._settle(0.3)
@@ -474,7 +494,7 @@ class Body:
                     hd = _wrap(a - arm_dir)
                     c, s = np.cos(hd), np.sin(hd)
                     st = g - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
-                    room = min(self.desk.edge_distance(st), self.desk.feet_margin(st, hd) + 0.066 - self.FEET_EDGE)
+                    room = min(self.desk.edge_distance(st), self.desk.feet_clear(st, hd) + 0.066 - self.FEET_EDGE)
                     cost = abs(_wrap(hd - h)) + 5 * (room < 0.068) + 3 * max(0.0, 0.12 - room) / 0.12
                     if best is None or cost < best[0]:
                         best = (cost, hd, st, g)
@@ -486,7 +506,7 @@ class Body:
             self.trace("pick_plan", side=side, tip=tuple(np.round(tip, 3)), stand=tuple(np.round(stand_xy, 3)),
                        heading=round(float(heading), 2), obj=(round(ox, 3), round(oy, 3), round(oyaw, 2)))
             fwd = np.array((np.cos(heading), np.sin(heading)))
-            if self.desk.edge_distance(stand_xy) < 0.066 or self.desk.feet_margin(stand_xy, heading) < self.FEET_EDGE:
+            if self.desk.edge_distance(stand_xy) < 0.066 or self.desk.feet_clear(stand_xy, heading) < self.FEET_EDGE:
                 self.trace("pick_unreachable")                     # (too near an edge: push it, or ask for help)
                 return False
             # line up 5 cm short of the spot, facing the final way, then walk the last bit straight in: the
@@ -650,7 +670,18 @@ class Body:
             goal = np.array((goal[0] - self.desk.tray_half[0] + 0.045, goal[1]))
             heading = float(-np.arctan2(tip[1], tip[0]))
         else:
-            heading = float(np.arctan2(goal[1] - y, goal[0] - x) - np.arctan2(tip[1], tip[0]))
+            # face it from where Pinch is - or, if that puts a foot over an edge or in the tray, the nearest
+            # heading that doesn't (round the tray's open front)
+            direct = float(np.arctan2(goal[1] - y, goal[0] - x) - np.arctan2(tip[1], tip[0]))
+            best = None
+            for dh in sorted(np.linspace(-np.pi, np.pi, 25), key=abs):
+                hd = direct + dh
+                c, s = np.cos(hd), np.sin(hd)
+                st = goal - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
+                if self.desk.feet_clear(st, hd) >= self.FEET_EDGE + 0.005:
+                    best = hd
+                    break
+            heading = _wrap(best if best is not None else direct)
         c, s = np.cos(heading), np.sin(heading)
         stand_xy = goal - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
         ok = yield from self._goto(self.desk.clamp(stand_xy, 0.06), tol=0.012, heading=heading, timeout=50.0, slow=0.5)

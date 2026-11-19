@@ -144,7 +144,7 @@ def cliff_beams(beams=None, body_z=STAND_BODY_Z, margin=1.6):
     guard: unit vector (body frame, x forward, y left) of the horizontal direction the beam looks - the way
     of walking it vouches for. nominal_mm: what it reads standing on a flat desk; cliff_mm: margin x that,
     beyond which there's no desk under it (front/rear look 40 deg down from low on the wall: ~51 mm -> 82;
-    the sides look 30 deg down from high up: ~107 mm -> 171)."""
+    the sides look 45 deg down from high up: ~76 mm -> 121)."""
     if beams is None:
         from crab.params import CLIFF_BEAMS as beams
     out = []

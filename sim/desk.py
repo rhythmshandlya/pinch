@@ -80,8 +80,11 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True)
         x, y, yaw = start.get(name, (0, 0, 0))
         b = wb.add_body(name=name, pos=[x, y, size[0] + 0.0005], euler=[0, 0, yaw])
         b.add_freejoint(name=f"{name}_free")
+        # condim 6: rolling resistance. A pen is hexagonal - it barely rolls (a smooth capsule nudged once
+        # rolled steadily off the desk); the ball is a soft toy ball (the desk's 1 mm)
         kw = dict(name=f"{name}_geom", mass=mass, rgba=list(rgba), contype=1, conaffinity=1,
-                  friction=[0.6, 0.005, 0.0002], condim=6 if shape == "sphere" else 3)   # 6: rolling resistance
+                  friction=[0.6, 0.005, 0.003 if shape == "capsule" else 0.0002],
+                  condim=6 if shape in ("sphere", "capsule") else 3)
         if shape == "capsule":
             b.add_geom(type=mujoco.mjtGeom.mjGEOM_CAPSULE, size=[size[0], size[1], 0], euler=[0, np.pi / 2, 0], **kw)
         elif shape == "box":

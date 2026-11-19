@@ -1,4 +1,4 @@
-"""MJX environment: walking as small learned corrections on top of the scripted trot (decision 47).
+"""MJX environment: walking as small learned corrections on top of the scripted trot (decision 50).
 
 Learned-from-scratch walkers (v1-v4) tracked commanded speed worse than the scripted gait in the full
 twin (decisions 27, 41). The emote policy, which is residual on scripted keyframes, passed the robustness
