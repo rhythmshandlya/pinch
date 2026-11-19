@@ -19,6 +19,7 @@ How it works
 This is the baseline controller and the source of reference motions for RL.
 """
 
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -89,7 +90,7 @@ GAITS["climb"] = __import__("dataclasses").replace(GAITS["crawl"], name="climb",
 
 def _cycloid(s):
     """0->1 with zero velocity at both ends."""
-    return s - np.sin(2 * np.pi * s) / (2 * np.pi)
+    return s - math.sin(2 * math.pi * s) / (2 * math.pi)
 
 
 @dataclass
@@ -108,6 +109,7 @@ class Gait:
             radial = (p - mount)[:2]
             p[:2] -= self.params.stance_inset * radial / np.linalg.norm(radial)
             self.neutral[lg] = p
+        self._neutral_xy = [(float(self.neutral[lg][0]), float(self.neutral[lg][1])) for lg in LEG_IDS]
         self.reset()
 
     def reset(self):
@@ -126,8 +128,9 @@ class Gait:
 
     def _foot_vel(self, lg):
         vx, vy, wz = self.cmd
-        px, py = self.neutral[lg][:2] - self.shift    # foot relative to body origin
-        return np.array([vx - wz * py, vy + wz * px])
+        n, sh = self.neutral[lg], self.shift
+        px, py = n[0] - sh[0], n[1] - sh[1]           # foot relative to body origin
+        return vx - wz * py, vy + wz * px
 
     def _support_weight(self, lg):
         """1 = carrying load, 0 = in the air. A leg picks its load up gradually
@@ -148,7 +151,7 @@ class Gait:
         """Factor (<= 1) that shrinks cmd so every stride fits within max_step."""
         P = self.params
         vx, vy, wz = cmd
-        need = max(np.hypot(vx - wz * p[1], vy + wz * p[0]) for p in self.neutral.values())
+        need = max(math.hypot(vx - wz * p[1], vy + wz * p[0]) for p in self._neutral_xy)
         need *= P.duty * P.period / 2
         return 1.0 if need <= P.max_step else P.max_step / need
 
@@ -163,8 +166,10 @@ class Gait:
         lim = np.asarray(P.cmd_accel) * dt
         self.cmd += np.clip(target - self.cmd, -lim, lim)
 
-        idle = np.linalg.norm(self.cmd) < 1e-3 and np.linalg.norm(target) < 1e-3 and \
-            all(np.linalg.norm(o) < 2e-3 for o in self.offset.values()) and \
+        c0, c1, c2 = self.cmd
+        t0, t1, t2 = target
+        idle = math.sqrt(c0 * c0 + c1 * c1 + c2 * c2) < 1e-3 and math.sqrt(t0 * t0 + t1 * t1 + t2 * t2) < 1e-3 and \
+            all(math.hypot(o[0], o[1]) < 2e-3 for o in self.offset.values()) and \
             not any(self.swinging.values())
         if not idle:
             self.phase = (self.phase + dt / P.period) % 1.0
@@ -175,61 +180,76 @@ class Gait:
         # together, so nothing slips.
         govern = 1.0
         budget_max = 1.25 * P.max_step
-        for lg in LEG_IDS:
-            ph = self._leg_phase(lg)
-            v = self._foot_vel(lg)
-            speed = np.linalg.norm(v)
-            if idle or ph >= P.duty or speed < 1e-6:
-                continue
-            travelled = self.offset[lg] @ (-v / speed)            # already moved along travel dir
-            budget = max(budget_max - travelled, 0.0)
-            needed = speed * (P.duty - ph) * P.period
-            if needed > budget:
-                govern = min(govern, budget / needed)
+        vel = {lg: self._foot_vel(lg) for lg in LEG_IDS}
+        if not idle:
+            for lg in LEG_IDS:
+                ph = self._leg_phase(lg)
+                vx, vy = vel[lg]
+                speed = math.hypot(vx, vy)
+                if ph >= P.duty or speed < 1e-6:
+                    continue
+                o = self.offset[lg]
+                travelled = -(o[0] * vx + o[1] * vy) / speed           # already moved along travel dir
+                budget = max(budget_max - travelled, 0.0)
+                needed = speed * (P.duty - ph) * P.period
+                if needed > budget:
+                    govern = min(govern, budget / needed)
         self.govern = govern
 
         feet = {}
+        lim_off = 1.4 * P.max_step
         for lg in LEG_IDS:
             ph = self._leg_phase(lg)
-            v = self._foot_vel(lg)
+            vx, vy = vel[lg]
+            o = self.offset[lg]
             if idle:
                 z = 0.0
             elif ph < P.duty:                                    # stance
                 self.swinging[lg] = False
-                self.offset[lg] = self.offset[lg] - govern * v * dt
+                o[0] -= govern * vx * dt
+                o[1] -= govern * vy * dt
                 z = 0.0
             else:                                                # swing
-                s = (ph - P.duty) / (1.0 - P.duty)
+                sw = (ph - P.duty) / (1.0 - P.duty)
+                ls = self.lift_start[lg]
                 if not self.swinging[lg]:
                     self.swinging[lg] = True
-                    self.lift_start[lg] = self.offset[lg].copy()
-                land = v * P.duty * P.period / 2
-                n = np.linalg.norm(land)
+                    ls[0], ls[1] = o[0], o[1]
+                lx, ly = vx * P.duty * P.period / 2, vy * P.duty * P.period / 2
+                n = math.hypot(lx, ly)
                 if n > P.max_step:
-                    land *= P.max_step / n
-                self.offset[lg] = self.lift_start[lg] + (land - self.lift_start[lg]) * _cycloid(s)
-                z = P.step_height * 0.5 * (1 - np.cos(2 * np.pi * s))
-            n = np.linalg.norm(self.offset[lg])
-            if n > 1.4 * P.max_step:                              # backstop; governor should prevent this
-                self.offset[lg] *= 1.4 * P.max_step / n
-            feet[lg] = self.neutral[lg] + np.array([*self.offset[lg], z + self.lower])
+                    lx, ly = lx * (P.max_step / n), ly * (P.max_step / n)
+                c = _cycloid(sw)
+                o[0] = ls[0] + (lx - ls[0]) * c
+                o[1] = ls[1] + (ly - ls[1]) * c
+                z = P.step_height * 0.5 * (1 - math.cos(2 * math.pi * sw))
+            n = math.hypot(o[0], o[1])
+            if n > lim_off:                                       # backstop; governor should prevent this
+                o[0] *= lim_off / n
+                o[1] *= lim_off / n
+            nl = self.neutral[lg]
+            feet[lg] = (nl[0] + o[0], nl[1] + o[1], nl[2] + (z + self.lower))
 
         # weight shift: move the body so the CoM sits over the loaded feet
         if P.weight_shift > 0:
             if P.shift_mode == "support":
-                w = np.array([self._support_weight(lg) for lg in LEG_IDS])
-                pts = np.array([feet[lg][:2] for lg in LEG_IDS])
+                w = [self._support_weight(lg) for lg in LEG_IDS]
+                pts = [feet[lg] for lg in LEG_IDS]
             else:
-                w = np.ones(len(LEG_IDS))
-                pts = np.array([self.neutral[lg][:2] for lg in LEG_IDS])
-            centroid = (w[:, None] * pts).sum(0) / max(w.sum(), 1e-6)
-            desired = P.weight_shift * (centroid - self.com_offset)
-            n = np.linalg.norm(desired)
+                w = [1.0] * len(LEG_IDS)
+                pts = self._neutral_xy
+            ws = max(sum(w), 1e-6)
+            cx = sum(wi * pt[0] for wi, pt in zip(w, pts)) / ws
+            cy = sum(wi * pt[1] for wi, pt in zip(w, pts)) / ws
+            dx = P.weight_shift * (cx - self.com_offset[0])
+            dy = P.weight_shift * (cy - self.com_offset[1])
+            n = math.hypot(dx, dy)
             if n > 0.06:
-                desired *= 0.06 / n
+                dx, dy = dx * (0.06 / n), dy * (0.06 / n)
             # low-pass so the body glides rather than jerks
             a = min(1.0, dt / 0.06)
-            self.shift += a * (desired - self.shift)
+            self.shift[0] += a * (dx - self.shift[0])
+            self.shift[1] += a * (dy - self.shift[1])
         else:
             self.shift[:] = 0
 
@@ -238,8 +258,8 @@ class Gait:
             return None
         q = (STAND if self.arms is None else self.arms).copy()
         for lg, idx in zip(LEG_IDS, LEG_IDX):
-            p = feet[lg].copy()
-            p[:2] -= self.shift
+            f = feet[lg]
+            p = np.array((f[0] - self.shift[0], f[1] - self.shift[1], f[2]))
             q_leg, ok = leg_ik(lg, p)
             self.unreachable += not ok
             q[idx] = q_leg

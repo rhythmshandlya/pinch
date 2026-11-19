@@ -723,3 +723,40 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       62 Done, 109 implemented but untested, 139 partial, 103 missing, 1 hardware-only).
     - Behaviour stays explicit, testable code. RL is for motor skills where contact physics is hard to
       hand-tune: walking corrections, terrain, emote balance, grasping, possibly pushing.
+61. **Exact replay, a decision log, and a test suite** (the foundation for every later behaviour change).
+    - **Clock:** `Mind(clock=…)` now really drives the world model and memory. Before, the argument was
+      ignored and everything was dated with wall time, so two identical runs differed. The twin passes
+      simulation time on a fixed calendar (`SIM_EPOCH`, 2026-11-19 09:00 IST); the robot and the app keep
+      real time.
+    - **Decision log:** every activity switch is recorded. Each record holds the activity it switched
+      from and to, why (first, the previous one finished, urgent, clearly better, after an interrupt),
+      the top four scores, what Pinch had noticed and its feelings and needs.
+      - It is kept in memory (`Mind.decisions`).
+      - The twin can write it as JSON lines (`PinchSim(decision_log=…)`).
+      - On the robot it goes to `decisions.jsonl` next to the memory, rotated at 5 MB.
+    - **`tests/`:** plain test functions with `tests/run.py` (pytest-compatible; nothing to install).
+      - **Exact replay:** same seed and inputs give the same run to the last digit; another seed gives a
+        different run.
+      - **Decision-log consistency.**
+      - **A golden trace:** a fixed 2-minute session must reproduce every decision, motion, sound and the
+        final pose. It is the safety net for refactors; re-record it only for intended behaviour changes.
+    - **First refactor under that net:** `pinch/body.py` (810 lines) became the package `pinch/body/`:
+      - `core`: stepping, reflexes, basic motions;
+      - `locomotion`;
+      - `manipulation`;
+      - `expression`;
+      - `common`: constants and helpers.
+      The golden trace was identical.
+62. **The walking tick fits the RK3566 again.**
+    - **Problem:** the firmware's timing check measured walking ticks at p95 4.5–5.5 ms on the laptop,
+      about 22 ms on the robot against a 20 ms budget. The cause was `Gait.step`, which runs 15 times a
+      tick (10 substeps plus the policy's 5-step look-ahead) and paid numpy's per-call overhead on
+      2-vectors (about 200 `norm` calls a tick).
+    - **Change:** the same algorithm with scalar maths, in the same operation order.
+      - **Speed:** 2.2× faster per step.
+      - **Equivalence:** the trot is bit-for-bit identical to before (crawl and climb within 1e-15 rad),
+        and the golden trace still matches exactly.
+      - **Firmware timing:** p95 3.1 ms. The margin is thin, so the leg IK and the look-ahead are the
+        next things to speed up if needed.
+    - **Also:** the face detector now runs single-threaded (decision 57). On the robot it stays in the
+      vision thread, outside the control loop.
