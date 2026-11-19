@@ -10,6 +10,8 @@ The Mind (pinch/mind.py) re-scores every activity twice a second and switches wh
 matters clearly more, or at once for urgent things (a scare, a command, a meeting starting).
 """
 
+import math
+
 import numpy as np
 
 QUIET_OK = {"go_quiet", "rest", "react_touch", "comfort", "idle", "startle", "tidy", "guard_edge"}
@@ -307,6 +309,44 @@ class Startle(Activity):
         yield ("walk", -0.04, 0.0, 0.0, 1.0)
 
 
+class Shy(Activity):
+    """Someone it doesn't know yet: stay near home, peek at them, warm up slowly."""
+    name, min_s = "shy", 4.0
+    quiet_ok = True
+
+    def utility(self, m):
+        now = m.world.clock()
+        return 0.9 if m.people.strangers_here(now) and not m.people.feared_here(now) else 0.0
+
+    def run(self, m):
+        yield ("face", "shy")
+        yield ("goto", m.memory.home_of("pinch") or m.world.desk.home_xy, 0.05)
+        yield ("look_at", m.world.desk.owner_xy)
+        yield ("wait", 4.0)
+        yield ("face", "curious")
+        if not m.affect.quiet:
+            yield ("sound", "curious_chirp")
+
+
+class Hide(Activity):
+    """Someone it's afraid of is here: back off to its home spot, freeze, keep an eye on them."""
+    name, min_s = "hide", 4.0
+    quiet_ok = True
+
+    def utility(self, m):
+        return 3.0 if m.people.feared_here(m.world.clock()) else 0.0
+
+    def run(self, m):
+        yield ("face", "scared")
+        if not m.affect.quiet:
+            yield ("sound", "whimper")
+        yield ("goto", m.memory.home_of("pinch") or m.world.desk.home_xy, 0.04)
+        yield ("pose", "low")
+        while m.people.feared_here(m.world.clock()):
+            yield ("wait", 3.0)
+        yield ("face", "neutral")
+
+
 class HeadHome(Activity):
     """Battery getting low: go home and ask to be charged (a rumbly tummy at 40 %, walking home and pleading
     with long gaps below 25 %), then wait there, sleepy. Relief when put on charge (mind._self_preservation)."""
@@ -493,6 +533,8 @@ class GuardEdge(Activity):
 
 
 class Play(Activity):
+    """Bored and playful: pick a game from the PlayBook (pinch/play.py) - push a toy somewhere, carry it,
+    pick it up and wave it about - play it, and learn from what happened which games are fun."""
     name, min_s = "play", 6.0
 
     def utility(self, m):
@@ -502,30 +544,51 @@ class Play(Activity):
         return 0.8 * m.affect.personality.playfulness * max(0.0, n.play - 0.35) * (1 - n.sleep) * (1 - m.hunger())
 
     def run(self, m):
-        ball = m.world.objects.get("ball")
-        toy = m.world.objects.get("eraser")
+        now = m.world.clock()
+        game, score = m.playbook.choose(m.world, m.danger, m.memory.data["likes"], m.rng, now)
         yield ("face", "excited")
-        yield ("sound", "giggle")
-        if (GRASP_ENABLED and toy and toy.on_desk and toy.graspable and m.rng.random() < 0.5
-                and m.world.desk.edge_distance(toy.xy) > 0.10):
-            # a toy it can carry: pick it up, wave it about, drop it, and pounce on it again
-            yield ("look_at", toy.xy)
-            yield ("pick", "eraser")
-            if m.last_step_ok:
-                yield ("emote", "excited")                     # (the claw stays shut while it holds the toy)
-                yield ("release",)
-                yield ("sound", "giggle")
-                yield ("turn_to", toy.xy)
-                yield ("emote", m.rng.choice(["curious", "excited"]))
-                m.affect.feel("played_with", 0.6)
-                return
-        if ball and ball.on_desk and m.world.desk.edge_distance(ball.xy) > 0.08:
-            target = m.world.desk.clamp((ball.xy[0] + m.rng.uniform(-0.15, 0.15), ball.xy[1] + m.rng.uniform(-0.1, 0.1)),
-                                        0.10)
-            yield ("push", "ball", target)                     # dribble the ball around
-        else:
+        if not m.affect.quiet:
+            yield ("sound", "giggle")
+        if game is None:                                      # nothing safe to play with: a happy wiggle
             yield ("emote", m.rng.choice(["dance", "excited", "applause"]))
-        m.affect.feel("played_with", 0.6)
+            m.affect.feel("played_with", 0.4)
+            return
+        verb, toy, target = game
+        ob = m.world.objects[toy]
+        start = tuple(ob.xy)
+        goal = m.playbook.target_xy(target, m.world) if target != "here" else start
+        m._say("play", f"let's play {verb} {toy} -> {target} (score {score:.2f}, expect it to move "
+                       f"{m.playbook.predict(f'{verb}:{toy}:{target}') * 100:.0f} cm)")
+        yield ("look_at", ob.xy)
+        won = False
+        if verb == "push_to":
+            yield ("push", toy, goal)
+            won = m.last_step_ok
+        elif verb == "carry_to":
+            yield ("pick", toy)
+            if m.last_step_ok:
+                yield ("drop", goal)
+                won = m.last_step_ok
+        else:                                                 # show: lift it up proudly, hold it, put it down
+            yield ("pick", toy)                               # (no arm-waving emote while gripping: in the twin
+            if m.last_step_ok:                                #  that squeezed a pen out and flung it off the desk)
+                yield ("face", "proud")
+                yield ("wait", 1.5)
+                yield ("release",)
+                won = True
+        ob = m.world.objects.get(toy)
+        end = tuple(ob.xy) if ob else start
+        moved = math.hypot(end[0] - start[0], end[1] - start[1])
+        gid, err, fun = m.playbook.record(verb, toy, target, moved, won, m.world.desk.edge_distance(end), now)
+        m.memory.data["play"] = m.playbook.to_dict()
+        m.last_trick = ("game:" + gid, m.t)                  # your praise or scolding now teaches this game
+        if err > 1.5:                                         # that went differently than it expected!
+            yield ("face", "surprised")
+            if not m.affect.quiet:
+                yield ("sound", "curious_chirp")
+            m.affect.feel("novelty", 0.6)
+        yield ("face", "happy" if won else "curious")
+        m.affect.feel("played_with", 0.4 + 0.4 * fun)
 
 
 class ShowOff(Activity):
@@ -611,16 +674,20 @@ class Greet(Activity):
     name, min_s = "greet", 3.0
 
     def utility(self, m):
-        return 1.4 if m.t - m.owner_returned_t < 8 and not m.affect.quiet else 0.0
+        return (1.4 + 0.8 * m.greet_warmth) if m.t - m.owner_returned_t < 8 and not m.affect.quiet else 0.0
 
     def run(self, m):
         m.owner_returned_t = -1e9
-        yield ("face", "excited")
+        warm, m.greet_warmth = m.greet_warmth, 0.0
+        yield ("face", "excited" if warm < 0.6 else "love")
         yield ("sound", "greeting_beep")
         yield ("turn_to", m.world.desk.owner_xy)
         yield ("emote", "wave")
         yield ("emote", "excited")
+        if warm >= 0.6:                                       # missed them a lot
+            yield ("sound", "happy_trill")
+            yield ("emote", "dance")
 
 
 LIBRARY = [Idle(), Obey(), GoQuiet(), AfterMeeting(), SeekAttention(), Comfort(), Celebrate(), ReactTouch(),
-           Startle(), Unstick(), HeadHome(), LowPower(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet()]
+           Startle(), Unstick(), Hide(), Shy(), HeadHome(), LowPower(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet()]

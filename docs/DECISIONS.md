@@ -407,3 +407,30 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       - A twin run draining the battery from 60 % to 5 % (HeadHome at 26 %, LowPower at 10 %, charging detected, then back to tidying; no falls).
       - Held 20 s alone vs stroked: scared vs calm.
     - **Not yet:** height from the cliff sensors (the fear scales with time, not height), a charging dock, and servo heat (needs the servos' temperature in the brain).
+45. **Self-directed play** (`pinch/play.py`, the Play activity).
+    - **What a game is:** verb × toy × target, built from skills Pinch already has: push a toy to a spot, carry it, or lift it up proudly.
+    - **How it chooses:**
+      - learning progress (is its prediction of the outcome improving: Oudeyer and Kaplan)
+      - novelty (new games and new toys)
+      - about 50 % wins being most fun
+      - your praise: saying "good crab" right after a game teaches it that game
+      - boredom with mastered games
+      - 15 % of the time, a random allowed game
+    - **Safety rules in code:**
+      - toys at least 10 cm from any edge and not in a feared spot
+      - goals at least 8 cm in
+      - a game that leaves a toy within 6 cm of an edge is banned for a week
+    - **Remembered** across days in memory.
+    - **Verified:** a twin run of 8 self-chosen games varied them as designed, no toy left the desk and no falls. In an earlier run Pinch waved a held pen in an "excited" emote, which squeezed the pen out and flung it off the desk, so "show" is now a still, proud lift.
+    - **Honest limit:** most games failed in the run, because the pick and push skills underneath are still unreliable.
+46. **People and relationships** (`pinch/people.py`).
+    - **Per person:** familiarity, warmth and fear, updated by who did what: petting and play raise warmth; shaking, scolding, or a stranger lifting it raise fear.
+    - **Fading:** familiarity has a 90-day half-life, warmth 30 days, and fear 3 days (twice as fast with someone trusted near).
+    - **Behaviour:**
+      - favourites get a warmer greeting the longer they were away (love eyes and a dance after 8 h)
+      - strangers get Shy: stay home, peek, warm up
+      - someone feared (fear > 0.45) gets Hide: back off home, crouch, watch until they leave
+      - "Forget me" deletes a person.
+    - **Blame:** goes to the person seen most recently (who just walked up), at reduced confidence when several are present. A tie had blamed the owner for a visitor's shaking.
+    - **Verified in the brain:** the owner liked +0.75; a rough visitor feared after shaking, and Pinch hides when he returns; four days later only shy; the owner greeted warmly after 8 h; forgetting works.
+    - **Recognition:** simulated in the twin and app. On the robot it needs the face models (YuNet + SFace, ~39 MB): **your decision to download.**

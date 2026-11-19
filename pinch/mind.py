@@ -19,6 +19,8 @@ from pinch.affect import Affect, Personality
 from pinch.hearing import MeetingDetector, OwnerVoiceMood
 from pinch.language import LLMUnderstanding, understand_rules
 from pinch.memory import Memory
+from pinch.people import People
+from pinch.play import PlayBook
 from pinch.safety import NO_GO, DangerMap, hunger
 from pinch.touch import GESTURE_EVENT
 from pinch.world import WorldModel, situations
@@ -47,6 +49,9 @@ class Mind:
         self.voice_mood = OwnerVoiceMood()
         self.t = 0.0
         self.danger_map = DangerMap(self.memory.data.get("danger"))   # learned fears of desk spots (safety.py)
+        self.playbook = PlayBook(self.memory.data.get("play"))      # games it invented and how fun they were
+        self.people = People(self.memory.data.get("people"))        # who it knows and how it feels about them
+        self.greet_warmth = 0.0
         self.charging, self._last_battery, self._safe_check_t = False, None, 0.0
         self.lifted_since, self._lift_fear_t = None, 0.0
         # requests and timers the activities read
@@ -111,6 +116,8 @@ class Mind:
         if u["fact"] and from_llm:
             self.memory.add_fact(u["fact"])
         i = u["intent"]
+        if i in ("praise", "scold"):
+            self._blame("praised" if i == "praise" else "scolded")
         if i == "praise":
             self.affect.feel("praised")
             self.memory.count("praise")
@@ -187,6 +194,10 @@ class Mind:
         if gesture == "upside_down":                         # it fell over: that spot is scary now
             self.learn_danger(self.world.pose[:2], "fell")
         ev = GESTURE_EVENT.get(gesture)
+        if ev:
+            self._blame(ev)
+        if gesture == "lifted":
+            self.people.lifted_by_stranger(self.world.clock())
         if gesture == "lifted":
             self.lifted_since = self.t
         if gesture == "put_down" and self.lifted_since is not None:
@@ -285,6 +296,32 @@ class Mind:
             if cancel:
                 return None, True
         return self._advance(body_busy, body_ok), False
+
+    # ------------------------------------------------------------------ people (people.py)
+    def see_person(self, pid, confidence=1.0, name="", owner=False):
+        """A person seen (on the robot: a recognised face; in the twin and the app: simulated)."""
+        now = self.world.clock()
+        known = pid in self.people.people
+        away_h = self.people.see(pid, confidence, now, name=name, owner=owner)
+        p = self.people.get(pid)
+        if p["R"] > 0.45:                                     # someone it's afraid of
+            self.affect.feel("loud_noise", 0.6)
+            self._say("people", f"{p['name'] or pid} is here - scared ({self.people.describe(pid)})")
+            self._interrupt()
+        elif p["W"] > 0.5 and (not known or away_h > 0.25):   # a favourite back: greet, harder after longer
+            self.greet_warmth = min(1.0, p["W"] * min(1.0, away_h / 8.0) + 0.2)
+            self.owner_returned_t = self.t
+            self._say("people", f"{p['name'] or pid} is back after {away_h:.1f} h!")
+        self.memory.data["people"] = self.people.to_dict()
+
+    def forget_person(self, pid):
+        self.people.forget(pid)
+        self.memory.data["people"] = self.people.to_dict()
+
+    def _blame(self, event):
+        pid = self.people.blame(event, self.world.clock())
+        if pid:
+            self.memory.data["people"] = self.people.to_dict()
 
     # ------------------------------------------------------------------ self-preservation (safety.py)
     def danger(self, xy):
