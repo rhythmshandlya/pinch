@@ -48,10 +48,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=8)
     ap.add_argument("--jobs", type=int, default=16)
+    ap.add_argument("--offset", type=int, default=0, help="first seed (split a big run across machines)")
+    ap.add_argument("--json", default=None, help="also write the per-run results here")
     a = ap.parse_args()
-    jobs = [(c, s) for c in ("cap", "eraser") for s in range(a.seeds)]
+    jobs = [(c, s) for c in ("cap", "eraser") for s in range(a.offset, a.offset + a.seeds)]
     with ProcessPoolExecutor(a.jobs) as ex:
         res = list(ex.map(one, jobs))
+    if a.json:
+        import json
+        Path(a.json).write_text(json.dumps(res))
     for c in ("cap", "eraser"):
         rs = [r for r in res if r["case"] == c]
         ok = [r for r in rs if r["ok"]]
