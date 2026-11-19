@@ -121,6 +121,9 @@ def make_env(name):
     if name == "righting":       # get up off its back with all 18 joints (decision 76)
         from training.righting_env import CrabRightingEnv
         return CrabRightingEnv()
+    if name == "righting_smooth":  # gentler on the servos: 5x the action-rate cost (decision 85's current spikes)
+        from training.righting_env import CrabRightingEnv
+        return CrabRightingEnv(reward_scales=dict(action_rate=-0.05))
     if name == "righting2":      # the same without the energy cost: does the penalty hold back getting up?
         from training.righting_env import CrabRightingEnv
         return CrabRightingEnv(reward_scales=dict(energy=0.0, action_rate=-0.005))
@@ -209,7 +212,7 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preset", choices=list(PRESETS), default="smoke")
-    ap.add_argument("--env", choices=["gait", "gait2", "gait3", "terrain", "terrain_hard", "terrain_push", "gait_v2", "push2", "emote", "emote2", "righting", "righting2", "grasp"],
+    ap.add_argument("--env", choices=["gait", "gait2", "gait3", "terrain", "terrain_hard", "terrain_push", "gait_v2", "push2", "emote", "emote2", "righting", "righting2", "righting_smooth", "grasp"],
                         default="gait")
     ap.add_argument("--timesteps", type=int, help="override num_timesteps")
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")
