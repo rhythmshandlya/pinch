@@ -881,3 +881,16 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Cost:** more body sway (tilt RMS 2.6–3.0° vs gait-v1's 1.6°).
     - **Golden trace:** re-recorded (an intended behaviour change).
     - **Scenarios:** 12/13. The cap tidy fails, as expected at a ~10 % cap rate.
+71. **Fault injection in the twin** (`PinchSim.inject`).
+    - **Faults:**
+      - vision lost (no things, no faces);
+      - flaky detection (half the sightings dropped, the rest 3× noisier);
+      - audio lost;
+      - a dead cliff beam;
+      - a weak leg (servos at a fraction of their strength).
+    - **Tests** (`tests/test_faults.py`): two minutes of pet life with you there under each fault. No
+      falls, Pinch stays on the desk, the mind keeps choosing and the observer finds no errors. With dead
+      microphones it obeys nothing it couldn't hear; a dead side beam blocks walking toward its side.
+    - **Unchanged without faults:** with no fault injected nothing changes (the golden trace is
+      identical).
+    - **Ordered to-do list:** `docs/TODO.md`.

@@ -44,6 +44,7 @@ class PinchSim:
         """epoch: the wall-clock time the run starts at (what the mind's clock reads at t = 0).
         decision_log: a file to write every activity switch and its reason to (JSON lines)."""
         self.t = 0.0
+        self.faults = {}                                  # injected failures (inject())
         self.desk = Desk()
         self.m = build_desk_model(self.desk, start=start or START, extras=extras)
         self.hw = SimBackend(model=self.m, render=render)
@@ -178,12 +179,16 @@ class PinchSim:
     # ---------------------------------------------------------------- the user, simulated or from the app
     def say(self, text):
         self.user_active = True
+        if "audio" in self.faults:                       # (the microphones are dead: nothing heard)
+            return None
         return self.mind.hear_text(text)
 
     def touch(self, gesture):
         self.mind.touch(gesture)
 
     def hear_audio(self, chunk):
+        if "audio" in self.faults:
+            return
         for s in self.hearing.feed(chunk):
             self.mind.hear_summary(s)
         for kind, _ in self.hearing.take_events():
@@ -200,20 +205,48 @@ class PinchSim:
         mujoco.mj_forward(self.m, self.d)
 
     # ---------------------------------------------------------------- the loop
+    # ---------------------------------------------------------------- fault injection (decision 71)
+    FAULTS = ("vision", "flaky_detection", "audio", "cliff_dead", "weak_leg")
+
+    def inject(self, fault, on=True, **kw):
+        """Break something on purpose, for failure tests:
+          vision            the camera sees nothing (no things, no faces)
+          flaky_detection   half the sightings are lost and the rest are 3x noisier
+          audio             the microphones hear nothing (speech and the room)
+          cliff_dead        one cliff beam stops answering (beam="rear" ...)
+          weak_leg          one leg's servos at a fraction of their strength (leg="FL", strength=0.5)"""
+        assert fault in self.FAULTS, fault
+        if not on:
+            self.faults.pop(fault, None)
+            if fault == "weak_leg" and "_forcerange0" in self.__dict__:
+                self.m.actuator_forcerange[:] = self._forcerange0
+            return
+        self.faults[fault] = kw
+        if fault == "weak_leg":
+            self._forcerange0 = self.m.actuator_forcerange.copy()
+            leg, k = kw.get("leg", "FL"), kw.get("strength", 0.5)
+            for j in ("coxa", "femur", "tibia"):
+                self.m.actuator_forcerange[self.m.actuator(f"{leg}_{j}").id] *= k
+
+    faults = {}
+
     def perceive(self):
         """What Pinch's camera sees: things within its field of view (with a little noise)."""
         x, y, h = self.pose()
         w = self.mind.world
         w.pose = (x, y, h)
-        for name in OBJECTS:
+        flaky = "flaky_detection" in self.faults
+        for name in (() if "vision" in self.faults else OBJECTS):
             (ox, oy, oyaw), oz = self.obj(name)
             on_desk = oz > -0.02
             bearing = np.arctan2(oy - y, ox - x) - h
             bearing = (bearing + np.pi) % (2 * np.pi) - np.pi
             dist = np.hypot(ox - x, oy - y)
             held = self.body.held and self.body.held[0] == name
+            if flaky and self.rng.random() < 0.5:
+                continue
             if (abs(bearing) < 0.9 and 0.05 < dist < 0.6) or held or not on_desk:
-                noise = self.rng.normal(0, 0.004, 2)
+                noise = self.rng.normal(0, 0.012 if flaky else 0.004, 2)
                 w.see(name, (ox + noise[0], oy + noise[1]), oyaw, graspable=OBJECTS[name][4], on_desk=on_desk)
                 if not held and self.mind.world.objects[name].still_since < self.t - 30:
                     pass
@@ -273,6 +306,9 @@ class PinchSim:
         for name, *_ in self.cliff.beams:
             v = float(self.d.sensor(twin_sensor(name)).data[0])
             out[name] = 9999 if v < 0 else v * 1000
+        dead = self.faults.get("cliff_dead")
+        if dead is not None:
+            out[dead.get("beam", "rear")] = None                # (no answer: the reflex treats it as unknown)
         return out
 
     def run(self, seconds, every=None):
