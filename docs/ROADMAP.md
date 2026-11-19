@@ -26,7 +26,7 @@ the learned policy trains across a wide range of motor strengths.
 
 - B1: train on a cloud GPU: `python -m modal run --detach training/modal_train.py::launch --env <env> --preset <preset> --run <run>`,
   then `fetch` and `training/export_policy.py` (see [DECISIONS.md](DECISIONS.md), 50 onwards).
-- B2: bench it: `python sim/robustness.py` and `python sim/hurdle_test.py`; walking uses `policies/gait.npz`.
+- B2: bench it: `python sim/benches/robustness.py` and `python sim/benches/hurdles.py`; walking uses `policies/gait.npz`.
 
 ## Phase C: physical build
 

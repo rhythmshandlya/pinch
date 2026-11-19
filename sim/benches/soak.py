@@ -1,7 +1,7 @@
 """Long-duration soak: hours of simulated pet life with a randomised day around it, then a verdict.
 
-    python sim/soak.py --hours 1 --seed 3 --out soak.json
-    python sim/soak.py --hours 2 --seeds 0-5 --jobs 6          # several days side by side
+    python sim/benches/soak.py --hours 1 --seed 3 --out soak.json
+    python sim/benches/soak.py --hours 2 --seeds 0-5 --jobs 6          # several days side by side
 
 The day (seeded, so a run replays exactly): you come and go; while here you talk to it, stroke or tickle it,
 hold meetings, now and then nudge a desk thing out of place; a visitor drops by. Recorded: falls, anything
@@ -11,18 +11,17 @@ observer errors, no state locked, and at least 5 different activities.
 """
 
 import argparse
-import json
 import math
 import sys
 from collections import Counter
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from sim.benches.common import run_parallel, save_json  # noqa: E402
 PHRASES = ["hi pinch", "dance!", "good job pinch", "how are you?", "I'm sad today", "pinch, wave", "come here",
            "let's play", "I'm tired", "you're so cute", "pinch, put the cap away", "shake", "play dead",
            "I'm in a meeting", "bye pinch", "good morning", "no, bad pinch"]
@@ -111,20 +110,18 @@ def main():
     ap.add_argument("--hours", type=float, default=1.0)
     ap.add_argument("--seeds", default="0", help="e.g. 3 or 0-5")
     ap.add_argument("--jobs", type=int, default=1)
-    ap.add_argument("--out", default=None)
+    ap.add_argument("--json", "--out", dest="json", default=None, help="also write the results here")
     a = ap.parse_args()
     lo, _, hi = a.seeds.partition("-")
     seeds = list(range(int(lo), int(hi or lo) + 1))
-    with ProcessPoolExecutor(a.jobs) as ex:
-        res = list(ex.map(soak, [(s, a.hours) for s in seeds]))
+    res = run_parallel(soak, [(s, a.hours) for s in seeds], a.jobs)
+    save_json(a.json, res)
     for r in res:
         print(f"seed {r['seed']}: {'PASS' if r['ok'] else 'FAIL'}  {r['hours']} h  falls {r['falls']}  off desk "
               f"{r['pinch_off_desk_s']:.0f} s  things off {r['things_off']}  {r['decisions']} decisions over "
               f"{len(r['activities'])} activities (entropy {r['entropy_bits']} bits)  states {r['state_share']}")
         for f in r["findings"]:
             print(f"    {f['severity']:5s} {f['kind']}: {f['evidence']}")
-    if a.out:
-        Path(a.out).write_text(json.dumps(res, indent=1))
     return 0 if all(r["ok"] for r in res) else 1
 
 

@@ -475,7 +475,7 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
 ## 2026-11-19 (afternoon): tidying that works, and why it didn't
 
 48. **Six fixes found by running the tidy scenarios, each traced to its cause.** A new bench,
-    `sim/tidy_bench.py`, runs both tidy scenarios: the cap put away when asked, and the eraser noticed
+    `sim/benches/tidy.py`, runs both tidy scenarios: the cap put away when asked, and the eraser noticed
     and tidied unasked. Seed 0 is the scenario layout; every other seed moves the desk things ±2 cm.
     One layout is effectively one trajectory, and the twin's contacts are chaotic, so I judge on pass
     rates. **HEAD tidied 0/4 of each and knocked 12 things off the desk; now cap 5/8, eraser 5/8, 0
@@ -582,10 +582,10 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Change:** `recover()` (run by Unstick when the stuck sense fires) now *climbs on* the way Pinch
       was walking, for 6 s, when all feet are on the desk, i.e. caught on something. A foot over the
       edge still shuffles back toward the middle.
-    - **Tested** by `sim/obstacle_test.py` through the robot's own Body: forward and sideways into a
+    - **Tested** by `sim/benches/obstacles.py` through the robot's own Body: forward and sideways into a
       cable, a pen and a book edge. All six cases get over, with 0 falls. The cable is walked over
       directly; the forward pen and book cases need one climb.
-    - **Robustness worlds:** `sim/robustness.py --world rough|stuck` add desk clutter (1–4 mm) and a
+    - **Robustness worlds:** `sim/benches/robustness.py --world rough|stuck` add desk clutter (1–4 mm) and a
       foot caught for 1.5 s. Over 40 episodes each, the residual gait has 0 falls and tracks 86 % and
       81 % of the commanded speed. The scripted gait does 68 % and 65 %.
 53. **The residual walking policy drives Pinch** (`policies/gait.npz` = gait-v1, 60M steps).
@@ -616,7 +616,7 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       - **Still open:** the ball starts 7.5 cm from the back edge and gets brushed off in about half
         the runs.
 54. **Things stay in the claw: no friction creep in the twin, and letting go properly**
-    (`sim/desk.py`, `Body._let_go`, `Body._goto`, new `sim/pick_bench.py`).
+    (`sim/desk.py`, `Body._let_go`, `Body._goto`, new `sim/benches/pick.py`).
     - **Pick bench** (Body picks the pen or eraser from 12 random spots each, then drops it in the
       tray): 3/12 pens and 2/12 erasers were picked, and **none reached the tray**.
     - **Why nothing reached the tray:**
@@ -690,7 +690,7 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Not tested:** telling two *different* people apart. There is only one face photo here, so this
       relies on SFace's published accuracy (99.4 % on LFW). Check it on the robot with two people.
 58. **Hurdles and ramps: measured, then trained** (the owner asked for "proper hurdle training like ramps").
-    - **Measurement first** (`sim/hurdle_test.py`, capability table in `docs/HURDLES.md`): one bar or
+    - **Measurement first** (`sim/benches/hurdles.py`, capability table in `docs/HURDLES.md`): one bar or
       ramp straight across the path, 3 robots per case.
       - The scripted trot gets over almost no bars.
       - gait-v1 crosses bars up to 6 mm forward and 8 mm sideways, and ramps up to ~15° forward and
@@ -920,7 +920,7 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **emote2-v1** (msi-1, 42M steps, emotes in 2 ms physics): 0/40 falls with the same tilt as
       emote-v1 (1.4° RMS, 7.4° worst). Its actions differ from v1's, but there is no measurable gain, so
       emote-v1 stays.
-    - **Bench:** `sim/robustness.py` now takes `PINCH_EMOTE_POLICY` to bench an emote candidate without
+    - **Bench:** `sim/benches/robustness.py` now takes `PINCH_EMOTE_POLICY` to bench an emote candidate without
       overwriting the report.
 74. **The idle life layer** (`pinch/body/life.py`; the research plan's idle aliveness).
     - **When:** whenever no motion step runs, small procedural motion is added on top of the held pose.
@@ -997,7 +997,7 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       Windows and Linux. The trace now records its platform and is skipped elsewhere. `test_replay` still
       checks exact replay on every platform.
 80. **The learned get-up replaces the searched swing** (`policies/righting.npz` = righting-v1 at 8.8M steps).
-    - **Bench** (`sim/righting_bench.py`): 60 random starts on its back (rolled 180 ± 30°, pitched ± 25°,
+    - **Bench** (`sim/benches/righting.py`): 60 random starts on its back (rolled 180 ± 30°, pitched ± 25°,
       any heading; friction ×0.4–1.2, masses ± 15 %, servo strength ×0.7–1.1), in the CPU twin's physics.
       Both controllers are handed over to the stand pose after 0.2 s upright, as Body does.
       - swing: 34/60 upright and standing, 0.86 s mean, 0.90-percentile 1.01 s. It was searched over ± 15°
@@ -1016,3 +1016,11 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       well on the bench. Real-robot risk: servo speed and gear play on a violent motion. It is only used
       while on its back, and the swing remains the fallback.
     - **Checks:** tests 26/26, firmware 45/45, selftest 40/40.
+81. **The benches in one place** (`sim/benches/`).
+    - **Moved:** robustness, hurdles (was `hurdle_test`), obstacles, tidy (was `tidy_bench`), pick, righting,
+      soak and scenarios (was `pinch_scenarios`). `sim/` keeps the model building and viewing tools.
+    - **Shared:** `common.run_parallel` replaces eight copies of the process-pool code. `common.save_json`
+      gives every bench `--json`; soak's old `--out` still works.
+    - **References updated** in code and docs.
+    - **Checks:** righting, tidy, soak, pick, quick robustness and obstacles run from their new places;
+      hurdles and scenarios import; tests 26/26.

@@ -9,7 +9,7 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
 - [ ] **Modal:** walking v2 `gait-v2` (48 commands + pushing; 48M of 150M steps), learned push steering
       `push2-v1` (slow: 3.4M steps, no successes yet), learned self-righting `righting-v1` (76).
 - [ ] **msi-1 GPU:** grasp-v6, then righting2-v1 (no energy cost) (queue: `C:/Users/armaa/pinch_queue.txt`).
-- [ ] **msi-1 CPU:** soak, 6 simulated days × 4 h (`sim/soak.py`).
+- [ ] **msi-1 CPU:** soak, 6 simulated days × 4 h (`sim/benches/soak.py`).
 
 ## 1. Architecture
 
@@ -19,8 +19,7 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
       architecture).
 - [x] Split `robot/pinch_main.py` into `robot/firmware/` + `localizer.py` + `http_api.py` (75).
 - [x] Split `pinch/sim_runner.py` into `pinch/twin/` (core, world, sensors, stimuli, faults) (78).
-- [ ] Move the scripts in `sim/` into `sim/benches/` (robustness, hurdle, obstacle, tidy, pick, soak) with one
-      shared runner and JSON output.
+- [x] Benches in `sim/benches/` with one shared runner and `--json` on each (81).
 - [x] Removed retired code: the from-scratch walker, the old push env, the rake, the Colab path;
       `training/robot_model.py` holds what the envs share; `pinch/` and `robot/` may not import `training/` (77).
 - [ ] Continuous integration: `tests/run.py` on every push (GitHub Actions, Ubuntu, CPU) (79). Written; pushing it
@@ -33,7 +32,7 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
 - [x] Behaviour-quality observer (oscillation, alternation, failure loops, state lock, repetition) (64).
 - [x] Emergency stop (HTTP, voice) with resume; fuzz-tested servo supervisor (69).
 - [x] Fault injection in the twin: vision, flaky detection, audio, dead cliff beam, weak leg (71).
-- [x] Long soak runs with a verdict (`sim/soak.py`).
+- [x] Long soak runs with a verdict (`sim/benches/soak.py`).
 - [x] Video clips as evidence (`sim/clips.py`).
 - [x] **Attention:** salience, habituation, inhibition of return, sound direction → turn to look (72).
 - [x] **Idle life layer:** breathing, weight shifts, varied micro-actions scaled by arousal, no repeats (74).

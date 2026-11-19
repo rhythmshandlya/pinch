@@ -2,21 +2,21 @@
 its claw and drops it in the tray, through the robot's own Body in the full twin. Mind off: this measures the
 skill, not the choice to use it.
 
-    python sim/pick_bench.py                       # scripted grab
-    python sim/pick_bench.py --grasp grasp_v5      # with a learned grab (policies/grasp_v5.npz)
+    python sim/benches/pick.py                       # scripted grab
+    python sim/benches/pick.py --grasp grasp_v5      # with a learned grab (policies/grasp_v5.npz)
 """
 
 import argparse
 import os
 import sys
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from sim.benches.common import run_parallel, save_json  # noqa: E402
 
 def one(args):
     thing, seed, grasp = args
@@ -55,10 +55,11 @@ def main():
     ap.add_argument("--n", type=int, default=12)
     ap.add_argument("--grasp", default=None, help="policies/<name>.npz learned grab (default: scripted)")
     ap.add_argument("--jobs", type=int, default=12)
+    ap.add_argument("--json", default=None, help="also write the results here")
     a = ap.parse_args()
     jobs = [(th, s, a.grasp) for th in ("pen", "eraser") for s in range(a.n)]
-    with ProcessPoolExecutor(a.jobs) as ex:
-        res = list(ex.map(one, jobs))
+    res = run_parallel(one, jobs, a.jobs)
+    save_json(a.json, res)
     print(f"grab: {a.grasp or 'scripted'}")
     for th in ("pen", "eraser"):
         r = [x for x in res if x["thing"] == th]

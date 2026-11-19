@@ -1,5 +1,5 @@
 """The hurdle / ramp course Pinch trains and is tested on (decision 58), without JAX: shared by
-training/terrain_env.py (jax, one course per training robot) and sim/robustness.py --world terrain (numpy)."""
+training/terrain_env.py (jax, one course per training robot) and sim/benches/robustness.py --world terrain (numpy)."""
 
 import mujoco
 

@@ -1,8 +1,8 @@
 """Self-righting bench: the searched swing (crab/righting.py) against a learned policy (policies/<name>.npz),
 from the same random starts on its back, in the CPU twin's physics (sim/models/crab.xml, 2 ms steps).
 
-    python sim/righting_bench.py                      # swing + policies/righting.npz if there is one
-    python sim/righting_bench.py --policy righting_v1 --starts 200
+    python sim/benches/righting.py                      # swing + policies/righting.npz if there is one
+    python sim/benches/righting.py --policy righting_v1 --starts 200
 
 Each start: rolled 180 +- 30 deg, pitched +- 25 deg, any heading, joints +-0.2 rad around the stand pose,
 dropped from 8 cm; floor friction x0.4-1.2, masses +-15 %, servo strength x0.7-1.1. Both controllers are
@@ -13,15 +13,15 @@ upright 2 s later. Reports the success rate and the time to upright (mean, 90th 
 
 import argparse
 import sys
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import mujoco
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from sim.benches.common import run_parallel, save_json  # noqa: E402
 from crab import policy_io as pio  # noqa: E402
 from crab import righting  # noqa: E402
 from crab.emotes import STAND  # noqa: E402
@@ -101,13 +101,14 @@ def main():
     ap.add_argument("--jobs", type=int, default=12)
     ap.add_argument("--true-arms", action="store_true",
                     help="give the policy the arm servos' true angles and speeds (the robot can't read them)")
+    ap.add_argument("--json", default=None, help="also write the results here")
     a = ap.parse_args()
     ctrls = ["swing"] + (["policy"] if (POLICY_DIR / f"{a.policy}.npz").exists() else [])
     if "policy" not in ctrls:
         print(f"no policies/{a.policy}.npz - the swing only")
     jobs = [(c, 5000 + s, a.policy, not a.true_arms) for c in ctrls for s in range(a.starts)]
-    with ProcessPoolExecutor(a.jobs) as ex:
-        rows = list(ex.map(episode, jobs, chunksize=4))
+    rows = run_parallel(episode, jobs, a.jobs, chunksize=4)
+    save_json(a.json, rows)
     for c in ctrls:
         r = [x for x in rows if x[0] == c]
         ok = [x for x in r if x[2]]

@@ -2,17 +2,17 @@
 it unasked) over several seeds, in parallel. Reports success, time, falls, and desk things knocked off the desk
 along the way. Seed 0 is the scenario layout; the others jitter where everything starts.
 
-    python sim/tidy_bench.py [--seeds 8] [--jobs 16]
+    python sim/benches/tidy.py [--seeds 8] [--jobs 16]
 """
 
 import argparse
 import sys
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from sim.benches.common import run_parallel, save_json  # noqa: E402
 
 def one(args):
     case, seed = args
@@ -52,11 +52,8 @@ def main():
     ap.add_argument("--json", default=None, help="also write the per-run results here")
     a = ap.parse_args()
     jobs = [(c, s) for c in ("cap", "eraser") for s in range(a.offset, a.offset + a.seeds)]
-    with ProcessPoolExecutor(a.jobs) as ex:
-        res = list(ex.map(one, jobs))
-    if a.json:
-        import json
-        Path(a.json).write_text(json.dumps(res))
+    res = run_parallel(one, jobs, a.jobs)
+    save_json(a.json, res)
     for c in ("cap", "eraser"):
         rs = [r for r in res if r["case"] == c]
         ok = [r for r in rs if r["ok"]]

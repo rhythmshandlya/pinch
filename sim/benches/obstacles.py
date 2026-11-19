@@ -2,20 +2,20 @@
 pen, an 8 mm book edge - in the full twin, through the robot's own Body. If the walk stops short, recover()
 runs (as the Unstick activity does when the stuck sense fires), which climbs over with the high-step crawl.
 
-    python sim/obstacle_test.py
+    python sim/benches/obstacles.py
 Prints, per case: over or not, how (walked / climbed), time, falls.
 """
 
 import sys
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import mujoco
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from sim.benches.common import run_parallel  # noqa: E402
 THINGS = {"cable": ("cylinder", 0.0025), "pen": ("cylinder", 0.0045), "book": ("box", 0.004)}
 
 
@@ -62,8 +62,7 @@ def case(args):
 
 def main():
     jobs = [(t, w) for t in THINGS for w in ("forward", "sideways")]
-    with ProcessPoolExecutor(6) as ex:
-        res = list(ex.map(case, jobs))
+    res = run_parallel(case, jobs, 6)
     for r in res:
         print(f"{r['thing']:6s} {r['way']:8s} {'OVER' if r['over'] else 'not over':8s} {r['how']:8s} "
               f"{r['t']:4d} s  falls {r['falls']}  climbs {r['climbs']}  end {r['end']}")

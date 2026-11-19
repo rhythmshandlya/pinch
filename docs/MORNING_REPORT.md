@@ -56,10 +56,10 @@ private PRD and its traceability matrix are kept locally and out of git.*
 |---|---|---|
 | Robot designed (CAD/STL) | ✅ 14 parts (31 pieces). All pass print rules and the wall check (the visor posts and bezel were thickened). Servos fit, and **241/241 poses are collision-free** | `cad/check.py`, `cad/walls.py` |
 | Digital twin | ✅ desk, tray, desk things, five cliff beams (the side ones now low in solid wall), camera, face, noslip contacts | `sim/desk.py`, `pinch/twin/` |
-| Locomotion trained + robust | ✅ residual gait-v1. It passes the flat, rough, caught-foot and terrain worlds. Capability table in `docs/HURDLES.md`. ⏳ terrain and walking-v2 training | `sim/robustness.py`, `sim/hurdle_test.py`, `sim/obstacle_test.py` |
-| Expressive motions trained + robust | ✅ 21 emotes, 0/40 falls. ⏳ emote2 at 2 ms physics | `sim/robustness.py` |
-| Pet brain in simulation | ✅ 12 behaviour scenarios (11–12/12, run to run), the state layer, the decision log and the observer. ⚠ Many PRD items are still partial or missing (see the private matrix) | `sim/pinch_scenarios.py`, `tests/` |
-| Picks things up / arranges the desk | ⚠ partial: pens 4/12 picked, and all land in the tray; erasers 2/12; tidy bench as above | `sim/pick_bench.py`, `sim/tidy_bench.py` |
+| Locomotion trained + robust | ✅ residual gait-v1. It passes the flat, rough, caught-foot and terrain worlds. Capability table in `docs/HURDLES.md`. ⏳ terrain and walking-v2 training | `sim/benches/robustness.py`, `sim/benches/hurdles.py`, `sim/benches/obstacles.py` |
+| Expressive motions trained + robust | ✅ 21 emotes, 0/40 falls. ⏳ emote2 at 2 ms physics | `sim/benches/robustness.py` |
+| Pet brain in simulation | ✅ 12 behaviour scenarios (11–12/12, run to run), the state layer, the decision log and the observer. ⚠ Many PRD items are still partial or missing (see the private matrix) | `sim/benches/scenarios.py`, `tests/` |
+| Picks things up / arranges the desk | ⚠ partial: pens 4/12 picked, and all land in the tray; erasers 2/12; tidy bench as above | `sim/benches/pick.py`, `sim/benches/tidy.py` |
 | Virtual pet on the laptop | ✅ `python -m pinch.app` | headless run |
 | Firmware ready to deploy | ✅ in emulation: 42/42 checks, 40/40 selftest. The walking tick fits the RK3566 budget after a 2.2× gait speed-up. ⚠ Real-hardware items are unverified until the parts arrive | `robot/firmware_test.py`, `robot/selftest.py` |
 | Budget ≈ ₹1L | ✅ ₹88,566 + prints (estimate) | `hardware/bom.py` |
@@ -70,7 +70,7 @@ private PRD and its traceability matrix are kept locally and out of git.*
 |---|---|---|---|
 | gait-v1 | Modal | ✅ used | `policies/gait.npz` |
 | gait2-v1, gait3-v1 | msi-1 | done | gait2 76 %, worse than gait-v1; gait3 (bench-strength shoves) being benched |
-| terrain-v1, terrain-hard-v1 | Modal | running | hurdles and ramps; bench against gait-v1 on `sim/hurdle_test.py` |
+| terrain-v1, terrain-hard-v1 | Modal | running | hurdles and ramps; bench against gait-v1 on `sim/benches/hurdles.py` |
 | gait-v2 | Modal | running | 48 commands + pushing references, 150M steps |
 | emote2-v1, then grasp-v6 | msi-1 queue | running / queued | `C:/Users/armaa/pinch_queue.txt` on msi-1 |
 | grasp-v5 | Modal | kept, not used | better isolated picks, worse whole-pet tidying |

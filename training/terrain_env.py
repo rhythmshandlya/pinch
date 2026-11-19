@@ -13,7 +13,7 @@ the corrections may be larger (0.25 rad, stored with the exported policy as acti
 height / attitude terms are softer (on a ramp the body tilts with the ground). Walking at the commanded
 speed still counts most.
 
-terrain_layout(xp, u) is shared by training (jax) and the bench (sim/robustness.py --world terrain, numpy).
+terrain_layout(xp, u) is shared by training (jax) and the bench (sim/benches/robustness.py --world terrain, numpy).
 """
 
 import sys

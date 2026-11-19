@@ -5,7 +5,7 @@
     sim.run(60)                         # simulated seconds
     sim.in_tray("pen")
 
-Used by the virtual pet app (pinch/app.py) and the scenario tests (sim/pinch_scenarios.py).
+Used by the virtual pet app (pinch/app.py) and the scenario tests (sim/benches/scenarios.py).
 
 Assembled from its parts: core.py (set-up and the loop), world.py (where things are), sensors.py
 (camera, cliff beams, grip), stimuli.py (talk, touch, sound) and faults.py (injected failures)."""
