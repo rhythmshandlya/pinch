@@ -78,8 +78,9 @@ def nominal_references(hz=50.0):
 class CrabEmoteEnv(Env):
     def __init__(self, sim_dt=0.004, obs_noise=0.02, push_interval_s=3.0, push_vel=0.08,
                  reward_scales=None, refs=None):
-        self.mj_model = load_training_model(sim_dt)
+        self.mj_model = self._load_model(sim_dt)
         self.sys = mjx.put_model(self.mj_model)
+        self.action_scale = pio.EMOTE_ACTION_SCALE          # rad per unit action (terrain walking: larger)
         self.sim_dt = sim_dt
         self.n_substeps = int(round(pio.CTRL_DT / sim_dt))
         self.dt = pio.CTRL_DT
@@ -117,6 +118,9 @@ class CrabEmoteEnv(Env):
         self.ke = jp.array([s.back_emf for s in leg_specs])
         self.fall_height = 0.37 * float(m.key("stand").qpos[2])
 
+    def _load_model(self, sim_dt):
+        return load_training_model(sim_dt)
+
     @property
     def observation_size(self):
         return pio.EMOTE_OBS_SIZE
@@ -151,7 +155,7 @@ class CrabEmoteEnv(Env):
         action = jp.clip(action, -1.0, 1.0)
         e, k = info["emote"], info["k"]
         ref_q, ref_g, ref_h = self._ref(e, k + 1)
-        ctrl = pio.emote_targets(jp, ref_q, action)
+        ctrl = pio.emote_targets(jp, ref_q, action * (self.action_scale / pio.EMOTE_ACTION_SCALE))
 
         data = state.pipeline_state
         push = (info["step"] % self.push_steps == 0) & (info["step"] > 0)

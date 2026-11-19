@@ -16,15 +16,18 @@ POLICY_DIR = Path(__file__).resolve().parents[1] / "policies"
 
 
 class NumpyPolicy:
-    def __init__(self, layers, mean, std):
+    def __init__(self, layers, mean, std, meta=None):
         self.layers, self.mean, self.std = layers, mean, std
+        self.meta = meta or {}                                 # policies/<name>.json: how it was trained
 
     @classmethod
     def load(cls, path):
         z = np.load(path)
         n = len([k for k in z.files if k.startswith("W")])
         layers = [(z[f"W{i}"], z[f"b{i}"]) for i in range(n)]
-        return cls(layers, z["obs_mean"], z["obs_std"])
+        meta_path = Path(path).with_suffix(".json")
+        meta = __import__("json").loads(meta_path.read_text()) if meta_path.exists() else {}
+        return cls(layers, z["obs_mean"], z["obs_std"], meta)
 
     def __call__(self, obs):
         x = (np.asarray(obs, np.float32) - self.mean) / self.std

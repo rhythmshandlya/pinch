@@ -54,6 +54,10 @@ PRESETS = {
                  unroll_length=20, num_updates_per_batch=4, episode_length=600,
                  num_evals=20, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,
                  discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
+    "terrain": dict(num_timesteps=100_000_000, num_envs=2048, batch_size=256, num_minibatches=32,
+                 unroll_length=20, num_updates_per_batch=4, episode_length=600,
+                 num_evals=20, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,
+                 discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
     "emote": dict(num_timesteps=40_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
                   unroll_length=20, num_updates_per_batch=4, episode_length=500,
                   num_evals=16, num_eval_envs=256, learning_rate=3e-4, entropy_cost=5e-3,
@@ -78,6 +82,9 @@ def make_env(name):
     if name == "gait2":          # walking-research values: a filter over ~a step cycle, a kinder tolerance
         from training.gait_env import CrabGaitEnv
         return CrabGaitEnv(vel_alpha=0.06, vel_sigma=0.03)
+    if name == "terrain":         # hurdles, ramps and steps (training/terrain_env.py, decision 58)
+        from training.terrain_env import CrabTerrainEnv
+        return CrabTerrainEnv()
     if name == "gait3":          # gait-v1's rewards, shoves as hard as the robustness bench's (0.12 m/s, every 2.5 s)
         from training.gait_env import CrabGaitEnv
         return CrabGaitEnv(push_vel=0.12, push_interval_s=2.5)
@@ -102,6 +109,7 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
 
     from training.crab_env import domain_randomize
     from training.grasp_env import grasp_randomize
+    from training.terrain_env import terrain_randomize
 
     cfg = dict(PRESETS[preset])
     if timesteps:
@@ -109,7 +117,9 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
     run = run or f"{env}-{preset}-{datetime.now():%Y%m%d-%H%M%S}"
     out = Path(out_root or ROOT / "training" / "checkpoints") / run
     out.mkdir(parents=True, exist_ok=True)
-    (out / "config.json").write_text(json.dumps(dict(cfg, preset=preset, env=env, randomize=randomize),
+    environment = make_env(env)
+    (out / "config.json").write_text(json.dumps(dict(cfg, preset=preset, env=env, randomize=randomize,
+                                                     action_scale=float(getattr(environment, "action_scale", 0.15))),
                                                 indent=2))
 
     print(f"devices: {jax.devices()}  |  env {env}  |  run -> {out}", flush=True)
@@ -141,9 +151,10 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
             on_save()
 
     make_policy, params, _ = ppo.train(
-        environment=make_env(env),
+        environment=environment,
         eval_env=make_env(env),
-        randomization_fn=(grasp_randomize if env == "grasp" else domain_randomize) if randomize else None,
+        randomization_fn=({"grasp": grasp_randomize, "terrain": terrain_randomize}.get(env, domain_randomize)
+                          if randomize else None),
         network_factory=network_factory(cfg),
         normalize_observations=True,
         reward_scaling=1.0,
@@ -163,7 +174,7 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preset", choices=list(PRESETS), default="smoke")
-    ap.add_argument("--env", choices=["walk", "gait", "gait2", "gait3", "emote", "grasp", "push"], default="walk")
+    ap.add_argument("--env", choices=["walk", "gait", "gait2", "gait3", "terrain", "emote", "grasp", "push"], default="walk")
     ap.add_argument("--timesteps", type=int, help="override num_timesteps")
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")
     ap.add_argument("--run", default=None, help="run name (default: env-preset-timestamp)")

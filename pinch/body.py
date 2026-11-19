@@ -261,7 +261,8 @@ class Body:
                                     None, (self._gt % 6.0) / 6.0)
         self._glast = np.clip(self.walk_policy(obs), -1, 1)
         self._gt += DT
-        return pio.emote_targets(np, ref, self._glast)
+        scale = getattr(self.walk_policy, "meta", {}).get("action_scale", pio.EMOTE_ACTION_SCALE)
+        return pio.emote_targets(np, ref, self._glast * (scale / pio.EMOTE_ACTION_SCALE))
 
     def _walk(self, vx, vy, wz, seconds):
         for _ in range(int(seconds / DT)):

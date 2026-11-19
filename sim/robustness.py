@@ -148,7 +148,8 @@ def episode(args):
                     ahead = g.step(pio.CTRL_DT, cmd, solve=i == look - 1)
                 obs = pio.emote_observation(np, gyro, grav, q, qd, last, ref, ahead, None, (t % 6.0) / 6.0)
                 a = np.clip(pol(obs), -1, 1)
-                target = pio.emote_targets(np, ref, prev if latency else a)
+                k = getattr(pol, "meta", {}).get("action_scale", pio.EMOTE_ACTION_SCALE) / pio.EMOTE_ACTION_SCALE
+                target = pio.emote_targets(np, ref, (prev if latency else a) * k)
                 prev, last = a, a
             elif pol is None:
                 for _ in range(SUB):

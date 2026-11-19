@@ -29,6 +29,7 @@ def export(run, name):
     dst.mkdir(exist_ok=True)
     np.savez_compressed(dst / f"{name}.npz", **out)
     cfg = json.loads((src / "config.json").read_text())
+    cfg.setdefault("action_scale", 0.15)
     (dst / f"{name}.json").write_text(json.dumps(dict(run=run, steps=int((src / "last_step.txt").read_text())
                                                       if (src / "last_step.txt").exists() else None, **cfg), indent=1))
     return dst / f"{name}.npz", cfg
