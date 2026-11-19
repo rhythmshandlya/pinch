@@ -1,0 +1,12 @@
+# Design + simulation environment (.venv)
+mujoco>=3.3
+numpy
+pillow
+matplotlib         # brain/run_pet.py timeline plot
+shapely            # 2D outlines for the body CAD
+build123d          # open-source code-CAD (cad/)
+
+# RL training lives in a separate environment: requirements-train.txt (pinned)
+# Robot runtime (Radxa ZERO 3W): numpy pyserial smbus2 (+ apt python3-opencv for the camera);
+#   see hardware/ASSEMBLY.md stage 1
+# Brain: Ollama (https://ollama.com) + `ollama pull gemma4:e4b` on the PC

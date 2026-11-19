@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+MUJOCO_LOG.TXT
+/training/runs/
+/training/checkpoints/
+mjmodel.mjb
+docs/images/brain_eye_*.png
+.venv-rl/
+dist/
+
+# logs and generated scratch
+cad/out/*.log
+*.log
+/training/modal_runs/

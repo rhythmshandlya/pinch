@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 900" width="1280" height="900" font-family="Segoe UI, Arial, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>
+<style>.t{font-size:15px;font-weight:600;text-anchor:middle;fill:#222} .s{font-size:12px;text-anchor:middle;fill:#444}
+.w{font-size:12px;font-weight:600} .lg{font-size:12px;fill:#333} .h{font-size:20px;font-weight:700;fill:#222}</style></defs>
+<rect width="1280" height="900" fill="#fafafa"/>
+<text x="30" y="34" class="h">Robotic crab (hand-sized) - wiring</text>
+<path d="M115,130 L115,175" fill="none" stroke="#d62728" stroke-width="3" marker-end="url(#a)"/>
+<path d="M115,225 L115,270" fill="none" stroke="#d62728" stroke-width="3" marker-end="url(#a)"/>
+<path d="M115,330 L115,375" fill="none" stroke="#d62728" stroke-width="3" marker-end="url(#a)"/>
+<path d="M115,425 L115,480" fill="none" stroke="#d62728" stroke-width="3" marker-end="url(#a)"/>
+<path d="M115,425 L15,425 L15,630 L30,630" fill="none" stroke="#d62728" stroke-width="3" marker-end="url(#a)"/>
+<path d="M200,510 L265,510 L265,330 L330,330" fill="none" stroke="#ff7f0e" stroke-width="3" marker-end="url(#a)"/>
+<path d="M425,470 L425,360" fill="none" stroke="#e6b800" stroke-width="3" marker-end="url(#a)"/>
+<path d="M520,305 L580,305 L580,65 L640,65" fill="none" stroke="#ff7f0e" stroke-width="3" marker-end="url(#a)"/>
+<path d="M520,305 L580,305 L580,127 L640,127" fill="none" stroke="#ff7f0e" stroke-width="3" marker-end="url(#a)"/>
+<path d="M520,305 L580,305 L580,189 L640,189" fill="none" stroke="#ff7f0e" stroke-width="3" marker-end="url(#a)"/>
+<path d="M520,305 L580,305 L580,251 L640,251" fill="none" stroke="#ff7f0e" stroke-width="3" marker-end="url(#a)"/>
+<path d="M520,305 L580,305 L580,313 L640,313" fill="none" stroke="#ff7f0e" stroke-width="3" marker-end="url(#a)"/>
+<path d="M520,305 L580,305 L580,375 L640,375" fill="none" stroke="#ff7f0e" stroke-width="3" marker-end="url(#a)"/>
+<path d="M200,630 L260,630 L260,680 L330,680" fill="none" stroke="#9467bd" stroke-width="3" marker-end="url(#a)"/>
+<path d="M400,640 L400,530" fill="none" stroke="#17becf" stroke-width="3" marker-end="url(#a)"/>
+<path d="M560,640 L560,590 L610,590 L610,368 L640,368" fill="none" stroke="#e6b800" stroke-width="3" marker-end="url(#a)"/>
+<path d="M440,640 L440,595 L230,595 L230,300 L200,300" fill="none" stroke="#1f77b4" stroke-width="3" stroke-dasharray="6,4" marker-end="url(#a)"/>
+<path d="M610,700 L780,700 L780,466 L960,466" fill="none" stroke="#1f77b4" stroke-width="3" marker-end="url(#a)"/>
+<path d="M610,700 L780,700 L780,530 L960,530" fill="none" stroke="#1f77b4" stroke-width="3" marker-end="url(#a)"/>
+<path d="M610,700 L780,700 L780,594 L960,594" fill="none" stroke="#2ca02c" stroke-width="3" marker-end="url(#a)"/>
+<path d="M610,700 L780,700 L780,658 L960,658" fill="none" stroke="#2ca02c" stroke-width="3" marker-end="url(#a)"/>
+<path d="M610,700 L780,700 L780,722 L960,722" fill="none" stroke="#7f7f7f" stroke-width="3" marker-end="url(#a)"/>
+<path d="M610,700 L780,700 L780,786 L960,786" fill="none" stroke="#333333" stroke-width="3" marker-end="url(#a)"/>
+<rect x="30" y="60" width="170" height="70" rx="8" fill="#fdecea" stroke="#333" stroke-width="1.6"/>
+<text x="115.0" y="80" class="t">2S LiPo 7.4 V</text>
+<text x="115.0" y="98" class="s">850 mAh, battery bay</text>
+<text x="115.0" y="113" class="s">T-plug</text>
+<rect x="30" y="175" width="170" height="50" rx="8" fill="#fdecea" stroke="#333" stroke-width="1.6"/>
+<text x="115.0" y="195" class="t">5 A blade fuse</text>
+<text x="115.0" y="213" class="s">right after the battery</text>
+<rect x="30" y="270" width="170" height="60" rx="8" fill="#fdecea" stroke="#333" stroke-width="1.6"/>
+<text x="115.0" y="290" class="t">INA219</text>
+<text x="115.0" y="308" class="s">battery monitor</text>
+<text x="115.0" y="323" class="s">I2C 0x40</text>
+<rect x="30" y="375" width="170" height="50" rx="8" fill="#fdecea" stroke="#333" stroke-width="1.6"/>
+<text x="115.0" y="395" class="t">Main switch</text>
+<text x="115.0" y="413" class="s">belly, 8 A rocker</text>
+<rect x="30" y="480" width="170" height="60" rx="8" fill="#fff3e0" stroke="#333" stroke-width="1.6"/>
+<text x="115.0" y="500" class="t">5 V regulator #1</text>
+<text x="115.0" y="518" class="s">5 A, servo power</text>
+<text x="115.0" y="533" class="s">measure 4.9-5.2 V</text>
+<rect x="30" y="600" width="170" height="60" rx="8" fill="#f3e5f5" stroke="#333" stroke-width="1.6"/>
+<text x="115.0" y="620" class="t">5 V regulator #2</text>
+<text x="115.0" y="638" class="s">5 A, Radxa + audio</text>
+<text x="115.0" y="653" class="s">measure 4.9-5.2 V</text>
+<rect x="330" y="250" width="190" height="110" rx="8" fill="#fff8e1" stroke="#333" stroke-width="1.6"/>
+<text x="425.0" y="270" class="t">Servo hub</text>
+<text x="425.0" y="288" class="s">V+ from regulator #1</text>
+<text x="425.0" y="303" class="s">bus signal from FE-URT-1</text>
+<text x="425.0" y="318" class="s">4 leg branches + 6 arm plugs</text>
+<rect x="330" y="470" width="190" height="60" rx="8" fill="#e0f7fa" stroke="#333" stroke-width="1.6"/>
+<text x="425.0" y="490" class="t">FE-URT-1</text>
+<text x="425.0" y="508" class="s">USB -> servo bus</text>
+<text x="425.0" y="523" class="s">/dev/ttyUSB0, 1 Mbps</text>
+<rect x="640" y="40" width="270" height="50" rx="8" fill="#fffde7" stroke="#333" stroke-width="1.6"/>
+<text x="775.0" y="60" class="t">Front-left leg</text>
+<text x="775.0" y="78" class="s">IDs 1 coxa, 2 thigh, 3 knee</text>
+<rect x="640" y="102" width="270" height="50" rx="8" fill="#fffde7" stroke="#333" stroke-width="1.6"/>
+<text x="775.0" y="122" class="t">Front-right leg</text>
+<text x="775.0" y="140" class="s">IDs 4, 5, 6</text>
+<rect x="640" y="164" width="270" height="50" rx="8" fill="#fffde7" stroke="#333" stroke-width="1.6"/>
+<text x="775.0" y="184" class="t">Rear-left leg</text>
+<text x="775.0" y="202" class="s">IDs 7, 8, 9</text>
+<rect x="640" y="226" width="270" height="50" rx="8" fill="#fffde7" stroke="#333" stroke-width="1.6"/>
+<text x="775.0" y="246" class="t">Rear-right leg</text>
+<text x="775.0" y="264" class="s">IDs 10, 11, 12</text>
+<rect x="640" y="288" width="270" height="50" rx="8" fill="#fffde7" stroke="#333" stroke-width="1.6"/>
+<text x="775.0" y="308" class="t">Left arm (PWM 0-2)</text>
+<text x="775.0" y="326" class="s">swing, lift, claw: Radxa pins 16, 18, 21</text>
+<rect x="640" y="350" width="270" height="50" rx="8" fill="#fffde7" stroke="#333" stroke-width="1.6"/>
+<text x="775.0" y="370" class="t">Right arm (PWM 3-5)</text>
+<text x="775.0" y="388" class="s">swing, lift, claw: Radxa pins 24, 7, 19</text>
+<rect x="330" y="640" width="280" height="120" rx="8" fill="#e8f5e9" stroke="#333" stroke-width="1.6"/>
+<text x="470.0" y="660" class="t">Radxa ZERO 3W</text>
+<text x="470.0" y="678" class="s">brain tray, under the dome</text>
+<text x="470.0" y="693" class="s">5 V in on pin 2 / GND pin 6</text>
+<text x="470.0" y="708" class="s">I2C pins 3/5, I2S pins 12/35/38/40</text>
+<text x="470.0" y="723" class="s">arm PWM pins 7, 16, 18, 19, 21, 24</text>
+<rect x="960" y="440" width="290" height="52" rx="8" fill="#f1f8e9" stroke="#333" stroke-width="1.6"/>
+<text x="1105.0" y="460" class="t">BNO055 IMU</text>
+<text x="1105.0" y="478" class="s">I2C 0x28, deck (foam tape)</text>
+<rect x="960" y="504" width="290" height="52" rx="8" fill="#f1f8e9" stroke="#333" stroke-width="1.6"/>
+<text x="1105.0" y="524" class="t">2 x VL53L0X</text>
+<text x="1105.0" y="542" class="s">I2C 0x29 -> re-addressed, XSHUT pins 11/13</text>
+<rect x="960" y="568" width="290" height="52" rx="8" fill="#f1f8e9" stroke="#333" stroke-width="1.6"/>
+<text x="1105.0" y="588" class="t">MAX98357A amp + speaker</text>
+<text x="1105.0" y="606" class="s">I2S out, 5 V</text>
+<rect x="960" y="632" width="290" height="52" rx="8" fill="#f1f8e9" stroke="#333" stroke-width="1.6"/>
+<text x="1105.0" y="652" class="t">I2S microphone</text>
+<text x="1105.0" y="670" class="s">I2S in, 3.3 V, SEL to GND</text>
+<rect x="960" y="696" width="290" height="52" rx="8" fill="#f1f8e9" stroke="#333" stroke-width="1.6"/>
+<text x="1105.0" y="716" class="t">2 x TTP223 touch</text>
+<text x="1105.0" y="734" class="s">head / back, pins 29 / 31</text>
+<rect x="960" y="760" width="290" height="52" rx="8" fill="#f1f8e9" stroke="#333" stroke-width="1.6"/>
+<text x="1105.0" y="780" class="t">Camera (front face)</text>
+<text x="1105.0" y="798" class="s">22-pin CSI flex</text>
+<text x="143" y="146" class="w" fill="#d62728">7.4 V</text>
+<text x="208" y="504" class="w" fill="#ff7f0e">5 V</text>
+<text x="455" y="409" class="w" fill="#e6b800">signal</text>
+<text x="775" y="420" class="s">legs: STS3032 bus servos, daisy-chained inside each leg</text>
+<text x="775" y="437" class="s">arms: GS-4308MG, power from the hub, signal wire to the Radxa</text>
+<text x="234" y="649" class="w" fill="#9467bd">5 V</text>
+<text x="364" y="579" class="w" fill="#17becf">USB-C</text>
+<text x="551" y="584" class="w" fill="#e6b800">arm PWM</text>
+<text x="208" y="442" class="w" fill="#1f77b4">I2C</text>
+<text x="860" y="460" class="w" fill="#1f77b4">I2C</text>
+<text x="860" y="524" class="w" fill="#1f77b4">I2C + 2 GPIO</text>
+<text x="860" y="588" class="w" fill="#2ca02c">I2S</text>
+<text x="860" y="652" class="w" fill="#2ca02c">I2S</text>
+<text x="860" y="716" class="w" fill="#7f7f7f">GPIO</text>
+<text x="860" y="780" class="w" fill="#333333">CSI</text>
+<line x1="30" y1="860" x2="56" y2="860" stroke="#d62728" stroke-width="4"/><text x="62" y="865" class="lg">battery 7.4 V</text>
+<line x1="166" y1="860" x2="192" y2="860" stroke="#ff7f0e" stroke-width="4"/><text x="198" y="865" class="lg">servo 5 V</text>
+<line x1="302" y1="860" x2="328" y2="860" stroke="#9467bd" stroke-width="4"/><text x="334" y="865" class="lg">Radxa 5 V</text>
+<line x1="438" y1="860" x2="464" y2="860" stroke="#e6b800" stroke-width="4"/><text x="470" y="865" class="lg">servo signal</text>
+<line x1="574" y1="860" x2="600" y2="860" stroke="#17becf" stroke-width="4"/><text x="606" y="865" class="lg">USB</text>
+<line x1="710" y1="860" x2="736" y2="860" stroke="#1f77b4" stroke-width="4"/><text x="742" y="865" class="lg">I2C</text>
+<line x1="846" y1="860" x2="872" y2="860" stroke="#2ca02c" stroke-width="4"/><text x="878" y="865" class="lg">I2S audio</text>
+<line x1="982" y1="860" x2="1008" y2="860" stroke="#7f7f7f" stroke-width="4"/><text x="1014" y="865" class="lg">GPIO</text>
+<line x1="1118" y1="860" x2="1144" y2="860" stroke="#333333" stroke-width="4"/><text x="1150" y="865" class="lg">camera flex</text>
+<text x="30" y="888" class="lg">Every board also shares GND (black wires, not drawn). Check polarity with the multimeter before plugging anything in.</text>
+</svg>

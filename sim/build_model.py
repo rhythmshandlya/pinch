@@ -1,0 +1,277 @@
+"""Generate the MuJoCo model (MJCF) of the crab from crab/params.py (+ CAD outputs if present).
+
+    python sim/build_model.py                 -> writes sim/models/crab.xml
+    python sim/build_model.py --primitive     -> ignore CAD meshes, simple shapes only
+    python sim/build_model.py --no-backlash
+
+The right side is a mirror of the left: y positions, yaw angles and z-axis hinge axes
+are negated, so a given joint command means the same motion on both sides.
+Every joint uses its own servo's model (crab/params.py JOINT_SERVO): stiffness,
+torque limit, torque-speed slope, rotor inertia, friction and gear backlash.
+"""
+
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from crab.emotes import STAND  # noqa: E402
+from crab.params import ARM_IDS, JOINT_NAMES, LEG_IDS, PARAMS, SERVOS, servo_for  # noqa: E402
+
+OUT = ROOT / "sim" / "models" / "crab.xml"
+P = PARAMS
+S = P.scale                                   # size relative to the 100 mm-shin original
+
+VIS_FILE = ROOT / "sim" / "models" / "visuals.json"
+MP_FILE = ROOT / "sim" / "models" / "mass_props.json"
+COL_FILE = ROOT / "sim" / "models" / "collision.json"
+USE_CAD = VIS_FILE.exists() and MP_FILE.exists() and "--primitive" not in sys.argv
+VIS = json.loads(VIS_FILE.read_text()) if USE_CAD else {}
+MP = json.loads(MP_FILE.read_text()) if USE_CAD else {}
+COL = json.loads(COL_FILE.read_text()) if (USE_CAD and COL_FILE.exists()) else None
+BACKLASH = "--no-backlash" not in sys.argv
+USED = sorted({servo_for(j).name for j in JOINT_NAMES})
+
+
+def f(*v):
+    return " ".join(f"{x:.4g}" for x in v)
+
+
+def fe(*v):
+    return " ".join(f"{x:.6e}" for x in v)
+
+
+def jnt(name, axis, rng):
+    """Servo joint (+ its gear-play joint) with the servo's own class."""
+    sv = servo_for(name).name
+    out = f'<joint name="{name}" class="srv_{sv}" axis="{axis}" range="{f(*rng)}"/>'
+    if BACKLASH:
+        out += f'\n        <joint name="{name}_backlash" class="bl_{sv}" axis="{axis}"/>'
+    return out
+
+
+def qpos_tree_order(q_joints) -> list:
+    out = []
+    for i, _ in enumerate(JOINT_NAMES):
+        out.append(q_joints[i])
+        if BACKLASH:
+            out.append(0.0)
+    return out
+
+
+def cad(body: str) -> str:
+    if not USE_CAD or body not in MP:
+        return ""
+    mp = MP[body]
+    out = [f'<inertial pos="{fe(*mp["com"])}" mass="{mp["mass"]:.6f}" fullinertia="{fe(*mp["inertia"])}"/>']
+    for v in VIS.get(body, []):
+        out.append(f'<geom class="visual" type="mesh" mesh="{v["mesh"]}" material="{v["material"]}"/>')
+    return "\n        ".join(out)
+
+
+def lookat_xyaxes(pos, target):
+    z = np.asarray(pos, float) - np.asarray(target, float)
+    z /= np.linalg.norm(z)
+    x = np.cross([0, 0, 1], z)
+    x /= np.linalg.norm(x)
+    y = np.cross(z, x)
+    return f(*x, *y)
+
+
+def servo_box(joint):
+    if USE_CAD:
+        return ""
+    L, W, H = (v / 2000 for v in servo_for(joint).size_mm)
+    return f'<geom class="visual" type="box" size="{f(W, L, H)}" material="servo"/>'
+
+
+def leg_xml(leg_id: str) -> str:
+    s = 1 if leg_id[1] == "L" else -1
+    (x, y, z), yaw = P.leg_mounts[leg_id[0]]
+    L = P.leg
+    return f"""
+      <body name="{leg_id}_coxa_link" pos="{f(x, s*y, z)}" euler="0 0 {s*yaw:.4f}">
+        {jnt(leg_id + "_coxa", f"0 0 {-s}", L.coxa_range_for(leg_id))}
+        {cad(leg_id + "_coxa_link")}
+        {servo_box(leg_id + "_coxa")}
+        <geom type="capsule" fromto="0 0 0 {L.coxa_len} 0 0" size="{0.015*S:.4f}" mass="{L.coxa_mass}" material="shell"/>
+        <body name="{leg_id}_femur_link" pos="{L.coxa_len} 0 0">
+          {jnt(leg_id + "_femur", "0 -1 0", L.femur_range)}
+          {cad(leg_id + "_femur_link")}
+          <geom type="capsule" fromto="0 0 0 {L.femur_len} 0 0" size="{0.013*S:.4f}" mass="{L.femur_mass}" material="shell"/>
+          <body name="{leg_id}_tibia_link" pos="{L.femur_len} 0 0">
+            {jnt(leg_id + "_tibia", "0 -1 0", L.tibia_range)}
+            {cad(leg_id + "_tibia_link")}
+            {servo_box(leg_id + "_tibia")}
+            <geom type="capsule" fromto="0 0 0 {L.tibia_len} 0 0" size="{0.0085*S:.4f}" mass="{L.tibia_mass}" material="shell"/>
+            <geom name="{leg_id}_foot" type="sphere" pos="{L.tibia_len} 0 0" size="{L.foot_radius}" mass="0.001" material="tip" friction="1.1 0.02 0.001"/>
+            <site name="{leg_id}_foot_site" pos="{L.tibia_len} 0 0" size="{L.foot_radius*1.4:.4f}" rgba="0 0 0 0"/>
+          </body>
+        </body>
+      </body>"""
+
+
+def arm_xml(arm_id: str) -> str:
+    """Arm: swing (yaw) -> lift (pitch) -> claw. The palm holds the claw motor; the moving finger
+    (dactyl) hinges on that motor's shaft at the front of the palm."""
+    s = 1 if arm_id == "L" else -1
+    (x, y, z), yaw = P.arm_mount
+    A = P.arm
+    h, fl = A.upper_len, A.finger_len
+    return f"""
+      <body name="{arm_id}_shoulder" pos="{f(x, s*y, z)}" euler="0 0 {s*yaw:.4f}">
+        {jnt(arm_id + "_shoulder_yaw", f"0 0 {s}", A.shoulder_yaw_range)}
+        {cad(arm_id + "_shoulder")}
+        {servo_box(arm_id + "_shoulder_yaw")}
+        <geom type="sphere" size="0.007" mass="0.002" material="shell"/>
+        <body name="{arm_id}_upper" pos="{A.shoulder_offset} 0 0">
+          {jnt(arm_id + "_shoulder_pitch", "0 -1 0", A.shoulder_pitch_range)}
+          {cad(arm_id + "_upper")}
+          <geom type="capsule" fromto="0 0 0 {h - 0.010:.4f} 0 0" size="0.005" mass="{A.upper_mass * 0.3:.4f}" material="shell"/>
+          <geom name="{arm_id}_palm" type="ellipsoid" pos="{h - 0.004:.4f} 0 -0.004" size="0.011 0.0065 0.009" mass="{A.upper_mass * 0.7:.4f}" material="shell"/>
+          <geom name="{arm_id}_pollex" type="box" pos="{h + 0.016:.4f} {-s*0.003:.4f} -0.005" size="0.008 0.0025 0.004" mass="0.0008" material="claw"/>
+          <site name="{arm_id}_grip_site" pos="{h + 0.018:.4f} 0 -0.005" size="0.005" rgba="0 0 0 0"/>
+          <body name="{arm_id}_dactyl" pos="{h:.4f} 0 0">
+            {jnt(arm_id + "_claw", f"0 0 {s}", A.claw_range)}
+            {cad(arm_id + "_dactyl")}
+            <geom type="box" pos="{0.6 * fl:.4f} {s*0.0025:.4f} -0.005" size="{0.4 * fl:.4f} 0.002 0.004" mass="{A.jaw_mass}" material="claw"/>
+          </body>
+        </body>
+      </body>"""
+
+
+def eyes_xml() -> str:
+    if USE_CAD:
+        return ""
+    hx, hy, hz = P.body.half_size
+    out = []
+    for s in (1, -1):
+        base, top = (0.67 * hx, s * 0.22 * hy, 0.7 * hz), (0.88 * hx, s * 0.27 * hy, 1.8 * hz)
+        out.append(f"""
+      <geom class="visual" type="capsule" fromto="{f(*base, *top)}" size="{0.0045*S:.4f}" material="shell"/>
+      <geom class="visual" type="sphere" pos="{f(*top)}" size="{0.011*S:.4f}" material="eye"/>
+      <geom class="visual" type="sphere" pos="{f(top[0] + 0.008*S, top[1], top[2] + 0.002*S)}" size="{0.0055*S:.4f}" material="pupil"/>""")
+    return "".join(out)
+
+
+def servo_defaults() -> str:
+    out = []
+    for name in USED:
+        sp = SERVOS[name]
+        bl = np.radians(sp.backlash_deg)
+        out.append(f"""      <!-- {name}: {sp.source} -->
+      <default class="srv_{name}">
+        <joint armature="{sp.armature:.6g}" damping="{sp.damping:.5g}" frictionloss="{sp.frictionloss:.5g}"/>
+        <position kp="{sp.kp:.5g}" kv="{sp.kv}" forcerange="{-sp.force_limit:.5g} {sp.force_limit:.5g}"/>
+      </default>
+      <default class="bl_{name}">
+        <joint damping="{0.01*S**3:.3g}" armature="{0.01*S**4:.3g}" frictionloss="0" range="{-bl:.5f} {bl:.5f}"/>
+      </default>""")
+    return "\n".join(out)
+
+
+def carapace() -> str:
+    B = P.body
+    if COL:
+        return "\n      ".join(f'<geom name="{g["name"]}" type="box" pos="{f(*g["pos"])}" size="{f(*g["size"])}" material="shell"/>'
+                               for g in COL["body"])
+    return f'<geom name="carapace" type="ellipsoid" size="{f(*B.half_size)}" mass="{B.mass}" material="shell"/>'
+
+
+def build() -> str:
+    B, L = P.body, P.leg
+    fem, tib = STAND[JOINT_NAMES.index("FL_femur")], STAND[JOINT_NAMES.index("FL_tibia")]
+    z0 = -(L.femur_len * np.sin(fem) + L.tibia_len * np.sin(fem + tib)) + L.foot_radius + 0.002
+    cam_pos = tuple(np.array([0.42, -0.50, 0.30]) * S)
+    actuators = "\n".join(f'    <position name="{j}" joint="{j}" class="srv_{servo_for(j).name}" inheritrange="1"/>'
+                          for j in JOINT_NAMES)
+    foot_sensors = "\n".join(f'    <touch name="{lg}_foot_touch" site="{lg}_foot_site"/>' for lg in LEG_IDS)
+    meshes = "\n".join(f'    <mesh name="{v["mesh"]}" file="{v["file"]}" scale="0.001 0.001 0.001"/>'
+                       for items in VIS.values() for v in items) if USE_CAD else ""
+    eye_cam = COL["eye_cam"] if COL else (0.95 * B.half_size[0], 0, 0.5 * B.half_size[2])
+    prim_group = 3 if USE_CAD else 0
+    return f"""<!-- AUTO-GENERATED by sim/build_model.py from crab/params.py{' + CAD (cad/build.py)' if USE_CAD else ''}. Do not edit by hand. -->
+<mujoco model="robotic_crab">
+  <compiler angle="radian" autolimits="true" meshdir="meshes"/>
+  <option timestep="0.002" integrator="implicitfast"/>
+
+  <visual>
+    <global offwidth="1280" offheight="720" azimuth="120" elevation="-20"/>
+    <headlight ambient="0.35 0.35 0.35" diffuse="0.6 0.6 0.6" specular="0.1 0.1 0.1"/>
+    <quality shadowsize="4096"/>
+    <map znear="0.005"/>
+  </visual>
+
+  <default>
+    <default class="crab">
+      <geom contype="1" conaffinity="0" condim="3" friction="0.8 0.02 0.001" group="{prim_group}"/>
+      <default class="visual">
+        <geom contype="0" conaffinity="0" group="2" density="0"/>
+      </default>
+{servo_defaults()}
+    </default>
+  </default>
+
+  <asset>
+    <texture name="sky" type="skybox" builtin="gradient" rgb1="0.55 0.75 0.95" rgb2="0.95 0.97 1" width="256" height="256"/>
+    <texture name="sand" type="2d" builtin="checker" rgb1="0.86 0.80 0.66" rgb2="0.80 0.74 0.60" width="512" height="512" mark="edge" markrgb="0.7 0.64 0.5"/>
+    <material name="floor" texture="sand" texrepeat="{8/S:.3g} {8/S:.3g}" reflectance="0.05"/>
+    <material name="shell" rgba="0.90 0.33 0.20 1" specular="0.3" shininess="0.4"/>
+    <material name="claw" rgba="0.75 0.22 0.15 1" specular="0.3"/>
+    <material name="tip" rgba="0.25 0.18 0.15 1"/>
+    <material name="servo" rgba="0.12 0.12 0.14 1"/>
+    <material name="eye" rgba="0.97 0.97 0.95 1"/>
+    <material name="pupil" rgba="0.05 0.05 0.08 1"/>
+    <material name="printed" rgba="0.92 0.40 0.22 1" specular="0.25" shininess="0.3"/>
+    <material name="horn" rgba="0.75 0.76 0.78 1" specular="0.6" shininess="0.8"/>
+    <material name="pcb" rgba="0.10 0.45 0.25 1"/>
+{meshes}
+  </asset>
+
+  <worldbody>
+    <light pos="0.3 -0.3 1.5" dir="-0.2 0.2 -1" diffuse="0.7 0.7 0.7" castshadow="true"/>
+    <geom name="floor" type="plane" size="0 0 0.05" material="floor" contype="0" conaffinity="1"/>
+
+    <body name="body" pos="0 0 {z0:.4f}" childclass="crab">
+      <freejoint name="root"/>
+      <camera name="track" mode="trackcom" pos="{f(*cam_pos)}" xyaxes="{lookat_xyaxes(cam_pos, (0, 0, 0))}"/>
+      <camera name="eye_cam" pos="{f(*eye_cam)}" xyaxes="0 -1 0 0 0 1" fovy="{COL.get('eye_fovy', 102) if COL else 102}"/>
+      <site name="imu" pos="0 0 0" size="{0.01*S:.4f}" rgba="0 0 0 0"/>
+      {cad("body")}
+      {carapace()}
+      {eyes_xml()}
+{"".join(leg_xml(lg) for lg in LEG_IDS)}
+{"".join(arm_xml(a) for a in ARM_IDS)}
+    </body>
+  </worldbody>
+
+  <actuator>
+{actuators}
+  </actuator>
+
+  <sensor>
+    <gyro name="imu_gyro" site="imu"/>
+    <accelerometer name="imu_accel" site="imu"/>
+    <framequat name="imu_quat" objtype="site" objname="imu"/>
+{foot_sensors}
+  </sensor>
+
+  <keyframe>
+    <key name="stand" qpos="0 0 {z0:.4f} 1 0 0 0 {f(*qpos_tree_order(STAND))}" ctrl="{f(*STAND)}"/>
+  </keyframe>
+</mujoco>
+"""
+
+
+if __name__ == "__main__":
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(build(), encoding="utf-8")
+    import mujoco
+    m = mujoco.MjModel.from_xml_path(str(OUT))
+    print(f"wrote {OUT.relative_to(ROOT)}  |  bodies={m.nbody} joints={m.njnt} actuators={m.nu}  "
+          f"total mass={sum(m.body_mass):.3f} kg  servos: "
+          + ", ".join(f"{n} x{sum(servo_for(j).name == n for j in JOINT_NAMES)}" for n in USED))

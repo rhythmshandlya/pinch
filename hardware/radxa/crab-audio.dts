@@ -1,0 +1,53 @@
+// Crab audio for the Radxa ZERO 3W: MAX98357A speaker amp + I2S MEMS microphone on I2S3-M0.
+//
+// Pins (same places as on a Raspberry Pi): 12 = BCLK, 35 = LRCLK, 40 = data out (to the amp's DIN),
+// 38 = data in (from the mic's SD). Install with `sudo rsetup` -> Overlays -> "Install overlay from
+// source" (pick this file), enable it, reboot. Then `aplay -l` and `arecord -l` should both list
+// "crab-audio".
+//
+// Based on Radxa's own overlays: rock-3ab-max98357a.dts (the same amp on the same I2S3-M0 pins of the
+// ROCK 3A) and radxa-zero3-tc358743-audio.dts (I2S3 on the ZERO 3). Both directions use Rockchip's
+// dummy codec: the amp and the mic have no control interface, they just follow the I2S clocks.
+// NOT YET TESTED ON THE ROBOT - checked at hardware/ASSEMBLY.md stage 1.
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	metadata {
+		title = "Crab: MAX98357A amp + I2S mic on I2S3-M0";
+		compatible = "radxa,zero3";
+		category = "audio";
+		exclusive = "GPIO3_A3", "GPIO3_A4", "GPIO3_A5", "GPIO3_A6", "i2s3_2ch";
+		description = "Speaker amp on pins 12 (BCLK), 35 (LRCLK), 40 (DIN); I2S microphone data on pin 38.";
+	};
+};
+
+&{/} {
+	crab_codec: crab-codec {
+		#sound-dai-cells = <0>;
+		compatible = "rockchip,dummy-codec";
+		status = "okay";
+	};
+
+	crab_sound: crab-sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "crab-audio";
+		status = "okay";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s3_2ch>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&crab_codec>;
+		};
+	};
+};
+
+&i2s3_2ch {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s3m0_lrck &i2s3m0_sclk &i2s3m0_sdi &i2s3m0_sdo>;
+	status = "okay";
+};
