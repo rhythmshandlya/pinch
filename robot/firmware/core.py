@@ -106,6 +106,13 @@ class FirmwareCore:
     def touch(self, gesture):
         self.inbox.put(("touch", gesture))
 
+    def forget(self, what):
+        """Make Pinch forget something (pinch/mind/privacy.py FORGETTABLE, or "person:<id>"); applied in the loop."""
+        self.inbox.put(("forget", what))
+
+    def set_face_recognition(self, on):
+        self.inbox.put(("face_recognition", bool(on)))
+
     def set_quiet_hours(self, hours):
         """(start, end) local hours, or None to clear them (pinch/routine.py); applied in the loop."""
         self.inbox.put(("quiet_hours", hours))

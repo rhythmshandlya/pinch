@@ -47,7 +47,7 @@ class FirmwareSenses:
                 out["flow"] = (v, t - prev_t)
         out["things"] = self.vision.things(bgr, out["pose"] or self.loc.pose())
         out["face"], _ = self.vision.face(bgr)
-        if self.faceid is not None:
+        if self.faceid is not None and self.mind.face_recognition:     # (the owner can turn it off: decision 83)
             out["people"] = self.faceid.see(bgr, t)
             out["face"] = out["face"] or bool(out["people"])
         return out
@@ -87,6 +87,18 @@ class FirmwareSenses:
         elif kind == "touch":
             self.stats["touches"] += 1
             m.touch(data)
+        elif kind == "forget":
+            try:
+                faces = m.forget(data)
+            except (KeyError, ValueError) as e:
+                self._error("forget", e)
+                return
+            if self.faceid is not None and faces:            # the fingerprints go too, and at once
+                for pid in faces:
+                    self.faceid.forget(pid)
+                self.faceid.save()
+        elif kind == "face_recognition":
+            m.set_face_recognition(data)
         elif kind == "quiet_hours":
             if data is None:
                 m.routine.clear_quiet_hours()

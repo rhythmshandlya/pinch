@@ -19,8 +19,9 @@ from pinch.mind.core import MindCore
 from pinch.mind.senses import Senses
 from pinch.mind.selection import Selection
 from pinch.mind.people import PeopleAware
+from pinch.mind.privacy import Privacy
 from pinch.mind.selfcare import SelfCare
 
 
-class Mind(Senses, Selection, PeopleAware, SelfCare, MindCore):
+class Mind(Senses, Selection, PeopleAware, Privacy, SelfCare, MindCore):
     pass

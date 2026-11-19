@@ -39,7 +39,7 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
 - [ ] **Animation layering:** clips plus gaze offsets plus affect "style" (speed, amplitude).
 - [ ] Scenario language: write scenarios as data (stimulus timeline plus assertions) instead of code.
 - [x] Daily routine: sleepier at night (Rest ends the evening), quiet hours by voice or HTTP, kept in memory (82).
-- [ ] User controls: inspect and forget memories, turn recognition off (quiet hours done: 82).
+- [x] User controls: see what it remembers, forget by kind or person, face recognition off, quiet hours (82, 83).
 - [ ] Realism metrics in the observer (entropy, gaze-target agreement, jerk) with trends over versions.
 
 ## 3. Features and training

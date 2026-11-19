@@ -109,6 +109,23 @@ def main():
           in_quiet and rejected and not fw.mind.affect.quiet and fw.mind.routine.settings["quiet_hours"] is None,
           f"quiet {in_quiet}, 400 for hour 25: {rejected}")
 
+    mem = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/memory", timeout=5).read())
+    fw.mind.memory.add_fact("likes tea")
+    post(port, "/forget", {"what": "everything"})
+    post(port, "/settings", {"face_recognition": False})
+    try:
+        post(port, "/forget", {"what": "passwords"})
+        refused = False
+    except urllib.error.HTTPError as e:
+        refused = e.code == 400
+    run(0.5)
+    after = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/memory", timeout=5).read())
+    check("HTTP API: what it remembers, forget everything, face recognition off",
+          "owner" in mem and after["owner"]["facts"] == [] and after["people"] == [] and refused
+          and after["settings"]["face_recognition"] is False and not fw.mind.face_recognition,
+          f"facts after {after['owner']['facts']}, unknown kind refused: {refused}")
+    post(port, "/settings", {"face_recognition": True})
+
     hw.audio_mode = "meeting"
     quiet = False
     for _ in range(150):

@@ -1044,3 +1044,17 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Firmware test:** quiet hours set over HTTP make it quiet now, a bad hour gets a 400, and clearing
       them works (46/46).
     - **Golden trace:** unchanged, since the session is at 09:00.
+83. **The owner's controls over what Pinch keeps** (`pinch/mind/privacy.py`, HTTP API).
+    - **See:** `GET /memory` shows what it remembers: the owner's name and facts, the people it knows
+      (names and how it feels about them), homes, likes, how many episodes, danger spots and games, routine
+      counts, and settings. Never face fingerprints or episode text.
+    - **Forget:** `POST /forget {"what": ...}`: people, owner, facts, episodes, homes, places (learned
+      fears), games, routines or everything; `person:<id>` for one person.
+      - Forgetting people also deletes their fingerprints from the firmware's face gallery, saved at once.
+      - "everything" keeps the owner's settings (quiet hours, recognition switch).
+      - Unknown kinds get a 400.
+    - **Face recognition off:** `POST /settings {"face_recognition": false}` stops the firmware
+      fingerprinting faces (it still notices that a face is there). Stored with the settings. Existing
+      fingerprints stay until people are forgotten.
+    - **Tests:** `tests/test_privacy.py` (summary, each kind, everything keeps settings, the switch), and a
+      firmware check over HTTP (47/47).
