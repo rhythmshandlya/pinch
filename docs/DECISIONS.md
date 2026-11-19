@@ -800,3 +800,29 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       - walking sideways over an 8 mm bar with the trained walking policy;
       - picking up a pen and putting it in the tray;
       - a minute of pet life with state, activity and feeling shown.
+65. **Walking v2 and terrain results.**
+    - **terrain-v1** (86M steps) against gait-v1 on the hurdle capability test:
+      - bars: 8 mm forward 2/3 (was 0/3); sideways it sometimes clears 10–12 mm (was never);
+      - ramps: 15° forward 3/3 (was 2/3), 20° sideways 3/3 (was 2/3);
+      - one small loss: a 6 mm bar sideways, 2/3 (was 3/3).
+      On the robustness bench it stays at 0 falls and 87 / 86 / 81 % tracking (flat / rough / caught
+      foot), but sways more (tilt RMS 2.6° vs 1.6°). It is adopted only if the 48-layout tidy bench
+      doesn't suffer from the sway.
+    - **Walking v2 env** (`gait_v2`, training on Modal): 48 commands (curves, diagonals, backwards,
+      speeds in between) plus 18 pushing references (paddle arm on either claw, the 11 mm crouch easing
+      in). A policy whose config says `covers: [walk, push]` also steadies Body's pushes.
+    - **Tidy bench, 48 layouts, for honest numbers.**
+      - **Problem:** 16 layouts couldn't tell a regression from chaos. The bisect pinned the cap's
+        4/16 → 1/16 drop on a refactor that is bit-identical on plain walking (decision 62); only rounding
+        in rare paths changed.
+      - **Reference with gait-v1:** cap 5/48 (10 %), eraser 23/48 (48 %), 0 falls. The ball and other
+        things are brushed off the desk in many runs.
+      - **Verdict:** pushing a light cap accurately is the weakest important skill.
+66. **The gait in JAX** (`crab/gait_jax.py`).
+    - **What:** the scripted gait and leg IK as pure JAX functions, vectorised over the four legs.
+    - **Equivalence:** it matches the robot's numpy gait to 2e-8 rad over random commands, trot and crawl
+      (`tests/test_gait_jax.py`, run with .venv-rl).
+    - **Why:** training environments can now run Pinch's real walking controller inside the simulation
+      batch. That is needed for a learned push skill built on the real walking stack (the old push env
+      sat on the retired from-scratch walker), and for walking trained on continuous commands, not
+      recorded references.
