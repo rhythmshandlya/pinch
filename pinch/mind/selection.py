@@ -107,7 +107,7 @@ class Selection:
         self._say("activity", name)
 
     def _advance(self, body_busy, body_ok):
-        if self.gen is None:
+        if self.gen is None or self.estopped:               # (an emergency stop: no motion of any kind)
             return None
         if self.waiting_motion:
             if body_busy:

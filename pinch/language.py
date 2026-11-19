@@ -20,7 +20,7 @@ import urllib.request
 
 from crab.emotes import EMOTES
 
-INTENTS = ["greet", "goodbye", "praise", "scold", "trick", "come", "go_away", "stop", "quiet", "tidy",
+INTENTS = ["estop", "greet", "goodbye", "praise", "scold", "trick", "come", "go_away", "stop", "quiet", "tidy",
            "fetch", "put_away", "play", "sleep", "wake", "tell_name", "teach_home", "owner_feeling",
            "meeting_start", "meeting_end", "how_are_you", "chat", "none"]
 OBJECTS = ["pen", "pencil", "eraser", "cap", "ball", "marker", "coin", "clip", "note"]
@@ -93,6 +93,7 @@ def understand_rules(text: str, pet_name="pinch") -> dict:
     pick("meeting_start", _has(t, MEETING_START))
     if u["intent"] in ("meeting_start", "meeting_end"):
         u["meeting"] = "start" if u["intent"] == "meeting_start" else "end"
+    pick("estop", re.search(r"\bemergency stop\b", t))          # (a safety stop: only these exact words)
     pick("teach_home", obj and re.search(r"\b(goes here|lives here|belongs here|this is where|is its home|put it here)\b", t))
     pick("put_away", obj and re.search(r"\b(put|place|return|move)\b.*\b(back|away|tray|stand|home)\b", t))
     pick("fetch", obj and re.search(r"\b(bring|fetch|get|give|pass)\b", t))

@@ -69,6 +69,8 @@ class Senses:
             self.request = ("greet", "")
         elif i == "trick" and u["trick"]:
             self.request = ("trick", u["trick"])
+        elif i == "estop":
+            self.estop_request = True                     # the firmware acts on it (PinchFirmware.estop)
         elif i in ("come", "go_away", "stop", "sleep", "wake", "play", "quiet", "how_are_you", "goodbye"):
             self.request = (i, "")
             if i == "goodbye":

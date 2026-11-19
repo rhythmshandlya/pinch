@@ -107,7 +107,13 @@ class Crab:
     def tick(self, q_target):
         if self.stopped:
             raise SafetyStop("stopped", "stopped")
-        q_target = np.clip(np.asarray(q_target, float), self.lo, self.hi)          # joint limits (CAD)
+        if self.paused:                                   # a user emergency stop: limp, nothing is sent
+            return self.idle_tick()
+        q_target = np.asarray(q_target, float)
+        if q_target.shape != self.q_cmd.shape or not np.all(np.isfinite(q_target)):
+            q_target = self.q_cmd.copy()                  # a non-number never reaches a servo: hold still
+            self.bad_targets += 1
+        q_target = np.clip(q_target, self.lo, self.hi)                              # joint limits (CAD)
         step = np.clip(q_target - self.q_cmd, -MAX_STEP, MAX_STEP)                  # servo speed limit
         q_new = self.q_cmd + step
         q_new[TIBIAS] = np.maximum(q_new[TIBIAS], SHIN_MIN - q_new[FEMURS])         # shin vs hip link (CAD)
@@ -127,6 +133,38 @@ class Crab:
         return self.q_cmd
 
     arm_blocks = 0                                   # how often the arm guard held the arms
+    bad_targets = 0                                  # how often a NaN / infinite / mis-sized target was held
+    paused = False                                   # a user emergency stop is on (pause / resume)
+
+    def idle_tick(self):
+        """One 20 ms tick that sends nothing (paused): time and the world still move on."""
+        t0 = time.perf_counter()
+        self.hw.wait(DT)
+        self.last_wait = time.perf_counter() - t0
+        self.t += DT
+        self.ticks += 1
+        return self.q_cmd
+
+    def pause(self, why="user"):
+        """User emergency stop: torque off at once (Pinch goes limp and settles on its belly) and send nothing
+        until resume(). Unlike a safety stop for a fault, this one can be undone."""
+        log.warning("EMERGENCY STOP (%s): torque off", why)
+        self.paused = True
+        try:
+            self.hw.torque(False)
+        except OSError as e:
+            log.error("torque off failed: %s", e)
+
+    def resume(self):
+        """Torque back on from wherever the joints are now (the caller eases it back to standing)."""
+        if not self.paused or self.stopped:
+            return False
+        q, _ = self.read_joints()
+        self.q_cmd = np.clip(q, self.lo, self.hi)
+        self.hw.torque(True)
+        self.paused = False
+        log.warning("resumed after the emergency stop")
+        return True
     last_wait = 0.0
 
     def _check_health(self):

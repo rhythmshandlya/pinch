@@ -342,9 +342,25 @@ class PinchFirmware:
             for ev, _ in self.hearing.take_events():
                 self._apply("sound_event", ev)
 
+    def estop(self, why="user"):
+        """Emergency stop (HTTP /stop, or "freeze" said aloud): cancel what the body is doing, go limp, and do
+        nothing that moves until resume(). Senses, memory and the face keep working."""
+        self.body.cancel()
+        self.crab.pause(why)
+        self.mind.estopped = True
+        self.stats["estops"] = self.stats.get("estops", 0) + 1
+
+    def resume(self):
+        if self.crab.resume():
+            self.mind.estopped = False
+            self.body.start(("pose", "stand", 1.0))           # ease back up from wherever it settled
+
     def step(self):
         while not self.inbox.empty():
             self._apply(*self.inbox.get())
+        if self.mind.estop_request:                           # "emergency stop" said aloud
+            self.mind.estop_request = False
+            self.estop("voice")
         if not getattr(self.hw, "threaded", True):
             self._poll()
         t_work = time.perf_counter()
@@ -535,6 +551,10 @@ def serve(fw: PinchFirmware, port=8080):
                 fw.say(data["text"][:300])
             elif self.path == "/touch" and data.get("gesture") in ("stroke", "hold", "tickle", "boop", "tap", "claw_hold"):
                 fw.touch(data["gesture"])
+            elif self.path == "/stop":                       # emergency stop: limp at once, until /resume
+                fw.estop(str(data.get("why", "http"))[:80])
+            elif self.path == "/resume":
+                fw.resume()
             else:
                 return self._send({"error": "unknown"}, 400)
             self._send({"ok": True})

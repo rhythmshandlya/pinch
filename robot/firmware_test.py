@@ -364,6 +364,31 @@ def sigterm_and_memory():
         check("...and it knows the face again in dimmer light", bool(again) and again[0][0] == pid,
               f"{again[0][:2] if again else None}")
 
+    print("emergency stop")
+    hw6, fw6 = quiet_firmware()
+    fw6.body.start(("walk", 0.03, 0.0, 0.0, 30.0))
+    for _ in range(50):
+        fw6.step()
+    p0 = hw6.d.qpos[0:2].copy()
+    fw6.estop("test")
+    sent0 = fw6.crab.ticks
+    q_before = fw6.crab.q_cmd.copy()
+    for _ in range(100):
+        fw6.mind.request = ("trick", "dance")                 # (and the mind keeps wanting to move)
+        fw6.step()
+    still = np.array_equal(fw6.crab.q_cmd, q_before) and not fw6.body.busy
+    check("emergency stop: limp at once, no commands while it's on, the mind can't move it",
+          fw6.crab.paused and not fw6.hw.backend.torque_on if hasattr(fw6.hw.backend, "torque_on") else fw6.crab.paused
+          and still, f"paused {fw6.crab.paused}, body busy {fw6.body.busy}, commands unchanged {still}")
+    fw6.resume()
+    for _ in range(100):
+        fw6.step()
+    check("...and resume: torque back on, it stands up again", not fw6.crab.paused and hw6.d.qpos[2] > 0.03,
+          f"paused {fw6.crab.paused}, body height {hw6.d.qpos[2] * 1000:.0f} mm")
+    fw6.mind.hear_text("pinch, emergency stop")
+    fw6.step()
+    check('saying "emergency stop" stops it too', fw6.crab.paused, f"paused {fw6.crab.paused}")
+
     print("shutdown and memory")
     from pinch.memory import DEFAULT_FILE
     with tempfile.TemporaryDirectory() as tmp:

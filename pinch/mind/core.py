@@ -62,7 +62,9 @@ class MindCore:
         self.activity, self.gen, self.started = None, None, 0.0
         self.waiting_motion, self.wait_until, self.praise_until = False, -1.0, -1.0
         self.stuck = False                      # StuckSense says so (a foot over the edge, caught, going nowhere)
-        self.flipped_t = -1e9                   # last time BodySense said "upside down" (it says so every tick)
+        self.flipped_t = -1e9
+        self.estopped = False                    # an emergency stop is on: the mind issues no motion
+        self.estop_request = False               # someone said "freeze": the firmware acts on it                   # last time BodySense said "upside down" (it says so every tick)
         self.next_choice = 0.0
         self.log = []                        # (t, kind, text) for the app's diary and tests
         self._was_present = False

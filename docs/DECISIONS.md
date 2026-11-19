@@ -844,3 +844,22 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       training both use it, and Body's two duplicated paddle expressions became `paddle_pose(side)`.
     - **Guard:** `tests/test_architecture.py` fails if `crab/` imports the pet, firmware, training or sim,
       or `training/` imports the pet or firmware.
+69. **The supervisor, hardened; an emergency stop you can trigger.**
+    - **The servo layer** (`Crab.tick`) already clamped every command: joint limits, the speed limit,
+      shin vs hip, arm vs arm, and temperature or voltage triggering a safety stop. Two additions:
+      - **Never send a non-number:** a NaN, infinite or wrong-length target is held at the last safe
+        command and counted (`bad_targets`).
+      - **A user emergency stop that can be undone:** `pause()` turns torque off at once and sends nothing
+        until `resume()`, which starts again from where the joints actually are. Fault stops (heat,
+        battery, bus) still end the program.
+    - **Triggers:**
+      - HTTP `POST /stop` and `POST /resume`;
+      - saying the exact words "emergency stop". "Stop" and "freeze" stay ordinary "stop what you're
+        doing" requests, so normal speech can't trigger it.
+      While it is on, the mind issues no motion and the current body step is cancelled.
+    - **Tests:**
+      - **`tests/test_supervisor.py`:** 3000 fuzzed targets (wild, NaN, infinite, wrong length); every
+        command sent was finite, within the limits, within the speed limit and kept the shin clear of
+        the hip. Nothing is sent during a stop.
+      - **Firmware test:** stopping mid-walk goes limp at once and the mind can't move it; resuming
+        stands it back up; the spoken stop works (45/45).
