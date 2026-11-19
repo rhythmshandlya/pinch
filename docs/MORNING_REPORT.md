@@ -16,7 +16,7 @@
 - **msi-1 is a working training node** (WSL2 + JAX on the RTX 4050, runs from a Windows scheduled task, so it survives SSH disconnects).
   - It trained the gait2 variant (76 %, so gait-v1 stays).
   - It is now training gait3 (100M steps, shoves as hard as the bench's), at no Modal cost.
-- **Modal spend: about $11–12 of $100** (estimate). Nothing is left running except grasp-v5 (hard timeout).
+- **Modal spend: about $11–12 of $100** (estimate). **Nothing is left running on Modal.**
 - **Needs you:** OK to download the face models (~39 MB), and measure the OLED module before printing. See the end.
 
 ## Try it (2 minutes)
@@ -38,7 +38,7 @@ through your microphone.
 | Locomotion trained + robust | ✅ **Residual gait (gait-v1)**: flat desk 0/40 falls, 86 % tracking; rough desk 0/40, 86 %; caught foot 0/40, 81 % (scripted: 69 / 68 / 65 %). Gets over a cable, a pen and a book edge; a climb gait is the fallback | `sim/robustness.py` → [ROBUSTNESS.md](ROBUSTNESS.md), [rough](ROBUSTNESS_rough.md), [caught foot](ROBUSTNESS_stuck.md); `sim/obstacle_test.py` |
 | Expressive motions trained + robust | ✅ 21 emotes, one trained balance policy, **0 falls in 40 harsh episodes** | `sim/robustness.py`, `sim/check.py` |
 | Pet brain in simulation | ✅ **12/12 scenarios**; self-preservation (danger map, battery hunger, height fear), self-directed play, people and relationships | `sim/pinch_scenarios.py` → [BEHAVIOUR_TESTS.md](BEHAVIOUR_TESTS.md) |
-| Picks things up, arranges the desk | ⚠ **Partial.** Tidy bench (16 layouts): eraser 12/16, cap 5/16. Pick bench: pens 4/12 picked, and every one lands in the tray; erasers 2/12 (they slip in transit and get pushed instead). Learned grab: GRASP_RESULT | `sim/tidy_bench.py`, `sim/pick_bench.py` |
+| Picks things up, arranges the desk | ⚠ **Partial.** Tidy bench (16 layouts): eraser 12/16, cap 5/16. Pick bench: pens 4/12 picked, and every one lands in the tray; erasers 2/12 (they slip in transit and get pushed instead). Learned grab (grasp-v5): better on the pick bench (19/48 into the tray vs 14/48) but worse in the whole pet (eraser tidies 6/16 vs 12/16, 10/12 scenarios), so the scripted grab stays the default; grasp-v5 is kept as `policies/grasp_v5.npz` | `sim/tidy_bench.py`, `sim/pick_bench.py` |
 | Virtual pet on the laptop | ✅ `python -m pinch.app` | ran headless + windowed |
 | Firmware ready to deploy | ✅ `robot/pinch_main.py` + drivers + HTTP API + systemd + install. **39/39** firmware checks, **40/40** selftest. Same Body, reflexes and walking policy as the twin | `robot/firmware_test.py`, `robot/selftest.py` |
 | Budget ≈ ₹1L, parts in India | ✅ ₹88,566 + prints (~₹2–3k, an **estimate**) | `hardware/bom.py` → [BOM.md](../hardware/BOM.md) |
@@ -69,7 +69,7 @@ through your microphone.
 | walk-v4 (from scratch, 2 ms) | Modal A10G | ~28 min | ~$0.5 | stopped at 27M steps when this laptop's client died; ~0 % tracking, so dropped for the residual gait |
 | grasp-v4 | Modal A10G | ≤50 min | ≤$0.9 | died while compiling (same cause); relaunched as v5 |
 | **gait-v1** (residual) | Modal A10G | 57 min | ~$1.05 | ✅ **used** (`policies/gait.npz`) |
-| grasp-v5 | Modal A10G | ≤150 min | ≤$2.75 | GRASP_RESULT |
+| grasp-v5 | Modal A10G | ~125 min (stopped early at 21M steps, plateaued ~31 %) | ~$2.3 | better isolated picks, worse whole-pet tidying: kept as experimental, not used |
 | gait2-v1 (residual, research variant) | **msi-1** | ~100 min | free | 76 % tracking: worse than gait-v1, kept as `policies/gait2_v1.npz` |
 | gait3-v1 (residual, bench-strength shoves, 100M) | **msi-1** | ~3 h | free | running; bench it with `PINCH_GAIT_POLICY=gait3_v1 python sim/robustness.py --what walk` |
 | **Modal total** | | | **≈ $11–12 of $100** | |
@@ -86,7 +86,7 @@ through your microphone.
 
 ## What's left (in order)
 
-1. **Picking up:** finish grasp-v5's evaluation (below); the eraser slipping in transit; pens from awkward spots (the stand must be ~15 cm along the pen's axis).
+1. **Picking up:** make the learned grab help the whole pet, not just isolated picks (it's right-claw only and flicks pens); the eraser slipping in transit; pens from awkward spots (the stand must be ~15 cm along the pen's axis).
 2. **The toy ball** starts 7.5 cm from the back edge and gets brushed off in about half the tidy runs. Walking round every desk thing was tried and cost more tidies than it saved (decision 48).
 3. **Cap pushing** under the more exact friction: 5/16.
 4. **gait3 from msi-1:** bench it; adopt it if it beats gait-v1.

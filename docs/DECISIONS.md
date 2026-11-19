@@ -640,3 +640,15 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       - With firmer foot grip, the obstacle test's six cases are all walked over without climbing.
     - **Still open:** picking up is still the weakest skill. The scripted grab finds a good stand for
       a pen only from some spots (it must stand ~15 cm along the pen's axis, which the 45 cm-deep desk often can't fit), and erasers slip.
+55. **Training results kept, and not adopted.**
+    - **gait2-v1** (msi-1, 60M steps, the research variant: longer velocity filter, kinder tolerance)
+      tracks 76 % on the 40-episode bench, against gait-v1's 86 % (both 0 falls). gait-v1 stays.
+      gait3-v1 (gait-v1's rewards, bench-strength shoves, 100M steps) is training on msi-1.
+    - **grasp-v5** (21M steps, stopped early: success had plateaued at ~31 %).
+      - **Pick bench, 24 spots each:** 19 of 48 into the tray, against the scripted grab's 14, but it
+        flicked 2 pens off the desk.
+      - **In the whole pet:** eraser tidies 6/16 (scripted 12/16), cap 4/16 (5/16), scenarios 10/12
+        (12/12). It is right-claw only, which changes how Pinch approaches.
+      - **So** the scripted grab stays the default, and grasp-v5 is kept as `policies/grasp_v5.npz`.
+        The robot couldn't use it yet anyway: it needs the thing's pose relative to the claw from a
+        calibrated camera.
