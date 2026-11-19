@@ -615,3 +615,28 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       - **Tidy bench, 16 layouts:** cap 9/16, eraser 7/16, 0 falls. HEAD this morning: 0 of 8 for each.
       - **Still open:** the ball starts 7.5 cm from the back edge and gets brushed off in about half
         the runs.
+54. **Things stay in the claw: no friction creep in the twin, and letting go properly**
+    (`sim/desk.py`, `Body._let_go`, `Body._goto`, new `sim/pick_bench.py`).
+    - **Pick bench** (Body picks the pen or eraser from 12 random spots each, then drops it in the
+      tray): 3/12 pens and 2/12 erasers were picked, and **none reached the tray**.
+    - **Why nothing reached the tray:**
+      - **Creep:** with MuJoCo's default contacts (pyramidal cones, no noslip pass), a squeezed pen
+        slid out of the claw under its own weight in 3.6 s, even standing still. Body kept believing
+        it held it, walked to the tray and "dropped" nothing.
+      - **The release:** both release routines closed the claw while lifting the arm away, which
+        grabbed the pen again, so it rode back up.
+    - **Changes:**
+      - The twin runs 3 noslip iterations. An elliptic cone at impratio 10 also held the pen, but it
+        picked worse (1/12 pens).
+      - Letting go keeps the claw wide open until the arm is up.
+      - While carrying, Pinch turns at 40 % speed, and checks every 0.2 s that the thing is still
+        between its fingers. If not, the drop fails and the mind re-plans.
+    - **Now:** pens 4/12 picked and **4/12 in the tray** (every pick lands); erasers 2/12 picked, but
+      still slip out in transit. Erasers usually get pushed instead.
+    - **Side effects of noslip (more exact Coulomb friction everywhere):**
+      - **Tidy bench, 16 layouts:** eraser 12/16 (was 7/16: picking works now), cap 5/16 (was 9/16:
+        pushing a light cap is harder without the creep that used to help it along).
+      - **Behaviour scenarios: 12/12**, for the first time.
+      - With firmer foot grip, the obstacle test's six cases are all walked over without climbing.
+    - **Still open:** picking up is still the weakest skill. The scripted grab finds a good stand for
+      a pen only from some spots (decision 46-era geometry), and erasers slip.

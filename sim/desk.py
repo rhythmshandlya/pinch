@@ -41,6 +41,10 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True,
     desk = desk or Desk()
     spec = mujoco.MjSpec.from_file(str(CRAB_XML))
     spec.option.timestep = 0.002
+    # no friction creep: with MuJoCo's default (pyramidal cones, no noslip pass) a pen squeezed in the claw slid
+    # out under its own weight in 3.6 s, standing still - real TPU pads don't do that. 3 noslip iterations hold
+    # it walking and turning (an elliptic cone at impratio 10 did too, but picked worse). Decision 54.
+    spec.option.noslip_iterations = 3
     for g in spec.geoms:                                   # the old infinite floor becomes the room floor
         if g.name == "floor":
             g.pos = [0, 0, -0.75]

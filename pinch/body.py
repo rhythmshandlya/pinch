@@ -291,7 +291,12 @@ class Body:
             self.trace("goto_fitted", asked=tuple(np.round(xy, 3)), to=tuple(np.round(fitted, 3)))
             xy = fitted
         settle_n = 0
-        for _ in range(int(timeout / DT)):
+        for k in range(int(timeout / DT)):
+            if self.held and self.grip_fn is not None and k % 10 == 0 and not self.grip_fn(*self.held):
+                self.trace("lost_hold", obj=self.held[0])         # it slipped out on the way: say so, and stop
+                self.held = None
+                self.hold = STAND.copy()
+                return False
             x, y, h = self.pose_fn()
             dx, dy = xy[0] - x, xy[1] - y
             dist = np.hypot(dx, dy)
@@ -312,7 +317,8 @@ class Body:
                 v *= 0.012 / sp
             if dist < tol:
                 v[:] = 0
-            wz = float(np.clip(2.0 * herr, -W_MAX, W_MAX))
+            wmax = W_MAX * (0.4 if self.held else 1.0)               # a long pen in the claw: turn gently
+            wz = float(np.clip(2.0 * herr, -wmax, wmax))
             if abs(herr) < htol * 0.7 and dist < tol:
                 wz = 0.0
             yield self._gait_q((float(v[0]), float(v[1]), wz), self._arms())
@@ -704,6 +710,15 @@ class Body:
         yield from self._settle(0.4)
         return True
 
+    def _let_go(self, q, side):
+        """After opening the claw: let the thing settle, lift the arm away with the claw still wide open, and only
+        then close it (closing on the way up grabbed the pen again: it rode back up in the claw)."""
+        open_q = arm_pose(q, side, claw=0.9)
+        for _ in range(int(0.3 / DT)):
+            yield open_q
+        yield from self._blend_to(arm_pose(STAND, side, pitch=0.3, claw=0.9), 0.6)
+        yield from self._blend_to(STAND, 0.5)
+
     def _release(self):
         """Put the held thing down right here: lower the claw to just above the desk and open it."""
         if not self.held:
@@ -714,7 +729,7 @@ class Body:
         yield from self._blend_to(down, 0.7)
         yield from self._blend_to(arm_pose(down, side, claw=0.9), 0.3)
         self.held = None
-        yield from self._blend_to(STAND, 0.6)
+        yield from self._let_go(down, side)
         self.hold = STAND.copy()
         return True
 
@@ -747,11 +762,12 @@ class Body:
         c, s = np.cos(heading), np.sin(heading)
         stand_xy = goal - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
         ok = yield from self._goto(self.desk.clamp(stand_xy, 0.06), tol=0.012, heading=heading, timeout=50.0, slow=0.5)
+        if not self.held:                                    # it slipped out on the way (traced in _goto)
+            return False
         yield from self._blend_to(reach, 0.8)
         yield from self._blend_to(arm_pose(reach, side, claw=0.9), 0.4)
         self.held = None
-        yield from self._blend_to(arm_pose(STAND, side, pitch=0.3, claw=0.3), 0.6)
-        yield from self._blend_to(STAND, 0.5)
+        yield from self._let_go(reach, side)
         self.hold = STAND.copy()
         o = self._obj(name)
         if o is None:
