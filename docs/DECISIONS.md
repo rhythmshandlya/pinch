@@ -781,3 +781,22 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       activity times out; in the twin, a tidy interrupted by a stroke resumes and logs its phases.
     - **Golden trace:** re-recorded only because the reason labels gained "(resumed)". Every decision,
       motion, sound and the final pose were otherwise identical.
+64. **A behaviour-quality observer and video evidence.**
+    - **Observer** (`pinch/observer.py`): reads the decision log, phases and log, and reports patterns
+      that look unnatural. It never changes behaviour. The patterns:
+      - oscillation (A↔B flips);
+      - failure loops (the same activity restarting);
+      - unexplained switches;
+      - state lock (one state for over 90 % of a long run);
+      - repeated activity sequences;
+      - timeouts.
+      Each finding has an id, an interval, evidence, a severity and a suggestion, ready to become a
+      regression test.
+    - **Tests:** it catches each problem when planted. Ten minutes of pet life alone have no errors.
+    - **First real finding:** spontaneous tidying alternates with idling when it keeps failing. That is
+      the tidy regression being bisected now.
+    - **Clips** (`sim/clips.py`): GIFs from the twin, written to `media/` (not in git):
+      - self-righting;
+      - walking sideways over an 8 mm bar with the trained walking policy;
+      - picking up a pen and putting it in the tray;
+      - a minute of pet life with state, activity and feeling shown.
