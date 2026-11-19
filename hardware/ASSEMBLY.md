@@ -197,8 +197,8 @@ Turn every joint gently by hand over its range (`crab/params.py`). The CAD check
    - **Measure the face OLED first:** its corner holes and glass thickness against `FACE_HOLES` and
      `FACE_GLASS_T` in cad/parts.py (both are estimates).
    - Put the OLED (set to I2C, see the wiring table) into the visor's pocket from inside the dome, glass
-     against the bezel and the screen facing out through the window. Fix it with four M2×4 screws through
-     its corner holes into the standoffs behind the bezel.
+     against the bezel and the screen facing out through the window. Fix it with four M2×8 screws from the
+     front: through the visor's corner holes, the spacer posts and the module's holes, with M2 nuts behind.
    - Glue the 28 mm speaker face-up into its ring under the grille.
    - Touch pads: stick strips of copper tape inside the dome (head, back left, back right, both sides,
      below the face) and on the inside of each claw's palm; solder a thin wire to each and run them to

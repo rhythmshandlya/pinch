@@ -83,6 +83,8 @@ class Body:
         self.t = 0.0
         self.breath = True
         self.status = ""
+        self.edge_guarded = 0                   # walking commands the edge guard trimmed
+        self.cmd_vel = (0.0, 0.0, 0.0)          # the walking command right now (body frame)
 
     def trace(self, what, **kw):
         self.log.append((round(self.t, 2), what, kw))
@@ -171,7 +173,33 @@ class Body:
         self.hold = q.copy()
         return True
 
+    FEET_EDGE = 0.035         # m: no walking or turning that brings a foot closer than this to the desk edge
+                              # (the gait swings each foot ~2 cm, and the desk position is good to ~1 cm)
+
+    def _edge_guard(self, cmd):
+        """Block the parts of a walking command that would carry a foot over the desk edge in the next 0.4 s
+        (moving along the edge, or away from it, stays allowed). Uses Pinch's own desk position (the marker),
+        so it works backwards and sideways too, where the cliff sensors can't see."""
+        if self.pose_fn is None or not any(abs(c) > 1e-6 for c in cmd):
+            return cmd
+        x, y, h = self.pose_fn()
+        now = self.desk.feet_margin((x, y), h)
+
+        def after(vx, vy, wz, T=0.4):
+            c, s = np.cos(h), np.sin(h)
+            return self.desk.feet_margin((x + (c * vx - s * vy) * T, y + (s * vx + c * vy) * T), h + wz * T)
+
+        vx, vy, wz = cmd
+        if after(vx, vy, wz) >= min(self.FEET_EDGE, now):
+            return cmd
+        self.edge_guarded += 1
+        for alt in ((vx, vy, 0.0), (0.0, 0.0, wz), (vx, 0.0, 0.0), (0.0, vy, 0.0)):
+            if any(abs(c) > 1e-6 for c in alt) and after(*alt) >= min(self.FEET_EDGE, now):
+                return alt
+        return (0.0, 0.0, 0.0)
+
     def _gait_q(self, cmd, arms=None, lower=0.0):
+        cmd = self._edge_guard(cmd)
         self.cmd_vel = tuple(float(c) for c in cmd)          # what the localizer integrates on the robot
         self.gait.arms = arms
         self.gait.lower += float(np.clip(lower - self.gait.lower, -0.0004, 0.0004))   # sink / rise smoothly
@@ -562,6 +590,20 @@ class Body:
         self.trace("align", yaw=round(yaw, 3), miss_mm=round(e * 1000, 1))
         self.last_miss = e
         return yaw
+
+    def _recover(self, seconds=2.5):
+        """Work free (a foot over the edge or caught on something): shuffle the body back toward the middle of
+        the desk with short steps - the stuck leg is dragged back up - then settle."""
+        x, y, h = self.pose_fn()
+        d = -np.array((x, y))
+        d /= np.linalg.norm(d) + 1e-9
+        c, s = np.cos(h), np.sin(h)
+        bx, by = c * d[0] + s * d[1], -s * d[0] + c * d[1]           # toward the middle, in the body frame
+        self.trace("recover", at=(round(x, 3), round(y, 3)), feet_margin=round(self.desk.feet_margin((x, y), h), 3))
+        for _ in range(int(seconds / DT)):
+            yield self._gait_q((0.025 * bx, 0.025 * by, 0.0), self._arms())
+        yield from self._settle(0.4)
+        return True
 
     def _release(self):
         """Put the held thing down right here: lower the claw to just above the desk and open it."""

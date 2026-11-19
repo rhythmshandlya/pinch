@@ -22,7 +22,7 @@ from pinch.memory import Memory
 from pinch.touch import GESTURE_EVENT
 from pinch.world import WorldModel, situations
 
-MOTION_STEPS = {"emote", "walk", "goto", "turn_to", "pose", "push", "pick", "drop", "release"}
+MOTION_STEPS = {"emote", "walk", "goto", "turn_to", "pose", "push", "pick", "drop", "release", "recover"}
 MOOD_REPLY = {   # "how are you?" -> face, sound, emote
     "happy": ("happy", "happy_trill", "happy"), "excited": ("excited", "giggle", "excited"),
     "content": ("content", "purr", "fidget"), "love": ("love", "purr", "handshake"),
@@ -64,6 +64,7 @@ class Mind:
         self.face_expr, self.gaze, self.sounds = "neutral", (0.0, 0.0), []
         self.activity, self.gen, self.started = None, None, 0.0
         self.waiting_motion, self.wait_until, self.praise_until = False, -1.0, -1.0
+        self.stuck = False                      # StuckSense says so (a foot over the edge, caught, going nowhere)
         self.next_choice = 0.0
         self.log = []                        # (t, kind, text) for the app's diary and tests
         self._was_present = False
@@ -168,6 +169,14 @@ class Mind:
             self.request = ("come", "")
 
     def touch(self, gesture):
+        if gesture in ("stuck", "unstuck"):                  # from StuckSense, not from a person
+            self.stuck = gesture == "stuck"
+            self.affect.feel(gesture)
+            self._say("body", "I'm stuck!" if self.stuck else "free again")
+            if self.stuck:
+                self.memory.remember("stuck", "got stuck")
+                self._interrupt()
+            return
         ev = GESTURE_EVENT.get(gesture)
         if gesture == "put_down":
             self.touch_event = (gesture, self.t)

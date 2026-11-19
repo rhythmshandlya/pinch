@@ -24,7 +24,7 @@ from pinch.face import Face  # noqa: E402
 from pinch.hearing import Hearing  # noqa: E402
 from pinch.memory import Memory  # noqa: E402
 from pinch.mind import Mind  # noqa: E402
-from pinch.touch import BodySense  # noqa: E402
+from pinch.touch import BodySense, StuckSense  # noqa: E402
 from pinch.world import Desk  # noqa: E402
 from robot.backends import SimBackend  # noqa: E402
 from robot.crab_robot import DT, Crab  # noqa: E402
@@ -47,6 +47,9 @@ class PinchSim:
         self.face = Face(seed=seed)
         self.rng = np.random.default_rng(seed)
         self.senses = BodySense()
+        self.stuck_sense = StuckSense()
+        self.stuck_events = []            # (t, "stuck"/"unstuck", why)
+        self.last_recover, self.edge_recovers = -99.0, 0
         self.hearing = Hearing()
         self._tip_d = mujoco.MjData(self.m)
         emote_pol = walk_pol = None
@@ -109,18 +112,21 @@ class PinchSim:
         off = R @ np.array([0.0, (1 if side == "left" else -1) * self.GAP, 0.0])
         return float(p[0] + off[0]), float(p[1] + off[1])
 
-    def feet_down(self):
-        """How many feet touch the desk (the real robot reads this from its leg servos' load)."""
+    def feet_down(self, any_surface=False):
+        """How many feet touch the desk (the real robot reads this from its leg servos' load). any_surface:
+        also count a foot standing on the tray or on a desk thing (it carries weight there too)."""
         if not hasattr(self, "_feet"):
             self._feet = {self.m.geom(f"{lg}_foot").id for lg in ("FL", "FR", "RL", "RR")}
             self._desk = self.m.geom("desk_top").id
+            self._robot_root = self.m.body_rootid[self.m.body("body").id]
         n = set()
         for i in range(self.d.ncon):
             c = self.d.contact[i]
-            if self._desk in (c.geom1, c.geom2):
-                o = c.geom2 if c.geom1 == self._desk else c.geom1
-                if o in self._feet:
-                    n.add(o)
+            for f, o in ((c.geom1, c.geom2), (c.geom2, c.geom1)):
+                if f not in self._feet:
+                    continue
+                if o == self._desk or any_surface and self.m.body_rootid[self.m.geom_bodyid[o]] != self._robot_root:
+                    n.add(f)
         return len(n)
 
     # what the learned grab sees (on the robot: the camera); kinds and half-extents as in training/grasp_env.py
@@ -228,6 +234,21 @@ class PinchSim:
             gyro, grav = self.hw.read_imu()
             for ev in self.senses.update(DT * MIND_EVERY, gyro, grav, feet_loaded=self.feet_down()):
                 self.mind.touch(ev)
+            walking = self.body.busy and self.body.status in ("goto", "walk", "push", "recover", "turn_to")
+            x, y, h = self.pose()
+            margin = self.desk.feet_margin((x, y), h)
+            # reflex: a foot over the desk edge -> drop everything and shuffle back in (before anything else)
+            if margin < -0.003 and not self.senses.lifted and self.body.status != "recover" \
+                    and self.t - self.last_recover > 3.0:
+                self.body.cancel()
+                self.body.start(("recover",))
+                self.last_recover = self.t
+                self.edge_recovers += 1
+            for ev in self.stuck_sense.update(DT * MIND_EVERY, grav, self.feet_down(any_surface=True), (x, y),
+                                              float(np.hypot(*self.body.cmd_vel[:2])), lifted=self.senses.lifted,
+                                              standing=not self.body.busy, walking=walking, feet_margin=margin):
+                self.mind.touch(ev)
+                self.stuck_events.append((round(self.t, 1), ev, self.stuck_sense.why))
             if grav[2] > -0.5:
                 self.falls += 1
         if self.k % FACE_EVERY == 0:

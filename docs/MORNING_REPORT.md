@@ -1,15 +1,16 @@
 # Morning report: Pinch
 
 **TL;DR**
-- Pinch exists as a full digital twin, a working virtual pet on your laptop, and deployable firmware
-  that passes its tests on emulated hardware.
-- The brain is done: emotions, neediness, touch, voice, meetings, memory, tricks.
-- Learned emote balancing passes the robustness bench.
-- Learned walking works well within its trained range; a harder-trained v3 was finishing as I wrote.
-- **What isn't done:** reliable picking up (the claw needs a redesign: decision 20) and robust tidying
-  (scripted pushing works but is brittle; a learned push skill is training).
-- Hardware: about ₹91k plus prints, under the ₹1 lakh budget.
-- Modal spend: about $4.3 of the $10 budget.
+- Pinch exists as a full digital twin, a working virtual pet on your laptop, and firmware.
+- **New tonight: a claw that can pick things up.** The jaws are parallel at a pen's width, sit flat on the desk and have TPU pads. "pinch, put the pen away" picks the pen up and drops it in the tray.
+  - From random spots, about half of picks work; the rest fall back to pushing.
+  - Pinch can also play with a toy: pick it up, wave it, drop it.
+- **Stuck awareness:** Pinch now knows when a foot is over the edge or it's going nowhere. It grumbles, tries to free itself, and asks you for help. It no longer falls off the desk in that situation.
+- **The side audits found real mistakes.** Several are fixed: backward cliff sensors in the twin, feet over the edge, a visor that couldn't be assembled, OpenCV on the robot, a ball that never stopped rolling.
+  - **The firmware is not ready for the real robot yet:** 7 blockers are listed in [LIFE_PLAN.md](LIFE_PLAN.md) §1.
+- **Research for your ideas** (people and relationships, self-directed play, self-preservation, learning new skills, sensors, simulator choice) is gathered into a build plan: [LIFE_PLAN.md](LIFE_PLAN.md).
+- **Code:** https://github.com/rhythmshandlya/robotic-crab (public, no AI attribution, your GitHub no-reply email).
+- **Modal spend: about $6.5 of $10** (corrected; grasp-v2/v3 were missing). Nothing is left running.
 
 ## Try it (2 minutes)
 
@@ -52,8 +53,11 @@ dashboard.
 | grasp-v1 (two tries) | A10G | ~30 min | $0.55 | diverged (NaN), stopped: the claw can't lift a pen even with perfect placement |
 | walk-v3 | A10G | ~50 min | ~$0.92 | harsher randomization, see below |
 | push-v1 | A10G | ~35 min | ~$0.65 | hierarchical push skill, see below |
+| push-v1 relaunch | A10G | ~27 min | ~$0.5 | went NaN at once, stopped (no NaN guard then) |
+| grasp-v2 | A10G | ~30 min | ~$0.55 | pen only; a per-step shove penalty taught it to avoid the pen, stopped |
+| grasp-v3 | A10G | ~62 min | ~$1.15 | any stick or block; holds things in training, but worse than the scripted grab on pens in the full twin, so not used yet |
 | image builds, downloads | CPU | — | ~$0.1 | |
-| **Total** | | | **≈ $4.3** | nothing is left running |
+| **Total** | | | **≈ $6.5** | nothing is left running; check the Modal dashboard: the Starter plan may include free credits |
 
 ## Decisions to review (details in [DECISIONS.md](DECISIONS.md))
 

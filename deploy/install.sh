@@ -7,13 +7,13 @@ DEST=/opt/pinch
 
 echo "== packages"
 apt-get update
-apt-get install -y python3-venv python3-opencv python3-libgpiod alsa-utils i2c-tools
+apt-get install -y python3-venv python3-libgpiod alsa-utils i2c-tools      # (not python3-opencv: Debian 12 has 4.6, without cv2.aruco.ArucoDetector)
 
 echo "== code -> $DEST"
 mkdir -p "$DEST"
 cp -r crab pinch robot brain policies sim "$DEST"/
 python3 -m venv --system-site-packages "$DEST/venv"
-"$DEST/venv/bin/pip" install --quiet numpy pyserial smbus2 pillow mujoco
+"$DEST/venv/bin/pip" install --quiet numpy pyserial smbus2 pillow mujoco "opencv-python-headless>=4.8"   # aarch64 wheels; ArucoDetector needs >= 4.7
 
 echo "== settings (/etc/pinch.env)"
 if [ ! -f /etc/pinch.env ]; then

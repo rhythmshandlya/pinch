@@ -74,6 +74,8 @@ EVENT_EFFECTS = {
     "owner_stressed": (-0.10, +0.10, dict()),
     "fed":           (+0.30, +0.00, dict(energy=-0.5)),     # put on the charging tray
     "fell":          (-0.40, +0.70, dict(safety=+0.60)),
+    "stuck":         (-0.35, +0.45, dict(safety=+0.35)),     # a foot over the edge, caught, going nowhere
+    "unstuck":       (+0.40, -0.20, dict(safety=-0.40)),     # relief
 }
 
 

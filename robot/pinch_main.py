@@ -37,7 +37,7 @@ from pinch.face import Face  # noqa: E402
 from pinch.hearing import AudioDirection, Hearing  # noqa: E402
 from pinch.memory import Memory  # noqa: E402
 from pinch.mind import Mind  # noqa: E402
-from pinch.touch import BodySense, TouchGestures  # noqa: E402
+from pinch.touch import BodySense, StuckSense, TouchGestures  # noqa: E402
 from pinch.world import Desk  # noqa: E402
 from robot.crab_robot import DT, Crab, SafetyStop  # noqa: E402
 from robot.servos import Calibration  # noqa: E402
@@ -85,6 +85,8 @@ class PinchFirmware:
         self.body = Body(self.crab, self.loc.pose, self.object_belief, self.desk, tip_fn=hw.tip, emote_policy=emote_pol)
         self.gestures = TouchGestures()
         self.bodysense = BodySense()
+        self.stuck_sense = StuckSense()
+        self.last_recover = -99.0
         self.hearing = Hearing()
         self.direction = AudioDirection()
         self.inbox = queue.Queue()           # things from the HTTP API / threads, applied in the loop
@@ -218,7 +220,21 @@ class PinchFirmware:
                 self.body.cancel()
                 self.body.start(("walk", -0.03, 0.0, 0.0, 1.0))
             gyro, grav = self.hw.backend.read_imu()
-            for ev in self.bodysense.update(DT * 5, gyro, grav, feet_loaded=self.hw.feet_down()):
+            feet = self.hw.feet_down()
+            for ev in self.bodysense.update(DT * 5, gyro, grav, feet_loaded=feet):
+                m.touch(ev)
+            walking = self.body.busy and self.body.status in ("goto", "walk", "push", "recover", "turn_to")
+            x, y, h = self.loc.pose()
+            margin = self.desk.feet_margin((x, y), h)
+            # reflex: a foot over the desk edge (from the marker position + leg layout) -> shuffle back in
+            if margin < -0.003 and not self.bodysense.lifted and self.body.status != "recover" \
+                    and self.t - self.last_recover > 3.0:
+                self.body.cancel()
+                self.body.start(("recover",))
+                self.last_recover = self.t
+            for ev in self.stuck_sense.update(DT * 5, grav, feet, (x, y), float(np.hypot(*self.body.cmd_vel[:2])),
+                                              lifted=self.bodysense.lifted, standing=not self.body.busy,
+                                              walking=walking, feet_margin=margin):
                 m.touch(ev)
         if self.k % 2 == 0 and self.hw.touch is not None:
             try:

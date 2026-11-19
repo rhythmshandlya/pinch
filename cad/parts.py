@@ -649,22 +649,24 @@ def top_shell():
 
     # the face: a forehead visor holding the 2.42" OLED (61.5 x 39.5 mm module, 55 x 27.5 mm active area),
     # tilted back FACE_TILT so it looks up at you, its lower edge above the shoulder brackets. The module
-    # goes in from inside the dome (the pocket is open at the back), glass against the bezel, and four M2
-    # screws go through its corner holes into standoffs behind the bezel.
-    visor = FACE_LOC * (box(-3.0, 3.0, -FACE_HOUSING[0] / 2, FACE_HOUSING[0] / 2, -FACE_HOUSING[1] / 2,
-                            FACE_HOUSING[1] / 2))
+    # goes in from inside the dome (the pocket is open at the back), glass against the bezel; four M2 screws
+    # from the front go through the bezel, short spacer posts and the module's corner holes, nuts behind.
+    visor = FACE_LOC * (box(-3.0, 3.4, -FACE_HOUSING[0] / 2, FACE_HOUSING[0] / 2, -FACE_HOUSING[1] / 2,
+                            FACE_HOUSING[1] / 2))                                # bezel 1.6 mm in front of the glass
     shell = shell.fuse(visor)
     shell -= FACE_LOC * box(-2.2, 1.8, -FACE_MODULE[0] / 2 - 0.3, FACE_MODULE[0] / 2 + 0.3,
                             -FACE_MODULE[1] / 2 - 0.3, FACE_MODULE[1] / 2 + 0.3)          # module pocket
-    shell -= FACE_LOC * box(1.0, 4.0, -FACE_ACTIVE[0] / 2 - 0.5, FACE_ACTIVE[0] / 2 + 0.5,
+    shell -= FACE_LOC * box(1.0, 4.4, -FACE_ACTIVE[0] / 2 - 0.5, FACE_ACTIVE[0] / 2 + 0.5,
                             -FACE_ACTIVE[1] / 2 - 0.5, FACE_ACTIVE[1] / 2 + 0.5)          # window
     shell -= FACE_LOC * box(-30, -2.0, -FACE_MODULE[0] / 2 - 0.3, FACE_MODULE[0] / 2 + 0.3,
                             -FACE_MODULE[1] / 2 - 0.3, FACE_MODULE[1] / 2 + 0.3)          # open to the dome
-    for hy, hz in FACE_HOLES:                                # standoffs at the module's corner holes
-        post = FACE_LOC * (Pos(FACE_GLASS_T / 2 + 0.3 + 0.5, hy, hz) * Rot(0, 90, 0) *
-                           Cylinder(2.0, 1.8 - 0.3 - FACE_GLASS_T + 1.0))
+    # four spacer posts between the bezel and the module's board (the glass sits between them), and
+    # through-holes: M2x8 screws from the front, through the bezel, the posts and the board, nuts behind
+    pcb = 1.8 - FACE_GLASS_T                                 # the board's front face (visor frame x)
+    for hy, hz in FACE_HOLES:
+        post = FACE_LOC * (Pos((pcb + 2.3) / 2, hy, hz) * Rot(0, 90, 0) * Cylinder(2.2, 2.3 - pcb))
         shell = shell.fuse(post)
-        shell -= FACE_LOC * Pos(0.0, hy, hz) * Rot(0, 90, 0) * Cylinder(M2_PILOT / 2, 5.4)
+        shell -= FACE_LOC * Pos(1.0, hy, hz) * Rot(0, 90, 0) * Cylinder(M2_CLEAR / 2, 8.0)
     dome_mid = Pos(cx, 0, Z_RIM) * b3d_scale(Sphere(1), by=(a - 0.5, b - 0.5, c - 0.5))
     above = box(-200, 200, -200, 200, Z_RIM, 100)
     # magnet bosses matching the chassis

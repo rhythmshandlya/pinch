@@ -78,6 +78,55 @@ class TouchGestures:
         return False
 
 
+class StuckSense:
+    """Is Pinch stuck? While standing: tilted on what should be a flat desk, or a foot carrying no weight
+    (hanging over an edge, or on top of something). While walking: commands but no progress. Debounced;
+    emits "stuck" once, then "unstuck" when it has cleared for a while. Inputs exist on the robot too: IMU
+    gravity, feet carrying load (servo loads), the desk position (marker) and the walking command."""
+
+    def __init__(self, tilt_deg=12.0, bad_s=1.5, ok_s=2.0):
+        self.tilt_deg, self.need_bad, self.need_ok = tilt_deg, bad_s, ok_s
+        self.stuck, self.why = False, ""
+        self.bad_s = self.ok_s = 0.0
+        self.hist = deque(maxlen=400)
+        self.t = 0.0
+
+    def update(self, dt, gravity, feet_loaded, pose, cmd_speed, lifted=False, standing=True, walking=False,
+               feet_margin=None):
+        """feet_margin: how far the feet are inside the desk (m, from the desk position and the leg layout;
+        negative = a foot is over the edge) - known at once, whatever Pinch is doing."""
+        self.t += dt
+        self.hist.append((self.t, pose[0], pose[1], cmd_speed if walking else 0.0))
+        why = ""
+        if not lifted and feet_margin is not None and feet_margin < -0.003:
+            why = "a foot over the edge"
+        elif not lifted and standing:
+            tilt = float(np.degrees(np.arccos(np.clip(-gravity[2], -1.0, 1.0))))
+            if tilt > self.tilt_deg:
+                why = f"tilted {tilt:.0f} deg"
+            elif feet_loaded is not None and 0 < feet_loaded <= 2:
+                why = f"only {feet_loaded} feet down"
+        if not lifted and walking:
+            win = [r for r in self.hist if r[0] > self.t - 3.0]
+            if win and win[-1][0] - win[0][0] > 2.5 and np.mean([r[3] for r in win]) > 0.012 \
+                    and np.hypot(win[-1][1] - win[0][1], win[-1][2] - win[0][2]) < 0.008:
+                why = "walking but not moving"
+        out = []
+        if why:
+            self.bad_s += dt
+            self.ok_s = 0.0
+            if not self.stuck and self.bad_s >= self.need_bad:
+                self.stuck, self.why = True, why
+                out.append("stuck")
+        else:
+            self.ok_s += dt
+            self.bad_s = 0.0
+            if self.stuck and self.ok_s >= self.need_ok:
+                self.stuck = False
+                out.append("unstuck")
+        return out
+
+
 class BodySense:
     """IMU + leg loads -> being handled. Call every control tick."""
 

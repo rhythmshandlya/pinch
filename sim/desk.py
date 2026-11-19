@@ -80,7 +80,7 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True)
         b = wb.add_body(name=name, pos=[x, y, size[0] + 0.0005], euler=[0, 0, yaw])
         b.add_freejoint(name=f"{name}_free")
         kw = dict(name=f"{name}_geom", mass=mass, rgba=list(rgba), contype=1, conaffinity=1,
-                  friction=[0.6, 0.005, 0.0002], condim=4 if shape == "sphere" else 3)
+                  friction=[0.6, 0.005, 0.0002], condim=6 if shape == "sphere" else 3)   # 6: rolling resistance
         if shape == "capsule":
             b.add_geom(type=mujoco.mjtGeom.mjGEOM_CAPSULE, size=[size[0], size[1], 0], euler=[0, np.pi / 2, 0], **kw)
         elif shape == "box":
@@ -109,10 +109,10 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True)
     # cliff sensors: VL53L0X behind the side windows, looking forward-down
     for side, y in (("left", 0.045), ("right", -0.045)):
         s = body.add_site(name=f"cliff_{side}", pos=[0.045, y, -0.010], size=[0.002, 0, 0],
-                          euler=[0, np.radians(-130), 0])
+                          euler=[0, np.radians(130), 0])   # +z (the beam) forward and down (was -130: backward!)
         sen = spec.add_sensor(name=f"cliff_{side}", type=mujoco.mjtSensor.mjSENS_RANGEFINDER,
                               objtype=mujoco.mjtObj.mjOBJ_SITE, objname=s.name)
-        sen.cutoff = 0.5
+        sen.cutoff = 1.2                                 # the VL53L0X reaches ~1.2 m (also: how high it is lifted)
         sen.intprm[0] = 1                                 # report the distance
     if face:
         spec.add_texture(name="face_tex", type=mujoco.mjtTexture.mjTEXTURE_2D, builtin=mujoco.mjtBuiltin.mjBUILTIN_FLAT,

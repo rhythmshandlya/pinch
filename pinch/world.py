@@ -26,6 +26,16 @@ class Desk:
     def edge_distance(self, xy):
         return min(self.half_x - abs(xy[0]), self.half_y - abs(xy[1]))
 
+    # Pinch's feet when standing (body frame, m; a little generous): they reach ~10 cm from the body centre,
+    # so keeping the centre edge_margin from the edge is not enough on its own (a rear foot ended up over
+    # the front edge in a 10-minute twin run, and Pinch stood there, lopsided, without noticing)
+    FEET = ((0.05, 0.10), (0.05, -0.10), (-0.05, 0.10), (-0.05, -0.10))
+
+    def feet_margin(self, xy, heading):
+        """How far Pinch's feet stay inside the desk (m; negative: a foot is over the edge)."""
+        c, s = np.cos(heading), np.sin(heading)
+        return min(self.edge_distance((xy[0] + c * fx - s * fy, xy[1] + s * fx + c * fy)) for fx, fy in self.FEET)
+
     def in_tray(self, xy):
         return (abs(xy[0] - self.tray_xy[0]) < self.tray_half[0] and abs(xy[1] - self.tray_xy[1]) < self.tray_half[1])
 

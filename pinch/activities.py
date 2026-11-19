@@ -307,6 +307,40 @@ class Startle(Activity):
         yield ("walk", -0.04, 0.0, 0.0, 1.0)
 
 
+class Unstick(Activity):
+    """Stuck (a foot over the edge, caught on something, or walking without getting anywhere): grumble, try
+    twice to work free, then ask for help - with long gaps, so it pleads rather than nags."""
+    name, min_s = "unstick", 1.0
+    quiet_ok = True
+
+    def utility(self, m):
+        return 4.0 if getattr(m, "stuck", False) else 0.0
+
+    def run(self, m):
+        yield ("face", "grumpy")
+        if not m.affect.quiet:
+            yield ("sound", "angry_buzz")
+        for _ in range(2):
+            yield ("recover",)
+            yield ("wait", 2.5)                               # (StuckSense needs a moment to see it cleared)
+            if not m.stuck:
+                break
+        asks = 0
+        while m.stuck and asks < 4:
+            asks += 1
+            yield ("face", "sad")
+            if not m.affect.quiet:
+                yield ("sound", "uh_oh" if asks == 1 else "whimper")
+            yield ("emote", "beg")
+            if asks == 1:
+                m.memory.remember("help", "got stuck and asked for help")
+            yield ("wait", 20.0)
+        if not m.stuck:
+            yield ("face", "happy")
+            if not m.affect.quiet:
+                yield ("sound", "happy_trill")
+
+
 class Tidy(Activity):
     """Put things back where they live (pens to the tray, ...). Spontaneous or asked."""
     name, min_s, quiet_ok = "tidy", 5.0, True
@@ -531,4 +565,4 @@ class Greet(Activity):
 
 
 LIBRARY = [Idle(), Obey(), GoQuiet(), AfterMeeting(), SeekAttention(), Comfort(), Celebrate(), ReactTouch(),
-           Startle(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet()]
+           Startle(), Unstick(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet()]

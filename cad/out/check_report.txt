@@ -1,20 +1,21 @@
 == 1. print rules (FDM: one valid solid, <= 350 mm, walls >= 1.6 mm) ==
   chassis     ok  solids=1 valid=True size 89x116x39 mm  walls ok (thinnest 1.65)  54.4 g
-  top_shell   BAD solids=1 valid=True size 92x115x48 mm  walls THIN (thinnest 0.45)  33.9 g
+  top_shell   BAD solids=1 valid=True size 92x115x48 mm  walls THIN (thinnest 0.30)  32.8 g
   belly_door  ok  solids=1 valid=True size 37x72x2 mm  walls ok (thinnest 1.80)  6.0 g
   pi_tray     ok  solids=1 valid=True size 74x60x5 mm  walls ok (thinnest 1.75)  8.1 g
-  desk_tray   BAD solids=1 valid=True size 164x93x52 mm  walls THIN (thinnest 0.50)  16.2 g
+  desk_tray   ok  solids=1 valid=True size 164x93x52 mm  walls ok (thinnest 0.50)  16.2 g
   coxa_link   ok  solids=1 valid=True size 41x21x33 mm  walls ok (thinnest 2.00)  2.7 g
   femur_link  ok  solids=1 valid=True size 49x23x33 mm  walls ok (thinnest 2.00)  6.2 g
   tibia       ok  solids=1 valid=True size 60x24x21 mm  walls ok (thinnest 2.48)  4.1 g
   foot_tip    ok  solids=1 valid=True size 17x10x10 mm  walls ok (thinnest 1.70)  0.8 g
   shoulder    ok  solids=1 valid=True size 28x12x21 mm  walls ok (thinnest 1.80)  1.2 g
-  upper_arm   BAD solids=1 valid=True size 60x22x20 mm  walls THIN (thinnest 0.50)  4.8 g
-  dactyl_L    BAD solids=1 valid=True size 30x12x24 mm  walls THIN (thinnest 0.50)  0.9 g
-  dactyl_R    BAD solids=1 valid=True size 30x12x24 mm  walls THIN (thinnest 0.50)  0.9 g
+  upper_arm   ok  solids=1 valid=True size 62x22x30 mm  walls ok (thinnest 1.80)  5.1 g
+  dactyl_L    ok  solids=1 valid=True size 34x14x40 mm  walls ok (thinnest 2.00)  1.6 g
+  dactyl_R    ok  solids=1 valid=True size 34x14x40 mm  walls ok (thinnest 2.00)  1.6 g
+  jaw_pad     BAD solids=1 valid=True size 14x1x15 mm  walls THIN (thinnest 1.20)  0.2 g
 
 == 2. servo fit (stand pose, within each body) ==
-  all servos fit their brackets  (17s)
+  all servos fit their brackets  (25s)
 
 == 3. self-collision across poses ==
-  223/223 poses collision-free  (1654s)
+  223/223 poses collision-free  (2154s)
