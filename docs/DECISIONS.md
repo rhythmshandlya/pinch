@@ -939,3 +939,13 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       - 3 minutes idle in the twin with 0 falls;
       - nothing starts during a motion step.
     - **Golden trace:** re-recorded (an intended change).
+75. **The firmware split by responsibility** (`robot/pinch_main.py` 580 lines → parts).
+    - **Parts:**
+      - `robot/firmware/`: core (start-up, the 50 Hz loop, emergency stop, saving, status) and senses
+        (the face, cliff, vision and audio threads, the emulated poll, applying results);
+      - `robot/localizer.py`: the pose estimator, with no firmware dependencies;
+      - `robot/http_api.py`: the HTTP API.
+    - **Entry point:** `robot/pinch_main.py` stays what systemd runs and re-exports the old names. Nothing
+      outside changed.
+    - **Checks:** no code lost (line check), firmware test 45/45, selftest 40/40, the emulated entry point
+      runs, test suite 26/26.

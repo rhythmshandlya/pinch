@@ -18,8 +18,8 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
 - [x] Robot geometry in `crab/`; layering enforced by `tests/test_architecture.py` (68).
 - [x] One test runner, `python tests/run.py` (replay, golden, states, observer, supervisor, faults,
       architecture).
-- [ ] Split `robot/pinch_main.py` (firmware loop, HTTP API, threads) and `pinch/sim_runner.py` (twin, sensors,
-      faults) the same way.
+- [x] Split `robot/pinch_main.py` into `robot/firmware/` + `localizer.py` + `http_api.py` (75).
+- [ ] Split `pinch/sim_runner.py` (twin, sensors, faults) the same way.
 - [ ] Move the scripts in `sim/` into `sim/benches/` (robustness, hurdle, obstacle, tidy, pick, soak) with one
       shared runner and JSON output.
 - [ ] Remove retired code: the from-scratch walker (`policies/walk.npz`, `training/crab_env.py` walking
@@ -35,9 +35,8 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
 - [x] Fault injection in the twin: vision, flaky detection, audio, dead cliff beam, weak leg (71).
 - [x] Long soak runs with a verdict (`sim/soak.py`).
 - [x] Video clips as evidence (`sim/clips.py`).
-- [ ] **Attention:** saliency, habituation, inhibition of return, sound direction → turn to look.
-- [ ] **Idle variation engine:** procedural micro-motion layered under activities (breathing, weight
-      shifts, claw fidgets, glances), with anti-repetition.
+- [x] **Attention:** salience, habituation, inhibition of return, sound direction → turn to look (72).
+- [x] **Idle life layer:** breathing, weight shifts, varied micro-actions scaled by arousal, no repeats (74).
 - [ ] **Animation layering:** clips plus gaze offsets plus affect "style" (speed, amplitude).
 - [ ] Scenario language: write scenarios as data (stimulus timeline plus assertions) instead of code.
 - [ ] Daily routine: wake, active, rest and sleep cycle, plus quiet hours set by the owner.
