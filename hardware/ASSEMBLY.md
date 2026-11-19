@@ -219,7 +219,11 @@ to, and how it knows where it is on the desk.
 2. On the Radxa, check that every servo answers and every sensor is found:
    `python robot/run.py --check`. It lists the 12 leg servos, the 6 arm PWM outputs, the IMU and the
    battery, and says if anything is missing. Torque stays off.
-3. **Calibrate** in three short steps (rehearse each first with `python robot/calibrate.py --sim`):
+3. **Calibrate** in three short steps (rehearse each first with `python robot/calibrate.py --sim`). On the
+   robot, after `deploy/install.sh`, use the firmware's own Python as root, with the firmware stopped:
+   `sudo systemctl stop pinch`, then `sudo /opt/pinch/venv/bin/python /opt/pinch/robot/calibrate.py` (and
+   the same with `--check-directions`, `--trim-arms`). The result goes to `/var/lib/pinch/calibration.json`,
+   which survives reinstalls; the firmware refuses to start without it.
    1. `python robot/calibrate.py`: hold the crab in the straight pose when asked (legs).
    2. `python robot/calibrate.py --check-directions`: bend each leg joint a little when asked. Any servo
       that turns the other way round from what the software expects is fixed.

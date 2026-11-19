@@ -9,13 +9,20 @@ and an offset (which spline tooth the horn landed on, measured by calibration).
 """
 
 import json
+import os
 from dataclasses import dataclass, field
 from math import pi
 from pathlib import Path
 
 from crab.params import JOINT_NAMES, servo_for
 
-CAL_FILE = Path(__file__).resolve().parent / "calibration.json"
+# Calibration belongs to this robot, not to the code: it lives outside the install folder (which
+# deploy/install.sh overwrites on every update). PINCH_CALIBRATION overrides the place.
+CAL_FILE = Path(os.environ.get("PINCH_CALIBRATION", "/var/lib/pinch/calibration.json"))
+
+
+class NotCalibrated(RuntimeError):
+    pass
 SERVO_IDS = {name: i + 1 for i, name in enumerate(JOINT_NAMES)}      # 1..18, see hardware/electronics.md
 
 # Two kinds of servo: the 12 leg servos sit on the Feetech serial bus (IDs 1..12, they report
@@ -62,13 +69,25 @@ class Calibration:
     def servo_to_joint(self, joint: str, s: float) -> float:
         return (s - self.offset[joint]) * self.sign[joint] / self.gain[joint]
 
-    def save(self, path=CAL_FILE):
-        Path(path).write_text(json.dumps({"sign": self.sign, "offset": self.offset, "gain": self.gain}, indent=2))
+    def save(self, path=None):
+        p = Path(path or CAL_FILE)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".tmp")
+        with open(tmp, "w") as f:
+            f.write(json.dumps({"sign": self.sign, "offset": self.offset, "gain": self.gain}, indent=2))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, p)
+        return p
 
     @classmethod
-    def load(cls, path=CAL_FILE):
-        p = Path(path)
+    def load(cls, path=None, required=False):
+        """required=True (the firmware): no calibration file is an error, never a silent default: an
+        uncalibrated crab has every horn up to 7 deg off and walks badly, or pushes joints into stops."""
+        p = Path(path or CAL_FILE)
         if not p.exists():
+            if required:
+                raise NotCalibrated(f"no calibration at {p}: run robot/calibrate.py first (hardware/ASSEMBLY.md)")
             return cls()
         d = json.loads(p.read_text())
         gain = {j: 1.0 for j in JOINT_NAMES}

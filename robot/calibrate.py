@@ -17,7 +17,15 @@
    claw tips just touching (no squeeze). Once, the left arm lifts to about 30 deg and you say
    whether it went 15, 30 or 60 deg: that sets how far these servos turn per pulse.
 
-Everything goes into robot/calibration.json; each step keeps what the other steps saved.
+Everything goes into /var/lib/pinch/calibration.json (PINCH_CALIBRATION overrides); each step keeps
+what the other steps saved. On the robot, run it with the firmware's own Python, as root (it writes
+/var/lib/pinch and must stop the firmware's hold on the servo bus first):
+
+    sudo systemctl stop pinch
+    sudo /opt/pinch/venv/bin/python /opt/pinch/robot/calibrate.py   (then --check-directions, --trim-arms)
+    sudo systemctl start pinch
+
+The firmware refuses to start without this file.
 """
 
 import argparse
@@ -102,6 +110,8 @@ def trim_arms(backend, cal, ask=input, log=print, settle=0.4, max_nudges=100):
     """Arms (PWM servos): check each one's direction, measure their travel once, then nudge each
     until it looks straight. Lift joints go first, so the travel is known before the rest."""
     q = dict.fromkeys(PWM_JOINTS, 0.0)
+    if hasattr(backend, "enable_arms"):              # pulses to the arms while the legs stay limp
+        backend.enable_arms()
 
     def send():
         backend.write_positions({SERVO_IDS[j]: cal.joint_to_servo(j, q[j]) for j in PWM_JOINTS})
@@ -240,8 +250,7 @@ def main():
             print(f"  {j:18s} offset {np.degrees(cal.offset[j]):7.2f} deg")
             if abs(cal.offset[j]) > np.radians(20):
                 print("    ! more than 20 deg: was that horn mounted a few spline teeth off? (see assembly guide)")
-    cal.save()
-    print("saved robot/calibration.json")
+    print(f"saved {cal.save()}")
     return 0
 
 

@@ -253,3 +253,100 @@ Decisions 13, 19 and 20 are replaced by 24; 21 is corrected by 27; 22 is updated
       Measure the module before printing.
     - **Also:** the desk tray's 1 mm floor and the ramp's tapering edge are thin on purpose (printed flat,
       and robu's own minimum is 1 mm). The printability check now gives the tray its own limit.
+
+## 2026-11-19 (afternoon): the firmware fixes from the software audit (LIFE_PLAN A7, A8)
+
+The audit found that `robot/pinch_main.py` and its drivers would fail on day one on the real robot.
+Decision 30 is the five-beam cliff sensor redesign (a separate change); these are 31 to 38. Every fix
+has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (now 38 checks).
+
+31. **Cliff sensors and their reflex.**
+    - **libgpiod:** Debian 12 ships python3-libgpiod 1.6, the v1 API, but the code called v2's
+      `gpiod.request_lines`, so the cliff sensors never came up. `robot/hw_real.py gpio_output()` now
+      speaks both APIs; the test brings the two sensors up through fakes of each.
+    - **A failed sensor means "don't know", never "cliff".** The old code read a failure as "no desk"
+      and backed off forever. Now a beam that doesn't answer, or a reading older than 0.3 s, blocks only
+      forward walking (the direction the sensors guard). The driver now returns 9999 for "nothing in
+      range" (a real reading) and None for "no answer" (a failure).
+    - **One corner is enough:** the reflex fires when *either* beam sees no desk (max over the beams,
+      not min).
+    - **It keys on motion, not task names:** it fires for any non-zero walking command
+      (`body.cmd_vel`), whatever the task is called.
+    - **It latches:** after one back-off it doesn't fire again until both beams see desk for 0.2 s, so
+      its own backing-off can't re-trigger it. While latched, forward walking stays blocked.
+    - The reflex is one class, `pinch/touch.py CliffReflex`, shared by the firmware and the twin
+      (`pinch/sim_runner.py`).
+32. **Calibration lives in `/var/lib/pinch/calibration.json`, and the firmware refuses to start
+    without it.** Before, it lived in the code folder, which every reinstall overwrote, and a missing
+    file silently meant "all offsets zero". Run `calibrate.py` with the firmware's own Python, as root,
+    with the firmware stopped (README, ASSEMBLY stage 6, `install.sh`). The save is atomic and fsync'd.
+    `PINCH_CALIBRATION` overrides the path.
+33. **The 50 Hz loop now has room to spare.** I measured each part's cost.
+    - **The biggest cost was one the audit missed:** the arm-collision guard (`crab/kinematics.py
+      arms_clear`, added with the new claw) took about 25 ms per tick on the laptop. That alone is more
+      than the whole 20 ms budget, and the RK3566 is ~5x slower. Two fixes: a bounding-sphere test
+      rules out every box pair that is far apart in one numpy operation, and the separating-axis test
+      is vectorised. It now takes 0.1 ms and gives the same answer on 3,969 arm poses and 20,000
+      random box pairs.
+    - **Gait:** the gait still integrates in 10 substeps per tick, but solves the leg IK only after the
+      last one (`Gait.step(solve=False)`). The joint angles are identical; the gait costs 0.8 ms per
+      tick instead of 2.0 ms.
+    - **Servos:** one STS SYNC_READ packet reads all 12 leg servos (`FeetechBus.states`) instead of 12
+      round trips. `Crab.state()` reads once per tick, however many parts of the program ask.
+    - **Vision is out of the loop:** the camera thread does the marker, ground flow, colour blobs and
+      face, and the loop only receives the answers.
+    - **Measured:** the tick's own work (`fw.timing()`, in `/status`) is 0.4 ms mean and 0.8 ms p95 on
+      the laptop, against 11.6 ms before. The test requires p95 < 4 ms, a 5x margin for the RK3566. The
+      firmware logs a warning if p95 goes over 15 ms on the robot.
+    - **Review on the robot:** read `tick_ms` from `/status` once it runs.
+34. **Hiccups don't kill it; real faults stop it safely.**
+    - **I2C and bus errors** are counted per source and ridden out with the last good value: touch,
+      cliff, feet, battery, IMU, and the servo reads and writes. `/status` shows the counts.
+    - **A servo that stays silent** for 10 reads in a row (~1 s) becomes a safety stop (torque off), not
+      a crash.
+    - **No arm pulses after a safety stop.** The arm servos' PWM outputs are only driven while torque is
+      on; the shutdown after a safety stop doesn't sit down (sitting down would have re-enabled them).
+      The arm trim tool enables arm pulses on their own (`enable_arms`).
+    - **SIGTERM** (`systemctl stop`): sit down, torque and arm pulses off, memory saved.
+    - **Memory is saved every minute, fsync'd** (the file and the rename), with the write in a thread.
+      Also fixed: on the robot, `PinchFirmware(memory_path=None)` meant *no memory file at all*. It now
+      means the default (`PINCH_MEMORY`).
+    - **The service** gives up after 5 failed starts in 5 minutes (`StartLimitBurst`), so a missing
+      calibration or a dead bus can't loop forever.
+35. **I2C between threads: one handle per device.** smbus2 sets the device address and then talks in
+    two separate system calls. The cliff thread and the touch reads shared one handle on I2C3, so one
+    device's bytes could go to the other. Touch and the cliff pair now each have their own handle; the
+    kernel serialises whole transfers between handles.
+36. **The fisheye camera gets calibrated, and undistorted before any geometry.**
+    - `robot/calibrate_camera.py` uses a printed checkerboard (9x6 corners, 25 mm), 25 views and
+      `cv2.fisheye.calibrate`. It saves to `/var/lib/pinch/camera_intrinsics.json`. Its self-test
+      recovers a known lens to 0.1 px.
+    - Marker corners and blob centres are undistorted first; solvePnP then sees an ideal pinhole.
+    - **Without the file the camera is "uncalibrated":** it still finds things and faces, but never
+      gives Pinch's position, because the edge guard trusts that position. A missing camera is now
+      detected with `isOpened()`.
+37. **A8: a stuck Pinch is judged on what the camera measured, not on the walking command.**
+    - **The two estimates:** `Localizer` keeps two. `pose()` is what Pinch steers by: integrated, and
+      pulled to each marker fix. `measured_xy()` is only what the camera measured: the last marker fix,
+      carried forward by ground optical flow (`robot/vision.py GroundFlow`). Flow answers only when the
+      desk has texture; on a plain desk it returns nothing rather than a wrong number.
+    - **The stuck check** (`StuckSense`) uses `measured_xy()` and makes no judgement without a
+      measurement.
+    - **While stuck,** the walking command is not integrated at all.
+    - **The edge guard** keeps an extra distance `sigma()` from the edge: how far the integrated pose
+      may have drifted since the last fix (+30 % of the distance walked on commands, +10 % on flow,
+      capped at 6 cm). An unsure Pinch stays further from the edge.
+    - **Tested:** held in place while walking, it is called stuck from 40 marker fixes, and its
+      position stays within 9 mm of the truth. Dead reckoning alone would have put it 256 mm away.
+      Walking freely is not called stuck.
+    - **Review:** the stuck check needs the marker or a textured desk in view. Facing away from the
+      tray on a plain desk, only the tilt and feet checks work.
+38. **Small fixes:**
+    - The voice direction used 2048 samples per mic, but each audio chunk has 1600, so it never ran. It
+      now uses 1024.
+    - Sounds play on the crab audio card (`aplay -D plughw:CARD=crabaudio`).
+    - The servo port is found by its stable `/dev/serial/by-id` name (`PINCH_SERVO_PORT` overrides).
+    - OpenCV is pinned to `>=4.8,<5` (A3).
+    - `arecord` is restarted if it dies.
+    - The firmware test now starts Pinch turned 0.4 rad toward the tray. Since the claw redesign, the
+      left claw hid the marker from the old start pose, so the localisation check had been failing.

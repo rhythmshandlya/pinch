@@ -166,7 +166,13 @@ class BusBackend:
     clock:   wait(dt) function; default sleeps in real time (tests pass the simulator's)
     """
 
+    # Transient errors (a garbled servo reply, an I2C NACK) are counted and ridden out with the last good
+    # value; only a fault that persists this many reads in a row is treated as real.
+    MAX_STALE = 10            # servo-state reads (~1 s at the firmware's 10 Hz health + feet checks)
+    MAX_IO_FAILS = 25         # consecutive failed writes / IMU / battery reads
+
     def __init__(self, port, model, imu=None, clock=None, battery=None, pwm=None):
+        from collections import Counter
         from robot.feetech_bus import FeetechBus
         self.bus = FeetechBus(port, model)
         self.ids = [SERVO_IDS[j] for j in BUS_JOINTS]
@@ -177,19 +183,64 @@ class BusBackend:
         self.battery = battery
         self._clock = clock
         self._t = time.monotonic()
+        self.arms_live = False                    # PWM pulses allowed (torque on, or the arm trim tool)
+        self.errors = Counter()                   # source -> transient errors ridden out
+        self._fails = Counter()                   # source -> consecutive failures right now
+        self._last = {}                           # source -> last good value
+        self._stale_reads = 0
+
+    def _guard(self, source, fn, fallback):
+        """Run fn(); on an I/O error count it and return the last good value (or `fallback`)."""
+        try:
+            v = fn()
+        except OSError as e:                      # BusError, SerialException and smbus2's errors are OSErrors
+            self.errors[source] += 1
+            self._fails[source] += 1
+            if self._fails[source] == self.MAX_IO_FAILS:
+                log.error("%s: %d failures in a row (%s)", source, self._fails[source], e)
+            if self._fails[source] > self.MAX_IO_FAILS and source == "servo_write":
+                raise
+            return self._last.get(source, fallback)
+        self._fails[source] = 0
+        self._last[source] = v
+        return v
 
     def battery_voltage(self):
-        return None if self.battery is None else self.battery.read()
+        return None if self.battery is None else self._guard("battery", self.battery.read, None)
 
     def write_positions(self, goals):
-        self.bus.goal_positions({i: v for i, v in goals.items() if i not in self.pwm_ch})
+        self._guard("servo_write", lambda: self.bus.goal_positions({i: v for i, v in goals.items()
+                                                                     if i not in self.pwm_ch}), None)
         for i, v in goals.items():
-            if i in self.pwm_ch and self.pwm is not None:
-                self.pwm.set_pulse(self.pwm_ch[i], rad_to_us(v))
+            if i in self.pwm_ch:
                 self.pwm_cmd[i] = v
+                # torque off (or a safety stop): no pulses at all, so the arm servos stay limp
+                if self.pwm is not None and self.arms_live:
+                    self._guard("pwm", lambda i=i, v=v: self.pwm.set_pulse(self.pwm_ch[i], rad_to_us(v)), None)
+
+    def _read_bus(self):
+        from robot.feetech_bus import BusError
+        try:
+            st = self.bus.states(self.ids)                   # one SYNC_READ for all 12 leg servos
+        except OSError:
+            self.errors["servo_read"] += 1
+            st = {}
+            for i in self.ids:                               # find out who is silent, keep the rest
+                try:
+                    st[i] = self.bus.state(i)
+                except OSError:
+                    pass
+        missing = [i for i in self.ids if i not in st]
+        self._stale_reads = self._stale_reads + 1 if missing else 0
+        for i in missing:
+            if self._stale_reads > self.MAX_STALE or i not in self._last.get("servos", {}):
+                raise BusError(f"servo(s) {missing} not answering ({self._stale_reads} reads in a row)")
+            st[i] = self._last["servos"][i]
+        self._last["servos"] = st
+        return st
 
     def read_state(self):
-        out = {i: ServoState(**self.bus.state(i)) for i in self.ids}
+        out = {i: ServoState(**s) for i, s in self._read_bus().items()}
         nan = float("nan")
         for i in self.pwm_ch:
             out[i] = ServoState(self.pwm_cmd.get(i), 0.0, 0.0, nan, nan, feedback=False)
@@ -198,17 +249,23 @@ class BusBackend:
     def read_imu(self):
         if self.imu is None:
             return np.zeros(3), np.array([0.0, 0.0, -1.0])
-        return self.imu.read()
+        return self._guard("imu", self.imu.read, (np.zeros(3), np.array([0.0, 0.0, -1.0])))
+
+    def enable_arms(self):
+        """Pulses to the arm servos only, leg torque unchanged (robot/calibrate.py --trim-arms)."""
+        self.arms_live = True
 
     def torque(self, enable):
-        self.bus.torque(self.ids, enable)
-        if self.pwm is None:
-            return
-        if enable:                                    # arm servos hold again where they were sent
-            for i, v in self.pwm_cmd.items():
-                self.pwm.set_pulse(self.pwm_ch[i], rad_to_us(v))
-        else:                                         # no pulses = hobby servos go limp
-            self.pwm.all_off()
+        self.arms_live = bool(enable)
+        try:
+            self.bus.torque(self.ids, enable)
+        finally:                                      # the arms go limp even if the bus write failed
+            if self.pwm is not None:
+                if enable:                            # arm servos hold again where they were sent
+                    for i, v in self.pwm_cmd.items():
+                        self.pwm.set_pulse(self.pwm_ch[i], rad_to_us(v))
+                else:                                 # no pulses = hobby servos go limp
+                    self.pwm.all_off()
 
     def wait(self, dt):
         if self._clock is not None:
@@ -413,12 +470,27 @@ def bus_models():
     return {SERVO_IDS[j]: MODELS[servo_for(j).bus_model] for j in BUS_JOINTS}
 
 
-def RealBackend(port="/dev/ttyUSB0", baudrate=1_000_000, imu=True, battery=True, arms="board"):
+def servo_port(by_id="/dev/serial/by-id"):
+    """The FE-URT-1's serial device. /dev/ttyUSB0 can change number when another USB-serial thing is
+    plugged in, so prefer the stable /dev/serial/by-id name. PINCH_SERVO_PORT overrides."""
+    import glob
+    if os.environ.get("PINCH_SERVO_PORT"):
+        return os.environ["PINCH_SERVO_PORT"]
+    found = sorted(glob.glob(os.path.join(by_id, "*")))
+    if len(found) == 1:
+        return found[0]
+    if len(found) > 1:
+        log.warning("several USB serial devices %s - using the first; set PINCH_SERVO_PORT to choose", found)
+        return found[0]
+    return "/dev/ttyUSB0"
+
+
+def RealBackend(port=None, baudrate=1_000_000, imu=True, battery=True, arms="board"):
     """The physical crab: leg servos via FE-URT-1 (pip install pyserial); arm servos on the
     Radxa's PWM pins (arms="board") or a PCA9685 board (arms="pca9685"); IMU and battery monitor
     via I2C. Missing arm outputs are reported; the legs still work."""
     import serial
-    ser = serial.Serial(port, baudrate=baudrate, timeout=0.02)
+    ser = serial.Serial(port or servo_port(), baudrate=baudrate, timeout=0.02)
     pwm = None
     if arms and PWM_JOINTS:
         try:

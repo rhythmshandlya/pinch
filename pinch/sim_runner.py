@@ -24,7 +24,7 @@ from pinch.face import Face  # noqa: E402
 from pinch.hearing import Hearing  # noqa: E402
 from pinch.memory import Memory  # noqa: E402
 from pinch.mind import Mind  # noqa: E402
-from pinch.touch import BodySense, StuckSense  # noqa: E402
+from pinch.touch import BodySense, CliffReflex, StuckSense  # noqa: E402
 from pinch.world import Desk  # noqa: E402
 from robot.backends import SimBackend  # noqa: E402
 from robot.crab_robot import DT, Crab  # noqa: E402
@@ -48,6 +48,7 @@ class PinchSim:
         self.rng = np.random.default_rng(seed)
         self.senses = BodySense()
         self.stuck_sense = StuckSense()
+        self.cliff = CliffReflex()
         self.stuck_events = []            # (t, "stuck"/"unstuck", why)
         self.last_recover, self.edge_recovers = -99.0, 0
         self.hearing = Hearing()
@@ -224,13 +225,15 @@ class PinchSim:
                 self.motions.append((round(self.t, 2), motion))
             for s in self.mind.outputs()[2]:
                 self.sounds_played.append((round(self.t, 2), s))
-            # reflex: the cliff sensors see no desk ahead -> stop and back off
-            if min(self.d.sensor("cliff_left").data[0], self.d.sensor("cliff_right").data[0]) > 0.11 \
-                    or min(self.d.sensor("cliff_left").data[0], self.d.sensor("cliff_right").data[0]) < 0:
-                if self.body.busy and self.body.status in ("goto", "walk", "push"):
-                    self.body.cancel()
-                    self.body.start(("walk", -0.03, 0.0, 0.0, 1.0))
-                    self.edge_stops += 1
+            # reflex: a cliff sensor sees no desk ahead while moving -> stop and back off (latched)
+            mm = [9999 if v < 0 else v * 1000 for v in (self.d.sensor("cliff_left").data[0],
+                                                         self.d.sensor("cliff_right").data[0])]
+            back = self.cliff.update(self.t, mm, 0.0, any(abs(c) > 1e-6 for c in self.body.cmd_vel))
+            self.body.forward_ok = self.cliff.forward_ok
+            if back is not None:
+                self.body.cancel()
+                self.body.start(back)
+                self.edge_stops += 1
             gyro, grav = self.hw.read_imu()
             for ev in self.senses.update(DT * MIND_EVERY, gyro, grav, feet_loaded=self.feet_down()):
                 self.mind.touch(ev)

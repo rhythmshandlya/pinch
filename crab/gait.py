@@ -149,7 +149,9 @@ class Gait:
         return 1.0 if need <= P.max_step else P.max_step / need
 
     # -- main --------------------------------------------------------------
-    def step(self, dt, cmd=(0.0, 0.0, 0.0)) -> np.ndarray:
+    def step(self, dt, cmd=(0.0, 0.0, 0.0), solve=True) -> np.ndarray:
+        """Advance the gait by dt. solve=False skips the leg IK and returns None: a caller that integrates
+        in several small substeps per control tick only needs the joint angles after the last one."""
         P = self.params
         # cap to what the legs can reach, then rate-limit so starts/stops are smooth
         target = np.asarray(cmd, float)
@@ -227,6 +229,9 @@ class Gait:
         else:
             self.shift[:] = 0
 
+        self.t += dt
+        if not solve:
+            return None
         q = (STAND if self.arms is None else self.arms).copy()
         for lg, idx in zip(LEG_IDS, LEG_IDX):
             p = feet[lg].copy()
@@ -235,7 +240,6 @@ class Gait:
             self.unreachable += not ok
             q[idx] = q_leg
         # ease in from the STAND pose so switching from emotes to walking is smooth
-        self.t += dt
         if self.t < P.blend_time:
             s = self.t / P.blend_time
             s = s * s * (3 - 2 * s)

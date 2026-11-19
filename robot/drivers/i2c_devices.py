@@ -81,7 +81,11 @@ class VL53L0X:
         self.bus.write_byte_data(self.addr, 0x8A, new & 0x7F)
         self.addr = new
 
+    FAR = 9999          # "nothing in range": no desk under the beam (a real reading, not a failure)
+
     def range_mm(self, timeout=0.05):
+        """Distance in mm; FAR when nothing is in range; None when the sensor didn't answer in time
+        (a failure: the caller must not read it as either desk or cliff)."""
         w = lambda r, v: self.bus.write_byte_data(self.addr, r, v)
         for r, v in ((0x80, 0x01), (0xFF, 0x01), (0x00, 0x00), (0x91, self.stop), (0x00, 0x01), (0xFF, 0x00),
                      (0x80, 0x00), (0x00, 0x01)):
@@ -96,7 +100,7 @@ class VL53L0X:
         hi, lo = self.bus.read_i2c_block_data(self.addr, 0x14 + 10, 2)
         w(0x0B, 0x01)                                                    # clear interrupt
         mm = (hi << 8) | lo
-        return None if mm >= 8000 else mm
+        return self.FAR if mm >= 8000 else mm
 
 
 def cliff_pair(bus, xshut_left, xshut_right):

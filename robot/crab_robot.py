@@ -67,12 +67,26 @@ class Crab:
         self.com_offset = np.asarray(com_offset)
         self.low_v_since = None
         self.t = 0.0
+        self.ticks = 0                              # 20 ms ticks so far (keys the per-tick state cache)
+        self._state_tick, self._state = -1, None
+        self.stopped = False                        # a safety stop happened: nothing moves any more
 
     # -- conversions ------------------------------------------------------
+    def state(self):
+        """The servos' state, read once per 20 ms tick however many parts of the program ask (the health
+        check, the emote/grasp policies, the feet-down sense): each bus read costs ~2 ms on the real robot."""
+        if self._state_tick != self.ticks:
+            try:
+                self._state = self.hw.read_state()
+            except OSError as e:                 # a servo stayed silent past the backend's tolerance
+                self.emergency_stop(f"servo bus: {e}")
+            self._state_tick = self.ticks
+        return self._state
+
     def read_joints(self):
         """Joint angles: measured for the bus servos; the PWM arm servos can't report, so for
         them it's where they were last sent (q_cmd)."""
-        st = self.hw.read_state()
+        st = self.state()
         q = self.q_cmd.copy()
         for i, j in enumerate(JOINT_NAMES):
             s = st[SERVO_IDS[j]]
@@ -86,6 +100,8 @@ class Crab:
 
     # -- the safety-checked tick -----------------------------------------
     def tick(self, q_target):
+        if self.stopped:
+            raise SafetyStop("stopped")
         q_target = np.clip(np.asarray(q_target, float), self.lo, self.hi)          # joint limits (CAD)
         step = np.clip(q_target - self.q_cmd, -MAX_STEP, MAX_STEP)                  # servo speed limit
         q_new = self.q_cmd + step
@@ -97,12 +113,16 @@ class Crab:
             self.arm_blocks += 1
         self.q_cmd = q_new
         self._send(self.q_cmd)
+        t0 = time.perf_counter()
         self.hw.wait(DT)
+        self.last_wait = time.perf_counter() - t0       # sleep (robot) or physics (twin): not the tick's own work
         self.t += DT
+        self.ticks += 1
         self._check_health()
         return self.q_cmd
 
     arm_blocks = 0                                   # how often the arm guard held the arms
+    last_wait = 0.0
 
     def _check_health(self):
         if int(round(self.t / DT)) % 10:                   # every 0.2 s is plenty
@@ -127,7 +147,11 @@ class Crab:
 
     def emergency_stop(self, why):
         log.error("SAFETY STOP: %s -> torque off", why)
-        self.hw.torque(False)
+        self.stopped = True
+        try:
+            self.hw.torque(False)
+        except OSError as e:                        # the bus itself may be what failed
+            log.error("torque off failed: %s", e)
         raise SafetyStop(why)
 
     # -- behaviours ------------------------------------------------------
@@ -161,14 +185,14 @@ class Crab:
         g = Gait(GAITS[gait], com_offset=self.com_offset)
         t0 = self.t
         while self.t - t0 < seconds:
-            q = STAND
-            for _ in range(int(DT / 0.002)):               # gait integrates at 500 Hz internally
-                q = g.step(0.002, cmd)
+            n = int(DT / 0.002)                            # gait integrates at 500 Hz internally
+            for k in range(n):
+                q = g.step(0.002, cmd, solve=k == n - 1)   # leg IK only after the last substep
             self.tick(q)
         for _ in range(int(1.0 / DT)):                      # settle: command zero velocity
-            q = STAND
-            for _ in range(int(DT / 0.002)):
-                q = g.step(0.002, (0.0, 0.0, 0.0))
+            n = int(DT / 0.002)
+            for k in range(n):
+                q = g.step(0.002, (0.0, 0.0, 0.0), solve=k == n - 1)
             self.tick(q)
 
     def run_policy(self, run_dir, cmd_fn, seconds):
@@ -198,9 +222,11 @@ class Crab:
             self.tick(pio.action_to_targets(np, last))
 
     def shutdown(self):
-        """Sit down gently, then release the servos."""
+        """Sit down gently, then release the servos. After a safety stop it doesn't move at all (and so
+        never re-enables the arm servos' pulses): it only makes sure torque is off."""
         try:
-            self.move_to(REST, 1.5)
+            if not self.stopped:
+                self.move_to(REST, 1.5)
         finally:
             self.hw.torque(False)
             if hasattr(self.hw, "close"):

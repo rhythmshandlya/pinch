@@ -25,13 +25,19 @@ class EmulatedHardware:
     threaded = False                     # deterministic: the firmware polls the senses in its own loop
     realtime = False
 
-    def __init__(self, start=None):
+    def __init__(self, start=None, pose=(0.0, 0.0, 0.0)):
+        """start: where the desk things are; pose: where Pinch stands (x, y, heading) - the firmware is told
+        the same start pose, as the real robot assumes it starts on its mat."""
         self.desk = Desk()
         self.m = build_desk_model(self.desk, start=start) if start else build_desk_model(self.desk)
         self.backend = SimBackend(model=self.m)
         self.d = self.backend.d
+        x, y, yaw = pose
+        self.d.qpos[0:2] = (x, y)
+        self.d.qpos[3:7] = (np.cos(yaw / 2), 0.0, 0.0, np.sin(yaw / 2))
+        mujoco.mj_forward(self.m, self.d)
         self.calibration = Calibration()
-        self.start_pose = (0.0, 0.0, 0.0)
+        self.start_pose = tuple(pose)
         self.fk = ClawFK(self.m)
         self.oled_chip = FakeOLED()
         self.oled = SSD1309(FakeBus(self.oled_chip))
@@ -79,7 +85,7 @@ class EmulatedHardware:
     def battery_fraction(self):
         return 0.8
 
-    def feet_down(self):
+    def feet_down(self, state_fn=None):
         feet = {self.m.geom(f"{lg}_foot").id for lg in ("FL", "FR", "RL", "RR")}
         desk = self.m.geom("desk_top").id
         n = set()

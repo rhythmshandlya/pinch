@@ -85,6 +85,9 @@ class Body:
         self.status = ""
         self.edge_guarded = 0                   # walking commands the edge guard trimmed
         self.cmd_vel = (0.0, 0.0, 0.0)          # the walking command right now (body frame)
+        self.forward_ok = True                  # False: the cliff sensors can't vouch for the desk ahead
+        self.pose_sigma_fn = None               # () -> how far off pose_fn() may be (m); widens the edge margin
+        self.forward_blocked = 0                # walking commands with their forward part removed
 
     def trace(self, what, **kw):
         self.log.append((round(self.t, 2), what, kw))
@@ -180,21 +183,27 @@ class Body:
         """Block the parts of a walking command that would carry a foot over the desk edge in the next 0.4 s
         (moving along the edge, or away from it, stays allowed). Uses Pinch's own desk position (the marker),
         so it works backwards and sideways too, where the cliff sensors can't see."""
+        if not self.forward_ok and cmd[0] > 0:            # nothing vouches for the desk ahead: no forward
+            cmd = (0.0, cmd[1], cmd[2])
+            self.forward_blocked += 1
         if self.pose_fn is None or not any(abs(c) > 1e-6 for c in cmd):
             return cmd
         x, y, h = self.pose_fn()
         now = self.desk.feet_margin((x, y), h)
+        # between camera fixes the position is integrated from the walking command and can be off: keep
+        # that much further from the edge (pinch_main.Localizer.sigma)
+        need = self.FEET_EDGE + (self.pose_sigma_fn() if self.pose_sigma_fn is not None else 0.0)
 
         def after(vx, vy, wz, T=0.4):
             c, s = np.cos(h), np.sin(h)
             return self.desk.feet_margin((x + (c * vx - s * vy) * T, y + (s * vx + c * vy) * T), h + wz * T)
 
         vx, vy, wz = cmd
-        if after(vx, vy, wz) >= min(self.FEET_EDGE, now):
+        if after(vx, vy, wz) >= min(need, now):
             return cmd
         self.edge_guarded += 1
         for alt in ((vx, vy, 0.0), (0.0, 0.0, wz), (vx, 0.0, 0.0), (0.0, vy, 0.0)):
-            if any(abs(c) > 1e-6 for c in alt) and after(*alt) >= min(self.FEET_EDGE, now):
+            if any(abs(c) > 1e-6 for c in alt) and after(*alt) >= min(need, now):
                 return alt
         return (0.0, 0.0, 0.0)
 
@@ -203,9 +212,8 @@ class Body:
         self.cmd_vel = tuple(float(c) for c in cmd)          # what the localizer integrates on the robot
         self.gait.arms = arms
         self.gait.lower += float(np.clip(lower - self.gait.lower, -0.0004, 0.0004))   # sink / rise smoothly
-        q = None
-        for _ in range(SUB):
-            q = self.gait.step(DT / SUB, cmd)
+        for k in range(SUB):                                   # leg IK only once per tick, after the last substep
+            q = self.gait.step(DT / SUB, cmd, solve=k == SUB - 1)
         return q
 
     def _walk(self, vx, vy, wz, seconds):

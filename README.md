@@ -74,7 +74,9 @@ Assembly and setup are in [hardware/ASSEMBLY.md](hardware/ASSEMBLY.md). Then:
 sudo bash deploy/install.sh
 ```
 
-Calibrate the servos (`robot/calibrate.py`), then:
+Calibrate the servos with the firmware's Python
+(`sudo /opt/pinch/venv/bin/python /opt/pinch/robot/calibrate.py`, saved to `/var/lib/pinch/calibration.json`;
+the firmware won't start without it), then:
 
 ```bash
 sudo systemctl start pinch

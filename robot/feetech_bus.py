@@ -167,17 +167,54 @@ class FeetechBus:
             out.update({sid: self._dec(self._status(sid), m) for sid in group})
         return out
 
+    def _decode_block(self, m, data, a0, end):
+        out = {}
+        for name, (a, s) in m.reg.items():
+            if a0 <= a and a + s <= end:
+                out[name] = self._dec(data[a - a0:a - a0 + s], m)
+        return out
+
     def read_block(self, sid, first, last) -> dict:
         """Read consecutive registers first..last in one transaction."""
         m = self.model_of(sid)
         a0, _ = m.reg[first]
         a1, s1 = m.reg[last]
         data = self._txrx(sid, READ, bytes([a0, a1 + s1 - a0]))
+        return self._decode_block(m, data, a0, a1 + s1)
+
+    def sync_read_block(self, ids, first, last) -> dict:
+        """Registers first..last from many servos: one SYNC_READ packet per protocol group (STS), so 12
+        servos cost one request and 12 back-to-back replies instead of 12 round trips. SCS servos can't
+        sync-read and are read one by one. If a reply is missing, the rest of the packet is discarded and
+        BusError raised (the caller can fall back to single reads to find out which servo is silent)."""
         out = {}
-        for name, (a, s) in m.reg.items():
-            if a0 <= a and a + s <= a1 + s1:
-                out[name] = self._dec(data[a - a0:a - a0 + s], m)
+        for m, group in self._groups(ids):
+            a0, _ = m.reg[first]
+            a1, s1 = m.reg[last]
+            if not m.sync_read:
+                out.update({sid: self.read_block(sid, first, last) for sid in group})
+                continue
+            self.port.write(packet(BROADCAST, SYNC_READ, bytes([a0, a1 + s1 - a0]) + bytes(group)))
+            try:
+                for sid in group:
+                    out[sid] = self._decode_block(m, self._status(sid), a0, a1 + s1)
+            except BusError:
+                if hasattr(self.port, "reset_input_buffer"):
+                    self.port.reset_input_buffer()
+                raise
         return out
+
+    def _state_from(self, m, r) -> dict:
+        return {"position": m.raw_to_rad(r["present_position"]),
+                "speed": self._signed(r["present_speed"], 15) * m.span / m.steps,
+                "load": self._signed(r["present_load"], 10) / 1000.0,
+                "voltage": r["present_voltage"] / 10.0,
+                "temperature": float(r["present_temperature"])}
+
+    def states(self, ids) -> dict:
+        """state() for many servos in one SYNC_READ: {sid: {position, speed, load, voltage, temperature}}."""
+        raw = self.sync_read_block(ids, "present_position", "present_temperature")
+        return {sid: self._state_from(self.model_of(sid), r) for sid, r in raw.items()}
 
     # -- robot-level helpers --------------------------------------------------
     def set_id(self, old, new):
@@ -208,9 +245,4 @@ class FeetechBus:
 
     def state(self, sid) -> dict:
         m = self.model_of(sid)
-        r = self.read_block(sid, "present_position", "present_temperature")
-        return {"position": m.raw_to_rad(r["present_position"]),
-                "speed": self._signed(r["present_speed"], 15) * m.span / m.steps,
-                "load": self._signed(r["present_load"], 10) / 1000.0,
-                "voltage": r["present_voltage"] / 10.0,
-                "temperature": float(r["present_temperature"])}
+        return self._state_from(m, self.read_block(sid, "present_position", "present_temperature"))

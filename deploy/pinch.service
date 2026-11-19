@@ -2,6 +2,10 @@
 Description=Pinch the robot crab (firmware: body, mind, senses, face)
 After=network-online.target sound.target
 Wants=network-online.target
+# a crash loop (no calibration file, a dead servo bus) gives up after 5 tries in 5 minutes instead of
+# thrashing the servos forever: `systemctl reset-failed pinch` after fixing it
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -11,7 +15,10 @@ EnvironmentFile=-/etc/pinch.env
 ExecStart=/opt/pinch/venv/bin/python /opt/pinch/robot/pinch_main.py
 Restart=on-failure
 RestartSec=5
-# a safety stop exits the loop with the servos off; a restart waits 5 s so it can't thrash
+# a safety stop exits the loop with the servos off; a restart waits 5 s so it can't thrash.
+# systemctl stop sends SIGTERM: the firmware sits down, turns torque and the arm pulses off, saves memory
+KillSignal=SIGTERM
+TimeoutStopSec=15
 Nice=-5
 
 [Install]

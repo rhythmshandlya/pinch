@@ -225,6 +225,55 @@ def main():
     dx = bb.sim.d.qpos[0] - x0
     check("walks with every command going through the byte-level bus", dx > 0.1, f"{dx * 100:.1f} cm in 3 s")
 
+    # firmware audit (docs/LIFE_PLAN.md A7): one SYNC_READ per state read, a silent servo ridden out for a
+    # moment, a dead one -> safety stop, and after a safety stop the arm servos get no pulses ever again
+    port_log = bb.bus.port.log
+    n0 = len(port_log)
+    st = bb.read_state()
+    reads = [e for e in port_log[n0:] if e[0] == "sync_read"]
+    check("servo state: all 12 leg servos in one SYNC_READ packet", len(reads) == 1 and len(reads[0][1]) == 12
+          and len(port_log) - n0 == 1 and all(st[i].feedback for i in bb.ids))
+    crab2.state()
+    t0 = len(port_log)
+    crab2.state()
+    crab2.read_joints()
+    check("...read once per 20 ms tick however many parts of the program ask", len(port_log) == t0)
+    servos_on_bus = bb.bus.port.servos
+    sid = bb.ids[4]
+    gone = servos_on_bus.pop(sid)
+    try:
+        st2 = bb.read_state()
+        ridden = st2[sid].position == st[sid].position and bb.errors["servo_read"] == 1
+    except OSError:
+        ridden = False
+    check("a servo that misses one reply: its last reading is used, the error counted", ridden)
+    stopped = False
+    try:
+        for _ in range(400):
+            crab2.tick(crab2.q_cmd)
+    except SafetyStop as e:
+        stopped = "servo bus" in str(e)
+    pulses_after_stop = [bb.chip.pulse_us(c) for c in range(6)]
+    try:
+        crab2.shutdown()                                    # must not sit down = must not pulse the arms
+    except Exception:
+        pass
+    check("a servo that stays silent -> safety stop (not a crash), torque off",
+          stopped and crab2.stopped and not bb.arms_live)
+    check("...and the arm servos get no pulses after it (not even from the shutdown)",
+          all(p is None for p in pulses_after_stop) and all(bb.chip.pulse_us(c) is None for c in range(6)))
+    servos_on_bus[sid] = gone
+
+    import os
+    import tempfile
+    from robot.backends import servo_port
+    with tempfile.TemporaryDirectory() as tmp:
+        none = servo_port(by_id=os.path.join(tmp, "missing"))
+        Path(tmp, "usb-1a86_USB_Single_Serial_54A7-if00").write_text("")
+        one = servo_port(by_id=tmp)
+    check("servo port: the stable /dev/serial/by-id name when there is one, else /dev/ttyUSB0",
+          none == "/dev/ttyUSB0" and one.endswith("usb-1a86_USB_Single_Serial_54A7-if00"))
+
     # the two arms can't be driven into each other anywhere inside their joint limits
     from crab.kinematics import arms_clear
     from robot.crab_robot import joint_limits

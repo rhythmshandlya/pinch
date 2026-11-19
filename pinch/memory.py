@@ -40,14 +40,34 @@ class Memory:
         self._dirty = False
 
     # -- writing ------------------------------------------------------------
-    def save(self):
+    def snapshot(self):
+        """The memory as text if it changed since the last save, else None. Cheap enough for the control
+        loop; the slow part (writing it to the SD card) is write() and can run in another thread."""
         if not self.path or not self._dirty:
-            return
+            return None
+        self._dirty = False
+        return json.dumps(self.data, indent=1)
+
+    def write(self, text):
+        """Atomic and durable: a power cut leaves either the old file or the new one, never half of one."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.data, indent=1), encoding="utf-8")
-        os.replace(tmp, self.path)                               # atomic: never a half-written file
-        self._dirty = False
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())                                 # data on the card before the rename
+        os.replace(tmp, self.path)
+        if hasattr(os, "O_DIRECTORY"):                           # and the rename itself (Linux)
+            fd = os.open(self.path.parent, os.O_DIRECTORY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+
+    def save(self):
+        text = self.snapshot()
+        if text is not None:
+            self.write(text)
 
     def remember(self, kind, text, **extra):
         self.data["episodes"].append(dict(t=self.clock(), kind=kind, text=text, **extra))

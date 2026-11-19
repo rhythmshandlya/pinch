@@ -128,28 +128,31 @@ def _obb_overlap(c1, R1, h1, c2, R2, h2, margin):
     """Separating-axis test for two oriented boxes (grown by margin)."""
     h1, h2 = h1 + margin / 2, h2 + margin / 2
     d = c2 - c1
-    axes = [R1[:, i] for i in range(3)] + [R2[:, i] for i in range(3)]
-    axes += [np.cross(R1[:, i], R2[:, j]) for i in range(3) for j in range(3)]
-    for a in axes:
-        n = np.linalg.norm(a)
-        if n < 1e-9:
-            continue
-        a = a / n
-        r1 = sum(h1[i] * abs(a @ R1[:, i]) for i in range(3))
-        r2 = sum(h2[i] * abs(a @ R2[:, i]) for i in range(3))
-        if abs(a @ d) > r1 + r2:
-            return False
-    return True
+    if d @ d > (np.sqrt(h1 @ h1) + np.sqrt(h2 @ h2)) ** 2:      # bounding spheres apart: the usual case
+        return False
+    # the 15 candidate axes at once (3 + 3 face normals, 9 edge-edge cross products)
+    axes = np.vstack([R1.T, R2.T, np.cross(R1.T[:, None, :], R2.T[None, :, :]).reshape(9, 3)])
+    n = np.linalg.norm(axes, axis=1)
+    axes = axes[n > 1e-9] / n[n > 1e-9, None]
+    r1 = np.abs(axes @ R1) @ h1
+    r2 = np.abs(axes @ R2) @ h2
+    return not bool(np.any(np.abs(axes @ d) > r1 + r2))
 
 
 def arms_clear(q_left, q_right, margin=0.0) -> bool:
     """True if the two arms keep at least `margin` apart (q = (yaw, pitch) per arm).
     The boxes already sit slightly outside the real parts, so no extra margin is needed."""
     L_, R_ = arm_obbs("L", q_left), arm_obbs("R", q_right)
-    for la, c1, R1, h1 in L_:
-        for lb, c2, R2, h2 in R_:
-            if la == "shoulder" and lb == "shoulder":
-                continue                                   # fixed to the body, far apart
-            if _obb_overlap(c1, R1, h1, c2, R2, h2, margin):
-                return False
+    # this runs every 20 ms on the robot: rule out all box pairs whose bounding spheres are apart in one go,
+    # and run the full separating-axis test only on the few that remain
+    cl, cr = np.array([b[1] for b in L_]), np.array([b[1] for b in R_])
+    rl = np.array([np.linalg.norm(b[3]) for b in L_]) + margin / 2
+    rr = np.array([np.linalg.norm(b[3]) for b in R_]) + margin / 2
+    near = np.sum((cl[:, None, :] - cr[None, :, :]) ** 2, axis=2) <= (rl[:, None] + rr[None, :]) ** 2
+    for i, j in zip(*np.nonzero(near)):
+        (la, c1, R1, h1), (lb, c2, R2, h2) = L_[i], R_[j]
+        if la == "shoulder" and lb == "shoulder":
+            continue                                       # fixed to the body, far apart
+        if _obb_overlap(c1, R1, h1, c2, R2, h2, margin):
+            return False
     return True

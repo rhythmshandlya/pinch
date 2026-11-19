@@ -82,7 +82,10 @@ class StuckSense:
     """Is Pinch stuck? While standing: tilted on what should be a flat desk, or a foot carrying no weight
     (hanging over an edge, or on top of something). While walking: commands but no progress. Debounced;
     emits "stuck" once, then "unstuck" when it has cleared for a while. Inputs exist on the robot too: IMU
-    gravity, feet carrying load (servo loads), the desk position (marker) and the walking command."""
+    gravity, feet carrying load (servo loads), the walking command, and a *measured* desk position: the
+    camera's marker fixes and ground flow (pinch_main.Localizer.measured_xy), never the position integrated
+    from the walking command - that one keeps moving while the crab is stuck, which is the very thing to catch.
+    No measurement in the window = no judgement on progress (the tilt / feet checks still work)."""
 
     def __init__(self, tilt_deg=7.0, bad_s=1.5, ok_s=2.0):     # belly on an edge tilts 7.7-11 deg; trotting <= 4.8
         self.tilt_deg, self.need_bad, self.need_ok = tilt_deg, bad_s, ok_s
@@ -96,7 +99,8 @@ class StuckSense:
         """feet_margin: how far the feet are inside the desk (m, from the desk position and the leg layout;
         negative = a foot is over the edge) - known at once, whatever Pinch is doing."""
         self.t += dt
-        self.hist.append((self.t, pose[0], pose[1], cmd_speed if walking else 0.0))
+        mx, my = (None, None) if pose is None else (pose[0], pose[1])
+        self.hist.append((self.t, mx, my, cmd_speed if walking else 0.0))
         why = ""
         if not lifted and feet_margin is not None and feet_margin < -0.003:
             why = "a foot over the edge"
@@ -108,9 +112,14 @@ class StuckSense:
                 why = f"only {feet_loaded} feet down"
         if not lifted and walking:
             win = [r for r in self.hist if r[0] > self.t - 3.0]
+            meas = [r for r in win if r[1] is not None]
             if win and win[-1][0] - win[0][0] > 2.5 and np.mean([r[3] for r in win]) > 0.012 \
-                    and np.hypot(win[-1][1] - win[0][1], win[-1][2] - win[0][2]) < 0.008:
-                why = "walking but not moving"
+                    and len(meas) >= 4 and meas[-1][0] - meas[0][0] > 2.0:
+                k = max(1, len(meas) // 3)                    # mean of the first and last third: robust to jitter
+                a = np.mean([(r[1], r[2]) for r in meas[:k]], axis=0)
+                b = np.mean([(r[1], r[2]) for r in meas[-k:]], axis=0)
+                if np.hypot(*(b - a)) < 0.008:
+                    why = "walking but not moving"
         out = []
         if why:
             self.bad_s += dt
@@ -125,6 +134,51 @@ class StuckSense:
                 self.stuck = False
                 out.append("unstuck")
         return out
+
+
+class CliffReflex:
+    """The two cliff sensors under the front corners -> the edge reflex (shared by the firmware and the twin).
+
+      * either beam sees no desk (max of the two, not min: one corner over the edge is enough) while the
+        body is moving at all (its walking command, not the task's name) -> stop and back off, once:
+        the reflex latches until both beams see desk again, so its own backing-off can't re-trigger it;
+      * a beam that is missing, failing or stale is "don't know", which means no walking forward (the
+        direction the sensors guard) - never "cliff", which would back off forever.
+    Forward walking also stays blocked while latched. Body reads `forward_ok` through its edge guard."""
+
+    BACK = ("walk", -0.03, 0.0, 0.0, 1.0)
+
+    def __init__(self, cliff_mm=110, stale_s=0.3, clear_s=0.2):
+        self.cliff_mm, self.stale_s, self.clear_s = cliff_mm, stale_s, clear_s
+        self.state = "unknown"              # ok | cliff | unknown
+        self.latched = False
+        self.clear_since = None
+        self.stops = 0
+
+    @property
+    def forward_ok(self):
+        return self.state == "ok" and not self.latched
+
+    def update(self, t, readings_mm, age_s, moving):
+        """readings_mm: the two beams (mm; None = no answer) or None if there are no sensors; age_s: how
+        old they are. Returns the motion to start ("walk" backwards) or None."""
+        if readings_mm is None or age_s is None or age_s > self.stale_s or any(r is None for r in readings_mm):
+            self.state = "unknown"
+        else:
+            self.state = "cliff" if max(readings_mm) > self.cliff_mm else "ok"
+        if self.latched:
+            if self.state == "ok":
+                self.clear_since = t if self.clear_since is None else self.clear_since
+                if t - self.clear_since >= self.clear_s:
+                    self.latched = False
+            else:
+                self.clear_since = None
+            return None
+        if self.state == "cliff" and moving:
+            self.latched, self.clear_since = True, None
+            self.stops += 1
+            return self.BACK
+        return None
 
 
 class BodySense:

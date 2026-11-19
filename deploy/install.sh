@@ -8,12 +8,14 @@ DEST=/opt/pinch
 echo "== packages"
 apt-get update
 apt-get install -y python3-venv python3-libgpiod alsa-utils i2c-tools      # (not python3-opencv: Debian 12 has 4.6, without cv2.aruco.ArucoDetector)
+# python3-libgpiod is libgpiod 1.6 on Debian 12 (the v1 Python API); robot/hw_real.py speaks both v1 and v2
 
 echo "== code -> $DEST"
 mkdir -p "$DEST"
 cp -r crab pinch robot brain policies sim "$DEST"/
+rm -f "$DEST/robot/calibration.json"                 # calibration lives in /var/lib/pinch, never in the code folder
 python3 -m venv --system-site-packages "$DEST/venv"
-"$DEST/venv/bin/pip" install --quiet numpy pyserial smbus2 pillow mujoco "opencv-python-headless>=4.8"   # aarch64 wheels; ArucoDetector needs >= 4.7
+"$DEST/venv/bin/pip" install --quiet numpy pyserial smbus2 pillow mujoco "opencv-python-headless>=4.8,<5"   # aarch64 wheels; ArucoDetector needs >= 4.7, OpenCV 5 drops CascadeClassifier
 
 echo "== settings (/etc/pinch.env)"
 if [ ! -f /etc/pinch.env ]; then
@@ -37,5 +39,8 @@ echo "== service"
 cp deploy/pinch.service /etc/systemd/system/pinch.service
 systemctl daemon-reload
 systemctl enable pinch.service
-echo "Done. Calibrate first (python robot/calibrate.py, then --check-directions, then --trim-arms),"
+echo "Done. Calibrate first, with the firmware's own Python (it saves /var/lib/pinch/calibration.json;"
+echo "the firmware refuses to start without it):"
+echo "    sudo $DEST/venv/bin/python $DEST/robot/calibrate.py                    (then --check-directions, --trim-arms)"
+echo "    sudo $DEST/venv/bin/python $DEST/robot/calibrate_camera.py             (the fisheye camera, with the printed checkerboard)"
 echo "then: sudo systemctl start pinch    (logs: journalctl -u pinch -f;  status: curl localhost:8080/status)"
