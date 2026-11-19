@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from cad.servo import FIT, GS4308 as GS, M2_CLEAR, M2_PILOT, STS3032 as SC, box, disc  # noqa: E402
-from crab.params import PARAMS  # noqa: E402
+from crab.params import CLIFF_BEAMS, PARAMS  # noqa: E402
 
 MM = 1000.0
 LC = PARAMS.leg.coxa_len * MM          # 22  yaw -> femur axis
@@ -371,7 +371,8 @@ TRAY_Z = (Z_RIM, Z_RIM + 2.0)
 SPEAKER = (-15.0, 0.0, 14.2)      # x, y, radius of the 28 mm speaker seat inside the dome (above the Pi)
 SWITCH = (-26.0, 0.0, 13.4, 19.4) # power switch cutout in the floor (behind the battery): x, y, size x, size y
 MIC = (24.0, -20.0)               # microphone board on the tray, under a 1.6 mm port in the dome
-TOF = (-8.0, -17.0)               # x, z of the distance-sensor windows in the side walls (y ~ +-51)
+# the five VL53L0X cliff beams' windows: crab/params.py CLIFF_BEAMS (shared with the twin and the robot)
+CLIFF_WINDOW_R = 3.6              # 7.2 mm open hole: clears the sensor's ~35 deg cone through a 1.8 mm wall
 FACE_TILT = 25.0                  # deg the face screen leans back (it looks up at you)
 FACE_CENTRE = (36.0, 0.0, 36.0)   # centre of the OLED module, body frame (mm): lower edge ~16 mm up
 FACE_MODULE = (61.5, 39.5)        # 2.42" SSD1309 module (width, height)
@@ -541,6 +542,8 @@ def chassis():
     # cable hole through the deck: servo leads and battery wires meet the electronics above it
     bx0, bx1, by0, by1 = BAY
     body -= box(-12.0, 12.0, -14.0, 14.0, Z_DECK[0] - 1, Z_DECK[1] + 1)
+    # slots over both ends of the battery bay: a 2S pack's leads leave from one end, against the bay wall (audit)
+    body -= box(-5.0, 5.0, -(BAY[3] - 0.5), BAY[3] - 0.5, Z_DECK[0] - 1, Z_DECK[1] + 1)
     # camera: lens hole through the front wall, a pocket behind it holds the camera head upright
     xf = outline.bounds[2]
     h, w = CAM_HEAD / 2 + 0.2, CAM_HEAD / 2 + 1.9
@@ -561,10 +564,9 @@ def chassis():
     # power switch in the floor, behind the battery (flip it from underneath)
     sx, sy, sw, sh = SWITCH
     body -= box(sx - sw / 2, sx + sw / 2, sy - sh / 2, sy + sh / 2, Z_FLOOR[0] - 1, Z_FLOOR[1] + 1)
-    # windows for the two VL53L0X distance sensors, one in each side wall (crabs walk sideways)
-    tx, tz = TOF
-    for s in (1, -1):
-        body -= cyl_y(3.5, s * 40, s * 62, tx, tz)
+    # windows for the five VL53L0X cliff beams, each drilled along its beam through the wall
+    for _, wx, wy, wz, d in CLIFF_BEAMS:
+        body -= Location(Plane(origin=(wx, wy, wz), z_dir=d)) * Cylinder(CLIFF_WINDOW_R, 16.0)
     sol = body.solids()
     return max(sol, key=lambda s: s.volume)
 

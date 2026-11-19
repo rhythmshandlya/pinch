@@ -1,6 +1,6 @@
 part,qty,material,infill,orientation,size_mm,est_mass_g,volume_cm3
-chassis,1,PETG,"40% gyroid, 3 walls",floor down (supports inside the camera pocket),89 x 116 x 39,54.4,57.1
-top_shell,1,PETG,"solid (2 mm wall), 3 walls",rim down (supports under the eye stalks and the speaker ring),92 x 115 x 48,32.8,25.8
+chassis,1,PETG,"40% gyroid, 3 walls",floor down (supports inside the camera pocket),89 x 116 x 39,52.0,54.6
+top_shell,1,PETG,"solid (2 mm wall), 3 walls",rim down (supports under the face visor and the speaker ring),92 x 115 x 48,33.5,26.4
 belly_door,1,PETG,"50% gyroid, 4 walls",flat,37 x 72 x 2,6.0,4.7
 pi_tray,1,PETG,"50% gyroid, 4 walls","flat, stand-offs up",74 x 60 x 5,8.1,7.1
 desk_tray,1,PETG,"50% gyroid, 4 walls",,164 x 93 x 52,16.2,25.5

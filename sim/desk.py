@@ -19,6 +19,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from crab.params import CLIFF_BEAMS  # noqa: E402
 from pinch.world import Desk  # noqa: E402
 
 CRAB_XML = ROOT / "sim" / "models" / "crab.xml"
@@ -106,10 +107,19 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True)
             g.priority = 2       # legs and shell keep MuJoCo's default (soft) contact, even against small things:
                                  # a stiff foot-pen contact squeezes a pen against the desk and shoots it off
     body = next(b for b in spec.bodies if b.name == "body")
-    # cliff sensors: VL53L0X behind the side windows, looking forward-down
-    for side, y in (("left", 0.045), ("right", -0.045)):
-        s = body.add_site(name=f"cliff_{side}", pos=[0.045, y, -0.010], size=[0.002, 0, 0],
-                          euler=[0, np.radians(130), 0])   # +z (the beam) forward and down (was -130: backward!)
+    # the five VL53L0X cliff beams, exactly where cad/parts.py CLIFF_BEAMS puts their windows (decision 30).
+    # The front pair keep their old names (cliff_left / cliff_right); the beam is each site's +z axis.
+    names = {"front_left": "left", "front_right": "right", "rear": "rear",
+             "side_left": "side_left", "side_right": "side_right"}
+    for key, wx, wy, wz, d in CLIFF_BEAMS:
+        side = names[key]
+        z = np.asarray(d, float) / np.linalg.norm(d)
+        axis = np.cross([0.0, 0.0, 1.0], z)
+        ang = np.arccos(np.clip(z[2], -1, 1))
+        axis = axis / (np.linalg.norm(axis) + 1e-12)
+        quat = [np.cos(ang / 2), *(np.sin(ang / 2) * axis)]
+        s = body.add_site(name=f"cliff_{side}", pos=[wx / 1000, wy / 1000, wz / 1000], size=[0.002, 0, 0],
+                          quat=quat)
         sen = spec.add_sensor(name=f"cliff_{side}", type=mujoco.mjtSensor.mjSENS_RANGEFINDER,
                               objtype=mujoco.mjtObj.mjOBJ_SITE, objname=s.name)
         sen.cutoff = 1.2                                 # the VL53L0X reaches ~1.2 m (also: how high it is lifted)

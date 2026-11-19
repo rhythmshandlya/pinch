@@ -1,6 +1,6 @@
 section,item,store,sku,qty,unit_inr,total_inr,need,stock,note
 Servos & bus,Feetech STS3032 serial bus servo (legs),Evelta,501-STS3032,14,3327.6,46586.4,required,27 in stock,"12 + 2 spares. All leg joints (IDs 1-12); they report position, load and heat"
-Servos & bus,GOTECK GS-4308MG 4.3 g metal-gear micro servo (arms),Evelta,448-GS-4308MG,8,886.58,7092.64,required,14 in stock,"6 + 2 spares. Arm swing, lift and claw. Plain PWM servos (no feedback), 150 mm leads"
+Servos & bus,"GOTECK GS-4308MG metal-gear micro servo, pack of 2 (arms)",Evelta,448-GS-4308MG,4,886.58,3546.32,required,14 in stock,"4 packs = 8 servos: 6 + 2 spares (Evelta's unit is a pair: audit). Arm swing, lift and claw. Plain PWM servos (no feedback), 150 mm leads"
 Servos & bus,Feetech FE-URT-1 USB to bus-servo signal converter,robu.in,1110047,1,1069.0,1069.0,required,in stock,Evelta's FE-URT-2 was sold out; FE-URT-1 does the same job
 Servos & bus,"5264 3-pin servo cable, 900 mm (pack of 6)",robu.in,R263666,2,359.0,718.0,required,in stock,Extensions from each limb to the hub; coil the extra length inside the body
 Servos & bus,8 x 12 cm double-sided prototype PCB,robu.in,44139,1,114.0,114.0,required,check,Servo bus hub (cut a 3 x 2 cm piece); price from the earlier robu check
@@ -8,10 +8,10 @@ Servos & bus,2.54 mm 1 x 40 male header strip,robu.in,539076,2,15.0,30.0,require
 Brain & senses,"Radxa ZERO 3W, 2 GB RAM (Pi Zero size, RK3566, Wi-Fi)",Evelta,498-RS107-D2E0H1W15,1,6460.5,6460.5,required,15 in stock,"Replaces the sold-out Pi Zero 2 W: same size, 40-pin header and mounting holes"
 Brain & senses,"SanDisk Ultra 32 GB microSD (A1, class 10)",robu.in,R268040,1,1629.0,1629.0,required,in stock,Radxa OS (Debian)
 Brain & senses,"160 deg wide-angle camera for Pi Zero (OV5647 fisheye, 22-pin)",Amazon.in,B083XMGSVP,1,3346.0,3346.0,required,listed,"Pinch's eyes: sees the claw's workspace, the desk around it and your face (decision 16)"
-Brain & senses,Amkette USB-C (male) to USB-A (female) OTG adapter,Amazon.in,B0F48DGQLY,1,99.0,99.0,required,listed,Radxa's USB-C port -> FE-URT-1. Evelta's (083-USB2-F-C-MOD) was sold out
+Brain & senses,"USB-C (male) to Mini-USB (male) OTG cable, 10-15 cm",Amazon.in,search 'USB C to mini USB OTG cable short',1,199.0,199.0,required,check,Radxa's USB-C 2 (host) port -> FE-URT-1's Mini-USB socket. Short and direct: an OTG adapter + cable is ~8 cm of rigid parts inside the body (audit). Price estimated
 Brain & senses,7Semi BNO055 9-DOF IMU breakout,Evelta,004-ES-12149,1,1341.66,1341.66,required,440 in stock,Balance + fall detection
 Brain & senses,7Semi INA219 voltage / current monitor breakout,Evelta,004-ES-12152,1,241.9,241.9,required,88 in stock,Battery voltage for the safety stop and the pet's 'hunger'
-Brain & senses,"VL53L0X ToF distance module, small (GY-VL53L0XV2, 25 x 10.7 mm)",robu.in,search 'VL53L0X',2,300.0,600.0,required,check,Side windows (cliff + obstacle). Price estimated. Evelta's Grove board (20 x 40) is too long
+Brain & senses,"VL53L0X ToF distance module, small (GY-VL53L0XV2, 25 x 10.7 mm)",robu.in,search 'VL53L0X',6,300.0,1800.0,required,check,"Five cliff beams (front pair, rear, both sides; decision 30) + 1 spare. Price estimated. Evelta's Grove board (20 x 40) is too long"
 Brain & senses,Adafruit MAX98357A I2S 3 W amplifier,Evelta,076-3006,1,860.07,860.07,required,14 in stock,Tones and chirps (the pet never talks)
 Brain & senses,28 mm 8 ohm 0.5 W speaker (GSPK2805TN),robu.in,R210811,1,82.0,82.0,required,in stock,Glued into the seat inside the dome
 Brain & senses,DFRobot I2S MEMS microphone module,robu.in,1074722,2,629.0,1258.0,required,in stock,"Two (left + right on one I2S line): hears you, your mood, meetings, and where you are"
@@ -26,7 +26,10 @@ Power,BX100 1-8S LiPo low-voltage buzzer,robu.in,835784,1,218.0,218.0,recommende
 Power,"7Semi AP64500 buck converter, 5 V 5 A",Evelta,004-BO-10188,2,823.64,1647.28,required,125 in stock,"One for the servo bus, one for the Pi + audio. Fixed 5 V: nothing to adjust"
 Power,Mini blade fuse holder (PCB type; solder two leads on),robu.in,R260426,1,19.0,19.0,required,in stock,
 Power,5 A mini blade fuse,robu.in,R260430,3,19.0,57.0,required,in stock,1 + 2 spares
-Power,"ALPS SPST rocker switch, 8 A (SDDJF1A100)",Evelta,341-SDDJF1A100,1,201.78,201.78,required,28 in stock,In the belly; check it fits the 19.4 x 13.4 mm cutout (file it if needed)
+Power,"ALPS SPST rocker switch, 8 A (SDDJF1A100)",Evelta,341-SDDJF1A100,1,201.78,201.78,required,28 in stock,"In the belly; check it fits the 19.4 x 13.4 mm cutout. VERIFY it latches: one listing calls it momentary / discontinued (audit) - if so, any latching mini rocker that fits"
+Power,"2S Li-ion/LiPo protection board (BMS), 5 A, e.g. HX-2S",robu.in,search '2S BMS protection board',1,60.0,60.0,required,check,Hard low-voltage floor: the software's 6.4 V stop leaves the Radxa and OLED draining the pack (audit). Price estimated
+Power,0.01 ohm 2512 current-sense resistor (for the INA219),robu.in,search '0.01 ohm 2512 resistor',2,20.0,40.0,required,check,Replaces the INA219 board's 0.1 ohm shunt: that one clips at 3.2 A and drops 0.5 V at 5 A (audit). Price estimated
+Brain & senses,"Aluminium heatsink ~14 x 14 x 6 mm, self-adhesive",robu.in,search 'heatsink 14x14',1,40.0,40.0,required,check,On the Radxa's RK3566 inside the closed shell (audit: no cooling). Price estimated
 Power,Amass T-plug (Deans) connector pair with cap,robu.in,R264629,3,37.0,111.0,required,in stock,Matches the Bonka pack
 Power,"20 AWG silicone wire, red (per metre)",robu.in,1824992,2,40.0,80.0,required,in stock,
 Power,"20 AWG silicone wire, black (per metre)",robu.in,1824989,2,40.0,80.0,required,in stock,

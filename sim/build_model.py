@@ -235,8 +235,10 @@ def servo_defaults() -> str:
 def carapace() -> str:
     B = P.body
     if COL:
-        return "\n      ".join(f'<geom name="{g["name"]}" type="box" pos="{f(*g["pos"])}" size="{f(*g["size"])}" material="shell"/>'
-                               for g in COL["body"])
+        return "\n      ".join(
+            f'<geom name="{g["name"]}" type="{g.get("type", "box")}" pos="{f(*g["pos"])}" size="{f(*g["size"])}"'
+            + (f' euler="{f(*g["euler"])}"' if "euler" in g else "") + ' material="shell"/>'
+            for g in COL["body"])
     return f'<geom name="carapace" type="ellipsoid" size="{f(*B.half_size)}" mass="{B.mass}" material="shell"/>'
 
 

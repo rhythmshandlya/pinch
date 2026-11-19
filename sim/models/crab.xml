@@ -125,7 +125,7 @@
       <camera name="track" mode="trackcom" pos="0.2184 -0.26 0.156" xyaxes="0.7657 0.6432 -0 -0.2685 0.3197 0.9087"/>
       <camera name="eye_cam" pos="0.04893 0 0.001" xyaxes="0 -1 0 0 0 1" fovy="41.4"/>
       <site name="imu" pos="0 0 0" size="0.0052" rgba="0 0 0 0"/>
-      <inertial pos="2.509505e-03 8.603776e-06 -6.363337e-03" mass="0.319874" fullinertia="3.519555e-04 2.251980e-04 4.302027e-04 2.741071e-08 -2.059074e-06 -4.897559e-08"/>
+      <inertial pos="2.586915e-03 8.656245e-06 -6.295091e-03" mass="0.318213" fullinertia="3.526920e-04 2.268878e-04 4.297933e-04 2.759911e-08 -3.206181e-06 -4.880689e-08"/>
         <geom class="visual" type="mesh" mesh="body_chassis" material="printed"/>
         <geom class="visual" type="mesh" mesh="body_top_shell" material="shell"/>
         <geom class="visual" type="mesh" mesh="body_belly_door" material="printed"/>
@@ -136,8 +136,9 @@
         <geom class="visual" type="mesh" mesh="body_RR_yaw_servo" material="servo"/>
         <geom class="visual" type="mesh" mesh="body_L_yaw_servo" material="servo"/>
         <geom class="visual" type="mesh" mesh="body_R_yaw_servo" material="servo"/>
-      <geom name="chassis_box" type="box" pos="0.0003204 0 -0.01015" size="0.03831 0.03 0.01965" material="shell"/>
-      <geom name="dome_box" type="box" pos="0.0003204 0 0.01675" size="0.03231 0.04 0.00725" material="shell"/>
+      <geom name="chassis_box" type="box" pos="0.00432 0 -0.01015" size="0.04231 0.05606 0.01965" material="shell"/>
+      <geom name="dome" type="ellipsoid" pos="0.006007 0 0.0095" size="0.04599 0.05769 0.019" material="shell"/>
+      <geom name="visor_box" type="box" pos="0.036 0 0.036" size="0.0032 0.03375 0.0225" euler="0 -0.4363 0" material="shell"/>
       
 
       <body name="FL_coxa_link" pos="0.022 0.046 0" euler="0 0 1.1170">

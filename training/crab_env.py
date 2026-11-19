@@ -85,7 +85,9 @@ REWARD_SCALES = dict(
 class CrabWalkEnv(Env):
     """Velocity-command walking. Command = (vx, vy, wz) in the body frame."""
 
-    def __init__(self, sim_dt=0.004, episode_seconds=20.0, cmd_resample_s=5.0,
+    # v4: 2 ms physics, like the twin. At 4 ms even the scripted gait tracked 32 % instead of 67 %, so
+    # policies learned in 4 ms physics walked badly in the twin (decision 31)
+    def __init__(self, sim_dt=0.002, episode_seconds=20.0, cmd_resample_s=5.0,
                  cmd_ranges=None, obs_noise=0.02, push_interval_s=4.0, push_vel=None,
                  reward_scales=None):
         from crab.params import PARAMS
@@ -98,6 +100,7 @@ class CrabWalkEnv(Env):
         self.sim_dt = sim_dt
         self.n_substeps = int(round(pio.CTRL_DT / sim_dt))
         self.dt = pio.CTRL_DT
+        self.T_steps = int(episode_seconds / pio.CTRL_DT)   # (for per-episode averages in the eval logs)
         self.episode_steps = int(episode_seconds / self.dt)
         self.cmd_resample_steps = int(cmd_resample_s / self.dt)
         self.cmd_lo = jp.array([r[0] for r in cmd_ranges])
@@ -175,6 +178,7 @@ class CrabWalkEnv(Env):
             v_filt=jp.zeros(3),                        # body velocity smoothed over ~a gait cycle
         )
         metrics = {k: jp.array(0.0) for k in self.scales}
+        metrics["track"] = jp.array(0.0)
         obs = self._obs(data, info, jax.random.PRNGKey(0))
         return State(data, obs, jp.array(0.0), jp.array(0.0), metrics, info)
 
@@ -254,6 +258,9 @@ class CrabWalkEnv(Env):
         done = fell.astype(jp.float32)
         metrics = dict(state.metrics)        # keep keys wrappers add (e.g. "reward")
         metrics.update(r)
+        # how much of the commanded speed it actually walks (the robustness bench's measure), logged only
+        cn2 = jp.sum(cmd[:2] ** 2)
+        metrics["track"] = jp.where(cn2 > 1e-6, jp.dot(v_filt[:2], cmd[:2]) / (cn2 + 1e-9), 0.0) / self.T_steps
         obs = self._obs(data, info, k_noise)
         return state.replace(pipeline_state=data, obs=obs, reward=reward, done=done,
                              metrics=metrics, info=info)

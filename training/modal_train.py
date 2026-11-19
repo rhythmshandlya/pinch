@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 import os
 APP, VOLUME = "pinch-train", "pinch-checkpoints"
 GPU = os.environ.get("PINCH_GPU", "L4")          # L4 ~$0.80/h; A10G ~$1.10/h when L4s are queued
-TIMEOUT_S = 90 * 60
+TIMEOUT_S = int(os.environ.get("PINCH_TIMEOUT_MIN", "90")) * 60   # hard stop for every run
 
 image = (
     modal.Image.debian_slim(python_version="3.12")

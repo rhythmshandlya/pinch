@@ -14,6 +14,8 @@ Then run `python sim/build_model.py` (it picks these up automatically).
 
 import csv
 import json
+
+import numpy as np
 import re
 import sys
 from pathlib import Path
@@ -32,7 +34,7 @@ MESH_DIR = ROOT / "sim" / "models" / "meshes"
 INFILL = {"chassis": "40% gyroid, 3 walls", "top_shell": "solid (2 mm wall), 3 walls",
           "foot_tip": "TPU 95A, 50% gyroid", "jaw_pad": "TPU 95A, solid", "default": "50% gyroid, 4 walls"}
 ORIENT = {"chassis": "floor down (supports inside the camera pocket)",
-          "top_shell": "rim down (supports under the eye stalks and the speaker ring)",
+          "top_shell": "rim down (supports under the face visor and the speaker ring)",
           "belly_door": "flat", "pi_tray": "flat, stand-offs up",
           "coxa_link": "cradle floor down", "femur_link": "thigh plate down",
           "tibia": "horn plate down", "foot_tip": "sphere up", "shoulder": "spine side down",
@@ -96,10 +98,18 @@ def main():
     o = P.body_outline().buffer(-2.0)
     x0, y0, x1, y1 = o.bounds
     zf, zr = P.Z_FLOOR[0], P.Z_RIM
-    boxes = [dict(name="chassis_box", pos=[(x0 + x1) / 2e3 - 0.004, 0, (zf + zr) / 2e3],
-                  size=[(x1 - x0) / 2e3 - 0.004, 0.030, (zr - zf) / 2e3]),
-             dict(name="dome_box", pos=[(x0 + x1) / 2e3 - 0.004, 0, (zr + 24.0) / 2e3],
-                  size=[(x1 - x0) / 2e3 - 0.010, 0.040, (24.0 - zr) / 2e3])]
+    # the body's real size (the twin used to be half as wide and had no visor, so flips and getting
+    # high-centred came out wrong): the chassis tub, the dome (the same ellipsoid the shell is cut from,
+    # clipped to its planform) and the face visor
+    sp = P.shell_planform().bounds
+    cx = (sp[0] + sp[2]) / 2
+    boxes = [dict(name="chassis_box", type="box", pos=[(x0 + x1) / 2e3, 0, (zf + zr) / 2e3],
+                  size=[(x1 - x0) / 2e3, (y1 - y0) / 2e3, (zr - zf) / 2e3]),
+             dict(name="dome", type="ellipsoid", pos=[cx / 1e3, 0, zr / 1e3],
+                  size=[(sp[2] - sp[0]) / 2e3, (sp[3] - sp[1]) / 2e3, 0.019]),
+             dict(name="visor_box", type="box", pos=[c / 1e3 for c in P.FACE_CENTRE],
+                  size=[0.0032, P.FACE_HOUSING[0] / 2e3, P.FACE_HOUSING[1] / 2e3],
+                  euler=[0.0, -float(np.radians(P.FACE_TILT)), 0.0])]
     xf = P.body_outline().bounds[2]                    # camera sits in the chassis front wall
     # lens flush with the front face; OV5647 standard lens: 53.5 x 41.4 deg field of view
     col = dict(body=boxes, eye_cam=[(xf + 0.3) / 1e3, 0.0, P.CAMERA_Z / 1e3], eye_fovy=41.4)

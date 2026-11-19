@@ -350,3 +350,42 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - `arecord` is restarted if it dies.
     - The firmware test now starts Pinch turned 0.4 rad toward the tray. Since the claw redesign, the
       left claw hid the marker from the old start pose, so the localisation check had been failing.
+
+## 2026-11-19 (late): sensors, body shape, training physics, budget
+
+39. **Five cliff beams instead of two** (sensor review, LIFE_PLAN §8).
+    - **Layout:** a front pair (40° down, splayed 20° outward), one at the rear (40° down) and one on each side (30° down, mounted high).
+    - **Why:** Pinch walks backwards (pushing) and sideways, where nothing looked before. The CAD's two sideways windows sat so low that a side drop showed up only after the feet were over it.
+    - **Shared definition:** the five beams live in `crab/params.py` `CLIFF_BEAMS`, used by the CAD windows (drilled along each beam; each verified to cut real wall), the twin's rangefinders and the firmware.
+    - **Flat-desk readings in the twin:** 51 mm front and rear, 107 mm on the sides.
+    - **Wiring:** all five on their own bus, I2C5-M0 (pins 29/31). XSHUT on pins 11/13/15/22/36.
+    - **Cost:** 6 sensors bought (one spare); the BOM rises by ₹1,200 (estimate).
+40. **The twin's body is its real size.** It was a box ±30 mm wide with a 24 mm-high "dome" and no visor. Now:
+    - the chassis box is full width (±56 mm)
+    - the dome is the same ellipsoid the shell is cut from
+    - the face visor is a tilted box
+
+    Flips, getting high-centred and pushing with the body now use the real shape. Standing and all 21 emotes still pass `sim/check.py`.
+41. **Walking is trained in 2 ms physics (walk-v4).** A free CPU diagnosis found the gap wasn't feet-only contacts or solver iterations. It was the 4 ms timestep:
+
+    | Timestep | Scripted gait tracking | Learned walk-v2 tracking |
+    |---|---|---|
+    | 2 ms (the twin's) | 67 % | 43 % |
+    | 4 ms (training's) | 32 % | 36 %, even in its own training model |
+
+    So the old policies learned in physics unlike the twin.
+    - **walk-v4:** trains at 2 ms and logs the bench's own measure (the fraction of commanded speed actually walked), so reward numbers can't mislead again.
+    - **Cost:** about 2× the GPU time per run.
+42. **Modal budget: $100** (the owner, 2026-11-19: "not to waste, but to actually train my robot properly"). About $6.5 was spent before this.
+    - Spend goes first on closing the gap between training and the twin (decision 41), then rough terrain and recovery, then grasping. Every run keeps a hard timeout (`PINCH_TIMEOUT_MIN`).
+    - The owner's RTX 4050 laptop (over SSH, WSL2) will take the cheap trial runs once it's set up.
+43. **Hardware audit fixes.** All are reflected in `hardware/bom.py`, `hardware/electronics.md`, `hardware/ASSEMBLY.md` (new "Checks from the hardware audit" section) and the CAD.
+    - **Arm servos:** Evelta sells GS-4308MG in pairs, so the order is 4 packs, not 8 (−₹3,546).
+    - **Bus adapter:** the FE-URT-1 needs a USB-C to Mini-USB OTG cable on the host port, replacing the OTG adapter.
+    - **New parts:** a 2S protection board, a 0.01 Ω INA219 shunt (the 0.1 Ω one clips at 3.2 A), and a heatsink for the RK3566.
+    - **Servo voltage:** the STS3032 is rated 4.8–6 V, not 7.4 V. The max-voltage register is now 6.5 V, and the bus extensions are cut short.
+    - **OLED wiring:** RES gets a pull-up with a capacitor for the power-on reset pulse; DC and CS go to GND.
+    - **Battery leads:** a slot through the deck over each end of the battery bay.
+    - **Print files:** the STLs were regenerated after the CAD changes: 14 files, 31 pieces, TPU for the feet and jaw pads.
+    - **BOM:** ₹88,566 (estimates marked).
+    - **Still open:** the power switch type (does it latch?), vents if the CPU runs hot, and the real arm-servo plug and lead length.

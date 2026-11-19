@@ -23,8 +23,8 @@ ITEMS = [
     # ------------------------------------------------------------- servos
     ("Servos & bus", "Feetech STS3032 serial bus servo (legs)", EV, "501-STS3032", 14, 3327.60,
      "required", "27 in stock", "12 + 2 spares. All leg joints (IDs 1-12); they report position, load and heat"),
-    ("Servos & bus", "GOTECK GS-4308MG 4.3 g metal-gear micro servo (arms)", EV, "448-GS-4308MG", 8, 886.58,
-     "required", "14 in stock", "6 + 2 spares. Arm swing, lift and claw. Plain PWM servos (no feedback), 150 mm leads"),
+    ("Servos & bus", "GOTECK GS-4308MG metal-gear micro servo, pack of 2 (arms)", EV, "448-GS-4308MG", 4, 886.58,
+     "required", "14 in stock", "4 packs = 8 servos: 6 + 2 spares (Evelta's unit is a pair: audit). Arm swing, lift and claw. Plain PWM servos (no feedback), 150 mm leads"),
     ("Servos & bus", "Feetech FE-URT-1 USB to bus-servo signal converter", RB, "1110047", 1, 1069.00,
      "required", "in stock", "Evelta's FE-URT-2 was sold out; FE-URT-1 does the same job"),
     ("Servos & bus", "5264 3-pin servo cable, 900 mm (pack of 6)", RB, "R263666", 2, 359.00,
@@ -40,14 +40,14 @@ ITEMS = [
      "required", "in stock", "Radxa OS (Debian)"),
     ("Brain & senses", "160 deg wide-angle camera for Pi Zero (OV5647 fisheye, 22-pin)", AZ, "B083XMGSVP", 1, 3346.00,
      "required", "listed", "Pinch's eyes: sees the claw's workspace, the desk around it and your face (decision 16)"),
-    ("Brain & senses", "Amkette USB-C (male) to USB-A (female) OTG adapter", AZ, "B0F48DGQLY", 1, 99.00,
-     "required", "listed", "Radxa's USB-C port -> FE-URT-1. Evelta's (083-USB2-F-C-MOD) was sold out"),
+    ("Brain & senses", "USB-C (male) to Mini-USB (male) OTG cable, 10-15 cm", AZ, "search 'USB C to mini USB OTG cable short'", 1, 199.00,
+     "required", "check", "Radxa's USB-C 2 (host) port -> FE-URT-1's Mini-USB socket. Short and direct: an OTG adapter + cable is ~8 cm of rigid parts inside the body (audit). Price estimated"),
     ("Brain & senses", "7Semi BNO055 9-DOF IMU breakout", EV, "004-ES-12149", 1, 1341.66,
      "required", "440 in stock", "Balance + fall detection"),
     ("Brain & senses", "7Semi INA219 voltage / current monitor breakout", EV, "004-ES-12152", 1, 241.90,
      "required", "88 in stock", "Battery voltage for the safety stop and the pet's 'hunger'"),
-    ("Brain & senses", "VL53L0X ToF distance module, small (GY-VL53L0XV2, 25 x 10.7 mm)", RB, "search 'VL53L0X'", 2,
-     300.00, "required", "check", "Side windows (cliff + obstacle). Price estimated. Evelta's Grove board (20 x 40) is too long"),
+    ("Brain & senses", "VL53L0X ToF distance module, small (GY-VL53L0XV2, 25 x 10.7 mm)", RB, "search 'VL53L0X'", 6,
+     300.00, "required", "check", "Five cliff beams (front pair, rear, both sides; decision 30) + 1 spare. Price estimated. Evelta's Grove board (20 x 40) is too long"),
     ("Brain & senses", "Adafruit MAX98357A I2S 3 W amplifier", EV, "076-3006", 1, 860.07,
      "required", "14 in stock", "Tones and chirps (the pet never talks)"),
     ("Brain & senses", "28 mm 8 ohm 0.5 W speaker (GSPK2805TN)", RB, "R210811", 1, 82.00,
@@ -76,7 +76,13 @@ ITEMS = [
      "required", "in stock", ""),
     ("Power", "5 A mini blade fuse", RB, "R260430", 3, 19.00, "required", "in stock", "1 + 2 spares"),
     ("Power", "ALPS SPST rocker switch, 8 A (SDDJF1A100)", EV, "341-SDDJF1A100", 1, 201.78,
-     "required", "28 in stock", "In the belly; check it fits the 19.4 x 13.4 mm cutout (file it if needed)"),
+     "required", "28 in stock", "In the belly; check it fits the 19.4 x 13.4 mm cutout. VERIFY it latches: one listing calls it momentary / discontinued (audit) - if so, any latching mini rocker that fits"),
+    ("Power", "2S Li-ion/LiPo protection board (BMS), 5 A, e.g. HX-2S", RB, "search '2S BMS protection board'", 1, 60.00,
+     "required", "check", "Hard low-voltage floor: the software's 6.4 V stop leaves the Radxa and OLED draining the pack (audit). Price estimated"),
+    ("Power", "0.01 ohm 2512 current-sense resistor (for the INA219)", RB, "search '0.01 ohm 2512 resistor'", 2, 20.00,
+     "required", "check", "Replaces the INA219 board's 0.1 ohm shunt: that one clips at 3.2 A and drops 0.5 V at 5 A (audit). Price estimated"),
+    ("Brain & senses", "Aluminium heatsink ~14 x 14 x 6 mm, self-adhesive", RB, "search 'heatsink 14x14'", 1, 40.00,
+     "required", "check", "On the Radxa's RK3566 inside the closed shell (audit: no cooling). Price estimated"),
     ("Power", "Amass T-plug (Deans) connector pair with cap", RB, "R264629", 3, 37.00,
      "required", "in stock", "Matches the Bonka pack"),
     ("Power", "20 AWG silicone wire, red (per metre)", RB, "1824992", 2, 40.00, "required", "in stock", ""),
@@ -121,9 +127,9 @@ ITEMS = [
 
 
 PRINT_SERVICE_NOTE = (
-    "Upload the 13 STL files from cad/out/print/ to robu.in's 3D printing service "
+    "Upload the 14 STL files from cad/out/print/ to robu.in's 3D printing service "
     "(https://robu.in/product/3d-printing-service1/, SKU 901845) and set the quantities from "
-    "cad/out/print_sheet.csv (27 pieces, incl. the desk tray). Choose PETG, and TPU for the 4 foot tips. robu shows the price "
+    "cad/out/print_sheet.csv (31 pieces, incl. the desk tray). Choose PETG, and TPU for the 4 foot tips and 4 jaw pads. robu shows the price "
     "(material, service, shipping and tax) after the upload; there is no published per-gram rate.")
 
 

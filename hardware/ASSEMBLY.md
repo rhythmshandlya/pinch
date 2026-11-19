@@ -53,8 +53,9 @@ weighing about 610 g. Every wire is inside the body except the short loops that 
    Then SSH in from your laptop.
 3. Copy this project folder to the Radxa, for example `scp -r robotic-crab <user>@<radxa-ip>:~`.
 4. Turn on the hardware it needs: `sudo rsetup` → **Overlays** → enable
-   - **I2C3-M0** (pins 3 / 5: IMU, battery monitor, distance sensors, touch board)
+   - **I2C3-M0** (pins 3 / 5: IMU, battery monitor, touch board)
    - **I2C4-M0** (pins 27 / 28: the face screen, on its own bus so the eyes never slow the IMU)
+   - **I2C5-M0** (pins 29 / 31: the five cliff sensors, on their own bus, away from the IMU's address 0x29)
    - **PWM8-M0, PWM9-M0, PWM12-M1, PWM13-M1, PWM14-M0, PWM15-M1** (the six arm servos)
    - the **Raspberry Pi Camera v1.3** overlay (our OV5647 camera)
    - and install our audio overlay: **Install overlay from source** → `robotic-crab/hardware/radxa/crab-audio.dts`,
@@ -178,8 +179,14 @@ Turn every joint gently by hand over its range (`crab/params.py`). The CAD check
    **x arrow pointing forward**. The two regulators and the INA219 go on the *underside* of the brain
    tray (foam tape), so the deck isn't crowded.
 2. **Switch:** it snaps into the rectangular cutout in the belly, behind the battery door.
-3. **Distance sensors:** one VL53L0X module behind each side-wall window, lying along the wall below the
-   deck, glued so it looks out through the window tilted about 25° down.
+3. **Cliff sensors (five VL53L0X):** one behind each of the five angled windows in the chassis wall:
+   - two at the front, below the camera
+   - one at the rear
+   - one high on each side
+
+   Glue each module flat against the inside of the wall, lens centred on the hole. The hole is drilled
+   along the beam (front and rear 40° down, sides 30° down), so a module sitting square in it looks the
+   right way. Leave the holes open: no tape or cover. A cover makes the sensor read "desk" over empty air.
 4. **All servo leads** drop through the big hole in the deck and plug into the hub (one branch per leg,
    one plug per arm servo).
 5. **Battery:** it goes into the bay from below, lying across the body, leads toward the middle. Close the
@@ -261,3 +268,20 @@ to, and how it knows where it is on the desk.
 | Radxa reboots when walking | The Radxa is on the servo regulator, or the 5 V regulator is too weak. It needs its own 5 V regulator |
 | Battery runs out fast | Normal: about 27 min of non-stop walking, or about 35 min of mostly standing and emotes. Use the spare pack |
 | Shell falls off | Magnet glued with the wrong pole up. Pull it out and flip it |
+
+## Checks from the hardware audit (2026-11-19)
+
+Do these as you go. Each one is a mistake the independent review caught before anything was bought.
+
+- **Arm servos come in pairs.** Evelta's GS-4308MG unit is a pack of 2, so the BOM orders 4 packs (8 servos).
+- **Bus adapter cable:** plug the FE-URT-1 into the Radxa's **USB-C 2 (host) port** with the short USB-C to Mini-USB OTG cable. Set the board's level switch to 5 V.
+- **IMU address:** run `i2cdetect -y 3` with only the BNO055 connected, and tie its ADD/ADR pin low so it sits at 0x28. The cliff sensors live on their own bus (I2C5), but don't leave it to chance.
+- **INA219 shunt:** desolder the board's 0.1 Ω shunt and fit the 0.01 Ω 2512 resistor. The firmware's shunt constant must match.
+- **Protection board (BMS):** fit it between the pack and the fuse, as the hard low-voltage floor. Unplug the BX100 alarm for storage; it drains the pack too.
+- **Regulator test:** before assembly, load regulator #1 to about 4 A with a nearly flat pack (6.4–6.6 V). The module is listed for 7–40 V input; the chip should hold 5 V lower, but check.
+- **Servo extensions:** cut the bus extensions to 10–15 cm. 90 cm at 1 A drops about 0.24 V, and 5 V is already the bottom of the STS3032's rated 4.8–6 V.
+- **Battery leads:** a 2S pack's leads leave from one end, against the bay wall. Check where yours exit when it arrives: the deck now has a 10 mm slot over each end of the bay, so the leads come straight up.
+- **Heat:** stick the heatsink on the RK3566. If its temperature passes 75 °C in use, add vent slots to the shell. **Open item:** no vents in the CAD yet.
+- **Power switch:** check the ALPS switch latches (one listing calls it momentary). If not, use any latching mini rocker that fits the cutout.
+- **Arm servo plugs:** check they mate with the hub's 2.54 mm headers, and that the 150 mm leads reach from the palm. Use an extension if not.
+- **Speaker volume:** the amp can push about 1.8 W into a 0.5 W speaker. Keep the software volume capped, or set the amp's GAIN pin to 3–6 dB.

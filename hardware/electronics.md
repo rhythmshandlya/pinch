@@ -16,7 +16,7 @@ Where things sit (see the CAD, `cad/parts.py`):
 | **Front wall** (between the arms) | 160° wide-angle camera behind the lens hole |
 | **Face visor** (front of the dome) | 2.42" 128×64 OLED face (SSD1309), slid in from inside the dome |
 | **Inside the dome** | 28 mm speaker in its seat under the grille; copper-tape touch pads (head, back left/right, sides, face bezel) wired to the MPR121 |
-| **Side walls** | Two VL53L0X distance modules behind small windows (cliff + obstacle, left and right) |
+| **Chassis walls** | Five VL53L0X cliff sensors behind angled windows: front pair, rear, both sides (decision 30) |
 
 ## Block diagram
 
@@ -39,7 +39,7 @@ flowchart LR
     PI -- "USB-C (OTG adapter)" --> URT
     PI -- "I2C" --> IMU["BNO055 IMU"]
     PI -- "I2C" --> INA
-    PI -- "I2C + 2 GPIO" --> TOF["2 × VL53L0X"]
+    PI -- "I2C5 + 5 GPIO" --> TOF["5 × VL53L0X"]
     PI -- "I2S" --> AMP["MAX98357A amp → speaker"]
     PI -- "I2S (stereo)" --> MIC["2 × I2S microphone (L/R)"]
     PI -- "I2C3" --> TOUCH["MPR121 touch (8 copper-tape pads)"]
@@ -50,7 +50,7 @@ flowchart LR
 ## Why it's built this way
 
 - **Servo voltage: 5 V, regulated.** A full 2S LiPo is **8.4 V**, more than any of these servos take
-  (STS3032: up to 7.4 V; GS-4308MG: 4.8–6 V), so they run from a regulator. We use a **fixed 5 V / 5 A**
+  (STS3032: rated 4.8–6 V; GS-4308MG: 4.8–6 V), so they run from a regulator. We use a **fixed 5 V / 5 A**
   buck (7Semi AP64500): compact, in stock, nothing to adjust wrongly. The simulator scales every
   servo's datasheet numbers to 5 V (`crab/params.py`). A second, identical regulator powers the Radxa.
 - **Power doesn't go through the signal adapter.** The FE-URT-1 only converts the signal. Servo
@@ -106,11 +106,11 @@ charge**. Numbers from `python sim/power.py`.
 | Regulator #2 VOUT / GND | Radxa pin 2 (5 V) / pin 6 (GND) | 22 AWG soldered to the pads | Don't also power the Radxa through USB-C at the same time |
 | Arm servo plugs (6) | Hub: V+ and GND from regulator #1; **signal** pin of each plug → Radxa header pin below | F-F jumper wires for the signals | Order of plugs = PWM output 0–5 (table below). Servo wires: brown/black = GND, red = 5 V, orange/white = signal |
 | BNO055 | Radxa pin 1 (3.3 V), 3 (SDA), 5 (SCL), 9 (GND) | 28 AWG | I2C address 0x28 (bus `/dev/i2c-3`) |
-| VL53L0X #1 / #2 | Radxa pins 1, 3, 5, 9 (shared I2C) + XSHUT to pin 11 / pin 13 | 28 AWG | Both start at 0x29; the software re-addresses them at boot using XSHUT |
+| VL53L0X × 5 | Own bus I2C5-M0 (pins 29/31), 3.3 V and GND from pins 1/9; XSHUT: front left 11, front right 13, rear 15, side left 22, side right 36 | 28 AWG | All start at 0x29; the software wakes them one at a time with XSHUT and gives them 0x30-0x33 (the last keeps 0x29). Own bus: off the BNO055's (0x28/0x29) |
 | MAX98357A | 5 V (pin 4), GND (pin 14), BCLK pin 12, LRC pin 35, DIN pin 40 | 28 AWG | Speaker on its + / − terminals. These are the Radxa's I2S3-M0 pins (same places as on a Pi) |
 | I2S microphones ×2 (DFRobot) | both: 3.3 V (pin 17), GND (pin 20), SCK pin 12, WS pin 35, SD pin 38. **Left mic SEL → GND, right mic SEL → 3.3 V** | 28 AWG | One stereo stream (left/right) on one data line; sit them ~70 mm apart in the dome, under the two mic holes. The direction of your voice comes from the time difference |
 | MPR121 touch | 3.3 V, GND, SDA pin 3, SCL pin 5 (shared I2C3), address 0x5A | 28 AWG | Electrodes E0–E7: head, back left, back right, side left, side right, face bezel, claw left, claw right. Each is a strip of copper tape inside the shell with a thin wire soldered to it |
-| Face OLED (SSD1309) | 3.3 V, GND, SDA **pin 27**, SCL **pin 28** (I2C4, its own bus), address 0x3C | 28 AWG | Set the module to I2C first (move its two 0 Ω resistors to the I2C position, as printed on its back). Enable the I2C4-M0 overlay |
+| Face OLED (SSD1309) | 3.3 V, GND, SDA **pin 27**, SCL **pin 28** (I2C4, its own bus), address 0x3C | 28 AWG | Set the module to I2C first (move its two 0 Ω resistors to the I2C position, as printed on its back). Enable the I2C4-M0 overlay. Its other pins: RES to a 10 kΩ pull-up to 3.3 V with 100 nF to GND (a power-on reset pulse; the SSD1309 needs one), DC and CS to GND (DC low = address 0x3C) |
 | Camera (160°, OV5647) | Radxa camera connector (22-pin, same as the Pi Zero's) | Its own flex | Behind the front-wall lens hole; the flex goes up through the slot to the tray. **Measure its lens board first: the pocket was sized for a slimmer camera** |
 
 ### Arm servo signals (Radxa hardware PWM)
@@ -155,7 +155,7 @@ Put a small sticker with the ID on each servo.
 | Register | Value | Why |
 |---|---|---|
 | P / I / D gains | 32 / 0 / 0 | Feetech default stiffness; the simulator's position gains assume it |
-| Max input voltage | 70 (7.0 V) | The servos shut off if the regulator ever fails and passes the battery voltage |
+| Max input voltage | 65 (6.5 V) | Above the 5 V bus, below the battery: the servos shut off if the regulator fails and passes the battery voltage (rated 4.8–6 V) |
 | Min input voltage | 40 (4.0 V) | Stops before the bus sags too far |
 | Return delay | 0 | Faster bus |
 

@@ -102,6 +102,8 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
         rec = {"step": int(step), "time_s": round(time.time() - t0, 1),
                **{k: float(v) for k, v in metrics.items()
                   if k.startswith("eval/episode_") or k in ("eval/avg_episode_length",)}}
+        if "eval/episode_track" in metrics:
+            rec["success"] = float(metrics["eval/episode_track"])          # walking: fraction of commanded speed
         if "eval/episode_success_rate" in metrics:
             rec["success"] = float(metrics["eval/episode_success_rate"])
         log.write(json.dumps(rec) + "\n")
