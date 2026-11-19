@@ -99,6 +99,13 @@ def make_env(name):
                           push_vel=0.12, push_interval_s=2.5)
         env.covers = ["walk", "push"]
         return env
+    if name == "terrain_push":   # one walker for both: hurdles and ramps, 48 commands, crouched pushing (decision 84)
+        from training.gait_env import GAIT_CMDS_V2, concat_references, push_references, walk_references
+        from training.terrain_env import CrabTerrainEnv
+        env = CrabTerrainEnv(refs=concat_references([walk_references(GAIT_CMDS_V2), push_references()]),
+                             push_vel=0.12, push_interval_s=2.5)
+        env.covers = ["walk", "push"]
+        return env
     if name == "push2":          # learned push steering on the real walking controller (decision 67)
         from training.push2_env import CrabPush2Env
         return CrabPush2Env()
@@ -180,7 +187,8 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
         environment=environment,
         eval_env=make_env(env),
         randomization_fn=({"grasp": grasp_randomize, "terrain": terrain_randomize,
-                           "terrain_hard": terrain_randomize, "push2": push2_randomize}.get(env, domain_randomize)
+                           "terrain_hard": terrain_randomize, "terrain_push": terrain_randomize,
+                           "push2": push2_randomize}.get(env, domain_randomize)
                           if randomize else None),
         network_factory=network_factory(cfg),
         normalize_observations=True,
@@ -201,7 +209,7 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preset", choices=list(PRESETS), default="smoke")
-    ap.add_argument("--env", choices=["gait", "gait2", "gait3", "terrain", "terrain_hard", "gait_v2", "push2", "emote", "emote2", "righting", "righting2", "grasp"],
+    ap.add_argument("--env", choices=["gait", "gait2", "gait3", "terrain", "terrain_hard", "terrain_push", "gait_v2", "push2", "emote", "emote2", "righting", "righting2", "grasp"],
                         default="gait")
     ap.add_argument("--timesteps", type=int, help="override num_timesteps")
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")
