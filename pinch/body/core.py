@@ -17,7 +17,7 @@ from pinch.body.common import (  # noqa: F401
 
 class BodyCore:
     def __init__(self, crab, pose_fn, objects_fn=None, desk=None, tip_fn=None, emote_policy=None, walk_policy=None,
-                 grasp_policy=None, righting_policy=None, life_seed=0):
+                 grasp_policy=None, righting_policy=None, push_policy=None, life_seed=0):
         self.crab, self.pose_fn, self.objects_fn = crab, pose_fn, objects_fn
         self.desk = desk or Desk()
         self.tip_fn = tip_fn                    # (side, arm joint q) -> claw tip (x, y) in the body frame
@@ -25,6 +25,8 @@ class BodyCore:
         self._glast, self._gt, self._gseen = np.zeros(12), 0.0, -1.0
         self.grasp_policy = grasp_policy        # the learned grab (right claw; training/grasp_env.py), if exported
         self.righting_policy = righting_policy  # the learned get-up (training/righting_env.py), if exported
+        self.push_policy = push_policy          # walking corrections while crouched pushing, if a separate one (84)
+        self._gpol = None                       # the walking policy that ran last tick
         self.grasp_view_fn = None               # (thing, side) -> (rel, ang, kind, size): what the camera sees
         self.task, self.busy, self.ok = None, False, True
         self.hold = STAND.copy()

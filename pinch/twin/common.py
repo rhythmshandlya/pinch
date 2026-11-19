@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from crab.params import JOINT_NAMES  # noqa: E402
-from crab.policy_np import POLICY_DIR, NumpyPolicy  # noqa: E402
+from crab.policy_np import SKILLS, load_policies  # noqa: E402
 from pinch.body import Body  # noqa: E402
 from pinch.face import Face  # noqa: E402
 from pinch.hearing import Hearing  # noqa: E402

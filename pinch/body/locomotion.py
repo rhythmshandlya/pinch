@@ -64,22 +64,27 @@ class Locomotion:
         self.gait.lower += float(np.clip(lower - self.gait.lower, -0.0004, 0.0004))   # sink / rise smoothly
         for k in range(SUB):                                   # leg IK only once per tick, after the last substep
             q = self.gait.step(DT / SUB, cmd, solve=k == SUB - 1)
-        covers = getattr(self.walk_policy, "meta", {}).get("covers", ["walk"]) if self.walk_policy else []
-        plain = arms is None and self.gait.lower < 1e-4
-        pushing = "push" in covers and self.gait.lower > 1e-4        # (a policy trained on pushes: decision 65)
-        return self._residual(q, cmd, plain or pushing)
+        return self._residual(q, cmd, self._walking_policy(arms))
 
-    def _residual(self, ref, cmd, plain):
-        """The trained walking corrections (policies/gait.npz) on top of the scripted trot. Its look-ahead (the
-        reference 0.1 s on, as in training) comes from a copy of the gait run on with the same command - no lag
-        for the servos (a 0.1 s delay line cost the tidy planners most of their precision). Only for plain
-        walking: pushes (paddle arms, crouched) keep the pure scripted gait, which the policy never saw."""
-        if self.walk_policy is None or not plain:
-            self._gseen = -1.0
+    def _walking_policy(self, arms):
+        """Which learned corrections run this tick. Plain walking: the walking policy. Crouched pushing: the
+        push policy if there is one, else the walking policy if it was trained on pushes too (decisions 65,
+        84). Anything else (carrying, arms busy): none, the pure scripted gait the policies never saw."""
+        if self.gait.lower > 1e-4:
+            return next((p for p in (self.push_policy, self.walk_policy)
+                         if p is not None and "push" in getattr(p, "meta", {}).get("covers", ["walk"])), None)
+        return self.walk_policy if arms is None else None
+
+    def _residual(self, ref, cmd, pol):
+        """Learned walking corrections (pol) on top of the scripted trot. Its look-ahead (the reference 0.1 s on,
+        as in training) comes from a copy of the gait run on with the same command - no lag for the servos (a
+        0.1 s delay line cost the tidy planners most of their precision)."""
+        if pol is None:
+            self._gseen, self._gpol = -1.0, None
             return ref
-        if self.t - self._gseen > 2.5 * DT:                        # (re)starting a walk
+        if self.t - self._gseen > 2.5 * DT or pol is not self._gpol:   # (re)starting a walk, or switching policy
             self._glast, self._gt = np.zeros(12), 0.0
-        self._gseen = self.t
+        self._gseen, self._gpol = self.t, pol
         g = copy.deepcopy(self.gait)                 # 5 coarse 20 ms steps: 0.8 ms, within 0.02 rad of fine ones
         for k in range(GAIT_LOOK):
             ahead = g.step(DT, cmd, solve=k == GAIT_LOOK - 1)
@@ -91,9 +96,9 @@ class Locomotion:
         qd = np.array([self.crab.cal.sign[j] * st[SERVO_IDS[j]].speed for j in JOINT_NAMES])
         obs = pio.emote_observation(np, gyro, grav, qj[pio.LEG_ACT_IDX], qd[pio.LEG_ACT_IDX], self._glast, ref, ahead,
                                     None, (self._gt % 6.0) / 6.0)
-        self._glast = np.clip(self.walk_policy(obs), -1, 1)
+        self._glast = np.clip(pol(obs), -1, 1)
         self._gt += DT
-        scale = getattr(self.walk_policy, "meta", {}).get("action_scale", pio.EMOTE_ACTION_SCALE)
+        scale = getattr(pol, "meta", {}).get("action_scale", pio.EMOTE_ACTION_SCALE)
         return pio.emote_targets(np, ref, self._glast * (scale / pio.EMOTE_ACTION_SCALE))
 
     def _walk(self, vx, vy, wz, seconds):

@@ -47,9 +47,17 @@ def load_policy(name):
     return NumpyPolicy.load(p) if p.exists() else None
 
 
+# skill -> its file in policies/ (decision 84)
+SKILLS = {"emote": "emote", "walk": "gait", "push": "push", "grasp": "grasp", "righting": "righting"}
+
+
 def load_policies():
-    """(emote_policy, walk_policy) if exported, else None for each (scripted fallbacks are used). Walking is
-    policies/gait.npz: learned corrections on the scripted trot (training/gait_env.py, decision 50).
-    PINCH_GAIT_POLICY / PINCH_EMOTE_POLICY name a candidate instead, for benching it in the whole pet."""
-    return (load_policy(os.environ.get("PINCH_EMOTE_POLICY", "emote")),
-            load_policy(os.environ.get("PINCH_GAIT_POLICY", "gait")))
+    """Every learned skill that is exported: {skill: NumpyPolicy, or None (the scripted fallback is used)}.
+      emote     balance corrections under the emotes (training/emote_env.py)
+      walk      corrections on the scripted trot (training/gait_env.py, decision 50): policies/gait.npz
+      push      the same while crouched pushing with a paddle arm, if a separate one is exported (84)
+      grasp     the learned grab (training/grasp_env.py)
+      righting  getting off its back (training/righting_env.py, 80)
+    PINCH_<FILE>_POLICY (PINCH_GAIT_POLICY, PINCH_PUSH_POLICY ...) names a candidate instead, for benching it
+    in the whole pet."""
+    return {skill: load_policy(os.environ.get(f"PINCH_{name.upper()}_POLICY", name)) for skill, name in SKILLS.items()}

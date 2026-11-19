@@ -14,15 +14,15 @@ from pinch.twin.common import (  # noqa: F401
     MIND_EVERY,
     Memory,
     Mind,
-    NumpyPolicy,
     OBJECTS,
-    POLICY_DIR,
     SIM_EPOCH,
+    SKILLS,
     START,
     SimBackend,
-    TWIN_UTC_OFFSET_H,
     StuckSense,
+    TWIN_UTC_OFFSET_H,
     build_desk_model,
+    load_policies,
     mujoco,
     np,
     set_face,
@@ -56,17 +56,10 @@ class TwinCore:
         self.last_recover, self.edge_recovers = -99.0, 0
         self.hearing = Hearing()
         self._tip_d = mujoco.MjData(self.m)
-        emote_pol = walk_pol = righting_pol = None
-        if policies:
-            from crab.policy_np import load_policies, load_policy
-            emote_pol, walk_pol = load_policies()
-            righting_pol = load_policy("righting")
-        grasp_pol = None
-        if policies and (POLICY_DIR / "grasp.npz").exists():
-            grasp_pol = NumpyPolicy.load(POLICY_DIR / "grasp.npz")
-        self.body = Body(self.crab, self.pose, self.obj, self.desk, tip_fn=self.tip, emote_policy=emote_pol,
-                         walk_policy=walk_pol, grasp_policy=grasp_pol, righting_policy=righting_pol,
-                         life_seed=seed)
+        pols = load_policies() if policies else dict.fromkeys(SKILLS)
+        self.body = Body(self.crab, self.pose, self.obj, self.desk, tip_fn=self.tip, emote_policy=pols["emote"],
+                         walk_policy=pols["walk"], push_policy=pols["push"], grasp_policy=pols["grasp"],
+                         righting_policy=pols["righting"], life_seed=seed)
         self.body.grip_fn = self.gripping
         self.body.grasp_view_fn = self.grasp_view
         self.view_rng = np.random.default_rng(seed + 7)

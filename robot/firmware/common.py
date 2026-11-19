@@ -18,7 +18,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from crab.policy_np import load_policies, load_policy  # noqa: E402
+from crab.policy_np import load_policies  # noqa: E402
 from pinch.body import Body  # noqa: E402
 from pinch.face import Face  # noqa: E402
 from pinch.hearing import AudioDirection, Hearing  # noqa: E402
