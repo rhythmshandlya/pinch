@@ -70,12 +70,12 @@ def memory_restart():
     path = Path(tempfile.mkdtemp()) / "memory.json"
     sim = PinchSim(memory=Memory(path=path))
     sim.run(1.0)
-    sim.say("hi! my name is Armaan")
+    sim.say("hi! my name is Sam")
     sim.say("I love green tea")
     sim.run(3.0)
     sim.mind.memory.save()
     again = Memory(path=path)
-    return again.owner_name == "Armaan", f"remembered '{again.owner_name}'"
+    return again.owner_name == "Sam", f"remembered '{again.owner_name}'"
 
 
 @scenario("meeting from the sound alone: goes quiet (shh, no tones), then celebrates")

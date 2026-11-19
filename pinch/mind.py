@@ -22,7 +22,7 @@ from pinch.memory import Memory
 from pinch.touch import GESTURE_EVENT
 from pinch.world import WorldModel, situations
 
-MOTION_STEPS = {"emote", "walk", "goto", "turn_to", "pose", "push", "pick", "drop"}
+MOTION_STEPS = {"emote", "walk", "goto", "turn_to", "pose", "push", "pick", "drop", "release"}
 MOOD_REPLY = {   # "how are you?" -> face, sound, emote
     "happy": ("happy", "happy_trill", "happy"), "excited": ("excited", "giggle", "excited"),
     "content": ("content", "purr", "fidget"), "love": ("love", "purr", "handshake"),

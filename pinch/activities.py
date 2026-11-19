@@ -414,8 +414,22 @@ class Play(Activity):
 
     def run(self, m):
         ball = m.world.objects.get("ball")
+        toy = m.world.objects.get("eraser")
         yield ("face", "excited")
         yield ("sound", "giggle")
+        if (GRASP_ENABLED and toy and toy.on_desk and toy.graspable and m.rng.random() < 0.5
+                and m.world.desk.edge_distance(toy.xy) > 0.10):
+            # a toy it can carry: pick it up, wave it about, drop it, and pounce on it again
+            yield ("look_at", toy.xy)
+            yield ("pick", "eraser")
+            if m.last_step_ok:
+                yield ("emote", "excited")                     # (the claw stays shut while it holds the toy)
+                yield ("release",)
+                yield ("sound", "giggle")
+                yield ("turn_to", toy.xy)
+                yield ("emote", m.rng.choice(["curious", "excited"]))
+                m.affect.feel("played_with", 0.6)
+                return
         if ball and ball.on_desk and m.world.desk.edge_distance(ball.xy) > 0.08:
             target = m.world.desk.clamp((ball.xy[0] + m.rng.uniform(-0.15, 0.15), ball.xy[1] + m.rng.uniform(-0.1, 0.1)),
                                         0.10)

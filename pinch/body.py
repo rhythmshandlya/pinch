@@ -32,6 +32,8 @@ V_MAX, W_MAX = 0.06, 0.8
 REACH_LOW = {"crouch": 0.38, "pitch": -0.13}           # jaws flat on the desk, pressing lightly (measured: -0.11)
 CARRY_PITCH = 0.45                                      # carrying: the held part ~3 cm up, the short end clear of the legs
 PUSH_LOWER = 0.011                                      # walk 11 mm lower while pushing: claw flat on the desk
+PADDLE_PITCH = -0.28                                    # pushing: jaw blades ~1 mm above the desk (the old claw: -0.62)
+PADDLE_CLAW = 0.5                                       # ... half open: the two tips cradle a round thing
 PEN_HALF = 0.069                                        # half length of a pen (65 mm + rounded ends)
 PEN_GRAB = 0.055                                        # hold a pen this far from its middle: its short end stays clear of the front leg
 RAKE_ENABLED = False          # pulling things in from beyond them: flung a pen off the desk in tests, so off
@@ -278,7 +280,7 @@ class Body:
             radius = extent(name, o[0][2], heading, radius)   # how far the thing reaches back toward the paddle
             x, y, h = self.pose_fn()
             side = self._side_for(x, y, h, ox, oy)
-            paddle = arm_pose(arm_pose(pose(crouch(0.25)), side, pitch=-0.62, yaw=0.0, claw=0.0),
+            paddle = arm_pose(arm_pose(pose(crouch(0.25)), side, pitch=PADDLE_PITCH, yaw=0.0, claw=PADDLE_CLAW),
                               "right" if side == "left" else "left", pitch=0.5)
             tip = np.array(self.tip_fn(side, paddle) if self.tip_fn else (0.085, 0.03 if side == "left" else -0.03))
             c, s = np.cos(heading), np.sin(heading)
@@ -360,7 +362,7 @@ class Body:
         heading = float(np.arctan2(u[1], u[0]))                  # face the thing, from the goal's side
         x, y, h = self.pose_fn()
         side = self._side_for(x, y, h, ox, oy)
-        paddle = arm_pose(arm_pose(pose(crouch(0.25)), side, pitch=-0.62, yaw=0.0, claw=0.0),
+        paddle = arm_pose(arm_pose(pose(crouch(0.25)), side, pitch=PADDLE_PITCH, yaw=0.0, claw=PADDLE_CLAW),
                           "right" if side == "left" else "left", pitch=0.5)
         tip = np.array(self.tip_fn(side, paddle) if self.tip_fn else (0.085, 0.03 if side == "left" else -0.03))
         c, s = np.cos(heading), np.sin(heading)
@@ -560,6 +562,20 @@ class Body:
         self.trace("align", yaw=round(yaw, 3), miss_mm=round(e * 1000, 1))
         self.last_miss = e
         return yaw
+
+    def _release(self):
+        """Put the held thing down right here: lower the claw to just above the desk and open it."""
+        if not self.held:
+            return False
+        name, side = self.held
+        down = arm_pose(pose(crouch(REACH_LOW["crouch"], "F?"), crouch(-0.20, "R?")), side,
+                        pitch=REACH_LOW["pitch"] + 0.12, claw=0.0)
+        yield from self._blend_to(down, 0.7)
+        yield from self._blend_to(arm_pose(down, side, claw=0.9), 0.3)
+        self.held = None
+        yield from self._blend_to(STAND, 0.6)
+        self.hold = STAND.copy()
+        return True
 
     def _drop(self, goal):
         """Carry the held thing to the goal and put it down there."""
