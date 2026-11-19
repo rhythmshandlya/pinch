@@ -996,3 +996,23 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       the golden session drifted 1.3 s at its tenth decision, from MuJoCo's floating point differing between
       Windows and Linux. The trace now records its platform and is skipped elsewhere. `test_replay` still
       checks exact replay on every platform.
+80. **The learned get-up replaces the searched swing** (`policies/righting.npz` = righting-v1 at 8.8M steps).
+    - **Bench** (`sim/righting_bench.py`): 60 random starts on its back (rolled 180 ± 30°, pitched ± 25°,
+      any heading; friction ×0.4–1.2, masses ± 15 %, servo strength ×0.7–1.1), in the CPU twin's physics.
+      Both controllers are handed over to the stand pose after 0.2 s upright, as Body does.
+      - swing: 34/60 upright and standing, 0.86 s mean, 0.90-percentile 1.01 s. It was searched over ± 15°
+        rolls only.
+      - policy: **60/60**, 0.66 s mean, 0.90-percentile 0.72 s.
+      - **Robot sensing:** the bench gives the policy what the firmware can read. The six PWM arm servos
+        report nothing, so their angle is the last command and their speed 0. The result held (60/60,
+        p90 0.76 s).
+    - **In the twin's scenario** (on its back on the desk): upright again after 0.7 s (the swing: 0.8 s).
+    - **Wiring:**
+      - `Body._right_self` uses the policy when it is exported and falls back to the swing otherwise.
+      - Observation and action mapping live in `crab/policy_io.py` (`righting_observation`,
+        `righting_targets`), shared by the env, the bench and Body.
+      - The twin and the firmware load it with `crab.policy_np.load_policy`.
+    - **Next:** the run continues to 60M steps; its final checkpoint replaces this one if it does at least as
+      well on the bench. Real-robot risk: servo speed and gear play on a violent motion. It is only used
+      while on its back, and the swing remains the fallback.
+    - **Checks:** tests 26/26, firmware 45/45, selftest 40/40.

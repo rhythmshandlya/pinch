@@ -134,3 +134,23 @@ def grasp_observation(xp, gyro, gravity, q_legs, qd_legs, last_action, arm, rel,
         xp.asarray(size) * 50.0,
         xp.array([tfrac]),
     ])
+
+
+# ------------------------------------------------------------------ self-righting policy (decision 76)
+# All 18 joints, absolute targets over each joint's full range (no reference motion): on its back the
+# whole body, shell and claws included, is what it rolls with.
+RIGHTING_OBS_SIZE = 3 + 3 + 18 + 18 + 18
+RIGHTING_VEL_SCALE = 0.1
+
+
+def righting_observation(xp, gravity, gyro, q, qd, last_action):
+    """gravity: unit vector in the body frame; gyro: body angular velocity (rad/s); q, qd: all 18 joints
+    (JOINT_NAMES order); last_action: the previous output (18)."""
+    from .emotes import STAND
+    return xp.concatenate([gravity, gyro * GYRO_SCALE, q - xp.asarray(STAND), qd * RIGHTING_VEL_SCALE,
+                           last_action])
+
+
+def righting_targets(xp, action, lo, hi):
+    """Actions in [-1, 1] -> joint targets over [lo, hi] (each servo's range, JOINT_NAMES order)."""
+    return lo + (hi - lo) * (xp.clip(action, -1, 1) + 1) / 2

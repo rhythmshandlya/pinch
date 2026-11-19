@@ -48,14 +48,15 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
 - [x] Walking: terrain-v1 in use (0 falls; 81–87 % tracking across five worlds; bars to 8–12 mm, ramps to
       15–20°) (70).
 - [x] Emote balance policy (0 falls).
-- [x] Self-righting (searched swing, 0.8 s).
+- [x] Self-righting (learned get-up, 0.7 s in the twin; searched swing as the fallback).
 - [x] Face recognition (YuNet + SFace) and names from voice.
 - [ ] **Tidying (weakest important skill):** cap 3–5/48, eraser 23–26/48 on the 48-layout bench.
   - [ ] Learned push steering (push2-v1): bench it, and wire it into Body if it beats the scripted pusher.
   - [ ] Keep the toy ball on the desk (brushed off in about half the runs).
   - [ ] Erasers slipping out of the claw in transit.
 - [ ] Walking v2 (curves, diagonals, pushing): bench it against terrain-v1.
-- [ ] RL self-righting policy, measured against the searched swing: env built, training on Modal and msi-1 (76).
+- [x] RL self-righting policy: 60/60 starts vs the swing's 34/60, 0.66 s; in Body with the swing as fallback (76, 80).
+  - [ ] Bench the final righting-v1 and righting2-v1 checkpoints; keep the best.
 - [ ] General motion-tracking policy for emotes (replaces per-emote balance training).
 - [ ] Stuck / obstruction detector learned from fault-injected runs (CPU).
 - [ ] Desk-object detector fine-tune and a sound-event classifier (later: needs real camera data).

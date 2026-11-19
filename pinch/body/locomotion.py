@@ -183,13 +183,22 @@ class Locomotion:
     walk_dir = None
 
     def _right_self(self, timeout=8.0):
-        """Roll back over off its back with the righting swing (crab/righting.py); done once the body has been
-        upright for 0.2 s (then stand). False if it is still on its back after `timeout`."""
+        """Roll back over off its back: the learned get-up policy if exported (policies/righting.npz, decision
+        80), else the searched swing (crab/righting.py). Done once the body has been upright for 0.2 s (then
+        stand). False if it is still on its back after `timeout`."""
         from crab import righting
         self.held = None                                     # (whatever it held is gone)
-        t, up = 0.0, 0
+        t, up, last = 0.0, 0, np.zeros(len(JOINT_NAMES))
+        pol = self.righting_policy
         while t < timeout:
-            yield righting.target(t)
+            if pol is not None:
+                gyro, grav = self.crab.hw.read_imu()
+                qj, st = self.crab.read_joints()             # (the arm servos report nothing: last command)
+                qd = np.array([self.crab.cal.sign[j] * st[SERVO_IDS[j]].speed for j in JOINT_NAMES])
+                last = np.clip(pol(pio.righting_observation(np, grav, gyro, qj, qd, last)), -1, 1)
+                yield pio.righting_targets(np, last, self.crab.lo, self.crab.hi)
+            else:
+                yield righting.target(t)
             t += DT
             try:
                 _, grav = self.crab.hw.read_imu()

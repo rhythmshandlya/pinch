@@ -24,6 +24,7 @@ from robot.firmware.common import (  # noqa: F401
     deque,
     json,
     load_policies,
+    load_policy,
     log,
     np,
     queue,
@@ -47,7 +48,8 @@ class FirmwareCore:
         self.loc = Localizer(getattr(hw, "start_pose", (0.0, 0.0, 0.0)))
         emote_pol, walk_pol = load_policies()
         self.body = Body(self.crab, self.loc.pose, self.object_belief, self.desk, tip_fn=hw.tip, emote_policy=emote_pol,
-                         walk_policy=walk_pol, life_seed=None)       # (the robot: fresh every boot)
+                         walk_policy=walk_pol, righting_policy=load_policy("righting"),
+                         life_seed=None)                     # (the robot: fresh every boot)
         self.body.pose_sigma_fn = self.loc.sigma
         self.gestures = TouchGestures()
         self.bodysense = BodySense()

@@ -10,7 +10,7 @@ faster; ANYmal: >97 % recoveries). This env trains one to compare:
   contact: the shell (chassis box, dome, visor), legs and feet touch the floor - they are what it rolls on
   reward: getting upright (body z axis up), then standing at the stand height; penalties for jerky and
           wasteful motion. 4 s episodes; success = upright and at height over the last second.
-Observation: gravity in the body frame, gyro, joint angles and speeds, the last action (all on the robot).
+Observation and action mapping: crab/policy_io.py (righting_*), shared with the robot and the bench.
 """
 
 import sys
@@ -28,7 +28,6 @@ from crab import policy_io as pio  # noqa: E402
 from crab.params import JOINT_NAMES  # noqa: E402
 from training.robot_model import load_training_model  # noqa: E402
 REWARD_SCALES = dict(upright=1.0, height=1.0, stood=2.0, action_rate=-0.01, energy=-0.0005, termination=0.0)
-OBS_SIZE = 3 + 3 + 18 + 18 + 18
 
 
 def load_righting_model(sim_dt=0.002):
@@ -59,11 +58,10 @@ class CrabRightingEnv(Env):
         self.body_id = m.body("body").id
         self.init_qpos = jp.array(m.key("stand").qpos)
         self.stand_h = float(m.key("stand").qpos[2])
-        self.stand_q = jp.array(m.key("stand").qpos)[self.qadr]
 
     @property
     def observation_size(self):
-        return OBS_SIZE
+        return pio.RIGHTING_OBS_SIZE
 
     @property
     def action_size(self):
@@ -99,7 +97,7 @@ class CrabRightingEnv(Env):
                         up_steps=jp.where(new, 0, info["up_steps"]))
         rng, k_noise = jax.random.split(info["rng"])
         action = jp.clip(action, -1, 1)
-        target = self.lo + (self.hi - self.lo) * (action + 1) / 2
+        target = pio.righting_targets(jp, action, self.lo, self.hi)
         data = state.pipeline_state.replace(ctrl=target)
         data = jax.lax.fori_loop(0, self.n_phys, lambda _, d: mjx.step(self.sys, d), data)
         R = data.xmat[self.body_id]
@@ -128,7 +126,6 @@ class CrabRightingEnv(Env):
     def _obs(self, data, info, rng):
         R = data.xmat[self.body_id]
         grav = R.T @ jp.array([0.0, 0.0, -1.0])
-        q = data.qpos[self.qadr]
-        obs = jp.concatenate([grav, data.qvel[3:6] * 0.25, q - self.stand_q, data.qvel[self.vadr] * 0.1,
-                              info["last_act"]])
+        obs = pio.righting_observation(jp, grav, data.qvel[3:6], data.qpos[self.qadr], data.qvel[self.vadr],
+                                       info["last_act"])
         return obs + self.obs_noise * jax.random.normal(rng, obs.shape)
