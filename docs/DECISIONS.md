@@ -863,3 +863,21 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
         the hip. Nothing is sent during a stop.
       - **Firmware test:** stopping mid-walk goes limp at once and the mind can't move it; resuming
         stands it back up; the spoken stop works (45/45).
+70. **terrain-v1 is Pinch's walking policy** (`policies/gait.npz`; previously gait-v1).
+    - **Tidying unchanged:** the 48-layout bench (run on msi-1's spare CPU) gives cap 3/48 and eraser
+      26/48, against gait-v1's 5/48 and 23/48. Overall 29/96 vs 28/96: the same.
+    - **Robustness, 40 episodes each:** 0 falls everywhere.
+
+      | World | terrain-v1 | Scripted gait |
+      |---|---|---|
+      | Flat | 87 % | 69 % |
+      | Rough | 86 % | 68 % |
+      | Caught foot | 81 % | 65 % |
+      | Terrain | 85 % | 66 % |
+      | Hard terrain | 83 % | 65 % |
+
+    - **Obstacles (`docs/HURDLES.md`):** bars to 8 mm forward (2/3) and to 12 mm sideways (1/3); ramps to
+      15° forward and 20° sideways (3/3).
+    - **Cost:** more body sway (tilt RMS 2.6–3.0° vs gait-v1's 1.6°).
+    - **Golden trace:** re-recorded (an intended behaviour change).
+    - **Scenarios:** 12/13. The cap tidy fails, as expected at a ~10 % cap rate.
