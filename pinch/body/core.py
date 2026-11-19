@@ -17,7 +17,7 @@ from pinch.body.common import (  # noqa: F401
 
 class BodyCore:
     def __init__(self, crab, pose_fn, objects_fn=None, desk=None, tip_fn=None, emote_policy=None, walk_policy=None,
-                 grasp_policy=None):
+                 grasp_policy=None, life_seed=0):
         self.crab, self.pose_fn, self.objects_fn = crab, pose_fn, objects_fn
         self.desk = desk or Desk()
         self.tip_fn = tip_fn                    # (side, arm joint q) -> claw tip (x, y) in the body frame
@@ -32,6 +32,8 @@ class BodyCore:
         self.gait = Gait(GAITS["trot"], com_offset=np.array([0.015 * 0.52, 0.0]))
         self.t = 0.0
         self.breath = True
+        from pinch.body.life import IdleLife
+        self.life = IdleLife(np.random.default_rng(life_seed))   # the idle life layer (seeded: replay)
         self.status = ""
         self.edge_guarded = 0                   # walking commands the edge guard trimmed
         self.cmd_vel = (0.0, 0.0, 0.0)          # the walking command right now (body frame)
@@ -84,10 +86,8 @@ class BodyCore:
                 q = self.hold
         else:
             q = self.hold
-        if self.task is None and self.breath:              # alive even when still: slow breathing
-            q = q.copy()
-            for lg in ("FL", "FR", "RL", "RR"):
-                q[J[f"{lg}_femur"]] += 0.015 * np.sin(2 * np.pi * self.t / 3.5)
+        if self.task is None and self.breath:              # alive even when still (pinch/body/life.py)
+            q = q + self.life.offsets(self.t, DT)
         if self.held:
             obj, side = self.held
             q = arm_pose(q, side, pitch=max(q[J[f"{'L' if side == 'left' else 'R'}_shoulder_pitch"]], CARRY_PITCH)

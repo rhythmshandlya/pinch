@@ -146,7 +146,7 @@ class PinchFirmware:
         self.loc = Localizer(getattr(hw, "start_pose", (0.0, 0.0, 0.0)))
         emote_pol, walk_pol = load_policies()
         self.body = Body(self.crab, self.loc.pose, self.object_belief, self.desk, tip_fn=hw.tip, emote_policy=emote_pol,
-                         walk_policy=walk_pol)
+                         walk_policy=walk_pol, life_seed=None)       # (the robot: fresh every boot)
         self.body.pose_sigma_fn = self.loc.sigma
         self.gestures = TouchGestures()
         self.bodysense = BodySense()
@@ -418,6 +418,7 @@ class PinchFirmware:
             self.face_frame = self.face.ssd1309_pages()
         if self.t - self.last_save >= SAVE_EVERY:
             self.save_memory()
+        self.body.life.liveliness = self.mind.affect.arousal
         q = self.body.tick()                                 # 20 ms: servos (and physics when emulated)
         cmd = getattr(self.body, "cmd_vel", (0.0, 0.0, 0.0))
         self.loc.predict(cmd, DT, self.t)

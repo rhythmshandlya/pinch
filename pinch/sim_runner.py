@@ -71,7 +71,7 @@ class PinchSim:
         if policies and (POLICY_DIR / "grasp.npz").exists():
             grasp_pol = NumpyPolicy.load(POLICY_DIR / "grasp.npz")
         self.body = Body(self.crab, self.pose, self.obj, self.desk, tip_fn=self.tip, emote_policy=emote_pol,
-                         walk_policy=walk_pol, grasp_policy=grasp_pol)
+                         walk_policy=walk_pol, grasp_policy=grasp_pol, life_seed=seed)
         self.body.grip_fn = self.gripping
         self.body.grasp_view_fn = self.grasp_view
         self.view_rng = np.random.default_rng(seed + 7)
@@ -296,6 +296,7 @@ class PinchSim:
             expr, gaze, _ = self.mind.face_expr, self.mind.gaze, None
             self.face.update(DT * FACE_EVERY, expr, gaze)
             set_face(self.m, self.face.rgb(scale=2))
+        self.body.life.liveliness = self.mind.affect.arousal
         self.body.tick()                                   # 20 ms of physics through the robot runtime
         self.k += 1
         self.t += DT

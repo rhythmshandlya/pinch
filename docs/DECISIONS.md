@@ -922,3 +922,20 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       emote-v1 stays.
     - **Bench:** `sim/robustness.py` now takes `PINCH_EMOTE_POLICY` to bench an emote candidate without
       overwriting the report.
+74. **The idle life layer** (`pinch/body/life.py`; the research plan's idle aliveness).
+    - **When:** whenever no motion step runs, small procedural motion is added on top of the held pose.
+    - **What:**
+      - breathing, as before;
+      - a slow, wandering weight shift between the legs;
+      - now and then (random Poisson timing) a micro-action: a claw flex, a shoulder twitch, one leg
+        resettling, or a held still moment. Never the same one twice running.
+    - **Liveliness** is the mind's arousal: livelier means more often and bigger; after five quiet
+      minutes it settles further.
+    - **Small and repeatable:** legs move at most 0.03 rad, arms 0.15 rad. It is seeded from the run's
+      seed in the twin, so replay holds, and fresh on every boot on the robot.
+    - **Tests** (`tests/test_life.py`):
+      - at least 5 kinds of micro-action in 10 minutes, none repeated back-to-back;
+      - excited makes 1.3× more than calm;
+      - 3 minutes idle in the twin with 0 falls;
+      - nothing starts during a motion step.
+    - **Golden trace:** re-recorded (an intended change).
