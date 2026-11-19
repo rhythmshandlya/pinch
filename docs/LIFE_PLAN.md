@@ -21,7 +21,7 @@ mistake the independent audits found, and whether it is fixed yet.
 | A11 | Pinch can't right itself from its back (the visor makes it worse) | **decision**: accept "beetle asks for help", or reshape the shell before printing |
 | A12 | My Modal spend tally left out grasp-v2/v3 | corrected in the morning report |
 
-The hardware/BOM audit and the sensor review are still running; their findings will be added here.
+The hardware/BOM audit is still running; its findings will be added here. Sensor findings: §8.
 
 ## 2. People and relationships (your idea 1)
 
@@ -116,3 +116,21 @@ The hardware/BOM audit and the sensor review are still running; their findings w
 7. **Grasping:**
    - the learned grab (grasp-v3) holds things in training but does worse than the scripted grab on pens in the full twin (2/10 vs 5/10; erasers 4/6 vs 2/6), so it is kept as `policies/grasp_v3_experimental.npz` and not used
    - next: train on the twin's contact model, or fine-tune with the twin's settings
+
+## 8. Sensors (sensor review)
+
+- **Add only three more VL53L0X distance sensors**, plus one spare (~₹800–2,200, +60 mA).
+  - **Positions:** one at the rear (backward, 40° down) and one on each side, raised to at least 55 mm (outward, 30° down). Together with the two front corners, that makes five cliff beams.
+  - **Wiring:** all five on the free I2C5-M0 bus (pins 29/31). XSHUT on pins 15, 22 and 36.
+  - **Why:** Pinch walks backwards and sideways, where nothing looks today. Vector and EMO both fall off desks for this reason.
+- **Not worth it:** a lidar (it scans a flat plane 13 cm up, so it never sees a drop), IR proximity sensors, foot pads (servo load does that job), PIR, bump switches or a second camera (the board has one camera port).
+- **Optional:** an LD2410 radar (~₹444) to notice a person sitting still.
+- **Fix before printing:** the CAD and assembly guide aim the two existing sensors sideways from 29 mm up, so they only see a side drop after the feet are already over it. The twin and firmware treat them as front-corner sensors. Use the five-beam layout above, with **open windows** (a cover fools the sensor into reading desk over empty air).
+- **Software:**
+  - **Done:** StuckSense's tilt limit lowered from 12° to 7° (belly on an edge tilts 7.7–11°; trotting stays under 4.8°).
+  - **To do:**
+    - foot load from the femur servos (in the twin too: contact counting called a foot resting on the edge "down")
+    - optical flow from the camera for "am I moving"
+    - back up only along the path just walked
+    - a virtual camera view aimed upward for faces
+- **Decision for you:** spend ~₹800–2,200 of the remaining ~₹9k on the three sensors (my recommendation: yes).

@@ -84,7 +84,7 @@ class StuckSense:
     emits "stuck" once, then "unstuck" when it has cleared for a while. Inputs exist on the robot too: IMU
     gravity, feet carrying load (servo loads), the desk position (marker) and the walking command."""
 
-    def __init__(self, tilt_deg=12.0, bad_s=1.5, ok_s=2.0):
+    def __init__(self, tilt_deg=7.0, bad_s=1.5, ok_s=2.0):     # belly on an edge tilts 7.7-11 deg; trotting <= 4.8
         self.tilt_deg, self.need_bad, self.need_ok = tilt_deg, bad_s, ok_s
         self.stuck, self.why = False, ""
         self.bad_s = self.ok_s = 0.0
