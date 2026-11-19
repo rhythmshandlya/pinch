@@ -14,6 +14,8 @@ import os
 import time
 from pathlib import Path
 
+from pinch.routine import DEFAULT_SETTINGS, local_hour
+
 DEFAULT_FILE = Path(os.environ.get("PINCH_MEMORY", Path.home() / ".pinch" / "memory.json"))
 MAX_EPISODES = 400
 
@@ -22,7 +24,7 @@ def _blank(now=None):
     return dict(owner=dict(name="", facts=[]), homes={}, sightings={}, routines=dict(meeting=[0] * 24,
                 away=[0] * 24, active=[0] * 24), stats=dict(pets=0, praise=0, scolds=0, tricks=0, tidies=0,
                 last_play=0.0, last_seen=0.0, born=time.time() if now is None else now), episodes=[], likes={},
-                known_words={})
+                known_words={}, settings=dict(DEFAULT_SETTINGS))
 
 
 class Memory:
@@ -41,6 +43,10 @@ class Memory:
         self._dirty = False
 
     # -- writing ------------------------------------------------------------
+    def changed(self):
+        """Something in data was changed directly (the settings): save it next time."""
+        self._dirty = True
+
     def snapshot(self):
         """The memory as text if it changed since the last save, else None. Cheap enough for the control
         loop; the slow part (writing it to the SD card) is write() and can run in another thread."""
@@ -93,7 +99,7 @@ class Memory:
             self._dirty = True
 
     def mark_routine(self, kind, hour=None):
-        hour = time.localtime(self.clock()).tm_hour if hour is None else hour
+        hour = self.hour() if hour is None else hour
         self.data["routines"][kind][hour] += 1
         self._dirty = True
 
@@ -129,8 +135,12 @@ class Memory:
     def owner_name(self):
         return self.data["owner"]["name"]
 
+    def hour(self):
+        """The local hour now (0-23), by the routine's clock (pinch/routine.py)."""
+        return int(local_hour(self.clock(), self.data["settings"].get("utc_offset_h")))
+
     def meeting_likely(self, hour=None):
-        hour = time.localtime(self.clock()).tm_hour if hour is None else hour
+        hour = self.hour() if hour is None else hour
         m = self.data["routines"]["meeting"]
         return m[hour] >= 3 and m[hour] >= 0.3 * max(1, max(m))
 

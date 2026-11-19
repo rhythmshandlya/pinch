@@ -1,4 +1,4 @@
-"""The small HTTP API on port 8080: typed speech, touch, status, emergency stop and resume."""
+"""The small HTTP API on port 8080: typed speech, touch, status, quiet hours, emergency stop and resume."""
 
 from robot.firmware.common import (  # noqa: F401
     BaseHTTPRequestHandler,
@@ -32,6 +32,17 @@ def serve(fw: "PinchFirmware", port=8080):
                 fw.say(data["text"][:300])
             elif self.path == "/touch" and data.get("gesture") in ("stroke", "hold", "tickle", "boop", "tap", "claw_hold"):
                 fw.touch(data["gesture"])
+            elif self.path == "/quiet_hours":                # {"start": 22, "end": 7} or {"off": true}
+                if data.get("off"):
+                    fw.set_quiet_hours(None)
+                else:
+                    try:
+                        start, end = float(data["start"]), float(data["end"])
+                    except (KeyError, TypeError, ValueError):
+                        return self._send({"error": "give start and end hours (0-24), or off"}, 400)
+                    if not (0 <= start < 24 and 0 <= end < 24) or start == end:
+                        return self._send({"error": "start and end must be different hours in 0-24"}, 400)
+                    fw.set_quiet_hours((start, end))
             elif self.path == "/stop":                       # emergency stop: limp at once, until /resume
                 fw.estop(str(data.get("why", "http"))[:80])
             elif self.path == "/resume":

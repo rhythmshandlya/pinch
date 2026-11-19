@@ -1024,3 +1024,23 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **References updated** in code and docs.
     - **Checks:** righting, tidy, soak, pick, quick robustness and obstacles run from their new places;
       hurdles and scenarios import; tests 26/26.
+82. **The daily routine and quiet hours** (`pinch/routine.py`).
+    - **Night (22:00–06:00):** sleepiness builds three times faster. The existing Rest activity then ends
+      the evening on its own; there is no separate sleep schedule to keep in step with it.
+    - **Quiet hours,** set by the owner:
+      - by voice: "quiet hours from 10 pm to 7 am", and "no quiet hours" to clear them. They are parsed
+        from the raw text, because the rule parser drops digits and speech recognisers write numbers as
+        digits;
+      - over HTTP: `POST /quiet_hours {"start": 22, "end": 7}` or `{"off": true}`.
+      - Inside them Pinch is quiet exactly as in a meeting: no sounds, quiet activities only.
+      - They are stored in the memory file's `settings`, so they survive restarts; `/status` shows them.
+    - **Local time:** the robot uses its own clock and time zone. The twin fixes India's +5.5, so a run
+      replays the same on any machine; `memory.mark_routine` used to read the host's time zone.
+    - **Tests** (`tests/test_routine.py`):
+      - parsing, and windows that run over midnight;
+      - at 23:00 with quiet hours set, two minutes of stroking and talking give no sounds, while the same at
+        noon gives some;
+      - sleepiness builds about three times faster at night.
+    - **Firmware test:** quiet hours set over HTTP make it quiet now, a bad hour gets a 400, and clearing
+      them works (46/46).
+    - **Golden trace:** unchanged, since the session is at 09:00.

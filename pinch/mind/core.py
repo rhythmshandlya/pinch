@@ -10,6 +10,7 @@ from pinch.mind.common import (  # noqa: F401
     People,
     Personality,
     PlayBook,
+    Routine,
     WorldModel,
     deque,
     np,
@@ -28,6 +29,7 @@ class MindCore:
         self.llm = LLMUnderstanding() if llm else None
         if self.llm is not None and not self.llm.check():
             self.llm = None
+        self.routine = Routine(self.memory.data.setdefault("settings", {}))   # time of day, quiet hours
         self.meeting = MeetingDetector()
         self.voice_mood = OwnerVoiceMood()
         self.t = 0.0
@@ -131,9 +133,10 @@ class MindCore:
             self.affect.feel("owner_left")
             self._say("owner", "my person left")
         self._was_present = present
-        self.affect.quiet = o.busy == "meeting" or self.t < self.quiet_until
+        now = self.world.clock()
+        self.affect.quiet = o.busy == "meeting" or self.t < self.quiet_until or self.routine.quiet_hours(now)
         self.affect.tick(dt, owner_present=present, owner_attending=self.world.owner_attending(60),
-                         battery=self.world.battery)
+                         battery=self.world.battery, sleep_drive=self.routine.sleep_drive(now))
         self._self_preservation(dt)
         timed_out = self._timeout()
         if self.t >= self.next_choice or self._force:

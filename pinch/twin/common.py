@@ -28,3 +28,4 @@ FACE_EVERY = 3                        # face texture at ~17 Hz
 
 
 SIM_EPOCH = 1795059000.0          # the twin's calendar starts 2026-11-19 09:00 IST (03:30 UTC): runs replay exactly
+TWIN_UTC_OFFSET_H = 5.5           # and its local time is India's on any machine (pinch/routine.py)

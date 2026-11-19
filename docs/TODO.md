@@ -38,8 +38,8 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
 - [x] **Idle life layer:** breathing, weight shifts, varied micro-actions scaled by arousal, no repeats (74).
 - [ ] **Animation layering:** clips plus gaze offsets plus affect "style" (speed, amplitude).
 - [ ] Scenario language: write scenarios as data (stimulus timeline plus assertions) instead of code.
-- [ ] Daily routine: wake, active, rest and sleep cycle, plus quiet hours set by the owner.
-- [ ] User controls: inspect and forget memories, turn recognition off, quiet hours (HTTP and app).
+- [x] Daily routine: sleepier at night (Rest ends the evening), quiet hours by voice or HTTP, kept in memory (82).
+- [ ] User controls: inspect and forget memories, turn recognition off (quiet hours done: 82).
 - [ ] Realism metrics in the observer (entropy, gaze-target agreement, jerk) with trends over versions.
 
 ## 3. Features and training

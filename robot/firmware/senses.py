@@ -87,6 +87,12 @@ class FirmwareSenses:
         elif kind == "touch":
             self.stats["touches"] += 1
             m.touch(data)
+        elif kind == "quiet_hours":
+            if data is None:
+                m.routine.clear_quiet_hours()
+            else:
+                m.routine.set_quiet_hours(*data)
+            m.memory.changed()
         elif kind == "voice":
             m.hear_summary(*data)
         elif kind == "sound_event":

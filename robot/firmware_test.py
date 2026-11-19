@@ -19,7 +19,9 @@ import signal
 import sys
 import tempfile
 import threading
+import time
 import types
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -90,6 +92,22 @@ def main():
     run(4.0)
     check("touch pads (MPR121 driver): a stroke -> purr", "purr" in fw.stats["sounds"][n:],
           f"sounds {fw.stats['sounds'][n:]}")
+
+    h = time.localtime().tm_hour                      # quiet hours around now, set over HTTP, then cleared
+    post(port, "/quiet_hours", {"start": (h - 1) % 24, "end": (h + 2) % 24})
+    run(1.0)
+    st = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=5).read())
+    in_quiet = fw.mind.affect.quiet and st["quiet_hours"] == [float((h - 1) % 24), float((h + 2) % 24)]
+    try:
+        post(port, "/quiet_hours", {"start": 25, "end": 7})
+        rejected = False
+    except urllib.error.HTTPError as e:
+        rejected = e.code == 400
+    post(port, "/quiet_hours", {"off": True})
+    run(1.0)
+    check("HTTP API: quiet hours set (quiet now), bad hours refused, cleared again",
+          in_quiet and rejected and not fw.mind.affect.quiet and fw.mind.routine.settings["quiet_hours"] is None,
+          f"quiet {in_quiet}, 400 for hour 25: {rejected}")
 
     hw.audio_mode = "meeting"
     quiet = False

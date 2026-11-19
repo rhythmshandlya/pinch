@@ -11,6 +11,7 @@ from pinch.language import LLMUnderstanding, understand_rules
 from pinch.memory import Memory
 from pinch.people import People
 from pinch.play import PlayBook
+from pinch.routine import Routine
 from pinch.safety import NO_GO, DangerMap, hunger
 from pinch.touch import GESTURE_EVENT
 from pinch.world import WorldModel, situations

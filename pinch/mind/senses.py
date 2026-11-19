@@ -82,6 +82,15 @@ class Senses:
             where = ob.xy if ob else self.world.pose[:2]
             self.memory.teach_home(u["object"], where)
             self.request = ("teach_home", u["object"])
+        elif i == "quiet_hours" and u.get("quiet_hours"):
+            if u["quiet_hours"] == "clear":
+                self.routine.clear_quiet_hours()
+                self._say("quiet_hours", "no quiet hours any more")
+            else:
+                self.routine.set_quiet_hours(*u["quiet_hours"])
+                self._say("quiet_hours", "quiet from %05.2f to %05.2f" % tuple(u["quiet_hours"]))
+            self.memory.changed()                         # (the settings live in the memory file)
+            self.affect.feel("spoken_to", 0.5)
         elif i in ("chat", "owner_feeling", "tell_name"):
             self.affect.feel("spoken_to" if i == "chat" else "name_called", 0.7)
         if u["addressed"] and i in ("chat", "greet", "none", "trick", "come", "play"):

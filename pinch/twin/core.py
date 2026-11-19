@@ -20,6 +20,7 @@ from pinch.twin.common import (  # noqa: F401
     SIM_EPOCH,
     START,
     SimBackend,
+    TWIN_UTC_OFFSET_H,
     StuckSense,
     build_desk_model,
     mujoco,
@@ -44,6 +45,8 @@ class TwinCore:
         self.mind = Mind(memory=memory if memory is not None else Memory(path=None), llm=llm, seed=seed,
                          clock=lambda: epoch + self.t)
         self.mind.decision_log_path = decision_log
+        if self.mind.routine.settings.get("utc_offset_h") is None:
+            self.mind.routine.settings["utc_offset_h"] = TWIN_UTC_OFFSET_H
         self.face = Face(seed=seed)
         self.rng = np.random.default_rng(seed)
         self.senses = BodySense()

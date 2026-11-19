@@ -106,6 +106,10 @@ class FirmwareCore:
     def touch(self, gesture):
         self.inbox.put(("touch", gesture))
 
+    def set_quiet_hours(self, hours):
+        """(start, end) local hours, or None to clear them (pinch/routine.py); applied in the loop."""
+        self.inbox.put(("quiet_hours", hours))
+
     def _now(self):
         return time.monotonic() if getattr(self.hw, "threaded", True) else self.t
 
@@ -306,4 +310,6 @@ class FirmwareCore:
                     battery=round(self._safe("battery", self.hw.battery_fraction, 0.0), 2), cliff_mm=self.cliff,
                     cliff=dict(self.cliff_reflex.states), tick_ms=self.timing(), cpu_c=self._cpu_temp(),
                     errors=dict(self.errors) | dict(getattr(self.hw.backend, "errors", {})),
-                    diary=[f"{t:.0f}s {k}: {x}" for t, k, x in m.log[-8:]])
+                    diary=[f"{t:.0f}s {k}: {x}" for t, k, x in m.log[-8:]],
+                    quiet_hours=m.routine.settings.get("quiet_hours"), quiet=m.affect.quiet,
+                    part_of_day=m.routine.part_of_day(m.world.clock()))

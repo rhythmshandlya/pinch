@@ -113,7 +113,7 @@ class Affect:
         self.last_event, self.last_event_t = event, self.t
         self._clip()
 
-    def tick(self, dt, owner_present=False, owner_attending=False, battery=None, awake_hours=None):
+    def tick(self, dt, owner_present=False, owner_attending=False, battery=None, awake_hours=None, sleep_drive=1.0):
         """Needs grow, emotions drift back to the resting mood."""
         self.t += dt
         n, p = self.needs, self.personality
@@ -126,7 +126,7 @@ class Affect:
         n.social += dt * lonely_rate
         n.play += dt * NEED_RATES["play"] * p.playfulness
         n.curiosity += dt * NEED_RATES["curiosity"] * p.curiosity
-        n.sleep += dt * NEED_RATES["sleep"] * (2.0 if awake_hours and awake_hours > 10 else 1.0)
+        n.sleep += dt * NEED_RATES["sleep"] * (2.0 if awake_hours and awake_hours > 10 else 1.0) * sleep_drive
         n.safety -= dt * 0.05
         if battery is not None:
             n.energy = 1.0 - float(battery)

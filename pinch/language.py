@@ -19,10 +19,11 @@ import threading
 import urllib.request
 
 from crab.emotes import EMOTES
+from pinch.routine import parse_quiet_hours
 
 INTENTS = ["estop", "greet", "goodbye", "praise", "scold", "trick", "come", "go_away", "stop", "quiet", "tidy",
            "fetch", "put_away", "play", "sleep", "wake", "tell_name", "teach_home", "owner_feeling",
-           "meeting_start", "meeting_end", "how_are_you", "chat", "none"]
+           "meeting_start", "meeting_end", "how_are_you", "quiet_hours", "chat", "none"]
 OBJECTS = ["pen", "pencil", "eraser", "cap", "ball", "marker", "coin", "clip", "note"]
 OWNER_EMOTIONS = ["", "happy", "excited", "sad", "stressed", "tired", "angry", "calm"]
 TRICKS = {                                  # spoken word -> what Pinch does
@@ -56,7 +57,8 @@ NOT_NAMES = {w for ws in FEELINGS.values() for w in ws} | {"busy", "back", "here
 
 def blank():
     return dict(intent="none", trick="", object="", name="", fact="", owner_emotion="", sentiment=0.0,
-                addressed=False, meeting="", call_cue=False, text="", source="rules")
+                addressed=False, meeting="", call_cue=False, text="", source="rules",
+                quiet_hours=None)                 # (start, end) local hours, or "clear" (pinch/routine.py)
 
 
 def _has(t, words):
@@ -98,6 +100,9 @@ def understand_rules(text: str, pet_name="pinch") -> dict:
     pick("put_away", obj and re.search(r"\b(put|place|return|move)\b.*\b(back|away|tray|stand|home)\b", t))
     pick("fetch", obj and re.search(r"\b(bring|fetch|get|give|pass)\b", t))
     pick("tidy", re.search(r"\b(tidy|clean up|clean the desk|organi[sz]e|declutter|put (?:things|stuff|everything) away)\b", t))
+    qh = parse_quiet_hours(text)                                 # (from the raw text: it has the digits)
+    if pick("quiet_hours", qh is not None):
+        u["quiet_hours"] = qh
     pick("quiet", re.search(r"\b(quiet|shh+|hush|silence|shut up|keep it down)\b", t))
     pick("scold", re.search(r"\b(no+ ?!?|bad|naughty|stop that|don't do that|cut it out)\b", t) and not re.search(r"\bnot bad\b", t))
     pick("praise", re.search(r"\b(good (?:boy|girl|crab|job|pinch)|well done|clever|smart|love you|cute|adorable|"
