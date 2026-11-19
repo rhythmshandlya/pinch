@@ -29,11 +29,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from crab import policy_io as pio  # noqa: E402
-from crab.emotes import crouch, pose  # noqa: E402
 from crab.gait import _S, GAITS  # noqa: E402
 from crab.gait_jax import GaitJax  # noqa: E402
 from crab.params import JOINT_NAMES, LEG_IDS  # noqa: E402
-from pinch.body.common import PADDLE_CLAW, PADDLE_PITCH, PUSH_LOWER, arm_pose  # noqa: E402
+from crab.arm import PUSH_LOWER, paddle_pose  # noqa: E402
 
 MODEL = ROOT / "sim" / "models" / "crab.xml"
 THING_H = 0.006
@@ -125,9 +124,7 @@ class CrabPush2Env(Env):
         self.obs_noise, self.push_vel = obs_noise, push_vel
         self.push_every = int(push_interval_s / HL_DT)
         self.scales = dict(REWARD_SCALES, **(reward_scales or {}))
-        paddle = arm_pose(arm_pose(pose(crouch(0.25)), "right", pitch=PADDLE_PITCH, yaw=0.0, claw=PADDLE_CLAW),
-                          "left", pitch=0.5)
-        self.gait = GaitJax(GAITS["trot"], com_offset=(0.015 * _S, 0.0), arms=paddle)
+        self.gait = GaitJax(GAITS["trot"], com_offset=(0.015 * _S, 0.0), arms=paddle_pose("right"))
         self.act_ids = jp.array([m.actuator(j).id for j in JOINT_NAMES])
         self.body_id = m.body("body").id
         self.thing_body = m.body("thing").id

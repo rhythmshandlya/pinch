@@ -53,12 +53,10 @@ PUSH_CMDS = [(0.042, 0.0, 0.0), (0.03, 0.0, 0.0), (0.015, 0.0, 0.0), (0.042, 0.0
 
 def push_references(seconds=6.0, hz=50.0, sim_dt=0.002, sub=10):
     """The scripted gait as Body drives it while pushing: paddle arm (either claw), the crouch easing in."""
-    from pinch.body.common import PADDLE_CLAW, PADDLE_PITCH, PUSH_LOWER, arm_pose
-    from crab.emotes import crouch, pose
+    from crab.arm import PUSH_LOWER, paddle_pose
     out = []
     for side in ("left", "right"):
-        paddle = arm_pose(arm_pose(pose(crouch(0.25)), side, pitch=PADDLE_PITCH, yaw=0.0, claw=PADDLE_CLAW),
-                          "right" if side == "left" else "left", pitch=0.5)
+        paddle = paddle_pose(side)
         out.append(walk_references(PUSH_CMDS, seconds, hz, sim_dt, sub, arms=paddle, lower=PUSH_LOWER))
     return concat_references(out)
 

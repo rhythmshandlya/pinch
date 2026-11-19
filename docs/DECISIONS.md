@@ -826,3 +826,21 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       batch. That is needed for a learned push skill built on the real walking stack (the old push env
       sat on the retired from-scratch walker), and for walking trained on continuous commands, not
       recorded references.
+67. **Learned push steering on the real walking controller** (`training/push2_env.py`).
+    - **What is learned:** only the brittle part of pushing, the steering. A 10 Hz policy chooses the
+      walking command.
+    - **What runs underneath:** the JAX gait, identical to the robot's, with the right claw as the
+      paddle and the 11 mm crouch.
+    - **Episodes start where Body's scripted line-up ends:** the thing at the paddle, the goal 8–25 cm
+      ahead within ±35°.
+    - **Randomised:** the thing's size (16–32 mm), mass (3–10 g) and friction, the usual robot physics,
+      and shoves.
+    - **Reward:** progress to the goal, the paddle staying behind the thing, an arrival bonus, and
+      penalties for losing it, tilting, jerky commands and falls.
+68. **Robot geometry lives in `crab/`; the layers are enforced.**
+    - **What went wrong:** walking v2's and the push env's first Modal launches failed. They imported
+      the paddle pose from the pet's brain package (`pinch/`), which isn't shipped to the GPU.
+    - **Change:** `crab/arm.py` now holds `arm_pose`, `paddle_pose` and the push constants. Body and
+      training both use it, and Body's two duplicated paddle expressions became `paddle_pose(side)`.
+    - **Guard:** `tests/test_architecture.py` fails if `crab/` imports the pet, firmware, training or sim,
+      or `training/` imports the pet or firmware.

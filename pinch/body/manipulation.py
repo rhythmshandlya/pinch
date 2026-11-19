@@ -1,6 +1,7 @@
 """The claws at work: pushing things (paddle), picking up, carrying, putting down."""
 
 from pinch.body.common import (  # noqa: F401
+    paddle_pose,
     CARRY_PITCH,
     DT,
     GRASP_ARM0,
@@ -64,8 +65,7 @@ class Manipulation:
             radius = extent(name, o[0][2], heading, radius)   # how far the thing reaches back toward the paddle
             x, y, h = self.pose_fn()
             side = self._side_for(x, y, h, ox, oy)
-            paddle = arm_pose(arm_pose(pose(crouch(0.25)), side, pitch=PADDLE_PITCH, yaw=0.0, claw=PADDLE_CLAW),
-                              "right" if side == "left" else "left", pitch=0.5)
+            paddle = paddle_pose(side)
             tip = np.array(self.tip_fn(side, paddle) if self.tip_fn else (0.085, 0.03 if side == "left" else -0.03))
             c, s = np.cos(heading), np.sin(heading)
             tip_w = np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
@@ -128,8 +128,7 @@ class Manipulation:
         heading = float(np.arctan2(u[1], u[0]))                  # face the thing, from the goal's side
         x, y, h = self.pose_fn()
         side = self._side_for(x, y, h, ox, oy)
-        paddle = arm_pose(arm_pose(pose(crouch(0.25)), side, pitch=PADDLE_PITCH, yaw=0.0, claw=PADDLE_CLAW),
-                          "right" if side == "left" else "left", pitch=0.5)
+        paddle = paddle_pose(side)
         tip = np.array(self.tip_fn(side, paddle) if self.tip_fn else (0.085, 0.03 if side == "left" else -0.03))
         c, s = np.cos(heading), np.sin(heading)
         tip_w = np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
