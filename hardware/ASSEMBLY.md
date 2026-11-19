@@ -182,7 +182,7 @@ Turn every joint gently by hand over its range (`crab/params.py`). The CAD check
 3. **Cliff sensors (five VL53L0X):** one behind each of the five angled windows in the chassis wall:
    - two at the front, below the camera
    - one at the rear
-   - one high on each side
+   - one low on each side, under the servo deck (its window centre is about 10 mm below the deck top: decision 48)
 
    Glue each module flat against the inside of the wall, lens centred on the hole. The hole is drilled
    along the beam (front and rear 40° down, sides 30° down), so a module sitting square in it looks the

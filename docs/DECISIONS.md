@@ -484,10 +484,19 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       - **Problem:** at 30° down they hit the desk 148 mm from the centre, 5.4 cm beyond the feet. Any
         sideways walk the planners allow (feet ≥2 cm from the edge) tripped the reflex and aborted the
         task. 4 false edge stops in one 4-minute scenario.
-      - **Change:** the side beams now look **45° down**, hitting 1.5 cm beyond the feet (flat-desk
-        reading 76 mm, threshold 121 mm). They now fire only on a real map error. Front and rear stay
-        at 40° (3.5 cm past the feet): walking forward is faster and needs the warning.
-      - **Affects:** `crab/params.py`. CAD windows, twin and firmware all read that table.
+      - **First fix, 45° down:** it fixed the twin, but the wall check then found 0.07 mm slivers. The
+        side wall ends at z ≈ 2 mm (the hip plates swing above it), and the windows were centred at
+        z = +5: the sensors sat *above* the wall, and even the old 30° window only clipped its top.
+      - **Final:** the side sensors move **down into the wall, under the servo deck (z = −16)**, still
+        **30° down**. The desk is hit 111 mm out, 1.7 cm beyond the feet (flat-desk reading 65 mm,
+        threshold 105 mm), so they fire only on a real map error.
+        - Both windows sit in solid wall and their beams leave the body unobstructed (checked: 0 mm³
+          of chassis in the first 25 mm of each beam).
+        - The chassis passes the wall check (no thin faces).
+        - Front and rear stay at 40° (3.5 cm past the feet): walking forward is faster and needs the
+          warning.
+      - **Affects:** `crab/params.py`. CAD windows, twin and firmware all read that table. The assembly
+        guide's side-sensor height changes with it.
     - **A reflex's success was taken for the interrupted step's.**
       - **Problem:** the edge reflexes did `cancel()` then `start(back_off)`. When the back-off ended,
         `ok` was True, and the mind read that as "the pick worked". It then tried to drop a pen it had
@@ -564,3 +573,45 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
         at 4 ms but only 0.3 s at 2 ms, so the thing was still bouncing when the episode began.
       - **Sizes:** each training environment draws its own sizes (`grasp_randomize`).
       - **Budget:** 30M steps on an A10G, 150 min hard timeout.
+52. **Getting over things: a high-step "climb" crawl** (audit A10; `crab/gait.py` `GAITS["climb"]`,
+    `Body._climb`).
+    - **Measured** in the 2 ms twin, walking forward into fixed things:
+      - The trot crosses none of: a 5 mm cable, a pen, an 8 mm step, a 12 mm step.
+      - The crawl with its feet lifted 20 mm crosses all four.
+      - Sideways, the trot already crosses all but the 12 mm step.
+    - **Change:** `recover()` (run by Unstick when the stuck sense fires) now *climbs on* the way Pinch
+      was walking, for 6 s, when all feet are on the desk, i.e. caught on something. A foot over the
+      edge still shuffles back toward the middle.
+    - **Tested** by `sim/obstacle_test.py` through the robot's own Body: forward and sideways into a
+      cable, a pen and a book edge. All six cases get over, with 0 falls. The cable is walked over
+      directly; the forward pen and book cases need one climb.
+    - **Robustness worlds:** `sim/robustness.py --world rough|stuck` add desk clutter (1–4 mm) and a
+      foot caught for 1.5 s. Over 40 episodes each, the residual gait has 0 falls and tracks 86 % and
+      81 % of the commanded speed. The scripted gait does 68 % and 65 %.
+53. **The residual walking policy drives Pinch** (`policies/gait.npz` = gait-v1, 60M steps).
+    - **Bench, 40 randomised robots and worlds:** 0 falls; 86 % speed tracking on the flat desk (the
+      scripted gait does 69 %) and a steadier body (tilt RMS 1.6° vs 2.0°). It passes on the rough
+      desk and with a caught foot too.
+    - **In Body:**
+      - The live gait drives the servos.
+      - The policy's 0.1 s look-ahead comes from a copy of the gait, run on in five 20 ms steps:
+        0.8 ms, within 0.02 rad of fine steps.
+      - **Rejected, a 0.1 s delay line:** it cost the tidy planners most of their precision (cap 1/8
+        with the policy zeroed).
+    - **Where it runs:** plain walking only, and only once Pinch has actually risen from a push
+      crouch (the audit found it switching on mid-crouch, and with that the bench had 8 falls). Pushes
+      keep the pure scripted gait.
+    - **Other fixes from the same audit:**
+      - An object's position is its latest sighting, averaged only once it has been still for 0.5 s.
+        On the robot the push steers on it, and averaging lagged a pushed cap by up to 14 mm.
+      - Line-up and pick-stand checks use the same margins `_goto` applies.
+      - An IMU hiccup falls back to the plain gait for that tick.
+    - **Not adopted:** keeping the shell, not only the feet, off the tray. The chassis clears the
+      tray's 12 mm walls by ~7 mm, and the bench lost tidies with it (13/32 vs 16/32 over 16 layouts).
+    - **Asking for help:** when a thing is within 8 cm of an edge and the first push fails, Pinch asks
+      straight away instead of waiting for a second failure. Before, the 30 s retry cooldown let other
+      tidying take over.
+    - **Where it stands:**
+      - **Tidy bench, 16 layouts:** cap 9/16, eraser 7/16, 0 falls. HEAD this morning: 0 of 8 for each.
+      - **Still open:** the ball starts 7.5 cm from the back edge and gets brushed off in about half
+        the runs.

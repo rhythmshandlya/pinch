@@ -81,6 +81,10 @@ _GAITS_100MM = {
 }
 # The values above were tuned on the original 100 mm-shin robot; scale them to this one.
 GAITS = {k: _scaled(v) for k, v in _GAITS_100MM.items()}
+# "climb": the crawl with feet lifted 20 mm (absolute, not scaled) - for getting over things it's caught on.
+# In the twin, walking forward, it crosses a fixed 5 mm cable, a pen, and 8 and 12 mm steps; the trot
+# crosses none of them forward (sideways the trot manages all but the 12 mm step). Decision 52.
+GAITS["climb"] = __import__("dataclasses").replace(GAITS["crawl"], name="climb", step_height=0.020)
 
 
 def _cycloid(s):

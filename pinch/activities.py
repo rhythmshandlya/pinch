@@ -478,8 +478,10 @@ class Tidy(Activity):
             if not picked:
                 yield ("push", name, goal)              # ... and pushing when it can't get hold of it
             ok = m.last_step_ok
-            if not ok and len([1 for t, k in m.tidy_tries.get(name, []) if not k and m.t - t < 600]) >= 1:
-                # second failure: ask my person for help instead of thrashing about
+            # (right by an edge it can't get behind it - no point trying again)
+            hopeless = m.world.desk.edge_distance(ob.xy) < 0.08
+            if not ok and (hopeless or len([1 for t, k in m.tidy_tries.get(name, []) if not k and m.t - t < 600]) >= 1):
+                # second failure (or out of reach): ask my person for help instead of thrashing about
                 yield ("face", "sad")
                 yield ("turn_to", ob.xy)
                 yield ("emote", "point")

@@ -54,7 +54,8 @@ class Desk:
         """feet_margin for planning a spot to stand: the tray counts as off the desk too, but nearer - a foot
         TRAY_ALLOW closer to it than to an edge reads the same (its 12 mm walls snag a foot; brushing past it is
         fine, and a push into it brings the front feet up to its mouth). The reflexes use feet_margin."""
-        pts = self._feet(xy, heading)
+        pts = self._feet(xy, heading)       # (feet only: the chassis clears the tray's 12 mm walls by ~7 mm, and
+        # also keeping the shell off it cost tidies in the bench - 13/32 vs 16/32 - for no physical gain)
         return min(min(self.edge_distance(p) for p in pts), min(self.tray_gap(p) for p in pts) + self.TRAY_ALLOW)
 
     def _feet(self, xy, heading):
@@ -117,7 +118,8 @@ class WorldModel:
 
     def see(self, name, xy, yaw=0.0, graspable=True, on_desk=True):
         """A sighting. Camera fixes jitter by several mm, so "it moved" means 2 cm from where it came to rest
-        (comparing one noisy fix with the last, it would never count as still); while still, the fixes average."""
+        (comparing one noisy fix with the last, it would never count as still). The position is the latest fix -
+        a thing being pushed must not lag (the push steers on it) - averaged only once it has been still 0.5 s."""
         o = self.objects.get(name)
         if o is None:
             o = self.objects[name] = ObjectBelief(name, tuple(xy), yaw, self.t, self.t, graspable, on_desk)
@@ -125,8 +127,10 @@ class WorldModel:
         moved = o.rest_xy is None or np.hypot(xy[0] - rest[0], xy[1] - rest[1]) > 0.02
         if moved:
             o.still_since, o.rest_xy, o.xy = self.t, tuple(xy), tuple(xy)
-        else:
+        elif self.t - o.still_since > 0.5:
             o.xy = (0.7 * o.xy[0] + 0.3 * xy[0], 0.7 * o.xy[1] + 0.3 * xy[1])
+        else:
+            o.xy = tuple(xy)
         o.yaw, o.seen_t, o.on_desk, o.graspable = yaw, self.t, on_desk, graspable
         return o
 

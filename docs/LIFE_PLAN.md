@@ -120,7 +120,7 @@ The hardware/BOM audit is still running; its findings will be added here. Sensor
 ## 8. Sensors (sensor review)
 
 - **Add only three more VL53L0X distance sensors**, plus one spare (~₹800–2,200, +60 mA).
-  - **Positions:** one at the rear (backward, 40° down) and one on each side, raised to at least 55 mm (outward, 30° down). Together with the two front corners, that makes five cliff beams.
+  - **Positions:** one at the rear (backward, 40° down) and one on each side (outward, 30° down; low on the side wall, under the servo deck: decision 48). Together with the two front corners, that makes five cliff beams.
   - **Wiring:** all five on the free I2C5-M0 bus (pins 29/31). XSHUT on pins 15, 22 and 36.
   - **Why:** Pinch walks backwards and sideways, where nothing looks today. Vector and EMO both fall off desks for this reason.
 - **Not worth it:** a lidar (it scans a flat plane 13 cm up, so it never sees a drop), IR proximity sensors, foot pads (servo load does that job), PIR, bump switches or a second camera (the board has one camera port).

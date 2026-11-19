@@ -15,6 +15,8 @@ Positions come from pose_fn() -> (x, y, heading) and objects_fn(name) -> ((x, y,
 frame: ground truth in the simulator; on the robot, odometry + the camera's view of the desk.
 """
 
+import copy
+
 import numpy as np
 
 from crab import policy_io as pio
@@ -66,6 +68,8 @@ def arm_pose(base, side, pitch=None, yaw=None, claw=None):
     return q
 
 
+GAIT_LOOK = 5             # control ticks (0.1 s): how far ahead the walking policy sees the scripted gait
+
 class Body:
     def __init__(self, crab, pose_fn, objects_fn=None, desk=None, tip_fn=None, emote_policy=None, walk_policy=None,
                  grasp_policy=None):
@@ -73,6 +77,7 @@ class Body:
         self.desk = desk or Desk()
         self.tip_fn = tip_fn                    # (side, arm joint q) -> claw tip (x, y) in the body frame
         self.emote_policy, self.walk_policy = emote_policy, walk_policy
+        self._glast, self._gt, self._gseen = np.zeros(12), 0.0, -1.0
         self.grasp_policy = grasp_policy        # the learned grab (right claw; training/grasp_env.py), if exported
         self.grasp_view_fn = None               # (thing, side) -> (rel, ang, kind, size): what the camera sees
         self.task, self.busy, self.ok = None, False, True
@@ -223,12 +228,40 @@ class Body:
 
     def _gait_q(self, cmd, arms=None, lower=0.0):
         cmd = self._edge_guard(cmd)
+        if np.hypot(cmd[0], cmd[1]) > 0.005:                    # where it was trying to go (for a climb)
+            self.walk_dir = np.array(cmd[:2]) / np.hypot(cmd[0], cmd[1])
         self.cmd_vel = tuple(float(c) for c in cmd)          # what the localizer integrates on the robot
         self.gait.arms = arms
         self.gait.lower += float(np.clip(lower - self.gait.lower, -0.0004, 0.0004))   # sink / rise smoothly
         for k in range(SUB):                                   # leg IK only once per tick, after the last substep
             q = self.gait.step(DT / SUB, cmd, solve=k == SUB - 1)
-        return q
+        return self._residual(q, cmd, arms is None and self.gait.lower < 1e-4)
+
+    def _residual(self, ref, cmd, plain):
+        """The trained walking corrections (policies/gait.npz) on top of the scripted trot. Its look-ahead (the
+        reference 0.1 s on, as in training) comes from a copy of the gait run on with the same command - no lag
+        for the servos (a 0.1 s delay line cost the tidy planners most of their precision). Only for plain
+        walking: pushes (paddle arms, crouched) keep the pure scripted gait, which the policy never saw."""
+        if self.walk_policy is None or not plain:
+            self._gseen = -1.0
+            return ref
+        if self.t - self._gseen > 2.5 * DT:                        # (re)starting a walk
+            self._glast, self._gt = np.zeros(12), 0.0
+        self._gseen = self.t
+        g = copy.deepcopy(self.gait)                 # 5 coarse 20 ms steps: 0.8 ms, within 0.02 rad of fine ones
+        for k in range(GAIT_LOOK):
+            ahead = g.step(DT, cmd, solve=k == GAIT_LOOK - 1)
+        try:
+            gyro, grav = self.crab.hw.read_imu()
+            qj, st = self.crab.read_joints()
+        except Exception:                            # a sensor hiccup: this tick walks on the plain gait
+            return ref
+        qd = np.array([self.crab.cal.sign[j] * st[SERVO_IDS[j]].speed for j in JOINT_NAMES])
+        obs = pio.emote_observation(np, gyro, grav, qj[pio.LEG_ACT_IDX], qd[pio.LEG_ACT_IDX], self._glast, ref, ahead,
+                                    None, (self._gt % 6.0) / 6.0)
+        self._glast = np.clip(self.walk_policy(obs), -1, 1)
+        self._gt += DT
+        return pio.emote_targets(np, ref, self._glast)
 
     def _walk(self, vx, vy, wz, seconds):
         for _ in range(int(seconds / DT)):
@@ -343,8 +376,8 @@ class Body:
             # stand 3 cm behind it to line up; near an edge, stand closer (down to touching) before giving up
             for gap in (0.03, 0.02, 0.01, 0.0):
                 start = np.array((ox, oy)) - u * (radius + gap) - tip_w
-                fits = (self.desk.inside(start, self.desk.edge_margin - 0.004) and
-                        self.desk.feet_clear(start, heading) >= self.FEET_EDGE)
+                fits = (self.desk.inside(start, self.desk.edge_margin) and           # (as _goto will clamp
+                        self.desk.feet_clear(start, heading) >= self.FEET_EDGE + 0.005)  # and fit it)
                 if fits:
                     break
             # can't get behind it from the desk (its feet, not just its centre, must fit there)
@@ -506,7 +539,8 @@ class Body:
             self.trace("pick_plan", side=side, tip=tuple(np.round(tip, 3)), stand=tuple(np.round(stand_xy, 3)),
                        heading=round(float(heading), 2), obj=(round(ox, 3), round(oy, 3), round(oyaw, 2)))
             fwd = np.array((np.cos(heading), np.sin(heading)))
-            if self.desk.edge_distance(stand_xy) < 0.066 or self.desk.feet_clear(stand_xy, heading) < self.FEET_EDGE:
+            if self.desk.edge_distance(stand_xy) < 0.066 or \
+                    self.desk.feet_clear(stand_xy, heading) < self.FEET_EDGE + 0.005:
                 self.trace("pick_unreachable")                     # (too near an edge: push it, or ask for help)
                 return False
             # line up 5 cm short of the spot, facing the final way, then walk the last bit straight in: the
@@ -628,10 +662,15 @@ class Body:
         self.last_miss = e
         return yaw
 
+    walk_dir = None
+
     def _recover(self, seconds=2.5):
-        """Work free (a foot over the edge or caught on something): shuffle the body back toward the middle of
-        the desk with short steps - the stuck leg is dragged back up - then settle."""
+        """Work free. A foot over the edge: shuffle the body back toward the middle of the desk with short steps
+        (the stuck leg is dragged back up), then settle. All feet on the desk, so caught on something (a
+        cable, a pen, a book's edge): climb on over it the way it was going, lifting its feet high."""
         x, y, h = self.pose_fn()
+        if self.walk_dir is not None and self.desk.feet_margin((x, y), h) > 0.0:
+            return (yield from self._climb(self.walk_dir))
         d = -np.array((x, y))
         d /= np.linalg.norm(d) + 1e-9
         c, s = np.cos(h), np.sin(h)
@@ -639,6 +678,29 @@ class Body:
         self.trace("recover", at=(round(x, 3), round(y, 3)), feet_margin=round(self.desk.feet_margin((x, y), h), 3))
         for _ in range(int(seconds / DT)):
             yield self._gait_q((0.025 * bx, 0.025 * by, 0.0), self._arms())
+        yield from self._settle(0.4)
+        return True
+
+    def _climb(self, direction, seconds=6.0, speed=0.02):
+        """The high-stepping crawl (crab/gait.py "climb": 20 mm foot lift) for a few seconds, then the trot again."""
+        x, y, h = self.pose_fn()
+        self.trace("climb", at=(round(x, 3), round(y, 3)), dir=tuple(np.round(direction, 2)))
+        yield from self._blend_to(STAND, 0.3)
+        trot, self.gait = self.gait, Gait(GAITS["climb"], com_offset=np.array([0.015 * 0.52, 0.0]))
+        try:
+            for _ in range(int(seconds / DT)):
+                cmd = self._edge_guard((speed * direction[0], speed * direction[1], 0.0))
+                self.cmd_vel = tuple(float(c) for c in cmd)
+                for k in range(SUB):
+                    q = self.gait.step(DT / SUB, cmd, solve=k == SUB - 1)
+                yield q if self._arms() is None else arm_pose(q, self.held[1], pitch=CARRY_PITCH, claw=0.0)
+            for _ in range(int(1.0 / DT)):                       # let the crawl come to rest on four feet
+                for k in range(SUB):
+                    q = self.gait.step(DT / SUB, (0.0, 0.0, 0.0), solve=k == SUB - 1)
+                yield q
+        finally:
+            self.gait = trot
+            self.gait.cmd[:] = 0.0
         yield from self._settle(0.4)
         return True
 

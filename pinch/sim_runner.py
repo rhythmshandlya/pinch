@@ -36,9 +36,9 @@ FACE_EVERY = 3                        # face texture at ~17 Hz
 
 
 class PinchSim:
-    def __init__(self, memory=None, llm=False, seed=0, start=None, render=False, policies=True):
+    def __init__(self, memory=None, llm=False, seed=0, start=None, render=False, policies=True, extras=()):
         self.desk = Desk()
-        self.m = build_desk_model(self.desk, start=start or START)
+        self.m = build_desk_model(self.desk, start=start or START, extras=extras)
         self.hw = SimBackend(model=self.m, render=render)
         self.d = self.hw.d
         self.crab = Crab(self.hw, calibration=Calibration())

@@ -8,14 +8,17 @@ Each episode draws a different robot and world (independently of training's rand
   and stiffness +-25%, the desk tilted up to 4 deg in a random direction, 20 ms control latency in
   half the episodes, and a shove every 2.5 s (a sideways velocity kick of up to 0.12 m/s, about a
   flick of the finger).
+Worlds (--world): desk (flat), rough (40 bits of desk clutter 1-4 mm high under the walking path: cables,
+paper, an eraser), stuck (once per episode a random foot is caught for 1.5 s - a spring of up to 3 N holds
+it where it was - then let go).
 Walking: 12 s of commands (forward, crab-walk left, turn, back, diagonal). Emotes: five random emotes
 back to back. A fall = tipped over 45 deg or body down on the desk.
 """
 
 import argparse
+import copy
 import os
 import sys
-from collections import deque
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -40,9 +43,26 @@ WALK_CMDS = [(0.0, (0.0, 0.0, 0.0)), (1.0, (0.05 * V, 0, 0)), (3.5, (0, 0.06 * V
 SUB = 10
 
 
-def perturbed(seed, hard=True):
+def clutter_model(rng, n=40):
+    """The crab model plus n small flat boxes on the floor around the walking path (rough world)."""
+    spec = mujoco.MjSpec.from_file(str(MODEL))
+    for i in range(n):
+        x, y = rng.uniform(-0.25, 0.25), rng.uniform(-0.25, 0.25)
+        if abs(x) < 0.06 and abs(y) < 0.11:                     # not under the feet at the start
+            x += 0.12 * np.sign(x or 1)
+        h = rng.uniform(0.0005, 0.002)
+        spec.worldbody.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[rng.uniform(0.004, 0.015),
+                                rng.uniform(0.002, 0.012), h], pos=[x, y, h],
+                                euler=[0, 0, rng.uniform(0, np.pi)], rgba=[0.5, 0.5, 0.5, 1])
+    return spec.compile()
+
+
+def perturbed(seed, hard=True, world="desk"):
     rng = np.random.default_rng(seed)
-    m = mujoco.MjModel.from_xml_path(str(MODEL))
+    if world == "rough":
+        m = clutter_model(np.random.default_rng(seed + 50_000))
+    else:
+        m = mujoco.MjModel.from_xml_path(str(MODEL))
     k = 1.0 if hard else 0.5
     m.geom_friction[:, 0] = rng.uniform(1.2 - 0.85 * k, 1.2)
     m.body_mass[:] *= rng.uniform(1 - 0.2 * k, 1 + 0.2 * k, m.nbody)
@@ -82,8 +102,13 @@ class Sensors:
 
 
 def episode(args):
-    kind, ctrl, seed, hard = args
-    m, rng, latency = perturbed(seed, hard)
+    kind, ctrl, seed, hard, world = args
+    m, rng, latency = perturbed(seed, hard, world)
+    catch = None
+    if world == "stuck":                                     # [foot body, foot geom, when, how long, anchor]
+        lg = ("FL", "FR", "RL", "RR")[rng.integers(4)]
+        g = m.geom(f"{lg}_foot").id
+        catch = [m.geom_bodyid[g], g, rng.uniform(2.0, 9.0), 1.5, None]
     d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, m.key("stand").id)
     mujoco.mj_forward(m, d)                                  # body orientation valid before the first read
@@ -94,7 +119,6 @@ def episode(args):
     if ctrl == "residual":                       # the scripted trot + learned corrections (training/gait_env.py)
         pol = NumpyPolicy.load(POLICY_DIR / f"{os.environ.get('PINCH_GAIT_POLICY', 'gait')}.npz")
     look = int(round(0.1 / pio.CTRL_DT))
-    refbuf = deque([STAND.copy()] * (look + 1), maxlen=look + 1)   # the gait runs 0.1 s ahead of the servos
     gait = Gait(GAITS["trot"], com_offset=np.array([0.015 * _S, 0.0])) if kind == "walk" else None
     seq = rng.choice(pio.EMOTE_NAMES, 5) if kind == "emote" else None
     plan = []
@@ -116,16 +140,13 @@ def episode(args):
         gyro, grav, q, qd = sens.read(d, rng)
         if kind == "walk":
             cmd = next(c for t0, c in reversed(WALK_CMDS) if t >= t0)
-            if ctrl == "residual":
-                t_ahead = t + look * pio.CTRL_DT
-                c_ahead = next(c for t0, c in reversed(WALK_CMDS) if t_ahead >= t0)
-                r = None
+            if ctrl == "residual":                 # as pinch/body.py Body._residual does it on the robot
                 for _ in range(SUB):
-                    r = gait.step(pio.CTRL_DT / SUB, c_ahead)
-                refbuf.append(r if r is not None else refbuf[-1])
-                ref, ahead = refbuf[0], refbuf[-1]
-                t_seg = t - next(t0 for t0, c in reversed(WALK_CMDS) if t >= t0)
-                obs = pio.emote_observation(np, gyro, grav, q, qd, last, ref, ahead, None, min(t_seg / 6.0, 1.0))
+                    ref = gait.step(pio.CTRL_DT / SUB, cmd)
+                g = copy.deepcopy(gait)                # the look-ahead: the gait run on 0.1 s, same command
+                for i in range(look):
+                    ahead = g.step(pio.CTRL_DT, cmd, solve=i == look - 1)
+                obs = pio.emote_observation(np, gyro, grav, q, qd, last, ref, ahead, None, (t % 6.0) / 6.0)
                 a = np.clip(pol(obs), -1, 1)
                 target = pio.emote_targets(np, ref, prev if latency else a)
                 prev, last = a, a
@@ -159,6 +180,19 @@ def episode(args):
                 prev, last = a, a
         d.ctrl[act] = target
         for _ in range(SUB):
+            if catch is not None:
+                b, g, t0, dur, anchor = catch
+                d.qfrc_applied[:] = 0
+                if t0 <= t < t0 + dur:
+                    p = d.geom_xpos[g].copy()
+                    if anchor is None:
+                        catch[4] = anchor = p
+                    f = 200.0 * (anchor - p)
+                    f[2] = 0.0
+                    n = np.linalg.norm(f)
+                    if n > 3.0:
+                        f *= 3.0 / n
+                    mujoco.mj_applyFT(m, d, f, np.zeros(3), p, b, d.qfrc_applied)
             mujoco.mj_step(m, d)
         t += pio.CTRL_DT
         tilt = np.degrees(np.arccos(np.clip(-grav[2], -1, 1)))
@@ -190,6 +224,8 @@ def main():
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--episodes", type=int, default=40)
     ap.add_argument("--what", default="walk,emote")
+    ap.add_argument("--world", default="desk", choices=["desk", "rough", "stuck"])
+    ap.add_argument("--legacy", action="store_true", help="also the retired from-scratch walker (policies/walk.npz)")
     a = ap.parse_args()
     n = 8 if a.quick else a.episodes
     jobs = []
@@ -199,14 +235,17 @@ def main():
         for ctrl in ("scripted", "policy"):
             if ctrl == "policy" and not (POLICY_DIR / f"{kind}.npz").exists():
                 continue
-            jobs += [(kind, ctrl, 1000 + s, True) for s in range(n)]
+            if ctrl == "policy" and kind == "walk" and not a.legacy:      # (retired: decision 50)
+                continue
+            jobs += [(kind, ctrl, 1000 + s, True, a.world) for s in range(n)]
         gp = os.environ.get("PINCH_GAIT_POLICY", "gait")
         if kind == "walk" and (POLICY_DIR / f"{gp}.npz").exists():
-            jobs += [(kind, "residual", 1000 + s, True) for s in range(n)]
+            jobs += [(kind, "residual", 1000 + s, True, a.world) for s in range(n)]
     with ProcessPoolExecutor(max_workers=12) as ex:
         rows = list(ex.map(episode, jobs))
     s = summary(rows)
-    lines = ["# Robustness tests (simulation)", "",
+    title = {"desk": "", "rough": ": rough desk", "stuck": ": a foot gets caught"}[a.world]
+    lines = [f"# Robustness tests (simulation){title}", "",
              "Generated by `python sim/robustness.py`. Every episode draws a different robot and world, on top of "
              "(and independent of) training's randomisation: friction 0.35-1.2, masses +-20 %, servo strength "
              "-30..+15 % and stiffness +-25 %, desk tilted up to 4 deg, 20 ms extra latency in half the episodes, "
@@ -220,14 +259,18 @@ def main():
     lines += ["", "Pass criteria: the trained policy falls in at most 5 % of these episodes and does no worse than the "
               "scripted controller; walking tracks at least 60 % of the commanded speed.", ""]
     verdicts = []
-    for kind in ("walk", "emote"):
-        p, sc = s.get((kind, "policy")), s.get((kind, "scripted"))
+    for kind, ctrl in (("walk", "policy"), ("walk", "residual"), ("emote", "policy")):
+        p, sc = s.get((kind, ctrl)), s.get((kind, "scripted"))
         if p:
-            ok = p["falls"] <= 0.05 * p["n"] and (sc is None or p["falls"] <= sc["falls"]) and \
-                 (kind != "walk" or p["track"] >= 0.6)
-            verdicts.append(f"- **{kind}: {'PASS' if ok else 'FAIL'}**")
+            ok = p["falls"] <= 0.05 * p["n"] and (sc is None or p["falls"] <= sc["falls"])
+            ok = ok and (kind != "walk" or p["track"] >= 0.6)
+            verdicts.append(f"- **{kind} ({ctrl}): {'PASS' if ok else 'FAIL'}**")
     lines += verdicts
-    (ROOT / "docs" / "ROBUSTNESS.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if a.world != "desk":
+        lines.insert(3, f"World: **{a.world}** - see the module docstring.")
+    out = "ROBUSTNESS.md" if a.world == "desk" else f"ROBUSTNESS_{a.world}.md"
+    if os.environ.get("PINCH_GAIT_POLICY", "gait") == "gait":      # (a candidate policy doesn't overwrite the report)
+        (ROOT / "docs" / out).write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
 
 

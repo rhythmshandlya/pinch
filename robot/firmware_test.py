@@ -194,6 +194,7 @@ def reflexes_and_errors():
           f"{ {n: int(v) for n, v in fw0.cliff.items()} } mm")
 
     guard = {b[0]: np.array(b[1]) for b in cliff_beams()}
+    nominal = {b[0]: round(b[2]) for b in cliff_beams()}          # what each beam reads over the desk
 
     def moved_body(hw_, p0, yaw0=0.4):
         """Displacement since p0 in the body frame (Pinch barely turns in these tests)."""
@@ -205,8 +206,8 @@ def reflexes_and_errors():
         """Walking toward one beam's side when it sees no desk: one back-off, away from it, latched."""
         hw2, fw2 = quiet_firmware()
         hw2.update_cliff = lambda: None
-        for r in hw2.rangers.values():
-            r.mm = 55 if r is not hw2.rangers.get("side_left") and r is not hw2.rangers.get("side_right") else 110
+        for name, r in hw2.rangers.items():
+            r.mm = nominal[name]
         fw2.body.start(("walk", *walk, 0.0, 6.0))
         steps(fw2, 0.5)
         hw2.rangers[beam].mm = 9999
@@ -225,7 +226,7 @@ def reflexes_and_errors():
     toward = np.asarray(fw2.body.cmd_vel[:2]) @ guard["front_right"]
     check("...and while that beam sees no desk, nothing walks toward its side", fw2.body.cliff_trimmed > before
           and fw2.stats["edge_stops"] == 1 and toward <= 1e-9, f"speed toward it {toward * 1000:.1f} mm/s")
-    hw2.rangers["front_right"].mm = 55
+    hw2.rangers["front_right"].mm = nominal["front_right"]
     steps(fw2, 0.6)
     check("...desk seen again: the reflex re-arms", not fw2.cliff_reflex.latched and fw2.cliff_reflex.forward_ok)
     over_edge((-0.03, 0.0), "rear", "rear over the edge, walking backward")
@@ -234,9 +235,8 @@ def reflexes_and_errors():
     # walking along an edge, not toward it: the beam that sees over it only blocks its own side
     hw4, fw4 = quiet_firmware()
     hw4.update_cliff = lambda: None
-    for r in hw4.rangers.values():
-        r.mm = 55
-    hw4.rangers["side_left"].mm = hw4.rangers["side_right"].mm = 110
+    for name, r in hw4.rangers.items():
+        r.mm = nominal[name]
     hw4.rangers["front_left"].mm = hw4.rangers["front_right"].mm = 9999        # the edge is ahead
     fw4.body.start(("walk", 0.0, -0.03, 0.0, 2.0))                           # crab-walk right along it
     p0 = hw4.d.qpos[0:2].copy()
@@ -327,7 +327,7 @@ def stuck_from_measured_motion():
 
     # the edge guard keeps the uncertainty further from the edge
     hw2, fw2 = quiet_firmware(pose=(0.0, 0.0, 0.0))
-    fw2.loc.x, fw2.loc.drift = fw2.desk.half_x - 0.16, 0.0
+    fw2.loc.x, fw2.loc.drift = fw2.desk.half_x - 0.11, 0.0       # (front feet ~6 cm from the edge)
     a = fw2.body._edge_guard((0.04, 0.0, 0.0))
     fw2.loc.drift = 0.06
     b = fw2.body._edge_guard((0.04, 0.0, 0.0))

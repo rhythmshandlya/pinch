@@ -142,8 +142,9 @@ class PinchFirmware:
         self.mind = Mind(memory=memory, llm=llm)
         self.face = Face()
         self.loc = Localizer(getattr(hw, "start_pose", (0.0, 0.0, 0.0)))
-        emote_pol, _ = load_policies()
-        self.body = Body(self.crab, self.loc.pose, self.object_belief, self.desk, tip_fn=hw.tip, emote_policy=emote_pol)
+        emote_pol, walk_pol = load_policies()
+        self.body = Body(self.crab, self.loc.pose, self.object_belief, self.desk, tip_fn=hw.tip, emote_policy=emote_pol,
+                         walk_policy=walk_pol)
         self.body.pose_sigma_fn = self.loc.sigma
         self.gestures = TouchGestures()
         self.bodysense = BodySense()

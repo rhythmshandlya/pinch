@@ -237,14 +237,15 @@ JOINT_SPECS = [servo_for(j) for j in JOINT_NAMES]          # per-actuator servo 
 
 # five VL53L0X cliff beams (decision 30): (name, window centre x, y, z in the body frame mm, beam direction
 # (unit, pointing out and down)). Front pair forward 40 deg down, rear backward 40 deg down (they see the desk
-# ~3.5 cm beyond the feet: walking forward is the fast way), sides outward 45 deg down from high on the wall
-# (1.5 cm beyond the feet - at 30 deg they looked 5.4 cm out and stopped every sideways walk the planners allow,
-# feet 2 cm from the edge; decision 48). A drop is seen before a foot reaches it whichever way Pinch walks.
+# ~3.5 cm beyond the feet: walking forward is the fast way), sides outward 30 deg down from low on the side wall,
+# under the servo deck (the desk 1.7 cm beyond the feet. Mounted at z=+5 they looked 5.4 cm out and stopped every
+# sideways walk the planners allow, feet 2 cm from the edge; and the wall there ends at z~2 - the windows cut
+# slivers. Decision 48). A drop is seen before a foot reaches it whichever way Pinch walks.
 # Open windows (no cover): a VL53L0X behind a cover reads short over empty air without crosstalk calibration.
 CLIFF_BEAMS = [
     ("front_left", 47.0, 11.0, -16.0, (0.720, 0.262, -0.643)),       # (splayed 20 deg out: covers the corners)
     ("front_right", 47.0, -11.0, -16.0, (0.720, -0.262, -0.643)),
     ("rear", -39.0, 0.0, -16.0, (-0.766, 0.0, -0.643)),
-    ("side_left", -8.0, 55.0, 5.0, (0.0, 0.7071, -0.7071)),
-    ("side_right", -8.0, -55.0, 5.0, (0.0, -0.7071, -0.7071)),
+    ("side_left", -8.0, 55.0, -16.0, (0.0, 0.866, -0.5)),
+    ("side_right", -8.0, -55.0, -16.0, (0.0, -0.866, -0.5)),
 ]

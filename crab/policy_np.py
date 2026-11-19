@@ -38,9 +38,10 @@ class NumpyPolicy:
 
 
 def load_policies():
-    """(emote_policy, walk_policy) if exported, else None for each (scripted fallbacks are used)."""
+    """(emote_policy, walk_policy) if exported, else None for each (scripted fallbacks are used). Walking is
+    policies/gait.npz: learned corrections on the scripted trot (training/gait_env.py, decision 50)."""
     out = []
-    for name in ("emote", "walk"):
+    for name in ("emote", "gait"):
         p = POLICY_DIR / f"{name}.npz"
         out.append(NumpyPolicy.load(p) if p.exists() else None)
     return tuple(out)

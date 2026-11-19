@@ -35,7 +35,9 @@ OBJECTS = {
 START = {"pen": (-0.18, -0.02, 0.6), "eraser": (0.10, -0.12, 0.3), "cap": (-0.12, 0.06, 0.0), "ball": (0.05, 0.15, 0.0)}
 
 
-def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True) -> mujoco.MjModel:
+def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True, extras=()) -> mujoco.MjModel:
+    """extras: fixed things on the desk for tests, e.g. dict(name="cable", type="cylinder", size=[r, half_len],
+    pos=[x, y, r], euler=[...]) - geoms of the desk top."""
     desk = desk or Desk()
     spec = mujoco.MjSpec.from_file(str(CRAB_XML))
     spec.option.timestep = 0.002
@@ -47,6 +49,10 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True)
     top.add_geom(name="desk_top", type=mujoco.mjtGeom.mjGEOM_BOX, size=[desk.half_x, desk.half_y, 0.015],
                  pos=[0, 0, -0.015], rgba=[0.62, 0.47, 0.33, 1], contype=0, conaffinity=1,
                  friction=[0.8, 0.02, 0.001])
+    for e in extras:
+        top.add_geom(name=e["name"], type=getattr(mujoco.mjtGeom, "mjGEOM_" + e["type"].upper()),
+                     size=list(e["size"]) + [0] * (3 - len(e["size"])), pos=e["pos"], euler=e.get("euler", [0, 0, 0]),
+                     rgba=[0.15, 0.15, 0.15, 1], friction=[0.8, 0.02, 0.001])
     for sx in (-1, 1):
         for sy in (-1, 1):
             top.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.02, 0.02, 0.36],
