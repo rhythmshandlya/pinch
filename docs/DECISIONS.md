@@ -639,4 +639,4 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       - **Behaviour scenarios: 12/12**, for the first time.
       - With firmer foot grip, the obstacle test's six cases are all walked over without climbing.
     - **Still open:** picking up is still the weakest skill. The scripted grab finds a good stand for
-      a pen only from some spots (decision 46-era geometry), and erasers slip.
+      a pen only from some spots (it must stand ~15 cm along the pen's axis, which the 45 cm-deep desk often can't fit), and erasers slip.
