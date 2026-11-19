@@ -11,7 +11,6 @@ from pinch.body.common import (  # noqa: F401
     PADDLE_PITCH,
     PEN_HALF,
     PUSH_LOWER,
-    RAKE_ENABLED,
     REACH_LOW,
     SERVO_IDS,
     STAND,
@@ -78,10 +77,6 @@ class Manipulation:
                     break
             # can't get behind it from the desk (its feet, not just its centre, must fit there)
             if not fits:
-                if RAKE_ENABLED:
-                    ok = yield from self._rake(name, goal, radius)
-                    if ok is not None:
-                        continue
                 self.trace("unreachable", obj=(round(ox, 3), round(oy, 3)), start=tuple(np.round(start, 3)),
                            feet=round(float(self.desk.feet_clear(start, heading)), 3))
                 return False
@@ -116,49 +111,6 @@ class Manipulation:
                 self.pushes = getattr(self, "pushes", 0) + 1
             yield from self._settle(0.3)
         return False
-
-    def _rake(self, name, goal, radius=0.015, timeout=40.0):
-        """Reach past the thing with the flat claw and walk backwards, pulling it toward the goal."""
-        (ox, oy, _), _ = self._obj(name)
-        u = np.array((ox, oy)) - np.array(goal)
-        d = np.linalg.norm(u)
-        if d < 0.03:
-            return True
-        u /= d
-        heading = float(np.arctan2(u[1], u[0]))                  # face the thing, from the goal's side
-        x, y, h = self.pose_fn()
-        side = self._side_for(x, y, h, ox, oy)
-        paddle = paddle_pose(side)
-        tip = np.array(self.tip_fn(side, paddle) if self.tip_fn else (0.085, 0.03 if side == "left" else -0.03))
-        c, s = np.cos(heading), np.sin(heading)
-        tip_w = np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
-        start = np.array((ox, oy)) + u * (radius + 0.02) - tip_w
-        if not self.desk.inside(start, self.desk.edge_margin - 0.004):
-            self.trace("rake_unreachable", start=tuple(np.round(start, 3)))
-            return None
-        raised = arm_pose(paddle, side, pitch=0.35)
-        self.trace("rake", obj=(round(ox, 3), round(oy, 3)), start=tuple(np.round(start, 3)))
-        yield from self._blend_to(raised, 0.4)
-        yield from self._detour((x, y), start, (ox, oy))
-        ok = yield from self._goto(start, tol=0.012, heading=heading, timeout=25.0, slow=0.7)
-        if not ok:
-            return False
-        yield from self._blend_to(paddle, 0.6)                    # claw comes down beyond the thing
-        t_end = self.t + timeout
-        while self.t < t_end:
-            (ox, oy, _), _ = self._obj(name)
-            if np.linalg.norm(np.array(goal) - (ox, oy)) < 0.035:
-                break
-            x, y, h = self.pose_fn()
-            c, s = np.cos(h), np.sin(h)
-            rel = np.array((ox, oy)) - (x + c * tip[0] - s * tip[1], y + s * tip[0] + c * tip[1])
-            lateral = -s * rel[0] + c * rel[1]
-            if abs(lateral) > 0.03 or c * rel[0] + s * rel[1] > 0.015:
-                self.trace("rake_slip", lateral=round(float(lateral), 3))
-                break
-            yield self._gait_q((-0.035, float(np.clip(1.5 * lateral, -0.02, 0.02)), 0.0), paddle, lower=PUSH_LOWER)
-        yield from self._settle(0.3)
-        return True
 
     def _side_for(self, x, y, h, ox, oy):
         ex, ey = np.cos(h) * (ox - x) + np.sin(h) * (oy - y), -np.sin(h) * (ox - x) + np.cos(h) * (oy - y)

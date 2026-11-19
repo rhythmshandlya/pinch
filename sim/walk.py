@@ -47,11 +47,7 @@ DEMO = [  # for --view / --gif
 ]
 
 
-def make_controller(gait_name, m, d, com, policy=None):
-    """Scripted gait, or a trained RL policy (training/checkpoints/<run>) if given."""
-    if policy:
-        from training.policy_controller import PolicyController
-        return PolicyController(policy, m, d)
+def make_controller(gait_name, m, d, com):
     return Gait(GAITS[gait_name], com_offset=com)
 
 
@@ -75,9 +71,9 @@ def tilt_deg(d):
     return np.degrees(np.arccos(np.clip(d.xmat[1].reshape(3, 3)[2, 2], -1, 1)))
 
 
-def evaluate(gait_name, policy=None):
+def evaluate(gait_name):
     m, d, com = load()
-    gait = make_controller(gait_name, m, d, com, policy)
+    gait = make_controller(gait_name, m, d, com)
     dt = m.opt.timestep
     rows, ok_all = [], True
     for label, cmd, secs in TESTS:
@@ -154,8 +150,8 @@ def print_rows(name, rows, unreachable):
         print(f"  ! IK clipped {unreachable} times")
 
 
-def demo_controller(gait_name, m, d, com, policy=None):
-    gait = make_controller(gait_name, m, d, com, policy)
+def demo_controller(gait_name, m, d, com):
+    gait = make_controller(gait_name, m, d, com)
     t_marks = np.cumsum([s for _, _, s in DEMO])
 
     def ctrl(t):
@@ -165,11 +161,11 @@ def demo_controller(gait_name, m, d, com, policy=None):
     return ctrl, t_marks[-1]
 
 
-def view(gait_name, policy=None):
+def view(gait_name):
     import time
     import mujoco.viewer
     m, d, com = load()
-    ctrl, total = demo_controller(gait_name, m, d, com, policy)
+    ctrl, total = demo_controller(gait_name, m, d, com)
     last = None
     with mujoco.viewer.launch_passive(m, d) as v:
         v.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
@@ -189,10 +185,10 @@ def view(gait_name, policy=None):
             time.sleep(max(0.0, 1 / 60 - (time.time() - start)))
 
 
-def gif(gait_name, fps=12, policy=None):
+def gif(gait_name, fps=12):
     from PIL import Image, ImageDraw
     m, d, com = load()
-    ctrl, total = demo_controller(gait_name, m, d, com, policy)
+    ctrl, total = demo_controller(gait_name, m, d, com)
     r = mujoco.Renderer(m, 250, 400)
     cam = mujoco.MjvCamera()
     cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
@@ -221,20 +217,17 @@ def main():
     ap.add_argument("--gait", choices=list(GAITS))
     ap.add_argument("--view", action="store_true")
     ap.add_argument("--gif", action="store_true")
-    ap.add_argument("--policy", help="trained RL run dir (training/checkpoints/<run>) instead of the scripted gait")
     a = ap.parse_args()
     gaits = [a.gait] if a.gait else list(GAITS)
-    if a.policy:
-        gaits = ["policy"]
     if a.view:
-        return view(gaits[-1] if not a.gait else a.gait, a.policy)
+        return view(gaits[-1])
     if a.gif:
         for g in gaits:
-            gif(g, policy=a.policy)
+            gif(g)
         return
     ok = True
     for g in gaits:
-        rows, unr, good = evaluate(g, a.policy)
+        rows, unr, good = evaluate(g)
         print_rows(g, rows, unr)
         ok &= good
     sys.exit(0 if ok else 1)

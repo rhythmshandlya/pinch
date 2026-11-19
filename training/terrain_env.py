@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from crab.terrain import N_U, OBSTACLES, add_obstacles, terrain_layout  # noqa: E402
-from training.crab_env import LEG_IDS, MODEL, domain_randomize  # noqa: E402
+from training.robot_model import LEG_IDS, MODEL, domain_randomize  # noqa: E402
 from training.gait_env import REWARD_SCALES as _GAIT_SCALES, CrabGaitEnv  # noqa: E402
 
 ACTION_SCALE = 0.25

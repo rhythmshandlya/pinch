@@ -16,17 +16,17 @@ the learned policy trains across a wide range of motor strengths.
 | A5 | Sim from CAD | Meshes + mass/inertia per body (0.61 kg); CAD-derived joint limits; A1/A2 still pass | ✅ |
 | A6 | Electronics | [electronics.md](../hardware/electronics.md), [wiring.svg](../hardware/wiring.svg): block diagram, wiring, Radxa pin map, power budget, safety | ✅ (board positions not yet fitted in the CAD: A12) |
 | A7 | Robot software | `robot/`: own Feetech driver, arm servos on the Radxa's hardware PWM, calibration (legs measured, leg directions checked, arms trimmed by eye with a travel check), safety (limits, speed, shin limit, battery, bus sag, arm guard), emotes, gait, policy, `--check` | ✅ 32/32 self-tests against emulated bus, PWM and MuJoCo |
-| A8 | RL pipeline | MJX + Brax PPO, domain randomisation, Colab notebook, CPU smoke test | ✅ |
+| A8 | RL pipeline | MJX + Brax PPO, domain randomisation, Modal GPUs and the msi-1 queue, CPU smoke test | ✅ |
 | A9 | Brain + pet mind | Gemma 4 (Ollama) sees + hears; reflexes / heart / mind layers; tones only, never speech | ✅ in sim ([PET_MIND.md](PET_MIND.md)) |
 | A10 | Order pack | [BOM.md](../hardware/BOM.md): Evelta + robu + Amazon.in, prices incl. GST, stock status | ✅ everything in stock on 2026-11-18 (₹85k + prints) |
 | A11 | Beginner docs | [ASSEMBLY.md](../hardware/ASSEMBLY.md): order → Radxa setup → servo setup → mechanics → first power-up | ✅ |
 | A12 | Electronics layout in CAD | Every board modelled as a box inside the body and checked for fit (the deck is tight); dome or tray adjusted if needed | ⏳ next |
 
-## Phase B: needs a GPU (Colab)
+## Phase B: needs a GPU (done on Modal and msi-1)
 
-- B1: upload `dist/crab_bundle.zip` to [training/colab_train.ipynb](../training/colab_train.ipynb) and
-  train the walking policy (about 1–2 h on a free T4).
-- B2: test it with `python sim/walk.py --policy training/checkpoints/<run>`; it should beat the scripted trot.
+- B1: train on a cloud GPU: `python -m modal run --detach training/modal_train.py::launch --env <env> --preset <preset> --run <run>`,
+  then `fetch` and `training/export_policy.py` (see [DECISIONS.md](DECISIONS.md), 50 onwards).
+- B2: bench it: `python sim/robustness.py` and `python sim/hurdle_test.py`; walking uses `policies/gait.npz`.
 
 ## Phase C: physical build
 

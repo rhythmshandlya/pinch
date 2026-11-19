@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT))
 from crab import policy_io as pio  # noqa: E402
 from crab.emotes import STAND  # noqa: E402
 from crab.gait import _S, GAITS, Gait  # noqa: E402
-from training.crab_env import MODEL  # noqa: E402
+from training.robot_model import MODEL  # noqa: E402
 from training.emote_env import REWARD_SCALES as _EMOTE_SCALES, CrabEmoteEnv  # noqa: E402
 
 V = 0.7211          # the gait's speed scale (crab/gait.py _S / _T), as in sim/robustness.py

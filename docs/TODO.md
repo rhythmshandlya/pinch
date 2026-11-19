@@ -6,10 +6,9 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
 
 ## Running now
 
-- [ ] **Modal:** terrain-hard-v1 (hurdles to 15 mm, ramps to 21°; ends soon), walking v2 `gait-v2` (48
-      commands + pushing, ~3 h), learned push steering `push2-v1` (~4 h).
-- [ ] **msi-1 GPU:** emote2-v1 (emotes in 2 ms physics), then grasp-v6 overnight (queue:
-      `C:/Users/armaa/pinch_queue.txt`).
+- [ ] **Modal:** walking v2 `gait-v2` (48 commands + pushing; 48M of 150M steps), learned push steering
+      `push2-v1` (slow: 3.4M steps, no successes yet), learned self-righting `righting-v1` (76).
+- [ ] **msi-1 GPU:** grasp-v6, then righting2-v1 (no energy cost) (queue: `C:/Users/armaa/pinch_queue.txt`).
 - [ ] **msi-1 CPU:** soak, 6 simulated days × 4 h (`sim/soak.py`).
 
 ## 1. Architecture
@@ -22,8 +21,8 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
 - [ ] Split `pinch/sim_runner.py` (twin, sensors, faults) the same way.
 - [ ] Move the scripts in `sim/` into `sim/benches/` (robustness, hurdle, obstacle, tidy, pick, soak) with one
       shared runner and JSON output.
-- [ ] Remove retired code: the from-scratch walker (`policies/walk.npz`, `training/crab_env.py` walking
-      env), the disabled rake, the old push env.
+- [x] Removed retired code: the from-scratch walker, the old push env, the rake, the Colab path;
+      `training/robot_model.py` holds what the envs share; `pinch/` and `robot/` may not import `training/` (77).
 - [ ] Continuous integration: run `tests/run.py` on every push (GitHub Actions; CPU only).
 
 ## 2. Framework
@@ -55,7 +54,7 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
   - [ ] Keep the toy ball on the desk (brushed off in about half the runs).
   - [ ] Erasers slipping out of the claw in transit.
 - [ ] Walking v2 (curves, diagonals, pushing): bench it against terrain-v1.
-- [ ] RL self-righting policy, measured against the searched swing (msi-1 queue).
+- [ ] RL self-righting policy, measured against the searched swing: env built, training on Modal and msi-1 (76).
 - [ ] General motion-tracking policy for emotes (replaces per-emote balance training).
 - [ ] Stuck / obstruction detector learned from fault-injected runs (CPU).
 - [ ] Desk-object detector fine-tune and a sound-event classifier (later: needs real camera data).

@@ -4,7 +4,7 @@ training/export_policy.py turns a Brax PPO checkpoint (params.pkl) into policies
   obs_mean, obs_std            running observation statistics
   W0, b0, W1, b1, ...          the policy network (swish hidden layers, tanh on the mean)
 
-    pol = NumpyPolicy.load("policies/walk.npz")
+    pol = NumpyPolicy.load("policies/gait.npz")
     action = pol(obs)            # deterministic action in -1..1
 """
 

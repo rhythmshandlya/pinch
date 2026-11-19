@@ -34,7 +34,7 @@ vol = modal.Volume.from_name(VOLUME, create_if_missing=True)
 
 
 @app.function(gpu=GPU, timeout=TIMEOUT_S, volumes={"/ckpt": vol})
-def train(env: str = "walk", preset: str = "full", run: str = "walk-v1", timesteps: int = 0):
+def train(env: str = "gait", preset: str = "gait", run: str = "gait-v1", timesteps: int = 0):
     import os
     import time
     sys.path.insert(0, "/root/pinch")
@@ -52,13 +52,13 @@ def train(env: str = "walk", preset: str = "full", run: str = "walk-v1", timeste
 
 
 @app.local_entrypoint()
-def main(env: str = "walk", preset: str = "full", run: str = "walk-v1", timesteps: int = 0):
+def main(env: str = "gait", preset: str = "gait", run: str = "gait-v1", timesteps: int = 0):
     print(f"training {env}/{preset} as {run} on a Modal {GPU} (timeout {TIMEOUT_S // 60} min)")
     print("finished:", train.remote(env, preset, run, timesteps))
 
 
 @app.local_entrypoint()
-def launch(env: str = "walk", preset: str = "full", run: str = "walk-v1", timesteps: int = 0):
+def launch(env: str = "gait", preset: str = "gait", run: str = "gait-v1", timesteps: int = 0):
     """Start a run and return at once (use with `modal run --detach`): the run lives on Modal, not on this
     laptop, so closing the terminal doesn't stop it. Its hard timeout still applies; `fetch` gets the results."""
     call = train.spawn(env, preset, run, timesteps)
@@ -75,7 +75,7 @@ def read_run(run: str) -> dict:
 
 
 @app.local_entrypoint()
-def fetch(run: str = "walk-v1"):
+def fetch(run: str = "gait-v1"):
     files = read_run.remote(run)
     dst = ROOT / "training" / "checkpoints" / run
     dst.mkdir(parents=True, exist_ok=True)

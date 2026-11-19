@@ -21,7 +21,6 @@ REACH_LOW = {"crouch": 0.38, "pitch": -0.13}           # jaws flat on the desk, 
 CARRY_PITCH = 0.45                                      # carrying: the held part ~3 cm up, the short end clear of the legs
 PEN_HALF = 0.069                                        # half length of a pen (65 mm + rounded ends)
 PEN_GRAB = 0.055                                        # hold a pen this far from its middle: its short end stays clear of the front leg
-RAKE_ENABLED = False          # pulling things in from beyond them: flung a pen off the desk in tests, so off
 # things the jaws must run along (their long side between the jaws): name -> grab point's offset from the middle
 LONG_THINGS = {"pen": PEN_GRAB, "eraser": 0.0}
 GRASP_ARM0 = (0.17, 0.08, 0.96)          # the arm when the learned grab takes over (training/grasp_env.py ARM0)

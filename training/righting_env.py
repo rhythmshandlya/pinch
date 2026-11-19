@@ -18,7 +18,6 @@ from pathlib import Path
 
 import jax
 import jax.numpy as jp
-import mujoco
 from brax.envs.base import Env, State
 from mujoco import mjx
 
@@ -27,30 +26,19 @@ sys.path.insert(0, str(ROOT))
 
 from crab import policy_io as pio  # noqa: E402
 from crab.params import JOINT_NAMES  # noqa: E402
-
-MODEL = ROOT / "sim" / "models" / "crab.xml"
+from training.robot_model import load_training_model  # noqa: E402
 REWARD_SCALES = dict(upright=1.0, height=1.0, stood=2.0, action_rate=-0.01, energy=-0.0005, termination=0.0)
 OBS_SIZE = 3 + 3 + 18 + 18 + 18
 
 
 def load_righting_model(sim_dt=0.002):
-    spec = mujoco.MjSpec.from_file(str(MODEL))
-    for s in list(spec.sensors):
-        spec.delete(s)
-    for g in list(spec.geoms):
-        if g.type == mujoco.mjtGeom.mjGEOM_MESH:
-            spec.delete(g)
-    for msh in list(spec.meshes):
-        spec.delete(msh)
-    m = spec.compile()
-    m.opt.timestep = sim_dt
+    """The training model with the whole robot touching the floor (it rolls on its shell, legs and claws),
+    never itself, and a few more solver iterations for the many contacts."""
+    m = load_training_model(sim_dt)
     m.opt.iterations = 6
-    m.opt.ls_iterations = 8
     floor = m.geom("floor").id
-    for g in range(m.ngeom):                         # everything of the robot touches the floor, not itself
-        if g == floor:
-            m.geom_contype[g], m.geom_conaffinity[g] = 0, 1
-        else:
+    for g in range(m.ngeom):
+        if g != floor:
             m.geom_contype[g], m.geom_conaffinity[g] = 1, 0
     return m
 

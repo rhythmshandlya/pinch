@@ -949,3 +949,29 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       outside changed.
     - **Checks:** no code lost (line check), firmware test 45/45, selftest 40/40, the emulated entry point
       runs, test suite 26/26.
+76. **A learned self-righting policy, trained to compare with the searched swing** (`training/righting_env.py`;
+    the research plan's training item 3).
+    - **Start:** on its back at a random orientation (rolled 180 ± 30°, pitched ± 25°, any heading), joints
+      scattered ± 0.2 rad around the stand pose, the usual physics randomisation.
+    - **Policy:** 50 Hz targets for all 18 joints over each joint's full range; no reference motion.
+    - **Contact:** the whole robot (shell, legs, claws) touches the floor, never itself.
+    - **Reward:** being upright, then standing at the stand height (and staying there); light costs for
+      jerky and wasteful motion. 4 s episodes; success is upright and at height for a full second.
+    - **Check:** the searched swing played into the env turns it upright (z 0.99) within 1.2 s, so the env
+      allows what we know works.
+    - **Runs:** righting-v1 on Modal (A10G, 60M steps); righting2-v1 on msi-1 without the energy cost, to
+      see whether the penalty holds back getting up.
+    - **Adoption:** only if it beats the swing over many starts in the twin; then it replaces the swing in
+      `Body._right_self`.
+77. **Retired code removed** (the architecture TODO).
+    - **Removed:** the from-scratch walker (`policies/walk.npz`, its env, `training/policy_controller.py`,
+      `sim/walk.py --policy`, `robot/run.py --policy` and `Crab.run_policy`, the robustness `--legacy`
+      option, its observation helpers in `crab/policy_io.py`), the first push env (`training/push_env.py`,
+      superseded by push2), the disabled rake, and the Colab path (notebook and bundle; training runs on
+      Modal and msi-1).
+    - **Renamed:** `training/crab_env.py` → `training/robot_model.py`. It now holds only what every env
+      shares: the model loader and the physics randomisation. The righting env uses it too.
+    - **Layering:** `pinch/` and `robot/` may not import `training/` (added to the architecture test).
+      `Crab.run_policy` did, inside a function.
+    - **Checks:** tests 26/26 (golden trace identical), firmware 45/45, selftest 40/40, the quick robustness
+      bench passes for walk and emote, every env builds, `sim/walk.py` runs.

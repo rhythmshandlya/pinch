@@ -239,31 +239,6 @@ class Crab:
                 q = g.step(0.002, (0.0, 0.0, 0.0), solve=k == n - 1)
             self.tick(q)
 
-    def run_policy(self, run_dir, cmd_fn, seconds):
-        """Learned walking: cmd_fn(t) -> (vx, vy, wz). Same observations as training (crab/policy_io.py)."""
-        import json
-        import pickle
-        from pathlib import Path
-        import jax
-        from brax.training.acme import running_statistics
-        from brax.training.agents.ppo import networks as ppo_networks
-        from crab import policy_io as pio
-        from training.train import network_factory
-        run_dir = Path(run_dir)
-        cfg = json.loads((run_dir / "config.json").read_text())
-        params = pickle.loads((run_dir / "params.pkl").read_bytes())
-        nets = network_factory(cfg)(pio.OBS_SIZE, pio.N_ACT, preprocess_observations_fn=running_statistics.normalize)
-        policy = jax.jit(ppo_networks.make_inference_fn(nets)(params, deterministic=True))
-        key, last, t0 = jax.random.PRNGKey(0), np.zeros(pio.N_ACT), self.t
-        while self.t - t0 < seconds:
-            q, st = self.read_joints()
-            qd = np.array([self.cal.sign[j] * st[SERVO_IDS[j]].speed for j in JOINT_NAMES])
-            gyro, grav = self.hw.read_imu()
-            obs = pio.observation(np, gyro, grav, np.asarray(cmd_fn(self.t - t0), float),
-                                  q[pio.LEG_ACT_IDX], qd[pio.LEG_ACT_IDX], last, self.t - t0)
-            act, _ = policy(obs.astype(np.float32), key)
-            last = np.clip(np.asarray(act), -1, 1)
-            self.tick(pio.action_to_targets(np, last))
 
     def shutdown(self):
         """Sit down gently, then release the servos. After a safety stop it doesn't move at all (and so

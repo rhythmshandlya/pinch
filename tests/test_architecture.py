@@ -1,12 +1,14 @@
 """The layers stay layered (decision 68): crab/ is the robot's geometry and controllers, robot/ its firmware and
 drivers, pinch/ the pet, training/ the learning. crab/ depends on nothing of ours above it; training/ may use
-crab/ but not the pet or the firmware (it ships to the GPU without them)."""
+crab/ but not the pet or the firmware (it ships to the GPU without them); the pet and the firmware never use
+training/ (the robot runs without JAX: learned skills reach it as exported policies/*.npz, decision 77)."""
 
 import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-RULES = {"crab": {"pinch", "robot", "training", "sim"}, "training": {"pinch", "robot"}}
+RULES = {"crab": {"pinch", "robot", "training", "sim"}, "training": {"pinch", "robot"},
+         "pinch": {"training"}, "robot": {"training"}}
 
 
 def _imports(path):

@@ -4,7 +4,6 @@
     python robot/run.py --sim --emote happy
     python robot/run.py --check                  # list servos + sensors, torque stays off
     python robot/run.py                          # real robot (after setup_servo + calibrate)
-    python robot/run.py --policy training/checkpoints/colab-full    # learned walking
 """
 
 import argparse
@@ -70,7 +69,6 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sim", action="store_true", help="use the simulator instead of the real servos")
     ap.add_argument("--emote", help="play one emote and exit")
-    ap.add_argument("--policy", help="trained RL run dir for walking (default: scripted gait)")
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--check", action="store_true", help="list servos and sensors, then exit (torque stays off)")
     a = ap.parse_args()
@@ -91,8 +89,6 @@ def main():
         crab.start()
         if a.emote:
             crab.play_emote(a.emote)
-        elif a.policy:
-            crab.run_policy(a.policy, lambda t: (0.06 * V, 0.0, 0.0) if t < 5 else (0.0, 0.08 * V, 0.0), seconds=10)
         else:
             for name in ("wave", "happy"):
                 crab.play_emote(name)

@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 
 from crab import policy_io as pio  # noqa: E402
 from crab.params import LEG_IDS  # noqa: E402
-from training.crab_env import MODEL, load_training_model  # noqa: E402
+from training.robot_model import MODEL, load_training_model  # noqa: E402
 
 REWARD_SCALES = dict(
     track_legs=2.0,

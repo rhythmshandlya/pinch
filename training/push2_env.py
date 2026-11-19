@@ -86,7 +86,7 @@ def load_push2_model(sim_dt=0.002):
 
 def push2_randomize(sys_: mjx.Model, rng: jax.Array):
     """The usual physics randomisation, plus the thing's size, mass and friction per robot."""
-    from training.crab_env import domain_randomize
+    from training.robot_model import domain_randomize
     sys_b, in_axes = domain_randomize(sys_, rng)
     gid = _THING_GEOM
     bid = _THING_BODY

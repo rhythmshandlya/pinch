@@ -123,8 +123,9 @@ def episode(args):
     act = np.array([m.actuator(j).id for j in JOINT_NAMES])
     sens = Sensors(m)
     stand_h = float(m.key("stand").qpos[2])
-    name = "walk" if kind == "walk" else os.environ.get("PINCH_EMOTE_POLICY", "emote")   # (a candidate emote policy)
-    pol = NumpyPolicy.load(POLICY_DIR / f"{name}.npz") if ctrl == "policy" else None
+    pol = None
+    if ctrl == "policy":                         # the emote balance policy (or a candidate)
+        pol = NumpyPolicy.load(POLICY_DIR / f"{os.environ.get('PINCH_EMOTE_POLICY', 'emote')}.npz")
     if ctrl == "residual":                       # the scripted trot + learned corrections (training/gait_env.py)
         pol = NumpyPolicy.load(POLICY_DIR / f"{os.environ.get('PINCH_GAIT_POLICY', 'gait')}.npz")
     look = int(round(0.1 / pio.CTRL_DT))
@@ -160,14 +161,9 @@ def episode(args):
                 k = getattr(pol, "meta", {}).get("action_scale", pio.EMOTE_ACTION_SCALE) / pio.EMOTE_ACTION_SCALE
                 target = pio.emote_targets(np, ref, (prev if latency else a) * k)
                 prev, last = a, a
-            elif pol is None:
+            else:                                      # the scripted trot alone
                 for _ in range(SUB):
                     target = gait.step(pio.CTRL_DT / SUB, cmd)
-            else:
-                obs = pio.observation(np, gyro, grav, np.asarray(cmd, float), q, qd, last, t)
-                a = np.clip(pol(obs), -1, 1)
-                target = pio.action_to_targets(np, prev if latency else a)
-                prev, last = a, a
             v_body = d.xmat[sens.body].reshape(3, 3).T @ d.qvel[0:3]
             cn = np.linalg.norm(cmd[:2])
             if cn > 1e-3 and t > 1.5:
@@ -235,22 +231,17 @@ def main():
     ap.add_argument("--episodes", type=int, default=40)
     ap.add_argument("--what", default="walk,emote")
     ap.add_argument("--world", default="desk", choices=["desk", "rough", "stuck", "terrain", "terrain_hard"])
-    ap.add_argument("--legacy", action="store_true", help="also the retired from-scratch walker (policies/walk.npz)")
     a = ap.parse_args()
     n = 8 if a.quick else a.episodes
     jobs = []
     for kind in a.what.split(","):
-        if not (POLICY_DIR / f"{kind}.npz").exists():
-            print(f"no policies/{kind}.npz yet - skipping the trained {kind} policy")
-        for ctrl in ("scripted", "policy"):
-            if ctrl == "policy" and not (POLICY_DIR / f"{kind}.npz").exists():
-                continue
-            if ctrl == "policy" and kind == "walk" and not a.legacy:      # (retired: decision 50)
-                continue
+        jobs += [(kind, "scripted", 1000 + s, True, a.world) for s in range(n)]
+        ctrl, learned = (("residual", os.environ.get("PINCH_GAIT_POLICY", "gait")) if kind == "walk" else
+                         ("policy", os.environ.get("PINCH_EMOTE_POLICY", "emote")))
+        if (POLICY_DIR / f"{learned}.npz").exists():
             jobs += [(kind, ctrl, 1000 + s, True, a.world) for s in range(n)]
-        gp = os.environ.get("PINCH_GAIT_POLICY", "gait")
-        if kind == "walk" and (POLICY_DIR / f"{gp}.npz").exists():
-            jobs += [(kind, "residual", 1000 + s, True, a.world) for s in range(n)]
+        else:
+            print(f"no policies/{learned}.npz yet - skipping the trained {kind} policy")
     with ProcessPoolExecutor(max_workers=12) as ex:
         rows = list(ex.map(episode, jobs))
     s = summary(rows)
