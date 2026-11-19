@@ -32,6 +32,11 @@ PRESETS = {
                  unroll_length=20, num_updates_per_batch=4, episode_length=1000,
                  num_evals=20, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
                  discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
+    # grasp skill: 4 s episodes, contact-rich (slower per step)
+    "grasp": dict(num_timesteps=40_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
+                  unroll_length=20, num_updates_per_batch=4, episode_length=200,
+                  num_evals=16, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
+                  discounting=0.97, policy_layers=(256, 256, 128), value_layers=(256, 256, 256)),
     # emote tracking: shorter episodes (one or two emotes), fewer steps
     "emote": dict(num_timesteps=40_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
                   unroll_length=20, num_updates_per_batch=4, episode_length=500,
@@ -54,6 +59,9 @@ def make_env(name):
     if name == "emote":
         from training.emote_env import CrabEmoteEnv
         return CrabEmoteEnv()
+    if name == "grasp":
+        from training.grasp_env import CrabGraspEnv
+        return CrabGraspEnv()
     from training.crab_env import CrabWalkEnv
     return CrabWalkEnv()
 
@@ -83,11 +91,14 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
         rec = {"step": int(step), "time_s": round(time.time() - t0, 1),
                **{k: float(v) for k, v in metrics.items()
                   if k.startswith("eval/episode_") or k in ("eval/avg_episode_length",)}}
+        if "eval/episode_success_rate" in metrics:
+            rec["success"] = float(metrics["eval/episode_success_rate"])
         log.write(json.dumps(rec) + "\n")
         log.flush()
         print(f"  step {rec['step']:>11,}  t={rec['time_s']:>7.1f}s  "
               f"reward={rec.get('eval/episode_reward', float('nan')):8.3f}  "
-              f"ep_len={rec.get('eval/avg_episode_length', float('nan')):6.1f}", flush=True)
+              f"ep_len={rec.get('eval/avg_episode_length', float('nan')):6.1f}"
+              + (f"  success={rec['success']:.2f}" if "success" in rec else ""), flush=True)
 
     def save(step, make_policy, params):
         with open(out / "params.pkl", "wb") as fh:
@@ -119,7 +130,7 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preset", choices=list(PRESETS), default="smoke")
-    ap.add_argument("--env", choices=["walk", "emote"], default="walk")
+    ap.add_argument("--env", choices=["walk", "emote", "grasp"], default="walk")
     ap.add_argument("--timesteps", type=int, help="override num_timesteps")
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")
     ap.add_argument("--run", default=None, help="run name (default: env-preset-timestamp)")

@@ -17,10 +17,12 @@ frame: ground truth in the simulator; on the robot, odometry + the camera's view
 
 import numpy as np
 
+from crab import policy_io as pio
 from crab.emotes import EMOTES, STAND, crouch, pose
 from crab.gait import GAITS, Gait
 from crab.params import JOINT_NAMES
 from robot.crab_robot import DT
+from robot.servos import SERVO_IDS
 from pinch.world import Desk
 
 J = {n: i for i, n in enumerate(JOINT_NAMES)}
@@ -36,6 +38,14 @@ RAKE_ENABLED = False          # pulling things in from beyond them: flung a pen 
 
 def _wrap(a):
     return (a + np.pi) % (2 * np.pi) - np.pi
+
+
+def extent(name, yaw, heading, default=0.015):
+    """Half-size of a thing along the push direction (a pen pushed end-on is 7 cm long, sideways 4.5 mm)."""
+    if name == "pen":
+        a = abs(np.cos(yaw - heading))
+        return PEN_HALF * a + 0.0045 * np.sqrt(max(0.0, 1 - a * a))
+    return {"cap": 0.014, "ball": 0.015, "eraser": 0.011}.get(name, default)
 
 
 def arm_pose(base, side, pitch=None, yaw=None, claw=None):
@@ -89,6 +99,7 @@ class Body:
     def tick(self):
         """One 20 ms control step."""
         self.t += DT
+        self.cmd_vel = (0.0, 0.0, 0.0)
         if self.task is not None:
             try:
                 q = next(self.task)
@@ -119,12 +130,23 @@ class Body:
             yield q0 + (q1 - q0) * s
 
     def _emote(self, name):
+        """Keyframes; with the trained emote policy (policies/emote.npz) the legs get small live
+        corrections that keep the emote balanced under shoves, slippery spots or a heavier battery."""
         emo = EMOTES.get(name)
         if emo is None:
             return False
-        t = 0.0
+        t, last = 0.0, np.zeros(12)
         while t < emo.duration:
             q = emo.target(t)
+            if self.emote_policy is not None and not self.held:
+                ahead = emo.target(min(t + 0.1, emo.duration))
+                gyro, grav = self.crab.hw.read_imu()
+                qj, st = self.crab.read_joints()
+                qd = np.array([self.crab.cal.sign[j] * st[SERVO_IDS[j]].speed for j in JOINT_NAMES])
+                obs = pio.emote_observation(np, gyro, grav, qj[pio.LEG_ACT_IDX], qd[pio.LEG_ACT_IDX], last, q, ahead,
+                                            None, t / emo.duration)
+                last = np.clip(self.emote_policy(obs), -1, 1)
+                q = pio.emote_targets(np, q, last)
             if self.held:
                 q = arm_pose(q, self.held[1], claw=0.0)
             yield q
@@ -141,6 +163,7 @@ class Body:
         return True
 
     def _gait_q(self, cmd, arms=None, lower=0.0):
+        self.cmd_vel = tuple(float(c) for c in cmd)          # what the localizer integrates on the robot
         self.gait.arms = arms
         self.gait.lower += float(np.clip(lower - self.gait.lower, -0.0004, 0.0004))   # sink / rise smoothly
         q = None
@@ -245,6 +268,7 @@ class Body:
                 return True
             u = to_goal / d
             heading = float(np.arctan2(u[1], u[0]))
+            radius = extent(name, o[0][2], heading, radius)   # how far the thing reaches back toward the paddle
             x, y, h = self.pose_fn()
             side = self._side_for(x, y, h, ox, oy)
             paddle = arm_pose(arm_pose(pose(crouch(0.25)), side, pitch=-0.62, yaw=0.0, claw=0.0),
@@ -279,7 +303,7 @@ class Body:
                 lateral = -s * rel[0] + c * rel[1]
                 if (to_tray and self.desk.in_tray((ox, oy))) or np.linalg.norm(goal - (ox, oy)) < tol:
                     break
-                if abs(lateral) > 0.026 or ahead < -(radius + 0.035) or ahead > 0.07 or not self.desk.inside((x, y), 0.05):
+                if abs(lateral) > 0.026 or ahead < -(radius + 0.055) or ahead > 0.07 or not self.desk.inside((x, y), 0.05):
                     self.trace("slip", lateral=round(float(lateral), 3), ahead=round(float(ahead), 3),
                                obj=(round(ox, 3), round(oy, 3)))
                     break                                          # slipped off the paddle: line up again

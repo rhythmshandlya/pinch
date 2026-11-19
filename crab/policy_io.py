@@ -123,3 +123,45 @@ def emote_targets(xp, ref, action):
         out[LEG_ACT_IDX] = legs
         return out
     return ref.at[LEG_ACT_IDX].set(legs)
+
+
+# ------------------------------------------------------------------ grasp skill policy (right claw)
+# Pinch has walked up and roughly lined its right claw up with the thing; this policy does the last
+# few centimetres: legs shift/lean the body (small corrections around a nose-down crouch) and the arm
+# swings, lowers and closes. Arm actions are absolute (the arm servos have no feedback to correct).
+from .emotes import crouch as _crouch, pose as _pose     # noqa: E402
+
+_R_ARM = [JOINT_NAMES.index(f"R_{j}") for j in ("shoulder_yaw", "shoulder_pitch", "claw")]
+GRASP_NOMINAL = _pose(_crouch(0.38, "F?"), _crouch(-0.20, "R?"), {"R_shoulder_yaw": 0.17,
+                                                                     "R_shoulder_pitch": -0.1, "R_claw": 0.48})
+GRASP_N_ACT = 15
+GRASP_LEG_SCALE = 0.15
+GRASP_OBS_SIZE = 3 + 3 + N_ACT + N_ACT + GRASP_N_ACT + 3 + 2 + 1
+ARM_RANGES = ((0.0, 0.34), (-0.69, 0.50), (0.0, 0.96))            # yaw, pitch, claw (CAD limits)
+
+
+def grasp_targets(xp, nominal, action):
+    """15 actions -> 18 servo targets: legs = nominal + small corrections; right arm = absolute."""
+    legs = shin_clamp(xp, xp.asarray(nominal)[LEG_ACT_IDX] + GRASP_LEG_SCALE * action[:12])
+    arm = [lo + (hi - lo) * (action[12 + i] + 1) / 2 for i, (lo, hi) in enumerate(ARM_RANGES)]
+    if xp is np:
+        out = np.array(nominal, float).copy()
+        out[LEG_ACT_IDX] = legs
+        out[_R_ARM] = arm
+        return out
+    out = xp.asarray(nominal).at[LEG_ACT_IDX].set(legs)
+    return out.at[xp.array(_R_ARM)].set(xp.stack(arm))
+
+
+def grasp_observation(xp, gyro, gravity, q_legs, qd_legs, last_action, rel, ang, tfrac):
+    """rel: the thing's centre relative to the open claw's gap (body frame, m); ang: its direction (rad,
+    body frame); tfrac: time since the grasp started / 4 s."""
+    return xp.concatenate([
+        gyro * GYRO_SCALE, gravity,
+        q_legs - GRASP_NOMINAL[LEG_ACT_IDX],
+        qd_legs * JOINT_VEL_SCALE,
+        last_action,
+        rel * 20.0,
+        xp.array([xp.sin(2 * ang), xp.cos(2 * ang)]),          # a pen is the same either way round
+        xp.array([tfrac]),
+    ])

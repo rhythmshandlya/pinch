@@ -60,3 +60,36 @@ be revisited. **Review** marks the ones worth a second look from you.
       printed with the robot and doubles as Pinch's "home" spot.
     - **How it learns:** it remembers where each object usually lives, from what it sees or from you
       telling it.
+
+## 2026-11-19 (later): manipulation goes to RL
+
+11. **Walking v1 learned to stand still.** Pinch's commanded speeds are only a few cm/s, and the speed
+    reward was so forgiving that standing earned about 60 % of it with none of walking's costs.
+    - **v2 changes:** speed is measured on a smoothed (per-gait-cycle) velocity with a tight
+      tolerance; the "turn rate" term (which gave standing still a free reward) is down-weighted;
+      effort penalties are lighter; commanded speeds are either clearly on or off.
+    - **Check before training:** in the training environment, a scripted trot now scores 14.7 against
+      5.8 for standing, where v1 scored 9.8 against 9.2.
+12. **Manipulation by reinforcement learning, as you suggested.** Scripted grasping of a pen failed in
+    the twin:
+    - The jaw's usable gap is about 14 mm, which leaves ±1–2.5 mm of tolerance.
+    - Pinched above its middle, a round pen wedges out of the jaws as they rise.
+    - Walking alone can't place the claw that precisely.
+
+    The literature on legged robots pushing and handling things uses RL with heavy domain
+    randomization, usually hierarchically (a locomotion policy underneath), and it transfers to real
+    hardware. So:
+    - **Grasp skill (RL):** Pinch arrives roughly at the object; the policy moves the arm (swing,
+      lift, claw) plus small leg-driven body shifts to get the object between the jaws and lift it.
+    - **Push-to-goal skill (RL)** for long things like pens.
+    - **Scripted skills stay as fallbacks**, and as the approach phase before an RL skill takes over.
+13. **Review: the claw may need widening.** If the RL grasp's success rate stays low, the jaw
+    opening is the limit (about 14 mm usable), and the CAD claw gets longer fingers and a wider
+    opening angle.
+14. **Pushing scripted for now:** a claw held flat as a paddle, with detours around objects and a
+    straight final push into the tray. Verified with a cap pushed 30 cm into the tray, no falls. Raking
+    (pulling things in) is disabled after it flung a pen off the desk; objects near the edge make
+    Pinch raise the alarm instead.
+15. **The LLM is gemma4:e4b, not llama3.2:3b.** Only gemma4:e4b was installed in Ollama, and I didn't
+    pull a 2 GB model unasked. Set `PINCH_LLM=llama3.2:3b` after `ollama pull llama3.2:3b` to switch;
+    it will be faster on the CPU. Instant keyword rules handle the common phrases either way.

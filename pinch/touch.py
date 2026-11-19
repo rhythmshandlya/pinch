@@ -84,6 +84,7 @@ class BodySense:
     def __init__(self):
         self.gyro_hist = deque(maxlen=25)
         self.lifted = False
+        self.air_s = self.ground_s = 0.0
         self.load_dev_s = np.zeros(4)
         self.t = 0.0
 
@@ -102,12 +103,15 @@ class BodySense:
         if accel_norm is not None and accel_norm > 2.2:
             out.append("bumped")
         if feet_loaded is not None:
-            lifted = feet_loaded == 0
-            if lifted and not self.lifted:
+            # debounced: mid-stride a trotting crab can have no foot down for an instant
+            self.air_s = self.air_s + dt if feet_loaded == 0 else 0.0
+            self.ground_s = self.ground_s + dt if feet_loaded >= 3 else 0.0
+            if not self.lifted and self.air_s >= 0.3:
                 out.append("lifted")
-            if not lifted and self.lifted:
+                self.lifted = True
+            elif self.lifted and self.ground_s >= 0.3:
                 out.append("put_down")
-            self.lifted = lifted
+                self.lifted = False
         if leg_loads is not None and standing_still:
             dev = np.abs(np.asarray(leg_loads)) > 0.35
             self.load_dev_s = np.where(dev, self.load_dev_s + dt, 0.0)

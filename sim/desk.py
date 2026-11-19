@@ -61,6 +61,18 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True)
     for s in (-1, 1):
         tray.add_geom(size=[0.002, hy, 0.006], pos=[s * hx, 0, 0.006], **kw)
     # chamfered front lip: a 2 cm ramp from the desk up to the floor (printed as one piece)
+    # an upright tab at the back of the tray carrying an ArUco marker: Pinch's camera finds the tray
+    # (and so where it is on the desk) from it
+    spec.add_texture(name="marker_tex", type=mujoco.mjtTexture.mjTEXTURE_2D, builtin=mujoco.mjtBuiltin.mjBUILTIN_FLAT,
+                     rgb1=[1, 1, 1], width=MARKER_PX, height=MARKER_PX)
+    mmat = spec.add_material(name="marker_mat")
+    mmat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = "marker_tex"
+    tray.add_geom(name="tray_tab", type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.0015, MARKER_M / 2 + 0.004, MARKER_M / 2 + 0.004],
+                  pos=[0, hy + 0.003, MARKER_M / 2 + 0.006], euler=[0, 0, -np.pi / 2], rgba=[1, 1, 1, 1],
+                  contype=0, conaffinity=1)
+    tray.add_geom(name="tray_marker", type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.0002, MARKER_M / 2, MARKER_M / 2],
+                  pos=[0, hy + 0.0013, MARKER_M / 2 + 0.006], euler=[0, 0, -np.pi / 2], material="marker_mat",
+                  contype=0, conaffinity=0, group=2)
     tray.add_geom(name="tray_ramp", size=[hx, 0.010, 0.0005], pos=[0, -hy - 0.0098, 0.0001], euler=[0.05, 0, 0], **kw)
     # desk things
     for name, (shape, size, mass, rgba, _) in objects.items():
@@ -104,7 +116,26 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True)
         body.add_geom(name="face_bezel", type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.0018, 0.0310, 0.0180],
                       pos=[0.0455, 0, 0.0255], euler=[0, np.radians(-25), 0], rgba=[0.08, 0.08, 0.1, 1],
                       contype=0, conaffinity=0, group=2, mass=0.0)
-    return spec.compile()
+    for c in spec.cameras:                                  # the wide-angle face camera (decision 16)
+        if c.name == "eye_cam":
+            c.fovy = EYE_FOVY
+    m = spec.compile()
+    set_marker(m)
+    return m
+
+
+MARKER_ID, MARKER_M, MARKER_PX = 7, 0.040, 240     # ArUco 4x4 #7, 40 mm (30 mm black), on the tray tab
+EYE_FOVY = 80.0
+
+
+def set_marker(m):
+    import cv2
+    img = cv2.aruco.generateImageMarker(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50), MARKER_ID,
+                                        MARKER_PX * 6 // 8)
+    img = np.pad(img, MARKER_PX // 8, constant_values=255)                     # white quiet zone
+    tid = m.texture("marker_tex").id
+    adr = m.tex_adr[tid]
+    m.tex_data[adr:adr + MARKER_PX * MARKER_PX * 3] = np.repeat(img[:, :, None], 3, axis=2).ravel()
 
 
 def set_face(m, rgb):

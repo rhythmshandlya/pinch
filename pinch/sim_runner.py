@@ -103,6 +103,20 @@ class PinchSim:
         off = R @ np.array([-0.004, (1 if side == "left" else -1) * self.GAP, 0.0])
         return float(p[0] + off[0]), float(p[1] + off[1])
 
+    def feet_down(self):
+        """How many feet touch the desk (the real robot reads this from its leg servos' load)."""
+        if not hasattr(self, "_feet"):
+            self._feet = {self.m.geom(f"{lg}_foot").id for lg in ("FL", "FR", "RL", "RR")}
+            self._desk = self.m.geom("desk_top").id
+        n = set()
+        for i in range(self.d.ncon):
+            c = self.d.contact[i]
+            if self._desk in (c.geom1, c.geom2):
+                o = c.geom2 if c.geom1 == self._desk else c.geom1
+                if o in self._feet:
+                    n.add(o)
+        return len(n)
+
     def gripping(self, name, side):
         """Both claw fingers touch the thing (on the robot: the camera sees it between the fingers)."""
         s = "L" if side == "left" else "R"
@@ -186,7 +200,7 @@ class PinchSim:
                     self.body.start(("walk", -0.03, 0.0, 0.0, 1.0))
                     self.edge_stops += 1
             gyro, grav = self.hw.read_imu()
-            for ev in self.senses.update(DT * MIND_EVERY, gyro, grav):
+            for ev in self.senses.update(DT * MIND_EVERY, gyro, grav, feet_loaded=self.feet_down()):
                 self.mind.touch(ev)
             if grav[2] > -0.5:
                 self.falls += 1

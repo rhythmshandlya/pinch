@@ -136,8 +136,8 @@ class Mind:
             self.request = ("teach_home", u["object"])
         elif i in ("chat", "owner_feeling", "tell_name"):
             self.affect.feel("spoken_to" if i == "chat" else "name_called", 0.7)
-        if u["addressed"]:
-            self.affect.feel("name_called", 0.5)
+        if u["addressed"] and i in ("chat", "greet", "none", "trick", "come", "play"):
+            self.affect.feel("name_called", 0.5)          # (not after a scold or praise: that feeling stays)
         if self.request:
             self._interrupt()
         self._say("heard", f"\"{u['text']}\" -> {i}" + (f" {u['trick'] or u['object']}" if u['trick'] or u['object'] else ""))
@@ -268,9 +268,13 @@ class Mind:
             if self.affect.quiet and not a.quiet_ok:
                 u = 0.0
             scores[a.name] = u + 0.02 * self.rng.random()
+        cur = self.activity
+        # commitment: an activity under way keeps most of the priority it started with, so a job doesn't
+        # evaporate halfway (e.g. a pushed cap stops counting as "settled" the moment Pinch moves it)
+        if cur is not None and self.gen is not None and not (self.affect.quiet and not cur.quiet_ok):
+            scores[cur.name] = max(scores.get(cur.name, 0.0), 0.9 * self.start_score)
         self.scores = scores
         best = max(scores, key=scores.get)
-        cur = self.activity
         if cur is None or self.gen is None:
             self._start(best)
             return True
@@ -284,8 +288,11 @@ class Mind:
             return True
         return False
 
+    start_score = 0.0
+
     def _start(self, name):
         a = next(x for x in LIBRARY if x.name == name)
+        self.start_score = getattr(self, "scores", {}).get(name, 0.0)
         self.activity, self.gen, self.started = a, a.run(self), self.t
         self.waiting_motion, self.wait_until = False, -1.0
         self._say("activity", name)
