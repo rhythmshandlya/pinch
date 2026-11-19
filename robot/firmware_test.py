@@ -336,6 +336,34 @@ def stuck_from_measured_motion():
 
 
 def sigterm_and_memory():
+    print("faces (YuNet + SFace)")
+    from pinch.faces import FaceID
+    if not FaceID.available():
+        check("face models present (deploy/install.sh fetches them)", False, "models/faces/ missing")
+    else:
+        import cv2
+        import matplotlib
+        photo = cv2.imread(str(Path(matplotlib.get_data_path()) / "sample_data" / "grace_hopper.jpg"))
+        hw5, fw5 = quiet_firmware()
+        fw5.faceid = FaceID(gallery_path=None)
+        seen = []
+        for k in range(4):                                   # the camera sees the same face a few times
+            t = fw5.mind.world.clock()
+            out = dict(t=t, pose=None, flow=None, things={}, face=True, people=fw5.faceid.see(photo, t))
+            fw5._apply("vision", out)
+            seen.append(out["people"][0][0] if out["people"] else "-")
+        pid = seen[-1]
+        check("a face seen a few times becomes a person Pinch knows", pid is not None and pid != "-"
+              and pid in fw5.mind.people.people, f"ids per frame {seen}")
+        fw5.mind.hear_text("hi pinch, I'm Sam")
+        p = fw5.mind.people.get(pid) if pid else None
+        check("...and saying your name while it looks at you names that face", bool(p) and p.get("name") == "Sam",
+              f"name {p.get('name') if p else None}")
+        dark = (photo * 0.55).astype("uint8")
+        again = fw5.faceid.see(dark, fw5.mind.world.clock())
+        check("...and it knows the face again in dimmer light", bool(again) and again[0][0] == pid,
+              f"{again[0][:2] if again else None}")
+
     print("shutdown and memory")
     from pinch.memory import DEFAULT_FILE
     with tempfile.TemporaryDirectory() as tmp:

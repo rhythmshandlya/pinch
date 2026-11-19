@@ -111,6 +111,11 @@ class Mind:
                 self.memory.remember("owner_mood", f"my person said they felt {u['owner_emotion']}")
         if u["name"] and (u["intent"] == "tell_name" or from_llm):
             self.memory.set_owner_name(u["name"])
+            seen = self.people.recent(self.world.clock(), within=10.0) if hasattr(self.people, "recent") else []
+            if len(seen) == 1:                                # one face in view while you say your name: you
+                p = self.people.get(seen[0])
+                p["name"], p["owner"] = u["name"], True
+                self.memory.data["people"] = self.people.to_dict()
             self.affect.feel("greeted", 0.6)
             self._say("tell_name", f"learned my person's name: {u['name']}")
         if u["fact"] and from_llm:

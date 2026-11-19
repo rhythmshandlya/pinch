@@ -172,9 +172,14 @@ class PinchFirmware:
         self.last_save = 0.0
         self._saving = None
         self.vision = self.flow = None
+        self.faceid = None
         if hw.camera is not None:
             from robot.vision import GroundFlow, Vision
             self.vision = Vision(hw.camera_model, self.desk)
+            from pinch.faces import FaceID                  # who is that (decision 57); without the models: no one
+            if FaceID.available():
+                mp = getattr(self.mind.memory, "path", None)
+                self.faceid = FaceID(gallery_path=(Path(mp).parent / "faces.json") if mp else None)
             self.flow = GroundFlow(hw.camera_model)
             if not hw.camera_model.calibrated:
                 log.warning("camera lens not calibrated (robot/calibrate_camera.py): it won't be used to "
@@ -253,6 +258,9 @@ class PinchFirmware:
                 out["flow"] = (v, t - prev_t)
         out["things"] = self.vision.things(bgr, out["pose"] or self.loc.pose())
         out["face"], _ = self.vision.face(bgr)
+        if self.faceid is not None:
+            out["people"] = self.faceid.see(bgr, t)
+            out["face"] = out["face"] or bool(out["people"])
         return out
 
     def _vision_thread(self):
@@ -309,6 +317,9 @@ class PinchFirmware:
                     self.stats["things_seen"] += 1
             if data["face"]:
                 m.world.owner.present, m.world.owner.last_seen = True, m.t
+            for pid, conf, _box in data.get("people", ()):
+                if pid is not None:
+                    m.see_person(pid, conf)
 
     # -- the loop --------------------------------------------------------------------------------
     def _poll(self):
@@ -402,6 +413,11 @@ class PinchFirmware:
     def save_memory(self, wait=False):
         """Snapshot in the loop (fast), write + fsync to the SD card in a thread (can take 50+ ms)."""
         self.last_save = self.t
+        if self.faceid is not None:
+            try:
+                self.faceid.save()
+            except OSError as e:
+                self._error("faces", e)
         text = self.mind.memory.snapshot()
         if text is None:
             return

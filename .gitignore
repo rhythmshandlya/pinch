@@ -13,3 +13,4 @@ dist/
 cad/out/*.log
 *.log
 /training/modal_runs/
+models/faces/

@@ -55,6 +55,10 @@ class People:
             p["name"] = name
         return p
 
+    def recent(self, now, within=10.0):
+        """Ids of the people seen in the last `within` seconds."""
+        return [pid for pid, p in self.people.items() if now - p.get("last_seen", -1e18) <= within]
+
     def see(self, pid, confidence, now, name="", owner=False):
         """A sighting: returns how many hours they were away (for the greeting)."""
         p = self.ensure(pid, name=name, owner=owner, now=now)

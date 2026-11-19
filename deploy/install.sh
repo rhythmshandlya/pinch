@@ -17,6 +17,18 @@ rm -f "$DEST/robot/calibration.json"                 # calibration lives in /var
 python3 -m venv --system-site-packages "$DEST/venv"
 "$DEST/venv/bin/pip" install --quiet numpy pyserial smbus2 pillow mujoco "opencv-python-headless>=4.8,<5"   # aarch64 wheels; ArucoDetector needs >= 4.7, OpenCV 5 drops CascadeClassifier
 
+echo "== face models (YuNet + SFace from the OpenCV model zoo, ~39 MB; checked against pinch/faces.py SHA256)"
+mkdir -p "$DEST/models/faces"
+fetch() {   # name, url, sha256
+  f="$DEST/models/faces/$1"
+  if [ ! -f "$f" ] || ! echo "$3  $f" | sha256sum -c --status; then
+    curl -fsSL -o "$f" "$2"
+    echo "$3  $f" | sha256sum -c --status || { echo "checksum mismatch: $1"; rm -f "$f"; exit 1; }
+  fi
+}
+fetch face_detection_yunet_2023mar.onnx https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx 8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4
+fetch face_recognition_sface_2021dec.onnx https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx 0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79
+
 echo "== settings (/etc/pinch.env)"
 if [ ! -f /etc/pinch.env ]; then
   cat > /etc/pinch.env <<'EOF'

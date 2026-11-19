@@ -514,34 +514,42 @@ class Body:
                 return False
             (ox, oy, oyaw), oz = o
             x, y, h = self.pose_fn()
-            side = self._side_for(x, y, h, ox, oy)
-            if self.grasp_policy is not None and self.grasp_view_fn is not None:
-                side = "right"                                   # the learned grab is the right claw's
+            # where to stand: every approach (a pen: along its axis, either way; anything else: from any of 24
+            # directions) with either claw, the nearest one whose feet fit on the desk clear of the tray. Facing
+            # it from wherever Pinch happened to be put the stand off the desk for half the spots (decision 56).
+            sides = ("right",) if self.grasp_policy is not None and self.grasp_view_fn is not None else \
+                (self._side_for(x, y, h, ox, oy), "left" if self._side_for(x, y, h, ox, oy) == "right" else "right")
+            grab0 = np.array((ox, oy))
+            best = None
+            for si, sd in enumerate(sides):
+                sg = 1 if sd == "left" else -1
+                for yw in ((0.12, 0.0, 0.24, 0.33) if name in LONG_THINGS else (0.12,)):   # the arm swings 0-20 deg
+                    rq = arm_pose(pose(crouch(REACH_LOW["crouch"], "F?"), crouch(-0.20, "R?")), sd,
+                                  pitch=REACH_LOW["pitch"], yaw=yw, claw=0.9)          # nose down: jaws come in low
+                    tp = np.array(self.tip_fn(sd, rq) if self.tip_fn else (0.088, sg * 0.035))
+                    ad = np.arctan2(tp[1], tp[0])
+                    if name in LONG_THINGS:
+                        # a pen: the jaws run along it, gripping it a little off its middle so the longer part
+                        # points forward, away from Pinch's own legs (the palm clears the shorter part)
+                        opts = []
+                        for a in (oyaw, oyaw + np.pi):
+                            ax = np.array((np.cos(a), np.sin(a)))
+                            opts.append((_wrap(a - ad), grab0 - ax * LONG_THINGS[name]))
+                    else:
+                        face = np.arctan2(oy - y, ox - x)
+                        opts = [(_wrap(face + k * np.pi / 12 - ad), grab0) for k in range(-12, 12)]
+                    for hd, g in opts:
+                        c, s_ = np.cos(hd), np.sin(hd)
+                        st = g - np.array((c * tp[0] - s_ * tp[1], s_ * tp[0] + c * tp[1]))
+                        room = min(self.desk.edge_distance(st) - 0.066,
+                                   self.desk.feet_clear(st, hd) - self.FEET_EDGE - 0.005)
+                        # cheapest: feet fit (some room to spare), little walking and turning, the nearer claw,
+                        # the usual arm swing
+                        cost = (100.0 if room < 0 else 0.0) + 3 * max(0.0, 0.03 - room) / 0.03 +                             np.hypot(st[0] - x, st[1] - y) / 0.10 + 0.3 * abs(_wrap(hd - h)) + 0.3 * si + abs(yw - 0.12)
+                        if best is None or cost < best[0]:
+                            best = (cost, sd, rq, tp, hd, st, g)
+            _, side, reach, tip, heading, stand_xy, grab = best
             sgn = 1 if side == "left" else -1
-            reach = arm_pose(pose(crouch(REACH_LOW["crouch"], "F?"), crouch(-0.20, "R?")), side,
-                             pitch=REACH_LOW["pitch"], yaw=0.12, claw=0.9)            # nose down: jaws come in low
-            tip = np.array(self.tip_fn(side, reach) if self.tip_fn else (0.088, sgn * 0.035))
-            arm_dir = np.arctan2(tip[1], tip[0])
-            # a pen: the jaws run along it, gripping it a little off its middle so the longer part points
-            # forward, away from Pinch's own legs (the palm clears the shorter part). Other things: face them.
-            grab = np.array((ox, oy))
-            if name in LONG_THINGS:
-                best = None
-                for a in (oyaw, oyaw + np.pi):
-                    ax = np.array((np.cos(a), np.sin(a)))
-                    g = grab - ax * LONG_THINGS[name]                # grab point; the pen extends along +ax
-                    hd = _wrap(a - arm_dir)
-                    c, s = np.cos(hd), np.sin(hd)
-                    st = g - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
-                    room = min(self.desk.edge_distance(st), self.desk.feet_clear(st, hd) + 0.066 - self.FEET_EDGE)
-                    cost = abs(_wrap(hd - h)) + 5 * (room < 0.068) + 3 * max(0.0, 0.12 - room) / 0.12
-                    if best is None or cost < best[0]:
-                        best = (cost, hd, st, g)
-                _, heading, stand_xy, grab = best
-            else:
-                heading = _wrap(np.arctan2(oy - y, ox - x) - arm_dir)
-                c, s = np.cos(heading), np.sin(heading)
-                stand_xy = grab - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
             self.trace("pick_plan", side=side, tip=tuple(np.round(tip, 3)), stand=tuple(np.round(stand_xy, 3)),
                        heading=round(float(heading), 2), obj=(round(ox, 3), round(oy, 3), round(oyaw, 2)))
             fwd = np.array((np.cos(heading), np.sin(heading)))

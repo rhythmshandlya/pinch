@@ -652,3 +652,40 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       - **So** the scripted grab stays the default, and grasp-v5 is kept as `policies/grasp_v5.npz`.
         The robot couldn't use it yet anyway: it needs the thing's pose relative to the claw from a
         calibrated camera.
+56. **Pick stands are searched, not assumed.**
+    - **Problem:** the pick planner stood wherever facing the thing *from Pinch's current spot* put
+      it. For things toward the desk's sides, that put the feet off the desk or in the tray. 17 of 32
+      bench spots, all at least 9 cm from every edge, were "unreachable" before any attempt.
+    - **Change:** the planner now scores every approach and takes the cheapest stand whose feet fit,
+      with some room to spare, preferring less walking and turning:
+      - a pen or an eraser: along its axis, either way;
+      - anything else: from 24 directions;
+      - either claw;
+      - the arm's 0–20° outward swing.
+    - **Result:** unreachable 17 → 11 of 32, and picks 8 → 10 of 32. The rest are mostly things lying
+      pointed at a nearby edge (tidying pushes them instead), and grabs that close on nothing.
+57. **Pinch knows faces** (your OK, 2026-11-19: YuNet + SFace from the OpenCV model zoo, 39 MB,
+    SHA-256 pinned).
+    - **Pipeline** (`pinch/faces.py`):
+      - YuNet finds faces; SFace turns each into a 128-number fingerprint.
+      - A fingerprint within cosine 0.363 (SFace's published threshold) of someone known is that
+        person.
+      - An unknown face seen 3 times within 10 s becomes a new person, "face-N". A stranger who keeps
+        coming back becomes familiar, through `pinch/people.py`.
+      - "I'm Sam", said while exactly one face is in view, names that person and marks them as the
+        owner.
+    - **On the robot:**
+      - It runs in the vision thread at 5 Hz.
+      - The gallery is saved with the memory (`faces.json`).
+      - `deploy/install.sh` downloads and checks the models; they are not in git.
+      - Without the models, Pinch falls back to "someone is there".
+    - **One thread for OpenCV:** its DNN worker pool kept spinning after each frame and stole CPU
+      from the 50 Hz control loop (tick p95 4.6 ms). With one thread it is 2.2 ms.
+    - **Tested** (`robot/firmware_test.py`, 42/42):
+      - On a real photo (matplotlib's public-domain portrait of Grace Hopper), a face seen a few times
+        becomes a person.
+      - Saying the name names them, and they are recognised again in dim light.
+      - Separately: darker, brighter, mirrored, half-size, rotated 15° and noisy versions all match
+        (cosine 0.94–0.98), at 10 ms a frame on the laptop.
+    - **Not tested:** telling two *different* people apart. There is only one face photo here, so this
+      relies on SFace's published accuracy (99.4 % on LFW). Check it on the robot with two people.
