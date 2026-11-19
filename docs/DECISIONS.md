@@ -975,3 +975,14 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       `Crab.run_policy` did, inside a function.
     - **Checks:** tests 26/26 (golden trace identical), firmware 45/45, selftest 40/40, the quick robustness
       bench passes for walk and emote, every env builds, `sim/walk.py` runs.
+78. **The twin split by responsibility** (`pinch/sim_runner.py` 319 lines → `pinch/twin/`).
+    - **Parts:**
+      - `core.py`: building the world, robot, body and mind; the 50 Hz loop.
+      - `world.py`: where things are (pose, desk things, claw tip, feet, moving things by hand).
+      - `sensors.py`: the camera's sightings, the cliff beams, the grasp view, the grip.
+      - `stimuli.py`: talking, touching, sounds.
+      - `faults.py`: injected failures.
+    - **Imports:** every user now imports `PinchSim` from `pinch.twin`; the old module is gone rather than
+      kept as a shim.
+    - **Checks:** a line check finds only one line gone (a stray class attribute `faults = {}`, which every
+      run overwrote), tests 26/26 with the golden trace identical, and the app and bench tools import.

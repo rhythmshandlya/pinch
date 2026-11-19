@@ -53,7 +53,7 @@ class Recorder:
 
 def _sim(**kw):
     from pinch.memory import Memory
-    from pinch.sim_runner import PinchSim
+    from pinch.twin import PinchSim
     return PinchSim(memory=Memory(path=None), **kw)
 
 

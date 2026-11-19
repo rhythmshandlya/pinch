@@ -55,7 +55,7 @@ private PRD and its traceability matrix are kept locally and out of git.*
 | Goal | Status | Evidence |
 |---|---|---|
 | Robot designed (CAD/STL) | ✅ 14 parts (31 pieces). All pass print rules and the wall check (the visor posts and bezel were thickened). Servos fit, and **241/241 poses are collision-free** | `cad/check.py`, `cad/walls.py` |
-| Digital twin | ✅ desk, tray, desk things, five cliff beams (the side ones now low in solid wall), camera, face, noslip contacts | `sim/desk.py`, `pinch/sim_runner.py` |
+| Digital twin | ✅ desk, tray, desk things, five cliff beams (the side ones now low in solid wall), camera, face, noslip contacts | `sim/desk.py`, `pinch/twin/` |
 | Locomotion trained + robust | ✅ residual gait-v1. It passes the flat, rough, caught-foot and terrain worlds. Capability table in `docs/HURDLES.md`. ⏳ terrain and walking-v2 training | `sim/robustness.py`, `sim/hurdle_test.py`, `sim/obstacle_test.py` |
 | Expressive motions trained + robust | ✅ 21 emotes, 0/40 falls. ⏳ emote2 at 2 ms physics | `sim/robustness.py` |
 | Pet brain in simulation | ✅ 12 behaviour scenarios (11–12/12, run to run), the state layer, the decision log and the observer. ⚠ Many PRD items are still partial or missing (see the private matrix) | `sim/pinch_scenarios.py`, `tests/` |

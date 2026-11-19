@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 from pinch.memory import Memory
-from pinch.sim_runner import PinchSim
+from pinch.twin import PinchSim
 
 
 def test_every_switch_is_logged_with_a_reason():

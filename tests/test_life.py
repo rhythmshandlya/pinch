@@ -6,7 +6,7 @@ import numpy as np
 
 from pinch.body.life import ACTIONS, IdleLife
 from pinch.memory import Memory
-from pinch.sim_runner import PinchSim
+from pinch.twin import PinchSim
 
 
 def _events(liveliness, seconds=600.0, seed=0):

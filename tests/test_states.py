@@ -6,7 +6,7 @@ from pinch.activities import LIBRARY
 from pinch.activities.base import STATES
 from pinch.memory import Memory
 from pinch.mind import Mind
-from pinch.sim_runner import PinchSim
+from pinch.twin import PinchSim
 
 
 def test_every_activity_declares_a_state_and_limits():

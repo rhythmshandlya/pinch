@@ -40,7 +40,7 @@ It remembers you between runs (`~/.pinch/memory.json`).
 |---|---|---|
 | Brain | Needs and emotions (needy by design), 17 activities picked by utility with commitment, memory, voice understanding (instant rules plus a local LLM), meeting detection from sound, touch gestures | [pinch/](pinch/) |
 | Face | 25 animated expressions (Vector-style eyes, blinks, glyphs) on a 128×64 OLED | [pinch/face.py](pinch/face.py) |
-| Digital twin | MuJoCo desk with edges, a desk tray with ArUco marker, a pen, eraser, cap and ball; cliff sensors; wide-angle eye camera; live face texture | [sim/desk.py](sim/desk.py), [pinch/sim_runner.py](pinch/sim_runner.py) |
+| Digital twin | MuJoCo desk with edges, a desk tray with ArUco marker, a pen, eraser, cap and ball; cliff sensors; wide-angle eye camera; live face texture | [sim/desk.py](sim/desk.py), [pinch/twin/](pinch/twin/) |
 | Motion | 21 emotes; scripted crawl/trot gait; learned walking and emote-balancing policies (Brax PPO on Modal, run as numpy) | [crab/](crab/), [training/](training/), [policies/](policies/) |
 | Skills | Walk to a spot, turn, push things into the tray with a claw paddle (detours around obstacles), ask for help | [pinch/body.py](pinch/body.py) |
 | Firmware | The robot's program (the same brain and body), drivers for the face, touch, cliff sensors, camera and mics, HTTP API, systemd service | [robot/pinch_main.py](robot/pinch_main.py), [deploy/](deploy/) |

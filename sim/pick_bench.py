@@ -22,7 +22,7 @@ def one(args):
     thing, seed, grasp = args
     from crab.policy_np import POLICY_DIR, NumpyPolicy
     from pinch.memory import Memory
-    from pinch.sim_runner import PinchSim
+    from pinch.twin import PinchSim
     rng = np.random.default_rng(seed)
     sim = PinchSim(memory=Memory(path=None), seed=seed)
     sim.body.grasp_policy = NumpyPolicy.load(POLICY_DIR / f"{grasp}.npz") if grasp else None

@@ -6,7 +6,7 @@ import numpy as np
 
 from pinch.memory import Memory
 from pinch.observer import observe
-from pinch.sim_runner import PinchSim
+from pinch.twin import PinchSim
 
 
 def _run(fault, **kw):

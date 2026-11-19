@@ -5,7 +5,7 @@ simulation's clock and seeded generators (decision 61)."""
 import numpy as np
 
 from pinch.memory import Memory
-from pinch.sim_runner import PinchSim
+from pinch.twin import PinchSim
 
 
 def _session(seed, seconds=40.0):

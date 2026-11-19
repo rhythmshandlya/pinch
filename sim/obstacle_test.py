@@ -22,7 +22,7 @@ THINGS = {"cable": ("cylinder", 0.0025), "pen": ("cylinder", 0.0045), "book": ("
 def case(args):
     thing, way = args
     from pinch.memory import Memory
-    from pinch.sim_runner import PinchSim
+    from pinch.twin import PinchSim
     kind, r = THINGS[thing]
     # Pinch at (0, 0.12) facing -y (forward) or facing +x (then -y is to its right: sideways)
     heading = -np.pi / 2 if way == "forward" else 0.0

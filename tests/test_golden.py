@@ -14,7 +14,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pinch.memory import Memory  # noqa: E402
-from pinch.sim_runner import PinchSim  # noqa: E402
+from pinch.twin import PinchSim  # noqa: E402
 
 GOLDEN = Path(__file__).resolve().parent / "golden" / "session_seed7.json"
 SCRIPT = {3.0: ("say", "hi pinch, I'm Sam"), 12.0: ("say", "dance!"), 30.0: ("say", "pinch, put the cap away"),

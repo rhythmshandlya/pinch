@@ -6,7 +6,7 @@ import numpy as np
 
 from pinch.attention import Attention
 from pinch.memory import Memory
-from pinch.sim_runner import PinchSim
+from pinch.twin import PinchSim
 
 
 def test_habituation_and_recovery():

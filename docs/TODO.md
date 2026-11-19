@@ -18,7 +18,7 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
 - [x] One test runner, `python tests/run.py` (replay, golden, states, observer, supervisor, faults,
       architecture).
 - [x] Split `robot/pinch_main.py` into `robot/firmware/` + `localizer.py` + `http_api.py` (75).
-- [ ] Split `pinch/sim_runner.py` (twin, sensors, faults) the same way.
+- [x] Split `pinch/sim_runner.py` into `pinch/twin/` (core, world, sensors, stimuli, faults) (78).
 - [ ] Move the scripts in `sim/` into `sim/benches/` (robustness, hurdle, obstacle, tidy, pick, soak) with one
       shared runner and JSON output.
 - [x] Removed retired code: the from-scratch walker, the old push env, the rake, the Colab path;

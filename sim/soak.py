@@ -59,7 +59,7 @@ def soak(args):
     seed, hours = args
     from pinch.memory import Memory
     from pinch.observer import observe
-    from pinch.sim_runner import PinchSim
+    from pinch.twin import PinchSim
     rng = np.random.default_rng(10_000 + seed)
     sim = PinchSim(memory=Memory(path=None), seed=seed)
     seconds = hours * 3600.0

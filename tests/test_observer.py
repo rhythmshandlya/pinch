@@ -3,7 +3,7 @@ produce no errors (oscillation, unexplained switches)."""
 
 from pinch.memory import Memory
 from pinch.observer import observe, observe_records
-from pinch.sim_runner import PinchSim
+from pinch.twin import PinchSim
 
 
 def _d(t, prev, to, reason="x", state=("idle", "idle")):

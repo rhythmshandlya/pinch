@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 def one(args):
     case, seed = args
     from pinch.memory import Memory
-    from pinch.sim_runner import PinchSim
+    from pinch.twin import PinchSim
     import numpy as np
     from sim.desk import OBJECTS, START
     rng = np.random.default_rng(1000 + seed)

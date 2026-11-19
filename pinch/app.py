@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT))
 from brain.sounds import render as render_sound  # noqa: E402
 from pinch.hearing import RATE, synth_speech  # noqa: E402
 from pinch.memory import Memory  # noqa: E402
-from pinch.sim_runner import DT, PinchSim  # noqa: E402
+from pinch.twin import DT, PinchSim  # noqa: E402
 
 NEEDS = ["social", "play", "curiosity", "sleep", "energy", "tidy", "safety"]
 NEED_LABEL = {"social": "wants company", "play": "wants to play", "curiosity": "curious", "sleep": "sleepy",
