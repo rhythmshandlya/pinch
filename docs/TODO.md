@@ -23,7 +23,8 @@ are in [DECISIONS.md](DECISIONS.md); the research behind the order is in [APPROA
       shared runner and JSON output.
 - [x] Removed retired code: the from-scratch walker, the old push env, the rake, the Colab path;
       `training/robot_model.py` holds what the envs share; `pinch/` and `robot/` may not import `training/` (77).
-- [ ] Continuous integration: run `tests/run.py` on every push (GitHub Actions; CPU only).
+- [ ] Continuous integration: `tests/run.py` on every push (GitHub Actions, Ubuntu, CPU) (79). Written; pushing it
+      needs the owner to grant the `workflow` permission (`gh auth refresh -s workflow`).
 
 ## 2. Framework
 

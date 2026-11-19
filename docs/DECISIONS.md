@@ -986,3 +986,13 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       kept as a shim.
     - **Checks:** a line check finds only one line gone (a stray class attribute `faults = {}`, which every
       run overwrote), tests 26/26 with the golden trace identical, and the app and bench tools import.
+79. **Continuous integration** (`.github/workflows/tests.yml`): `tests/run.py` on every push and pull
+    request.
+    - **Status:** written and checked against Linux, but not yet pushed. GitHub only accepts a workflow file
+      from a login with the `workflow` permission, and the owner has to grant that.
+    - **Runner:** GitHub's Ubuntu runner, Python 3.13, CPU only. It installs mujoco 4.0.1, numpy, pillow and
+      headless OpenCV. The JAX gait test skips itself there.
+    - **Golden trace:** exact only on the platform that recorded it. On msi-1's Linux the suite was 25/26:
+      the golden session drifted 1.3 s at its tenth decision, from MuJoCo's floating point differing between
+      Windows and Linux. The trace now records its platform and is skipped elsewhere. `test_replay` still
+      checks exact replay on every platform.
