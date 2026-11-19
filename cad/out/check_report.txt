@@ -1,6 +1,6 @@
 == 1. print rules (FDM: one valid solid, <= 350 mm, walls >= 1.6 mm) ==
   chassis     ok  solids=1 valid=True size 89x116x39 mm  walls ok (thinnest 1.65)  52.1 g
-  top_shell   ok  solids=1 valid=True size 92x115x48 mm  walls ok (thinnest 1.10)  33.5 g
+  top_shell   ok  solids=1 valid=True size 92x115x48 mm  walls ok (thinnest 1.65)  33.7 g
   belly_door  ok  solids=1 valid=True size 37x72x2 mm  walls ok (thinnest 1.80)  6.0 g
   pi_tray     ok  solids=1 valid=True size 74x60x5 mm  walls ok (thinnest 1.75)  8.1 g
   desk_tray   ok  solids=1 valid=True size 164x93x52 mm  walls ok (thinnest 0.50)  16.2 g
@@ -15,7 +15,7 @@
   jaw_pad     ok  solids=1 valid=True size 14x1x15 mm  walls ok (thinnest 1.20)  0.2 g
 
 == 2. servo fit (stand pose, within each body) ==
-  all servos fit their brackets  (24s)
+  all servos fit their brackets  (54s)
 
 == 3. self-collision across poses ==
-  241/241 poses collision-free  (2255s)
+  241/241 poses collision-free  (2465s)
