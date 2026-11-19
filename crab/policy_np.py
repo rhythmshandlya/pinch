@@ -8,6 +8,7 @@ training/export_policy.py turns a Brax PPO checkpoint (params.pkl) into policies
     action = pol(obs)            # deterministic action in -1..1
 """
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -48,5 +49,7 @@ def load_policy(name):
 
 def load_policies():
     """(emote_policy, walk_policy) if exported, else None for each (scripted fallbacks are used). Walking is
-    policies/gait.npz: learned corrections on the scripted trot (training/gait_env.py, decision 50)."""
-    return load_policy("emote"), load_policy("gait")
+    policies/gait.npz: learned corrections on the scripted trot (training/gait_env.py, decision 50).
+    PINCH_GAIT_POLICY / PINCH_EMOTE_POLICY name a candidate instead, for benching it in the whole pet."""
+    return (load_policy(os.environ.get("PINCH_EMOTE_POLICY", "emote")),
+            load_policy(os.environ.get("PINCH_GAIT_POLICY", "gait")))
