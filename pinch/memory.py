@@ -18,17 +18,18 @@ DEFAULT_FILE = Path(os.environ.get("PINCH_MEMORY", Path.home() / ".pinch" / "mem
 MAX_EPISODES = 400
 
 
-def _blank():
+def _blank(now=None):
     return dict(owner=dict(name="", facts=[]), homes={}, sightings={}, routines=dict(meeting=[0] * 24,
                 away=[0] * 24, active=[0] * 24), stats=dict(pets=0, praise=0, scolds=0, tricks=0, tidies=0,
-                last_play=0.0, last_seen=0.0, born=time.time()), episodes=[], likes={}, known_words={})
+                last_play=0.0, last_seen=0.0, born=time.time() if now is None else now), episodes=[], likes={},
+                known_words={})
 
 
 class Memory:
     def __init__(self, path=DEFAULT_FILE, clock=time.time):
         self.path = Path(path) if path else None
         self.clock = clock
-        self.data = _blank()
+        self.data = _blank(clock())
         if self.path and self.path.exists():
             try:
                 loaded = json.loads(self.path.read_text(encoding="utf-8"))

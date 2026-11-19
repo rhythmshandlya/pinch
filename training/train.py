@@ -85,12 +85,19 @@ def make_env(name):
     if name == "terrain":         # hurdles, ramps and steps (training/terrain_env.py, decision 58)
         from training.terrain_env import CrabTerrainEnv
         return CrabTerrainEnv()
+    if name == "terrain_hard":    # the same, half the robots on bars to 15 mm and ramps to 21 deg
+        import training.terrain_env as te
+        te.HARD = 1.5
+        return te.CrabTerrainEnv()
     if name == "gait3":          # gait-v1's rewards, shoves as hard as the robustness bench's (0.12 m/s, every 2.5 s)
         from training.gait_env import CrabGaitEnv
         return CrabGaitEnv(push_vel=0.12, push_interval_s=2.5)
     if name == "emote":
         from training.emote_env import CrabEmoteEnv
         return CrabEmoteEnv()
+    if name == "emote2":          # the emote balance policy in 2 ms physics, like the twin (emote-v1: 4 ms)
+        from training.emote_env import CrabEmoteEnv
+        return CrabEmoteEnv(sim_dt=0.002)
     if name == "grasp":
         from training.grasp_env import CrabGraspEnv
         return CrabGraspEnv()
@@ -102,7 +109,7 @@ def make_env(name):
 
 
 def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize=True,
-                 out_root=None, on_save=None):
+                 out_root=None, on_save=None, num_envs=None):
     """Train one policy. on_save() is called after every checkpoint (Modal commits its volume)."""
     import jax
     from brax.training.agents.ppo import train as ppo
@@ -114,6 +121,8 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
     cfg = dict(PRESETS[preset])
     if timesteps:
         cfg["num_timesteps"] = int(timesteps)
+    if num_envs:                                  # (a smaller GPU: msi-1's 6 GB RTX 4050)
+        cfg["num_envs"] = int(num_envs)
     run = run or f"{env}-{preset}-{datetime.now():%Y%m%d-%H%M%S}"
     out = Path(out_root or ROOT / "training" / "checkpoints") / run
     out.mkdir(parents=True, exist_ok=True)
@@ -153,7 +162,8 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
     make_policy, params, _ = ppo.train(
         environment=environment,
         eval_env=make_env(env),
-        randomization_fn=({"grasp": grasp_randomize, "terrain": terrain_randomize}.get(env, domain_randomize)
+        randomization_fn=({"grasp": grasp_randomize, "terrain": terrain_randomize,
+                           "terrain_hard": terrain_randomize}.get(env, domain_randomize)
                           if randomize else None),
         network_factory=network_factory(cfg),
         normalize_observations=True,
@@ -174,12 +184,14 @@ def run_training(preset="smoke", env="walk", timesteps=None, run=None, randomize
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preset", choices=list(PRESETS), default="smoke")
-    ap.add_argument("--env", choices=["walk", "gait", "gait2", "gait3", "terrain", "emote", "grasp", "push"], default="walk")
+    ap.add_argument("--env", choices=["walk", "gait", "gait2", "gait3", "terrain", "terrain_hard", "emote", "emote2", "grasp",
+                                        "push"], default="walk")
     ap.add_argument("--timesteps", type=int, help="override num_timesteps")
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")
     ap.add_argument("--run", default=None, help="run name (default: env-preset-timestamp)")
+    ap.add_argument("--num-envs", type=int, default=None, help="override num_envs (smaller GPUs)")
     a = ap.parse_args()
-    run_training(a.preset, a.env, a.timesteps, a.run, not a.no_randomize)
+    run_training(a.preset, a.env, a.timesteps, a.run, not a.no_randomize, num_envs=a.num_envs)
 
 
 if __name__ == "__main__":

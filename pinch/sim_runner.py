@@ -35,15 +35,24 @@ MIND_EVERY = 5                        # mind at 10 Hz
 FACE_EVERY = 3                        # face texture at ~17 Hz
 
 
+SIM_EPOCH = 1795059000.0          # the twin's calendar starts 2026-11-19 09:00 IST (03:30 UTC): runs replay exactly
+
+
 class PinchSim:
-    def __init__(self, memory=None, llm=False, seed=0, start=None, render=False, policies=True, extras=()):
+    def __init__(self, memory=None, llm=False, seed=0, start=None, render=False, policies=True, extras=(),
+                 epoch=SIM_EPOCH, decision_log=None):
+        """epoch: the wall-clock time the run starts at (what the mind's clock reads at t = 0).
+        decision_log: a file to write every activity switch and its reason to (JSON lines)."""
+        self.t = 0.0
         self.desk = Desk()
         self.m = build_desk_model(self.desk, start=start or START, extras=extras)
         self.hw = SimBackend(model=self.m, render=render)
         self.d = self.hw.d
         self.crab = Crab(self.hw, calibration=Calibration())
         self.crab.start()                                  # ease into the stand pose (2 s)
-        self.mind = Mind(memory=memory if memory is not None else Memory(path=None), llm=llm, seed=seed)
+        self.mind = Mind(memory=memory if memory is not None else Memory(path=None), llm=llm, seed=seed,
+                         clock=lambda: epoch + self.t)
+        self.mind.decision_log_path = decision_log
         self.face = Face(seed=seed)
         self.rng = np.random.default_rng(seed)
         self.senses = BodySense()

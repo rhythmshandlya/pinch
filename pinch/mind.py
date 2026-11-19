@@ -12,6 +12,8 @@
 Same code on the laptop (virtual pet, simulator) and on the robot.
 """
 
+from collections import deque
+
 import numpy as np
 
 from pinch.activities import LIBRARY
@@ -42,6 +44,8 @@ class Mind:
         self.memory = memory if memory is not None else Memory(path=None)
         self.affect = Affect(personality=personality or Personality())
         self.world = WorldModel()
+        if clock is not None:          # one clock for everything that dates things: simulation time in the twin
+            self.world.clock = self.memory.clock = clock      # (exact replay); wall time on the robot
         self.rng = np.random.default_rng(seed)
         self.llm = LLMUnderstanding() if llm else None
         if self.llm is not None and not self.llm.check():
@@ -49,6 +53,7 @@ class Mind:
         self.meeting = MeetingDetector()
         self.voice_mood = OwnerVoiceMood()
         self.t = 0.0
+        self.decisions = deque(maxlen=1000)  # recent activity switches with reasons (_record_decision)
         self.danger_map = DangerMap(self.memory.data.get("danger"))   # learned fears of desk spots (safety.py)
         self.playbook = PlayBook(self.memory.data.get("play"))      # games it invented and how fun they were
         self.people = People(self.memory.data.get("people"))        # who it knows and how it feels about them
@@ -240,6 +245,34 @@ class Mind:
             self.quiet_until = -1e9
             self._say("meeting", "the meeting is over")
 
+    # ---------------------------------------------------------------- the decision log (why it did what it did)
+    decision_log_path = None             # a file to append the decisions to as JSON lines (None: keep in memory)
+    DECISION_LOG_MAX = 5_000_000         # bytes: the file is rotated (to .1) past this
+
+    def _record_decision(self, name, reason):
+        """One line per activity switch: from what, to what, why, the strongest candidates, what it noticed
+        and how it felt - so any choice can be explained after the fact."""
+        scores = getattr(self, "scores", {})
+        top = sorted(scores.items(), key=lambda kv: -kv[1])[:4]
+        rec = dict(t=round(self.t, 2), clock=round(self.world.clock(), 2),
+                   prev=self.activity.name if self.activity else None, to=name, reason=reason,
+                   top=[[k, round(v, 3)] for k, v in top],
+                   noticed=[[s.kind, s.target, round(s.strength, 2)] for s in self.situations[:5]],
+                   feeling=self.affect.feeling(), valence=round(self.affect.valence, 3),
+                   needs={k: round(v, 2) for k, v in self.affect.needs.as_dict().items()})
+        self.decisions.append(rec)
+        if self.decision_log_path:
+            import json
+            from pathlib import Path
+            p = Path(self.decision_log_path)
+            try:
+                if p.exists() and p.stat().st_size > self.DECISION_LOG_MAX:
+                    p.replace(p.with_suffix(p.suffix + ".1"))
+                with open(p, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(rec) + "\n")
+            except OSError:
+                pass                                         # (a full or read-only disk must not stop the pet)
+
     def _say(self, kind, text):
         self.log.append((round(self.t, 1), kind, text))
         self.log = self.log[-300:]
@@ -391,7 +424,7 @@ class Mind:
         self.scores = scores
         best = max(scores, key=scores.get)
         if cur is None or self.gen is None:
-            self._start(best)
+            self._start(best, "first" if cur is None else "previous activity finished")
             return True
         if best == cur.name:
             return False
@@ -399,13 +432,15 @@ class Mind:
         urgent = scores[best] >= 1.5 and scores[best] > scores.get(cur.name, 0) + 0.1
         better = scores[best] > scores.get(cur.name, 0) + 0.15 and elapsed > cur.min_s
         if (cur.interruptible and (urgent or better)) or (not cur.interruptible and urgent and best in ("startle", "right_self")):
-            self._start(best)
+            self._start(best, ("urgent" if urgent else "clearly better") + f" than {cur.name}"
+                        + (" (after an interrupt)" if self._force else ""))
             return True
         return False
 
     start_score = 0.0
 
-    def _start(self, name):
+    def _start(self, name, reason=""):
+        self._record_decision(name, reason)
         a = next(x for x in LIBRARY if x.name == name)
         self.start_score = getattr(self, "scores", {}).get(name, 0.0)
         self.activity, self.gen, self.started = a, a.run(self), self.t

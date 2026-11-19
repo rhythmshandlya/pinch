@@ -140,6 +140,8 @@ class PinchFirmware:
         # memory_path: None = the default file (PINCH_MEMORY), False = don't keep a memory file (tests)
         memory = Memory() if memory_path is None else Memory(path=memory_path or None)
         self.mind = Mind(memory=memory, llm=llm)
+        if getattr(memory, "path", None):                    # why it did what it did, next to its memory
+            self.mind.decision_log_path = str(Path(memory.path).parent / "decisions.jsonl")
         self.face = Face()
         self.loc = Localizer(getattr(hw, "start_pose", (0.0, 0.0, 0.0)))
         emote_pol, walk_pol = load_policies()

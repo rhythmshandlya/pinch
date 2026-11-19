@@ -66,6 +66,7 @@ def load_terrain_model(sim_dt: float) -> mujoco.MjModel:
 
 
 _OBST_IDS = None
+HARD = 1.0                   # hurdle heights / ramp angle scale (terrain_hard: 1.5 = bars to 15 mm, ramps to 21 deg)
 
 
 def terrain_randomize(sys: mjx.Model, rng: jax.Array):
@@ -76,7 +77,9 @@ def terrain_randomize(sys: mjx.Model, rng: jax.Array):
     @jax.vmap
     def course(key):
         u = jax.random.uniform(jax.random.fold_in(key, 7), (N_U,))
-        pos, quat = terrain_layout(jp, u)
+        # half the robots get the gentle course, half up to HARD (a curriculum by mixture)
+        hard = jp.where(jax.random.uniform(jax.random.fold_in(key, 9)) < 0.5, 1.0, HARD)
+        pos, quat = terrain_layout(jp, u, hard=hard)
         return sys.geom_pos.at[ids].set(pos), sys.geom_quat.at[ids].set(quat)
 
     gpos, gquat = course(rng)
