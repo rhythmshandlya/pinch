@@ -65,6 +65,7 @@ class TwinWorld:
 
     def place(self, name, xy, yaw=0.0):
         """Put a desk thing somewhere (you moving the pen while you work)."""
+        self._rec("place", thing=name, xy=xy, yaw=yaw)
         b = self.m.body(name)
         adr = self.m.jnt_qposadr[b.jntadr[0]]
         z = OBJECTS[name][1][0] + 0.001
@@ -80,11 +81,13 @@ class TwinWorld:
 
     def show_prop(self, name, xy):
         """Put an unknown thing on the desk (you set something down)."""
+        self._rec("show_prop", thing=name, xy=xy)
         self.prop_paths.pop(name, None)
         self.d.mocap_pos[self.m.body(name).mocapid[0]] = (xy[0], xy[1], self._prop_height(name) + 0.0005)
 
     def hide_prop(self, name):
         """Take it away."""
+        self._rec("hide_prop", thing=name)
         self.prop_paths.pop(name, None)
         self.d.mocap_pos[self.m.body(name).mocapid[0]] = PROP_PARK
 
@@ -94,6 +97,7 @@ class TwinWorld:
 
     def move_prop(self, name, waypoints, speed=0.05):
         """Slide it along waypoints at speed (m/s), from where it is (shown at the first waypoint if hidden)."""
+        self._rec("move_prop", thing=name, waypoints=waypoints, speed=speed)
         if self.prop_xy(name) is None:
             self.show_prop(name, waypoints[0])
         self.prop_paths[name] = ([tuple(w) for w in waypoints], float(speed))

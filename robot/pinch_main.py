@@ -45,12 +45,14 @@ def main():
     ap.add_argument("--emulate", type=float, default=0, help="run against emulated hardware for N seconds")
     ap.add_argument("--port", type=int, default=int(os.environ.get("PINCH_PORT", 8080)))
     ap.add_argument("--no-llm", action="store_true")
+    ap.add_argument("--record", default=os.environ.get("PINCH_RECORD") or None, metavar="DIR",
+                    help="record the session (timeline, samples, observer report) into DIR (pinch/recorder.py)")
     a = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if a.emulate:
         from robot.hw_emulated import EmulatedHardware
         hw = EmulatedHardware()
-        fw = PinchFirmware(hw, llm=False, memory_path=False)
+        fw = PinchFirmware(hw, llm=False, memory_path=False, record_dir=a.record)
         serve(fw, a.port)
         fw.run(a.emulate, realtime=False)
         print(json.dumps(fw.status(), indent=1))
@@ -62,7 +64,7 @@ def main():
     except NotCalibrated as e:
         log.error("%s", e)
         return 2                         # systemd retries a few times, then gives up (StartLimitBurst)
-    fw = PinchFirmware(hw, llm=not a.no_llm)
+    fw = PinchFirmware(hw, llm=not a.no_llm, record_dir=a.record)
     serve(fw, a.port)
     fw.run()
     return 0
