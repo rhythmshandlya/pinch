@@ -21,13 +21,13 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from sim.benches.common import run_parallel, save_json  # noqa: E402
 from crab import policy_io as pio  # noqa: E402
 from crab import righting  # noqa: E402
 from crab.emotes import STAND  # noqa: E402
 from crab.params import JOINT_NAMES  # noqa: E402
 from crab.policy_np import POLICY_DIR, NumpyPolicy  # noqa: E402
 from robot.servos import PWM_JOINTS  # noqa: E402
+from sim.benches.common import run_parallel, save_json  # noqa: E402
 
 PWM = np.array([JOINT_NAMES.index(j) for j in PWM_JOINTS])     # the arm servos: they report nothing
 

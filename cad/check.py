@@ -21,13 +21,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from cad import assembly as A  # noqa: E402
-from cad.walls import MIN_WALL, check_part as wall_check  # noqa: E402
+from cad.walls import MIN_WALL  # noqa: E402
+from cad.walls import check_part as wall_check
+
 THIN_BY_DESIGN = {"desk_tray": 0.45,   # 1 mm floor + a ramp that tapers to the desk: printed flat, fine
                   "jaw_pad": 1.0,      # a 1.2 mm TPU grip pad glued on a jaw blade (not a wall)
                   "top_shell": 1.05}   # the face visor's 4 spacer tubes: 1.1 mm walls around M2 screws (compressed)
 from crab.emotes import EMOTES, STAND  # noqa: E402
 from crab.gait import _S, _T, GAITS, Gait  # noqa: E402
-from crab.params import JOINT_NAMES, PARAMS  # noqa: E402
+from crab.params import JOINT_NAMES  # noqa: E402
 
 BUILD_VOLUME = 350.0
 OUT = ROOT / "cad" / "out"
@@ -42,7 +44,7 @@ def joint_ranges():
 def pose_set(quick=False):
     poses = [("stand", STAND)]
     for name, emo in EMOTES.items():
-        for k, (t, q) in enumerate(emo.keyframes):
+        for k, (_t, q) in enumerate(emo.keyframes):
             poses.append((f"emote {name} #{k}", q))
     if quick:
         return poses

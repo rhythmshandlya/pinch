@@ -1,13 +1,18 @@
 """The small HTTP API on port 8080: typed speech, touch, status, what it remembers and forgetting, face
 recognition on/off, quiet hours, emergency stop and resume."""
 
+from typing import TYPE_CHECKING
+
+from pinch.mind.privacy import FORGETTABLE
 from robot.firmware.common import (  # noqa: F401
     BaseHTTPRequestHandler,
     ThreadingHTTPServer,
     json,
     threading,
 )
-from pinch.mind.privacy import FORGETTABLE
+
+if TYPE_CHECKING:
+    from robot.firmware import PinchFirmware
 
 
 def serve(fw: "PinchFirmware", port=8080):

@@ -16,7 +16,6 @@ yet, the owner decides) give each sighting a person id and a confidence. In the 
 identities are simulated. Only numbers are kept - never photos - and "forget me" deletes a person.
 """
 
-import math
 
 HALF_F, HALF_W, HALF_R = 90 * 24 * 3600.0, 30 * 24 * 3600.0, 3 * 24 * 3600.0
 EFFECTS = {   # event -> (dW, dR) as functions of (W, R)

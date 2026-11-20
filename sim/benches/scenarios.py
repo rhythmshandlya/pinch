@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 
 from pinch.hearing import RATE, synth_speech  # noqa: E402
 from pinch.memory import Memory  # noqa: E402
-from pinch.twin import DT, PinchSim  # noqa: E402
+from pinch.twin import PinchSim  # noqa: E402
 
 RESULTS = []
 

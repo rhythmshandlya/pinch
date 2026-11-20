@@ -10,7 +10,7 @@ twin's face texture. Eyes are Vector-style rounded rectangles: emotion comes fro
     face.ssd1309_pages()                                           # 1024 bytes for the screen
 """
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass
 
 import numpy as np
 from PIL import Image, ImageDraw

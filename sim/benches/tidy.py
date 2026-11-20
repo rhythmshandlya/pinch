@@ -14,11 +14,13 @@ sys.path.insert(0, str(ROOT))
 
 from sim.benches.common import run_parallel, save_json  # noqa: E402
 
+
 def one(args):
     case, seed = args
+    import numpy as np
+
     from pinch.memory import Memory
     from pinch.twin import PinchSim
-    import numpy as np
     from sim.desk import OBJECTS, START
     rng = np.random.default_rng(1000 + seed)
     # every seed moves the desk things a little (+-2 cm, +-0.3 rad): one layout is one trajectory, and the

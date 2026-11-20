@@ -1,71 +1,34 @@
 """Train Pinch's policies with Brax PPO on MJX environments.
 
-    python training/train.py --preset smoke                 # minutes on a laptop CPU: proves the pipeline
-    python training/train.py --preset full                  # GPU: the real walking run
-    python training/train.py --env emote --preset emote     # GPU: emote tracking (balance while emoting)
-    python -m modal run training/modal_train.py ...         # the same on a Modal GPU (see that file)
+    python -m training.train --experiment configs/experiments/righting.toml     # what an experiment describes
+    python -m training.train --env righting --preset smoke                       # minutes on a CPU: the pipeline
+    python -m ops submit configs/experiments/righting.toml --backend modal       # the same on any GPU (ops/)
 
-Writes <out_root>/<run>/{params.pkl, config.json, progress.jsonl}; params.pkl is rewritten at every
-evaluation, so a run that is stopped early still leaves its latest policy.
+Environments come from training/registry.py, presets from configs/train/presets.toml, experiments from
+configs/experiments/. Writes <out_root>/<run>/: params.pkl (rewritten at every evaluation, so a run stopped early
+still leaves its latest policy), progress.jsonl, config.json (read by export_policy) and run.json (the run
+record: commit, host, resolved config, state, last metrics).
 """
 
 import argparse
 import functools
 import json
-
-import numpy as np
 import pickle
 import sys
 import time
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+import numpy as np
 
-PRESETS = {
-    # tiny: just checks that env + PPO + saving all work end to end
-    "smoke": dict(num_timesteps=12_800, num_envs=16, batch_size=16, num_minibatches=4,
-                  unroll_length=10, num_updates_per_batch=2, episode_length=200,
-                  num_evals=2, num_eval_envs=16, learning_rate=3e-4, entropy_cost=1e-2,
-                  discounting=0.97, policy_layers=(64, 64), value_layers=(64, 64)),
-    # grasp skill: 4 s episodes, contact-rich (slower per step)
-    "grasp": dict(num_timesteps=30_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
-                  unroll_length=20, num_updates_per_batch=4, episode_length=200,
-                  num_evals=16, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
-                  discounting=0.97, policy_layers=(256, 256, 128), value_layers=(256, 256, 256)),
-    "push2": dict(num_timesteps=30_000_000, num_envs=2048, batch_size=256, num_minibatches=16,
-                 unroll_length=20, num_updates_per_batch=4, episode_length=150,
-                 num_evals=10, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
-                 discounting=0.99, policy_layers=(128, 128), value_layers=(256, 256)),
-    # emote tracking: shorter episodes (one or two emotes), fewer steps
-    # residual walking on the scripted trot (decision 50): like emotes, longer episodes of walking clips
-    "gait": dict(num_timesteps=60_000_000, num_envs=2048, batch_size=256, num_minibatches=32,
-                 unroll_length=20, num_updates_per_batch=4, episode_length=600,
-                 num_evals=15, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,
-                 discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
-    "gait_long": dict(num_timesteps=100_000_000, num_envs=2048, batch_size=256, num_minibatches=32,
-                 unroll_length=20, num_updates_per_batch=4, episode_length=600,
-                 num_evals=20, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,
-                 discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
-    "gait_v2": dict(num_timesteps=150_000_000, num_envs=2048, batch_size=256, num_minibatches=32,
-                 unroll_length=20, num_updates_per_batch=4, episode_length=600,
-                 num_evals=20, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,
-                 discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
-    "terrain": dict(num_timesteps=100_000_000, num_envs=2048, batch_size=256, num_minibatches=32,
-                 unroll_length=20, num_updates_per_batch=4, episode_length=600,
-                 num_evals=20, num_eval_envs=128, learning_rate=3e-4, entropy_cost=5e-3,
-                 discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
-    # get up off its back (decision 76): 4 s episodes, all 18 joints, no reference motion
-    "righting": dict(num_timesteps=60_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
-                  unroll_length=20, num_updates_per_batch=4, episode_length=200,
-                  num_evals=15, num_eval_envs=256, learning_rate=3e-4, entropy_cost=1e-2,
-                  discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
-    "emote": dict(num_timesteps=40_000_000, num_envs=4096, batch_size=256, num_minibatches=32,
-                  unroll_length=20, num_updates_per_batch=4, episode_length=500,
-                  num_evals=16, num_eval_envs=256, learning_rate=3e-4, entropy_cost=5e-3,
-                  discounting=0.97, policy_layers=(128, 128, 128), value_layers=(256, 256, 256)),
-}
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+PRESETS_FILE = ROOT / "configs" / "train" / "presets.toml"
+PRESETS = {k: {kk: tuple(vv) if isinstance(vv, list) else vv for kk, vv in v.items()}
+           for k, v in tomllib.loads(PRESETS_FILE.read_text(encoding="utf-8")).items()}
 PPO_KEYS = ("num_timesteps", "num_envs", "batch_size", "num_minibatches", "unroll_length",
             "num_updates_per_batch", "episode_length", "num_evals", "num_eval_envs",
             "learning_rate", "entropy_cost", "discounting")
@@ -79,76 +42,75 @@ def network_factory(cfg):
 
 
 def make_env(name):
-    if name == "gait":
-        from training.gait_env import CrabGaitEnv
-        return CrabGaitEnv()
-    if name == "gait2":          # walking-research values: a filter over ~a step cycle, a kinder tolerance
-        from training.gait_env import CrabGaitEnv
-        return CrabGaitEnv(vel_alpha=0.06, vel_sigma=0.03)
-    if name == "terrain":         # hurdles, ramps and steps (training/terrain_env.py, decision 58)
-        from training.terrain_env import CrabTerrainEnv
-        return CrabTerrainEnv()
-    if name == "terrain_hard":    # the same, half the robots on bars to 15 mm and ramps to 21 deg
-        import training.terrain_env as te
-        te.HARD = 1.5
-        return te.CrabTerrainEnv()
-    if name == "gait_v2":        # walking v2: 48 commands + pushing (paddle, crouched), bench-strength shoves
-        from training.gait_env import (GAIT_CMDS_V2, CrabGaitEnv, concat_references, push_references,
-                                       walk_references)
-        env = CrabGaitEnv(refs=concat_references([walk_references(GAIT_CMDS_V2), push_references()]),
-                          push_vel=0.12, push_interval_s=2.5)
-        env.covers = ["walk", "push"]
-        return env
-    if name == "terrain_push":   # one walker for both: hurdles and ramps, 48 commands, crouched pushing (decision 84)
-        from training.gait_env import GAIT_CMDS_V2, concat_references, push_references, walk_references
-        from training.terrain_env import CrabTerrainEnv
-        env = CrabTerrainEnv(refs=concat_references([walk_references(GAIT_CMDS_V2), push_references()]),
-                             push_vel=0.12, push_interval_s=2.5)
-        env.covers = ["walk", "push"]
-        return env
-    if name == "push2":          # learned push steering on the real walking controller (decision 67)
-        from training.push2_env import CrabPush2Env
-        return CrabPush2Env()
-    if name == "gait3":          # gait-v1's rewards, shoves as hard as the robustness bench's (0.12 m/s, every 2.5 s)
-        from training.gait_env import CrabGaitEnv
-        return CrabGaitEnv(push_vel=0.12, push_interval_s=2.5)
-    if name == "emote":
-        from training.emote_env import CrabEmoteEnv
-        return CrabEmoteEnv()
-    if name == "emote2":          # the emote balance policy in 2 ms physics, like the twin (emote-v1: 4 ms)
-        from training.emote_env import CrabEmoteEnv
-        return CrabEmoteEnv(sim_dt=0.002)
-    if name == "righting":       # get up off its back with all 18 joints (decision 76)
-        from training.righting_env import CrabRightingEnv
-        return CrabRightingEnv()
-    if name == "righting_smooth":  # gentler on the servos: 5x the action-rate cost (decision 85's current spikes)
-        from training.righting_env import CrabRightingEnv
-        return CrabRightingEnv(reward_scales=dict(action_rate=-0.05))
-    if name == "righting2":      # the same without the energy cost: does the penalty hold back getting up?
-        from training.righting_env import CrabRightingEnv
-        return CrabRightingEnv(reward_scales=dict(energy=0.0, action_rate=-0.005))
-    if name == "grasp":
-        from training.grasp_env import CrabGraspEnv
-        return CrabGraspEnv()
-    raise ValueError(f"unknown env {name!r}")
+    from training.registry import make_env as _make
+    return _make(name)
 
 
-def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize=True,
-                 out_root=None, on_save=None, num_envs=None):
-    """Train one policy. on_save() is called after every checkpoint (Modal commits its volume)."""
-    import jax
-    from brax.training.agents.ppo import train as ppo
+def git_state(root=ROOT):
+    """(commit, dirty) of the code being trained. A job snapshot has no .git: ops passes PINCH_GIT_SHA."""
+    import os
+    import subprocess
+    if os.environ.get("PINCH_GIT_SHA"):
+        return os.environ["PINCH_GIT_SHA"], os.environ.get("PINCH_GIT_DIRTY") == "1"
+    try:
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True,
+                             check=True).stdout.strip()
+        dirty = bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root,
+                                    capture_output=True, text=True).stdout.strip())
+        return sha, dirty
+    except (OSError, subprocess.CalledProcessError):
+        return None, None
 
-    from training.robot_model import domain_randomize
-    from training.grasp_env import grasp_randomize
-    from training.terrain_env import terrain_randomize
-    from training.push2_env import push2_randomize
 
+def load_experiment(path):
+    """configs/experiments/<name>.toml -> dict (format: configs/experiments/README.md)."""
+    p = Path(path)
+    if not p.is_absolute() and not p.exists():
+        p = ROOT / p
+    exp = tomllib.loads(p.read_text(encoding="utf-8"))
+    e = exp.setdefault("experiment", {})
+    e["file"] = p.resolve().relative_to(ROOT).as_posix() if p.resolve().is_relative_to(ROOT) else str(p)
+    for key in ("env", "preset"):
+        if key not in e:
+            raise ValueError(f"{p}: [experiment] needs {key!r}")
+    return exp
+
+
+def resolve_config(preset, overrides=None, timesteps=None, num_envs=None):
+    """The preset, then the experiment's overrides, then command-line overrides."""
+    if preset not in PRESETS:
+        raise ValueError(f"unknown preset {preset!r}; known: {', '.join(PRESETS)}")
     cfg = dict(PRESETS[preset])
+    for k, v in (overrides or {}).items():
+        if k not in cfg:
+            raise ValueError(f"override {k!r} is not a key of preset {preset!r}")
+        cfg[k] = tuple(v) if isinstance(v, list) else v
     if timesteps:
         cfg["num_timesteps"] = int(timesteps)
     if num_envs:                                  # (a smaller GPU: msi-1's 6 GB RTX 4050)
         cfg["num_envs"] = int(num_envs)
+    return cfg
+
+
+def _write_record(out, record):
+    tmp = out / "run.json.tmp"
+    tmp.write_text(json.dumps(record, indent=2, default=str))
+    tmp.replace(out / "run.json")
+
+
+def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize=True,
+                 out_root=None, on_save=None, num_envs=None, overrides=None, experiment=None):
+    """Train one policy. on_save() is called after every checkpoint (Modal commits its volume)."""
+    import platform
+    import socket
+
+    import jax
+    from brax.training.agents.ppo import train as ppo
+
+    from training.registry import randomizer, spec
+
+    skill = spec(env).skill                       # fails fast on an unknown env
+    cfg = resolve_config(preset, overrides, timesteps, num_envs)
     run = run or f"{env}-{preset}-{datetime.now():%Y%m%d-%H%M%S}"
     out = Path(out_root or ROOT / "training" / "checkpoints") / run
     out.mkdir(parents=True, exist_ok=True)
@@ -157,6 +119,12 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
                                                      action_scale=float(getattr(environment, "action_scale", 0.15)),
                                                      covers=list(getattr(environment, "covers", ["walk"]))),
                                                 indent=2))
+    sha, dirty = git_state()
+    record = dict(run=run, env=env, skill=skill, preset=preset, config=cfg, randomize=randomize,
+                  experiment=experiment, git_sha=sha, git_dirty=dirty, host=socket.gethostname(),
+                  platform=platform.platform(), devices=[str(d) for d in jax.devices()],
+                  started=datetime.now().astimezone().isoformat(timespec="seconds"), state="running", last=None)
+    _write_record(out, record)
 
     print(f"devices: {jax.devices()}  |  env {env}  |  run -> {out}", flush=True)
     t0 = time.time()
@@ -172,6 +140,8 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
             rec["success"] = float(metrics["eval/episode_success_rate"])
         log.write(json.dumps(rec) + "\n")
         log.flush()
+        record["last"] = rec
+        _write_record(out, record)
         print(f"  step {rec['step']:>11,}  t={rec['time_s']:>7.1f}s  "
               f"reward={rec.get('eval/episode_reward', float('nan')):8.3f}  "
               f"ep_len={rec.get('eval/avg_episode_length', float('nan')):6.1f}"
@@ -186,40 +156,62 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
         if on_save:
             on_save()
 
-    make_policy, params, _ = ppo.train(
-        environment=environment,
-        eval_env=make_env(env),
-        randomization_fn=({"grasp": grasp_randomize, "terrain": terrain_randomize,
-                           "terrain_hard": terrain_randomize, "terrain_push": terrain_randomize,
-                           "push2": push2_randomize}.get(env, domain_randomize)
-                          if randomize else None),
-        network_factory=network_factory(cfg),
-        normalize_observations=True,
-        reward_scaling=1.0,
-        clipping_epsilon=0.2,
-        gae_lambda=0.95,
-        max_grad_norm=1.0,
-        seed=0,
-        progress_fn=progress,
-        policy_params_fn=save,
-        **{k: cfg[k] for k in PPO_KEYS},
-    )
-    save(cfg["num_timesteps"], make_policy, params)
+    try:
+        make_policy, params, _ = ppo.train(
+            environment=environment,
+            eval_env=make_env(env),
+            randomization_fn=randomizer(env) if randomize else None,
+            network_factory=network_factory(cfg),
+            normalize_observations=True,
+            reward_scaling=1.0,
+            clipping_epsilon=0.2,
+            gae_lambda=0.95,
+            max_grad_norm=1.0,
+            seed=0,
+            progress_fn=progress,
+            policy_params_fn=save,
+            **{k: cfg[k] for k in PPO_KEYS},
+        )
+        save(cfg["num_timesteps"], make_policy, params)
+        record["state"] = "done"
+    except BaseException as e:                    # noqa: BLE001 - record why, then let it propagate
+        record["state"], record["error"] = "failed", f"{type(e).__name__}: {e}"
+        raise
+    finally:
+        record["finished"] = datetime.now().astimezone().isoformat(timespec="seconds")
+        record["duration_s"] = round(time.time() - t0, 1)
+        _write_record(out, record)
+        log.close()
+        if on_save:
+            on_save()
     print(f"done in {time.time() - t0:.0f}s -> {out / 'params.pkl'}", flush=True)
     return out
 
 
+def run_experiment(path, run=None, out_root=None, on_save=None, num_envs=None, timesteps=None):
+    """Train what an experiment file describes (its env, preset and overrides)."""
+    exp = load_experiment(path)
+    e = exp["experiment"]
+    return run_training(e["preset"], e["env"], timesteps, run or e.get("name"), e.get("randomize", True),
+                        out_root, on_save, num_envs, exp.get("overrides"), experiment=e)
+
+
 def main():
-    ap = argparse.ArgumentParser()
+    from training.registry import ENVS
+    ap = argparse.ArgumentParser(description="Train a policy: an experiment file, or an env and a preset.")
+    ap.add_argument("--experiment", help="configs/experiments/<name>.toml (sets env, preset and overrides)")
     ap.add_argument("--preset", choices=list(PRESETS), default="smoke")
-    ap.add_argument("--env", choices=["gait", "gait2", "gait3", "terrain", "terrain_hard", "terrain_push", "gait_v2", "push2", "emote", "emote2", "righting", "righting2", "righting_smooth", "grasp"],
-                        default="gait")
+    ap.add_argument("--env", choices=sorted(ENVS), default="gait")
     ap.add_argument("--timesteps", type=int, help="override num_timesteps")
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")
-    ap.add_argument("--run", default=None, help="run name (default: env-preset-timestamp)")
+    ap.add_argument("--run", default=None, help="run name (default: the experiment's name, or env-preset-time)")
     ap.add_argument("--num-envs", type=int, default=None, help="override num_envs (smaller GPUs)")
+    ap.add_argument("--out-root", default=None, help="where run directories go (default training/checkpoints)")
     a = ap.parse_args()
-    run_training(a.preset, a.env, a.timesteps, a.run, not a.no_randomize, num_envs=a.num_envs)
+    if a.experiment:
+        run_experiment(a.experiment, a.run, a.out_root, num_envs=a.num_envs, timesteps=a.timesteps)
+    else:
+        run_training(a.preset, a.env, a.timesteps, a.run, not a.no_randomize, a.out_root, num_envs=a.num_envs)
 
 
 if __name__ == "__main__":

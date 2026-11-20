@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from sim.benches.common import run_parallel  # noqa: E402
+
 THINGS = {"cable": ("cylinder", 0.0025), "pen": ("cylinder", 0.0045), "book": ("box", 0.004)}
 
 
@@ -46,7 +47,7 @@ def case(args):
             sim.run(0.2)
 
     go()
-    for attempt in range(2):
+    for _attempt in range(2):
         if np.hypot(*(np.array(sim.pose()[:2]) - goal)) < 0.03:
             break
         how = "climbed"

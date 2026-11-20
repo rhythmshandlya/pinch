@@ -1,0 +1,19 @@
+[experiment]
+name = "grasp"
+env = "grasp"
+preset = "grasp"
+description = "close the claw on a desk thing and lift it"
+
+[overrides]
+num_timesteps = 40_000_000
+
+[compute]
+min_vram_gb = 8
+small_gpu_num_envs = 1024
+timeout_min = 180
+gpu = "A10G"
+cloud_ok = true
+
+[eval]
+skill = "grasp"
+commands = ["sim/benches/pick.py --grasp {candidate} --n 24"]

@@ -9,18 +9,18 @@ Units: CAD in mm, MuJoCo in m.
 """
 
 import sys
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 import numpy as np
-from build123d import Location, Plane, Pos, Rot, mirror
+from build123d import Location, Plane, mirror
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from cad import parts as P  # noqa: E402
 from cad.servo import GS4308, STS3032, case, horn  # noqa: E402
-from crab.params import ARM_IDS, LEG_IDS, PARAMS  # noqa: E402
+from crab.params import ARM_IDS, LEG_IDS  # noqa: E402
 
 MODEL = ROOT / "sim" / "models" / "crab.xml"
 
@@ -66,7 +66,7 @@ def servo_at(origin, x_dir, z_dir):
     return Location(Plane(origin=origin, x_dir=x_dir, z_dir=z_dir))
 
 
-@lru_cache(maxsize=None)
+@cache
 def part(name):
     return PRINTED[name][0]()
 
@@ -109,7 +109,7 @@ def _left_groups():
     }
 
 
-@lru_cache(maxsize=None)
+@cache
 def groups():
     """sim body name -> list of (label, solid mm in that body's frame, mass kg)."""
     left = _left_groups()
@@ -196,7 +196,7 @@ def body_poses(q):
     return out
 
 
-@lru_cache(maxsize=None)
+@cache
 def group_solid(body):
     from build123d import Compound
     return Compound(children=[s for _, s, _ in groups()[body]])

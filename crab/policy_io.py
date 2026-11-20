@@ -42,7 +42,7 @@ def shin_clamp(xp, legs):
 # corrections to keep the emote's look (leg pose, body attitude, height) under real-world physics.
 # It sees the reference itself (now and 0.1 s ahead) plus progress, not an emote id, so new
 # emotes and tricks work without retraining.
-from .emotes import EMOTES as EMOTE_LIB          # noqa: E402
+from .emotes import EMOTES as EMOTE_LIB  # noqa: E402
 
 EMOTE_NAMES = sorted(EMOTE_LIB)
 JOINT_NAMES_ALL = list(JOINT_NAMES)
@@ -84,7 +84,8 @@ def emote_targets(xp, ref, action):
 # Pinch has walked up and roughly lined its right claw up with the thing; this policy does the last
 # few centimetres: legs shift/lean the body (small corrections around a nose-down crouch) and the arm
 # swings, lowers and closes. Arm actions are absolute (the arm servos have no feedback to correct).
-from .emotes import crouch as _crouch, pose as _pose     # noqa: E402
+from .emotes import crouch as _crouch  # noqa: E402
+from .emotes import pose as _pose
 
 _R_ARM = [JOINT_NAMES.index(f"R_{j}") for j in ("shoulder_yaw", "shoulder_pitch", "claw")]
 GRASP_NOMINAL = _pose(_crouch(0.38, "F?"), _crouch(-0.20, "R?"), {"R_shoulder_yaw": 0.17,

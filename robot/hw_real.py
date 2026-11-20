@@ -87,6 +87,7 @@ class RealHardware:
         self._cap = None
         try:
             import cv2
+
             from robot.vision import Camera
             self._cap = (video or cv2.VideoCapture)(0)
             if not self._cap.isOpened():

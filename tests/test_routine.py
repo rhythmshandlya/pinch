@@ -41,7 +41,7 @@ def test_quiet_hours_are_kept_and_quiet():
     assert night.mind.affect.quiet and not day.mind.affect.quiet
     for sim in (night, day):
         t0 = sim.t
-        for k in range(6):                               # stroked and talked to for two minutes
+        for _k in range(6):                               # stroked and talked to for two minutes
             sim.touch("stroke")
             sim.say("hi pinch, good crab")
             sim.run(20.0)

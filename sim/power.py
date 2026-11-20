@@ -50,7 +50,7 @@ def main():
         mujoco.mj_resetDataKeyframe(m, d, m.key("stand").id)
         run(m, d, lambda t: STAND, 1.0)
 
-    v, w = _S / _T, 1 / _T
+    v, _w = _S / _T, 1 / _T
     scen = {}
     fresh()
     scen["standing"] = run(m, d, lambda t: STAND, 5.0)
@@ -72,7 +72,7 @@ def main():
     rows = {}
     for k, c in scen.items():
         batt_a = (c.mean() * vb + COMPUTE_W) / BUCK_EFF / V_BATT
-        rt = lambda mah: USABLE * mah / 1000 / batt_a * 60  # noqa: E731
+        rt = lambda mah: USABLE * mah / 1000 / batt_a * 60  # noqa: E731, B023 - used at once, in this iteration
         rows[k] = (c.mean(), c.max(), batt_a)
         print(f"{k:15s} {c.mean():11.2f} {c.max():7.2f} {batt_a:13.2f} " + " ".join(f"{rt(p):6.0f}min" for p in PACKS))
     return rows

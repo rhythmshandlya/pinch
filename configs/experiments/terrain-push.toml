@@ -1,0 +1,21 @@
+[experiment]
+name = "terrain-push"
+env = "terrain_push"
+preset = "gait_v2"
+description = "one walker for hurdles, ramps, 48 commands and crouched pushing (decision 84)"
+
+[compute]
+min_vram_gb = 6
+small_gpu_num_envs = 2048
+timeout_min = 240
+gpu = "A10G"
+cloud_ok = true
+
+[eval]
+skill = "gait"
+commands = [
+  "sim/benches/hurdles.py --policy {candidate}",
+  "sim/benches/robustness.py --what walk --world terrain --episodes 40",
+  "sim/benches/robustness.py --what walk --world desk --episodes 40",
+  "sim/benches/tidy.py --seeds 24",
+]

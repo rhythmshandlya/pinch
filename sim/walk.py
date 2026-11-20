@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))
 
 from crab.emotes import STAND  # noqa: E402
 from crab.gait import _S, _T, GAITS, Gait  # noqa: E402
-from crab.params import JOINT_NAMES, JOINT_SPECS, PARAMS  # noqa: E402
+from crab.params import JOINT_NAMES, JOINT_SPECS  # noqa: E402
 from sim.latency import DelayLine  # noqa: E402
 from sim.servo_check import MAX_CMD, ServoMonitor  # noqa: E402
 
@@ -163,6 +163,7 @@ def demo_controller(gait_name, m, d, com):
 
 def view(gait_name):
     import time
+
     import mujoco.viewer
     m, d, com = load()
     ctrl, total = demo_controller(gait_name, m, d, com)

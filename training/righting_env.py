@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT))
 from crab import policy_io as pio  # noqa: E402
 from crab.params import JOINT_NAMES  # noqa: E402
 from training.robot_model import load_training_model  # noqa: E402
+
 REWARD_SCALES = dict(upright=1.0, height=1.0, stood=2.0, action_rate=-0.01, energy=-0.0005, termination=0.0)
 
 

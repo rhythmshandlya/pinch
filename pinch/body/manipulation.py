@@ -1,7 +1,6 @@
 """The claws at work: pushing things (paddle), picking up, carrying, putting down."""
 
 from pinch.body.common import (  # noqa: F401
-    paddle_pose,
     CARRY_PITCH,
     DT,
     GRASP_ARM0,
@@ -20,6 +19,7 @@ from pinch.body.common import (  # noqa: F401
     crouch,
     extent,
     np,
+    paddle_pose,
     pio,
     pose,
 )
@@ -124,13 +124,13 @@ class Manipulation:
         return fits, start, side, paddle, tip, self._bystander_cost(start, heading, exclude=(name,), arm_tip=tip)
 
     def _side_for(self, x, y, h, ox, oy):
-        ex, ey = np.cos(h) * (ox - x) + np.sin(h) * (oy - y), -np.sin(h) * (ox - x) + np.cos(h) * (oy - y)
+        _ex, ey = np.cos(h) * (ox - x) + np.sin(h) * (oy - y), -np.sin(h) * (ox - x) + np.cos(h) * (oy - y)
         return "left" if ey > 0 else "right"
 
     def _pick(self, name, timeout=60.0):
         """Line a claw up with the thing (a pen lies along the finger), reach down, close, lift."""
         t_end = self.t + timeout
-        for attempt in range(3):
+        for _attempt in range(3):
             if self.t > t_end:
                 break
             o = self._obj(name)
@@ -176,7 +176,6 @@ class Manipulation:
                         if best is None or cost < best[0]:
                             best = (cost, sd, rq, tp, hd, st, g)
             _, side, reach, tip, heading, stand_xy, grab = best
-            sgn = 1 if side == "left" else -1
             self.trace("pick_plan", side=side, tip=tuple(np.round(tip, 3)), stand=tuple(np.round(stand_xy, 3)),
                        heading=round(float(heading), 2), obj=(round(ox, 3), round(oy, 3), round(oyaw, 2)))
             fwd = np.array((np.cos(heading), np.sin(heading)))

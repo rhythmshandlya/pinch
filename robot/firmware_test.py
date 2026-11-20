@@ -30,9 +30,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from pinch.touch import cliff_beams  # noqa: E402
 from robot.drivers.i2c_devices import pages_to_image  # noqa: E402
 from robot.hw_emulated import EmulatedHardware  # noqa: E402
-from pinch.touch import cliff_beams  # noqa: E402
 from robot.pinch_main import PinchFirmware, serve  # noqa: E402
 
 results = []
@@ -77,7 +77,7 @@ def main():
     check("HTTP API: status", "feeling" in status and "needs" in status, status["feeling"])
     post(port, "/say", {"text": "hi pinch, can you dance?"})
     run(10.0)
-    emotes = [m[1] for m in fw.stats["motions"] if m[1] == "emote" or m[2] == "dance"]
+    [m[1] for m in fw.stats["motions"] if m[1] == "emote" or m[2] == "dance"]
     check("speech through the API -> it dances", any(m[2] == "dance" for m in fw.stats["motions"]),
           f"motions {[m[2] for m in fw.stats['motions']][-5:]}")
 
@@ -382,7 +382,7 @@ def sigterm_and_memory():
         hw5, fw5 = quiet_firmware()
         fw5.faceid = FaceID(gallery_path=None)
         seen = []
-        for k in range(4):                                   # the camera sees the same face a few times
+        for _k in range(4):                                   # the camera sees the same face a few times
             t = fw5.mind.world.clock()
             out = dict(t=t, pose=None, flow=None, things={}, face=True, people=fw5.faceid.see(photo, t))
             fw5._apply("vision", out)
@@ -404,9 +404,8 @@ def sigterm_and_memory():
     fw6.body.start(("walk", 0.03, 0.0, 0.0, 30.0))
     for _ in range(50):
         fw6.step()
-    p0 = hw6.d.qpos[0:2].copy()
+    hw6.d.qpos[0:2].copy()
     fw6.estop("test")
-    sent0 = fw6.crab.ticks
     q_before = fw6.crab.q_cmd.copy()
     for _ in range(100):
         fw6.mind.request = ("trick", "dance")                 # (and the mind keeps wanting to move)
@@ -495,12 +494,10 @@ class FakeGpiodV1:
 def real_hardware_glue():
     print("real-hardware glue (fake smbus2, libgpiod, camera)")
     import robot.servos as servos
-    from robot.drivers.fakes import FakeBus, FakeOLED, FakeRanger, FakeTouch
-    from robot.hw_real import RealHardware
     from robot.backends import SimBackend
+    from robot.drivers.fakes import FakeBus, FakeOLED, FakeRanger, FakeTouch
+    from robot.hw_real import CLIFF_WIRING, RealHardware
     from robot.servos import Calibration, NotCalibrated
-
-    from robot.hw_real import CLIFF_WIRING
     line_of = {line: name for name, (_, (_, line)) in CLIFF_WIRING.items()}
     for api in ("v1", "v2"):
         for broken in (None, "rear"):
@@ -577,9 +574,10 @@ def real_hardware_glue():
 def fisheye_geometry():
     print("fisheye camera")
     import cv2
+
+    from pinch.world import Desk
     from robot.calibrate_camera import selftest
     from robot.vision import Camera, Vision
-    from pinch.world import Desk
     K0, D0, K, D, rms = selftest()
     check("camera calibration recovers a known fisheye lens", abs(K[0, 0] - K0[0, 0]) < 2 and
           abs(K[0, 2] - K0[0, 2]) < 2 and rms < 0.5, f"focal {K[0, 0]:.1f} vs {K0[0, 0]:.1f}, rms {rms:.2f} px")

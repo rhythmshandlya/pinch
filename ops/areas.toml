@@ -1,0 +1,21 @@
+# Areas of the code a parallel task claims (docs/dev/PARALLEL.md). Two tasks that claim the same area run one
+# after the other; a task touching an area it didn't claim says so in its PR. Shared files (golden trace,
+# DECISIONS.md, README) are merged by the integrator, never edited in two branches at once.
+
+[areas]
+mind       = ["pinch/mind/", "pinch/activities/", "pinch/affect.py", "pinch/attention.py", "pinch/memory.py", "pinch/routine.py", "pinch/people.py", "pinch/play.py", "pinch/language.py"]
+body       = ["pinch/body/", "crab/gait.py", "crab/emotes.py", "crab/kinematics.py", "crab/arm.py"]
+face-sound = ["pinch/face.py", "pinch/sounds.py", "docs/sounds/"]
+senses     = ["pinch/hearing.py", "pinch/touch.py", "pinch/faces.py", "pinch/world.py", "pinch/safety.py"]
+twin       = ["pinch/twin/", "sim/desk.py", "sim/models/"]
+benches    = ["sim/benches/", "sim/clips.py"]
+training   = ["training/", "configs/", "crab/policy_io.py", "crab/gait_jax.py"]
+policies   = ["policies/"]
+firmware   = ["robot/", "deploy/"]
+cad        = ["cad/", "hardware/"]
+ops        = ["ops/", ".github/", ".pre-commit-config.yaml", "pyproject.toml", ".claude/"]
+docs       = ["docs/", "README.md"]
+
+[shared]
+# merged only by the integrator (the main session), after rebasing
+files = ["tests/golden/", "docs/DECISIONS.md", "README.md", "policies/registry.toml"]

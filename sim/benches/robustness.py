@@ -29,12 +29,12 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from sim.benches.common import run_parallel, save_json  # noqa: E402
 from crab import policy_io as pio  # noqa: E402
 from crab.emotes import EMOTES, STAND  # noqa: E402
 from crab.gait import _S, _T, GAITS, Gait  # noqa: E402
 from crab.params import JOINT_NAMES  # noqa: E402
 from crab.policy_np import POLICY_DIR, NumpyPolicy  # noqa: E402
+from sim.benches.common import run_parallel, save_json  # noqa: E402
 
 MODEL = ROOT / "sim" / "models" / "crab.xml"
 V, W = _S / _T, 1 / _T
@@ -48,7 +48,7 @@ SUB = 10
 def clutter_model(rng, n=40):
     """The crab model plus n small flat boxes on the floor around the walking path (rough world)."""
     spec = mujoco.MjSpec.from_file(str(MODEL))
-    for i in range(n):
+    for _i in range(n):
         x, y = rng.uniform(-0.25, 0.25), rng.uniform(-0.25, 0.25)
         if abs(x) < 0.06 and abs(y) < 0.11:                     # not under the feet at the start
             x += 0.12 * np.sign(x or 1)

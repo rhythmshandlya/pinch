@@ -6,7 +6,6 @@ Clips: right_self (on its back, gets up), hurdle (walks over a 6 mm bar with the
 the hurdle bench's own episode), pick (picks a pen up and drops it in the tray), life (a minute of pet life, 4x speed).
 """
 
-import copy
 import sys
 from pathlib import Path
 
@@ -62,7 +61,7 @@ def clip_right_self():
     q[2], q[3:7] = 0.07, [0.0, 1.0, 0.0, 0.0]
     mujoco.mj_forward(sim.m, sim.d)
     rec = Recorder(sim.m, sim.d)
-    for k in range(int(6.0 * FPS)):
+    for _k in range(int(6.0 * FPS)):
         sim.run(1.0 / FPS)
         rec.grab(f"t={sim.t:4.1f}s  {sim.mind.activity.name if sim.mind.activity else ''} {sim.mind.phase}")
     return rec.save("right_self")
@@ -70,8 +69,8 @@ def clip_right_self():
 
 def clip_hurdle(height_mm=6, way="forward", policy="gait"):
     """The hurdle bench's own episode (sim/benches/hurdles.py), recorded, with its verdict on the last frames."""
-    from sim.benches.hurdles import case
     from crab import policy_io as pio
+    from sim.benches.hurdles import case
     every = max(1, int(round(1.0 / FPS / pio.CTRL_DT)))
     st = {}
 

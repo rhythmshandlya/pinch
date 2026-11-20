@@ -1,6 +1,7 @@
 """Startle and caution: flinching, keeping its distance from someone it fears, hiding."""
 
 import numpy as np
+
 from pinch.activities.base import (  # noqa: F401
     Activity,
 )

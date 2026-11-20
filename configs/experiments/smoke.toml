@@ -1,0 +1,11 @@
+[experiment]
+name = "smoke"
+env = "righting"
+preset = "smoke"
+description = "minutes on a CPU: proves env, PPO, saving, run record and export end to end"
+
+[compute]
+min_vram_gb = 0
+timeout_min = 15
+gpu = "T4"
+cloud_ok = true

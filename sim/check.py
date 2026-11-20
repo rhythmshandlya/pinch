@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from crab.emotes import EMOTES, STAND  # noqa: E402
-from crab.params import JOINT_NAMES, JOINT_SPECS, LEG_IDS, PARAMS  # noqa: E402
+from crab.params import JOINT_NAMES, JOINT_SPECS, LEG_IDS  # noqa: E402
 from sim.latency import DelayLine  # noqa: E402
 from sim.servo_check import MAX_CMD, ServoMonitor  # noqa: E402
 

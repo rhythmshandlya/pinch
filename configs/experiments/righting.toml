@@ -1,0 +1,19 @@
+[experiment]
+name = "righting"
+env = "righting"
+preset = "righting"
+description = "get up off its back with all 18 joints (decision 76); righting-v1 at 40M is adopted (85)"
+
+[overrides]
+num_timesteps = 40_000_000
+
+[compute]
+min_vram_gb = 6
+small_gpu_num_envs = 2048
+timeout_min = 120
+gpu = "A10G"
+cloud_ok = true
+
+[eval]
+skill = "righting"
+commands = ["sim/benches/righting.py --policy {candidate} --starts 200"]

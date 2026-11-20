@@ -26,9 +26,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pinch.sounds import render as render_sound  # noqa: E402
 from pinch.hearing import RATE, synth_speech  # noqa: E402
 from pinch.memory import Memory  # noqa: E402
+from pinch.sounds import render as render_sound  # noqa: E402
 from pinch.twin import DT, PinchSim  # noqa: E402
 
 NEEDS = ["social", "play", "curiosity", "sleep", "energy", "tidy", "safety"]
@@ -181,7 +181,7 @@ class Pinch:
                     sim.step()
             else:
                 sim.step()
-        for t, s in sim.sounds_played[self._played:]:
+        for _t, s in sim.sounds_played[self._played:]:
             self.sound_q.put(s)
         self._played = len(sim.sounds_played)
 
@@ -344,7 +344,7 @@ def main():
     a = ap.parse_args()
     if a.headless:
         p = Pinch(llm=a.llm, memory_path=False if a.fresh else None, viewer=False)
-        for i, text in enumerate(a.say):
+        for _i, text in enumerate(a.say):
             p.sim.run(4.0)
             p.sim.say(text)
         p.run(a.seconds)

@@ -170,7 +170,7 @@ class SimPerson:
     """Stands in for you in rehearsals and tests: bends joints of the simulated robot by hand and
     judges arm positions by eye (to about 0.8 deg)."""
 
-    def __init__(self, sim, eye=np.radians(0.8)):
+    def __init__(self, sim, eye=np.radians(0.8)):  # noqa: B008 - an immutable float
         self.sim, self.eye = sim, eye
 
     def __call__(self, prompt):

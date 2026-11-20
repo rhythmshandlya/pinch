@@ -66,10 +66,10 @@ def check_part(name, solid, verbose=True):
     by_face = {}
     for th, pt, fi in s:
         by_face.setdefault(fi, []).append((th, pt))
-    from check import THIN_BY_DESIGN                  # the tray's flat ramp, the TPU jaw pads: their own limit
+    from check import THIN_BY_DESIGN  # the tray's flat ramp, the TPU jaw pads: their own limit
     limit = THIN_BY_DESIGN.get(name, MIN_WALL)
     thin = []
-    for fi, items in by_face.items():
+    for items in by_face.values():
         med = float(np.median([th for th, _ in items]))
         if med < limit:
             thin += [(med, min(items)[1])]

@@ -88,7 +88,7 @@ class Senses:
                 self._say("quiet_hours", "no quiet hours any more")
             else:
                 self.routine.set_quiet_hours(*u["quiet_hours"])
-                self._say("quiet_hours", "quiet from %05.2f to %05.2f" % tuple(u["quiet_hours"]))
+                self._say("quiet_hours", "quiet from {:05.2f} to {:05.2f}".format(*u["quiet_hours"]))
             self.memory.changed()                         # (the settings live in the memory file)
             self.affect.feel("spoken_to", 0.5)
         elif i in ("chat", "owner_feeling", "tell_name"):

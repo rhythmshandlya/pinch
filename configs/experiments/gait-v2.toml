@@ -1,0 +1,19 @@
+[experiment]
+name = "gait-v2"
+env = "gait_v2"
+preset = "gait_v2"
+description = "walking v2: 48 commands plus crouched pushing; the adopted walker (decision 84)"
+
+[compute]
+min_vram_gb = 6
+small_gpu_num_envs = 2048
+timeout_min = 240
+gpu = "A10G"
+cloud_ok = true
+
+[eval]
+skill = "gait"
+commands = [
+  "sim/benches/robustness.py --what walk --world desk --episodes 40",
+  "sim/benches/tidy.py --seeds 24",
+]

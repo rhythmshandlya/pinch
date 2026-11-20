@@ -14,12 +14,11 @@ Then run `python sim/build_model.py` (it picks these up automatically).
 
 import csv
 import json
-
-import numpy as np
 import re
 import sys
 from pathlib import Path
 
+import numpy as np
 from build123d import export_step, export_stl
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,7 +64,7 @@ def main():
 
     # 1. print files + sheet
     rows = []
-    for name, (_, rho, fill, mat, qty) in A.PRINTED.items():
+    for name, (_, _rho, _fill, mat, qty) in A.PRINTED.items():
         p = A.part(name)
         export_stl(p, str(PRINT / f"{name}.stl"), tolerance=0.02, angular_tolerance=0.1)
         export_step(p, str(PRINT / f"{name}.step"))

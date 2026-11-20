@@ -1,7 +1,8 @@
 """The firmware's frame: start-up, the 50 Hz loop, emergency stop, saving, status."""
 
-from robot.localizer import Localizer  # noqa: F401
 from robot.firmware.common import (  # noqa: F401
+    DT,
+    SAVE_EVERY,
     AudioDirection,
     Body,
     BodySense,
@@ -9,14 +10,12 @@ from robot.firmware.common import (  # noqa: F401
     CliffReflex,
     Counter,
     Crab,
-    DT,
     Desk,
     Face,
     Hearing,
     Memory,
     Mind,
     Path,
-    SAVE_EVERY,
     SafetyStop,
     StuckSense,
     TouchGestures,
@@ -31,6 +30,7 @@ from robot.firmware.common import (  # noqa: F401
     threading,
     time,
 )
+from robot.localizer import Localizer  # noqa: F401
 
 
 class FirmwareCore:
@@ -81,7 +81,7 @@ class FirmwareCore:
         if hw.camera is not None:
             from robot.vision import GroundFlow, Vision
             self.vision = Vision(hw.camera_model, self.desk)
-            from pinch.faces import FaceID                  # who is that (decision 57); without the models: no one
+            from pinch.faces import FaceID  # who is that (decision 57); without the models: no one
             if FaceID.available():
                 mp = getattr(self.mind.memory, "path", None)
                 self.faceid = FaceID(gallery_path=(Path(mp).parent / "faces.json") if mp else None)

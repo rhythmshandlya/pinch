@@ -31,7 +31,7 @@ Every part was in stock in India on 2026-11-19, about ₹91k plus prints ([hardw
 | Behaviour | 12 of 13 scenarios, from tricks and learning your name to comforting you and raising the alarm when something nears the edge | [docs/BEHAVIOUR_TESTS.md](docs/BEHAVIOUR_TESTS.md) |
 | Tidying | Still the weakest skill: on a 24-layout bench the cap reaches the tray 11/24 times and the eraser 11/24, and the toy ball gets knocked off in about half the runs | `sim/benches/tidy.py` |
 | Firmware | 47/47 checks on emulated hardware, 40/40 selftest; the control tick fits the robot's CPU budget | `robot/firmware_test.py`, `robot/selftest.py` |
-| Code | 34 tests: exact replay, a golden trace for refactors, fault injection, fuzzed servo safety, layering rules | `python tests/run.py` |
+| Code | 35+ tests: exact replay, a golden trace for refactors, fault injection, fuzzed servo safety, layering rules, the operations layer; ruff and a private-file guard on every commit and in CI | `python -m ops check` |
 
 Every design decision and the measurements behind it are in [docs/DECISIONS.md](docs/DECISIONS.md); the
 research behind the approach is in [docs/APPROACH_PLAN.md](docs/APPROACH_PLAN.md).
@@ -85,14 +85,24 @@ It remembers you between runs (`~/.pinch/memory.json`).
 The other benches (tidy, pick, righting, soak, obstacles) are in [sim/benches/](sim/benches/); each takes
 `--json` to save its results.
 
-**Training** runs on a cloud GPU (Modal) and is exported to numpy for the robot:
+**Training** runs on any GPU through one command: this laptop, machines on a Tailscale network (Linux or
+Windows/WSL), Modal or SkyPilot clouds. Experiments are files in `configs/experiments/`, and every run records its
+commit. Results are exported to numpy for the robot:
 
 ```powershell
-$env:PINCH_GPU="A10G"; python -m modal run --detach training\modal_train.py::launch --env righting --preset righting --run righting-v2
-python -m modal run training\modal_train.py::fetch --run righting-v2
-.venv-rl\Scripts\python training\export_policy.py righting-v2 righting_v2
-.venv\Scripts\python sim\benches\righting.py --policy righting_v2
+.venv\Scripts\python -m ops submit configs\experiments\righting.toml --host any --cloud-fallback
+.venv\Scripts\python -m ops jobs -r                                 # what is training where
+.venv\Scripts\python -m ops fetch righting                          # checkpoint -> training\checkpoints\
+.venv\Scripts\python -m ops export righting righting_v2             # -> policies\righting_v2.npz
+.venv\Scripts\python -m ops eval configs\experiments\righting.toml righting_v2   # the experiment's benches
 ```
+
+## Developing
+
+The layout, layers, training pipeline and compute are described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md);
+the workflows in [docs/dev/](docs/dev/). `python -m ops check` runs everything CI runs (private-file guard, ruff,
+tests). Several agents can work at once, each in its own worktree (`python -m ops worktree new <task>`), and
+[AGENTS.md](AGENTS.md) holds the rules they follow.
 
 ## On the robot
 

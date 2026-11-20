@@ -1,0 +1,33 @@
+# pre-commit (pre-commit/pre-commit). Install once per clone:  .venv\Scripts\pre-commit install --install-hooks -t pre-commit -t commit-msg
+# Fast checks only; the full suite runs in CI and in `python -m ops check`.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-toml
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=5000"]
+  - repo: local
+    hooks:
+      - id: pinch-guard
+        name: private files and tailnet addresses stay local
+        entry: python -m ops.guard files
+        language: system
+        pass_filenames: true
+      - id: pinch-guard-msg
+        name: no AI attribution in commit messages
+        entry: python -m ops.guard msg
+        language: system
+        stages: [commit-msg]
+      - id: pinch-layers
+        name: layering and ops tests
+        entry: python tests/run.py architecture ops
+        language: system
+        pass_filenames: false
+        files: \.(py|toml)$

@@ -29,7 +29,9 @@ from build123d import scale as b3d_scale
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from cad.servo import FIT, GS4308 as GS, M2_CLEAR, M2_PILOT, STS3032 as SC, box, disc  # noqa: E402
+from cad.servo import FIT, M2_CLEAR, box, disc  # noqa: E402
+from cad.servo import GS4308 as GS
+from cad.servo import STS3032 as SC
 from crab.params import CLIFF_BEAMS, PARAMS  # noqa: E402
 
 MM = 1000.0
@@ -515,7 +517,6 @@ def shell_planform():
 def chassis():
     """Body tub: floor with the battery door opening, deck holding the 6 yaw servos by their ears,
     walls up to the rim; posts for the Pi, magnets for the shell."""
-    from shapely.geometry import box as sbox
     outline = body_outline()
     inner = outline.buffer(-WALL, 8)
     mid = opened(outline.difference(keepout2d("high")), 1.0)           # where walls may go higher
@@ -633,7 +634,6 @@ def belly_door():
 
 def top_shell():
     """Dome carapace: covers the chassis and the hip hubs, eye stalks on top, camera window in front."""
-    from shapely.geometry import Point
     pf = shell_planform().simplify(0.15, preserve_topology=True)
     t = 2.0
     inner_pf = opened(pf.buffer(-t, 16), 0.6).simplify(0.15, preserve_topology=True)
@@ -673,7 +673,7 @@ def top_shell():
         shell -= FACE_LOC * Pos(3.45, hy, hz) * Rot(0, 90, 0) * Cylinder(M2_CLEAR / 2, 2.3)      # bezel x 2.3..4.6
         shell -= FACE_LOC * Pos(0.0, hy, hz) * Rot(0, 90, 0) * Cylinder(0.8, 6.0)               # pilot x -3..3
     dome_mid = Pos(cx, 0, Z_RIM) * b3d_scale(Sphere(1), by=(a - 0.5, b - 0.5, c - 0.5))
-    above = box(-200, 200, -200, 200, Z_RIM, 100)
+    box(-200, 200, -200, 200, Z_RIM, 100)
     # magnet bosses matching the chassis
     for mx, my in MAGNETS:
         post = (disc(MAG_R, Z_RIM, Z_RIM + 30, mx, my) & dome_mid) - disc(3.15, Z_RIM - 1, Z_RIM + 3.2, mx, my)

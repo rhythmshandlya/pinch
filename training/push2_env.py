@@ -29,10 +29,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from crab import policy_io as pio  # noqa: E402
+from crab.arm import PUSH_LOWER, paddle_pose  # noqa: E402
 from crab.gait import _S, GAITS  # noqa: E402
 from crab.gait_jax import GaitJax  # noqa: E402
 from crab.params import JOINT_NAMES, LEG_IDS  # noqa: E402
-from crab.arm import PUSH_LOWER, paddle_pose  # noqa: E402
 
 MODEL = ROOT / "sim" / "models" / "crab.xml"
 THING_H = 0.006

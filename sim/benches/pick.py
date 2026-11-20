@@ -7,7 +7,6 @@ skill, not the choice to use it.
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -17,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from sim.benches.common import run_parallel, save_json  # noqa: E402
+
 
 def one(args):
     thing, seed, grasp = args

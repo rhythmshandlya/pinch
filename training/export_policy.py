@@ -40,6 +40,7 @@ def check(run, path, cfg):
     import jax
     from brax.training.acme import running_statistics
     from brax.training.agents.ppo import networks as ppo_networks
+
     from crab.policy_np import NumpyPolicy
     from training.train import network_factory
     params = pickle.load(open(ROOT / "training" / "checkpoints" / run / "params.pkl", "rb"))

@@ -77,7 +77,7 @@ def main():
         from robot.bus_emulator import EmulatedPort
         port = EmulatedPort(model, [a.current_id])
     else:
-        import serial                                      # pip install pyserial
+        import serial  # pip install pyserial
         port = serial.Serial(a.port, baudrate=1_000_000, timeout=0.05)
     setup(FeetechBus(port, model), a.id, a.current_id)
 

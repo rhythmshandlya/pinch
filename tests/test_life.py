@@ -42,7 +42,7 @@ def test_quiet_in_the_twin_and_off_during_steps():
     assert sim.falls == 0
     assert len(sim.body.life.events) >= 8, f"only {len(sim.body.life.events)} micro-actions in 3 minutes"
     sim.body.start(("pose", "stand", 1.0))
-    q_before = sim.body.crab.q_cmd.copy()
+    sim.body.crab.q_cmd.copy()
     sim.run(0.5)                                     # during a step the targets are the step's own
     assert sim.body.busy
     n = len(sim.body.life.events)

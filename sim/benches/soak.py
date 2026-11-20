@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from sim.benches.common import run_parallel, save_json  # noqa: E402
+
 PHRASES = ["hi pinch", "dance!", "good job pinch", "how are you?", "I'm sad today", "pinch, wave", "come here",
            "let's play", "I'm tired", "you're so cute", "pinch, put the cap away", "shake", "play dead",
            "I'm in a meeting", "bye pinch", "good morning", "no, bad pinch"]

@@ -26,7 +26,7 @@ from crab.params import JOINT_NAMES, PARAMS  # noqa: E402
 from robot.backends import SimBackend, random_horn_offsets  # noqa: E402
 from robot.calibrate import CAL_POSE, SimPerson, check_directions, measure_offsets, trim_arms  # noqa: E402
 from robot.crab_robot import MAX_STEP, Crab, SafetyStop  # noqa: E402
-from robot.servos import BUS_JOINTS, PWM_JOINTS, Calibration, raw_to_rad, rad_to_raw  # noqa: E402
+from robot.servos import BUS_JOINTS, PWM_JOINTS, Calibration, rad_to_raw, raw_to_rad  # noqa: E402
 
 QUIET = dict(log=lambda *_: None)
 
@@ -150,8 +150,8 @@ def main():
     check("low-voltage safety stop: servo bus sag (torque off)", stopped and not hw2.torque_on)
 
     # ---- our own Feetech driver against the byte-level emulated bus --------------------
-    from robot.bus_emulator import EmulatedPort
     from robot.backends import emulated_bus_backend
+    from robot.bus_emulator import EmulatedPort
     from robot.feetech_bus import MODELS, FeetechBus, checksum, packet
     from robot.setup_servo import setup
     pk = packet(1, 0x01)
@@ -266,6 +266,7 @@ def main():
 
     import os
     import tempfile
+
     from robot.backends import servo_port
     with tempfile.TemporaryDirectory() as tmp:
         none = servo_port(by_id=os.path.join(tmp, "missing"))
@@ -343,6 +344,7 @@ def main():
 
     # the Radxa's own PWM outputs, through a fake Linux sysfs tree (what the kernel shows)
     import tempfile
+
     from robot.backends import BoardPWM
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

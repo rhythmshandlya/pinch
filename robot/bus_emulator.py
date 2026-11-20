@@ -6,7 +6,7 @@ An optional `physics` object links the servos to the MuJoCo simulator:
     physics.set_goal(servo_id, rad)  /  physics.get_state(servo_id) -> dict(position, speed, ...)
 """
 
-from robot.feetech_bus import (BROADCAST, PING, READ, SYNC_READ, SYNC_WRITE, WRITE, Model, checksum)
+from robot.feetech_bus import BROADCAST, PING, READ, SYNC_READ, SYNC_WRITE, WRITE, Model, checksum
 
 
 class EmulatedServo:

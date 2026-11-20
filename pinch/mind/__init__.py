@@ -16,11 +16,11 @@ Assembled from its parts in pinch/mind/: core, senses, selection, people, selfca
 
 from pinch.mind.common import *  # noqa: F401,F403 - constants, as before the split
 from pinch.mind.core import MindCore
-from pinch.mind.senses import Senses
-from pinch.mind.selection import Selection
 from pinch.mind.people import PeopleAware
 from pinch.mind.privacy import Privacy
+from pinch.mind.selection import Selection
 from pinch.mind.selfcare import SelfCare
+from pinch.mind.senses import Senses
 
 
 class Mind(Senses, Selection, PeopleAware, Privacy, SelfCare, MindCore):

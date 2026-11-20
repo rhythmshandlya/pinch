@@ -1,0 +1,60 @@
+[project]
+name = "pinch"
+version = "0.9.0"
+description = "Pinch: a hand-sized robot crab pet, designed, simulated, trained and tested in software"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "All rights reserved" }
+dependencies = [
+  "mujoco==4.0.1",
+  "numpy>=2.0",
+  "pillow",
+  "opencv-python-headless",
+]
+
+[project.optional-dependencies]
+# the laptop app, the twin, benches and tests (.venv)
+dev = ["ruff>=0.17", "pytest>=9", "pre-commit>=4", "matplotlib", "uv"]
+# CAD (cad/)
+cad = ["shapely", "build123d"]
+# training on a GPU (.venv-rl); pinned together in requirements-train.txt - install from there
+train = ["jax==0.9.2", "jaxlib==0.9.2", "flax==0.12.6", "optax==0.2.9", "orbax-checkpoint==0.12.11",
+         "brax==0.14.2", "mujoco-mjx==4.0.1"]
+# cloud GPUs beyond Modal
+cloud = ["modal>=1.6", "skypilot[runpod,lambda]"]
+# the robot (Radxa ZERO 3W); OpenCV comes from apt there
+robot = ["pyserial", "smbus2"]
+
+# No build backend on purpose: Pinch is run from its checkout (every entry point puts its own checkout first on
+# sys.path), never installed, so several git worktrees can share one environment (docs/ARCHITECTURE.md).
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["cad/out", "sim/models/meshes", ".claude/skills", "variants", "dist", "media"]
+
+[tool.ruff.lint]
+# pyflakes, pycodestyle errors, import hygiene, bugbear, pyupgrade-safe subset, ruff's own
+select = ["F", "E", "W", "I", "B", "UP"]
+ignore = [
+  "E501",    # long lines are allowed where a table or a comment reads better unbroken
+  "E741",    # robotics maths uses l, I, O
+  "E731",    # small lambdas in tables
+  "E402",    # entry points put the checkout on sys.path before importing it
+  "B905",    # zip() without strict= is fine for same-length tuples
+  "UP015",   # explicit open modes are clearer to non-Python readers
+]
+
+[tool.ruff.lint.per-file-ignores]
+# shared-import hubs: each package's modules import their dependencies from here (decisions 61, 63, 75, 78)
+"**/common.py" = ["F401", "I001"]
+"pinch/activities/base.py" = ["F401", "I001"]
+"**/__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["crab", "pinch", "robot", "sim", "training", "ops", "cad"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"

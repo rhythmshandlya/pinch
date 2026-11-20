@@ -58,11 +58,12 @@ class SimBackend:
     """MuJoCo stands in for the robot. `mount_offsets` = physical horn offsets (rad) per joint."""
 
     def __init__(self, mount_offsets=None, render=False, voltage=None, pwm_travel=1.0, model=None):
-        from crab.params import PARAMS, JOINT_SPECS
+        from crab.params import JOINT_SPECS, PARAMS
         voltage = PARAMS.bus_voltage if voltage is None else voltage
         self._flim = {j: s.force_limit for j, s in zip(JOINT_NAMES, JOINT_SPECS)}
-        import mujoco
         from pathlib import Path
+
+        import mujoco
         self.mj = mujoco
         root = Path(__file__).resolve().parents[1]
         self.m = model if model is not None else mujoco.MjModel.from_xml_path(str(root / "sim" / "models" / "crab.xml"))
@@ -173,6 +174,7 @@ class BusBackend:
 
     def __init__(self, port, model, imu=None, clock=None, battery=None, pwm=None):
         from collections import Counter
+
         from robot.feetech_bus import FeetechBus
         self.bus = FeetechBus(port, model)
         self.ids = [SERVO_IDS[j] for j in BUS_JOINTS]
@@ -431,7 +433,7 @@ class BoardPWM:
             self.on.add(channel)
 
     def all_off(self):
-        for k, pwm in self.out.items():                                # output low = servo goes limp
+        for _k, pwm in self.out.items():                                # output low = servo goes limp
             self._w(pwm / "enable", 0)
         self.on.clear()
 
@@ -475,8 +477,8 @@ class PCA9685:
 
 def bus_models():
     """Bus servo ID -> protocol model (the legs; the PWM arm servos aren't on the bus)."""
-    from robot.feetech_bus import MODELS
     from crab.params import servo_for
+    from robot.feetech_bus import MODELS
     return {SERVO_IDS[j]: MODELS[servo_for(j).bus_model] for j in BUS_JOINTS}
 
 

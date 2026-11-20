@@ -121,7 +121,7 @@ def arm_xml(arm_id: str) -> str:
     s = 1 if arm_id == "L" else -1
     (x, y, z), yaw = P.arm_mount
     A = P.arm
-    h, fl = A.upper_len, A.finger_len
+    h, _fl = A.upper_len, A.finger_len
     JAW = jaw_geoms(s)
     return f"""
       <body name="{arm_id}_shoulder" pos="{f(x, s*y, z)}" euler="0 0 {s*yaw:.4f}">

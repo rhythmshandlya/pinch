@@ -34,3 +34,10 @@ variants/
 !/policies/gait.*
 !/policies/righting.*
 !/policies/terrain_v1.*
+
+# operations layer: machine-specific hosts, the job ledger and local runs
+ops/hosts.local.toml
+.ops/
+CLAUDE.local.md
+.ruff_cache/
+.pytest_cache/

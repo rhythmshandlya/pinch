@@ -14,7 +14,7 @@ def _run(fault, **kw):
     sim.inject(fault, **kw)
     sim.place("eraser", (-0.05, 0.02))
     sim.mind.memory.teach_home("eraser", sim.desk.tray_xy)
-    for k, (t, what) in enumerate([(5, "hi pinch"), (20, "dance!"), (45, "stroke"), (70, "pinch, come here"),
+    for _k, (t, what) in enumerate([(5, "hi pinch"), (20, "dance!"), (45, "stroke"), (70, "pinch, come here"),
                                    (95, "tickle")]):
         sim.run(t - sim.t)
         sim.mind.touch(what) if what in ("stroke", "tickle") else sim.say(what)

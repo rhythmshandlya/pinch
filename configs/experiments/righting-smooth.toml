@@ -1,0 +1,19 @@
+[experiment]
+name = "righting-smooth"
+env = "righting_smooth"
+preset = "righting"
+description = "the get-up with 5x the action-rate cost: gentler on the servos (decision 85's current spikes)"
+
+[overrides]
+num_timesteps = 40_000_000
+
+[compute]
+min_vram_gb = 6
+small_gpu_num_envs = 2048
+timeout_min = 120
+gpu = "A10G"
+cloud_ok = true
+
+[eval]
+skill = "righting"
+commands = ["sim/benches/righting.py --policy {candidate} --starts 200"]

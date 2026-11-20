@@ -1,8 +1,8 @@
 """Desk work: tidying things back where they live, raising the alarm about things near the edge."""
 
 from pinch.activities.base import (  # noqa: F401
-    Activity,
     GRASP_ENABLED,
+    Activity,
     np,
 )
 

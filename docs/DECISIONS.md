@@ -1139,3 +1139,31 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Conclusion:** where Pinch stands can't keep the ball on the desk. It rests where Pinch has to work at
       the tray. The fix is behavioural: clear the work area first (move a rollable thing away from the tray
       and the edge before pushing or dropping there), or let `guard_edge` catch it sooner.
+90. **An industrial project setup: one operations layer for checks, training jobs on any GPU, and parallel
+    work.**
+    - **Why:** training ran through three ad-hoc paths (a Modal script, a queue file on msi-1, local commands);
+      runs didn't record their commit; environments were listed twice; there was no lint, no hooks, and no way
+      for several agents to work and train at once without colliding.
+    - **Change:** `docs/ARCHITECTURE.md` is the reference. `pyproject.toml` holds dependency sets and tool
+      settings; ruff (350 findings fixed, including a missing type import in `robot/http_api.py`); pre-commit
+      (ruff, TOML/YAML, a private-file and attribution guard, layering tests); CI runs the guard, ruff and the
+      suite. Training: one environment registry (`training/registry.py`), presets as data
+      (`configs/train/presets.toml`), experiments as data (`configs/experiments/`), and a `run.json` per run
+      (commit, host, resolved config, state, last metrics). Operations: `python -m ops` submits, queues,
+      dispatches, monitors, fetches, exports and evaluates jobs on four backends (local; SSH over Tailscale,
+      Linux or Windows/WSL; Modal; SkyPilot), keeps a ledger, checks hosts and creates worktrees. Parallel work:
+      one worktree and branch per task, claimed areas (`ops/areas.toml`), shared files merged by the
+      integrator. Policies: `policies/registry.toml` records each adopted policy's run, evidence and decision.
+      Agents: AGENTS.md and CLAUDE.md; Pinch workflow skills; Google DeepMind's official MuJoCo skills vendored
+      from the pinned mujoco package; official Anthropic plugins enabled.
+    - **Evidence:** every tool chosen is established and active (stars and last commit checked): ruff 51k, uv 92k,
+      pre-commit 16k, pytest 15k, Tailscale 39k, SkyPilot 10.8k (NSDI '23), anthropics/skills 198k,
+      google-deepmind/mujoco 18k. The table with alternatives is in ARCHITECTURE.md section 7.
+    - **Custom code, and why:** the SSH backend exists because SkyPilot's SSH Node Pools install k3s with
+      NVIDIA's GPU Operator, which doesn't list WSL2, and msi-1 is a Windows laptop. On Windows a job runs under a
+      one-shot S4U Scheduled Task, because an OpenSSH session kills its children on disconnect.
+    - **Measured:** golden trace identical after the lint fixes; tests pass (35, with the new ops tests); a smoke
+      run through the registry and experiment path wrote a complete `run.json` (state done, commit recorded).
+    - **Rejected:** Hydra for configs (a dependency and indirection the configs don't need yet), a tracking
+      server (workers would need to reach it; `run.json` can be imported into MLflow later), an editable install
+      (it would make worktrees import each other's code).

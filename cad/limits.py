@@ -30,7 +30,7 @@ def collides(name, value):
     return bool(A.interferences(q))
 
 
-def boundary(name, start, end, tol=radians(1)):
+def boundary(name, start, end, tol=radians(1)):  # noqa: B008 - an immutable float
     """Largest |value - start| toward `end` that is collision-free."""
     if not collides(name, end):
         return end
