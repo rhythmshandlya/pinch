@@ -1,7 +1,8 @@
 """The job ledger: every training job, wherever it runs. Local and gitignored (.ops/jobs.json).
 
 A job is one run of one experiment at one commit on one backend. States:
-    queued -> running -> done | failed | stopped        (lost: the backend no longer knows it)
+    queued -> running -> done | timeout | failed | stopped   (timeout: hit its hard stop, latest policy kept;
+    lost: the backend no longer knows it)
 """
 
 import json

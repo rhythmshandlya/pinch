@@ -81,6 +81,7 @@ def test_job_scripts_are_complete():
     assert jobscript.parse_status("exit_code=0\nlast={\"step\": 5}") == ("done", {"step": 5})
     assert jobscript.parse_status("exit_code=1")[0] == "failed"
     assert jobscript.parse_status("exit_code=143")[0] == "stopped"
+    assert jobscript.parse_status("exit_code=124")[0] == "timeout"
     assert jobscript.parse_status("state=running")[0] == "running"
     assert jobscript.parse_status("state=lost")[0] == "lost"
     y = skypilot.task_yaml(job)

@@ -55,7 +55,7 @@ def status(job):
             pass
     state = rec.get("state", "running" if not rec else "lost")
     if state == "running" and job.handle.get("app_id") and not _app_running(job.handle["app_id"]):
-        state = "failed"            # the app ended without writing a final record: timeout or crash
+        state = "timeout"           # the app ended without a final record: its hard timeout (or a crash: see logs)
     return state, last, json.dumps(st)[:2000]
 
 

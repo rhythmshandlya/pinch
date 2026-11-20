@@ -60,9 +60,8 @@ def parse_status(out):
     facts = dict(line.split("=", 1) for line in out.splitlines() if "=" in line)
     if "exit_code" in facts:
         code = facts["exit_code"].strip()
-        state = "done" if code == "0" else ("stopped" if code in ("143", "124") else "failed")
-        if code == "124":
-            state = "failed"               # hit its timeout: the policy so far is still in params.pkl
+        # 124: hit its hard timeout - the latest policy is still in params.pkl, so it can be fetched and judged
+        state = {"0": "done", "124": "timeout", "143": "stopped"}.get(code, "failed")
     else:
         state = facts.get("state", "lost")
         state = "running" if state == "starting" else state
