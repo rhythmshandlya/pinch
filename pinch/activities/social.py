@@ -3,6 +3,7 @@
 from pinch.activities.base import (  # noqa: F401
     Activity,
     _owner_near,
+    math,
 )
 
 
@@ -237,50 +238,115 @@ class AfterMeeting(Activity):
 
 
 class ReactTouch(Activity):
+    """Reacts to being touched, by where (pinch/touch.py touch_place: left / right, claw, side, back, head) and by
+    how much it has had lately (TouchHabituation: repeated petting wears off and rests back after a pause; a rough
+    touch sharpens everything again). Asleep, only some touches wake it (WAKE_RULES, the owner's setting)."""
     state, max_s = "social", 60.0
     name, interruptible, min_s, quiet_ok = "react_touch", False, 1.0, True
 
+    @staticmethod
+    def touch_state(m):
+        """Per mind (not per activity object: those are shared by every mind in the process)."""
+        st = m.__dict__.get("touch_state")
+        if st is None:
+            from pinch.touch import TouchHabituation, WakeRules
+            st = m.__dict__["touch_state"] = {"habit": TouchHabituation(), "wake": WakeRules(), "woke": None}
+        return st
+
+    @staticmethod
+    def asleep(m):
+        return m.activity is not None and m.activity.name == "rest" and m.face_expr == "asleep"
+
     def utility(self, m):
-        return 1.7 if m.touch_event and m.t - m.touch_event[1] < 1.0 else 0.0
+        ev = m.touch_event
+        if not ev or m.t - ev[1] >= 1.0:
+            return 0.0
+        if self.asleep(m):
+            from pinch.touch import WAKE_DEFAULT
+            st = self.touch_state(m)
+            mode = m.memory.data.get("settings", {}).get("wake_on_touch", WAKE_DEFAULT)
+            if not st["wake"].wakes(ev, mode):
+                return 0.0                                  # (felt in its sleep: the mood still took it in)
+            st["woke"] = ev
+        return 1.7
 
     def run(self, m):
-        gesture, _ = m.touch_event
+        from pinch.touch import touch_place
+        ev = m.touch_event
+        gesture, _ = ev
         m.touch_event = None
-        quiet = m.affect.quiet
-        if gesture in ("stroke", "hold", "claw_hold"):
+        st = self.touch_state(m)
+        woken, st["woke"] = st["woke"] == ev, None
+        r = st["habit"].stimulate(gesture, m.t)             # 1 = full reaction .. 0.15 = had plenty of that
+        side, region, direction = touch_place(gesture)
+        g, quiet, a = str(gesture), m.affect.quiet, m.affect
+        style = dict(gain=r, arousal=a.arousal, valence=a.valence, sleepy=1.0 if woken else a.needs.sleep)
+        if side:
+            style["side"] = side
+
+        def emote(name, gaze=None):
+            return ("emote", name, dict(style, gaze=gaze) if gaze is not None else dict(style))
+
+        if woken:
+            yield ("face", "sleepy")
+        if direction is not None and abs(direction) > 0.3:          # eyes to the touched side
+            x, y, h = m.world.pose
+            yield ("look_at", (x + 0.25 * math.cos(h + direction), y + 0.25 * math.sin(h + direction)))
+        if g in ("stroke", "hold"):
+            yield ("face", "love" if r > 0.5 else "content")
+            if not quiet:
+                yield ("sound", "purr")
+            if region == "back" or (g == "stroke" and region == ""):
+                # a back stroke: a contented settle - sinks low, longer as it relaxes into the petting
+                if r > 0.7:
+                    yield emote("fidget")
+                yield ("pose", "low", 1.0 + 3.0 * (1.0 - r))
+            elif region == "side":
+                yield emote("curious", gaze=0.12 * side)             # leans and turns toward the hand
+            elif r > 0.35:
+                yield emote("fidget")
+        elif g == "claw_hold":
             yield ("face", "love")
             if not quiet:
                 yield ("sound", "purr")
-            yield ("emote", "handshake" if gesture == "claw_hold" else "fidget")
-        elif gesture == "tickle":
+            if r > 0.3:
+                yield emote("handshake")                            # shakes with the claw you hold
+        elif g == "tickle":
             yield ("face", "squeeze")
             if not quiet:
                 yield ("sound", "giggle")
-            yield ("emote", "excited")
-        elif gesture == "boop":
+            yield emote("excited" if r > 0.3 else "fidget")
+        elif g == "boop":
             yield ("face", "surprised")
             if not quiet:
                 yield ("sound", "boop")
-            yield ("face", "happy")
-        elif gesture in ("tap", "double_tap"):
-            yield ("face", "curious")
-            yield ("emote", "look_around" if gesture == "tap" else "point")
-        elif gesture == "ruffle":
+            if r < 0.4:
+                yield emote("sneeze")                               # boop, boop, boop: achoo
+            yield ("face", "happy" if r >= 0.4 else "grumpy")
+        elif g in ("tap", "double_tap"):
+            yield ("face", "curious" if r > 0.35 else "grumpy")
+            if region == "claw":                                    # the touched claw answers
+                yield emote("wave" if g == "tap" else "handshake")
+            elif side and r > 0.35:
+                yield emote("curious", gaze=0.15 * side)            # turns toward the touch
+            elif r > 0.35:
+                yield emote("look_around" if g == "tap" else "point")
+        elif g == "ruffle":
             yield ("face", "grumpy")
-            yield ("emote", "shy")
-        elif gesture in ("lifted", "upside_down"):
+            yield emote("shy")
+        elif g in ("lifted", "upside_down"):
             yield ("face", "scared")
             if not quiet:
                 yield ("sound", "startled_squeak")
             yield ("pose", "stand", 1.5)
-        elif gesture == "put_down":
+        elif g == "put_down":
             yield ("face", "dizzy")
             yield ("emote", "look_around")
-        elif gesture == "shaken":
+        elif g == "shaken":
             yield ("face", "dizzy")
             if not quiet:
                 yield ("sound", "uh_oh")
             yield ("pose", "stand", 2.0)
-        elif gesture == "held_leg":
+        elif g == "held_leg":
             yield ("face", "curious")
             yield ("emote", "handshake")

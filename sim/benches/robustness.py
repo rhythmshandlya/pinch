@@ -14,7 +14,9 @@ it where it was - then let go), terrain (two hurdles 3-10 mm, a ramp up to 14 de
 a ring 13-20 cm around the start: crab/terrain.py, the course terrain training uses), terrain_hard (the same,
 hurdles up to 15 mm and ramps up to 21 deg: half again beyond anything in training).
 Walking: 12 s of commands (forward, crab-walk left, turn, back, diagonal). Emotes: five random emotes
-back to back. A fall = tipped over 45 deg or body down on the desk.
+back to back, each a variant as the robot plays them (crab/emotes.py EmoteStyler: tempo, size, asymmetry, arm
+lag, mirror, body turn) under a random mood; PINCH_EMOTE_PLAIN=1 plays the plain keyframes instead.
+A fall = tipped over 45 deg or body down on the desk.
 """
 
 import argparse
@@ -30,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from crab import policy_io as pio  # noqa: E402
-from crab.emotes import EMOTES, STAND  # noqa: E402
+from crab.emotes import EMOTES, STAND, EmoteStyler  # noqa: E402
 from crab.gait import _S, _T, GAITS, Gait  # noqa: E402
 from crab.params import JOINT_NAMES  # noqa: E402
 from crab.policy_np import POLICY_DIR, NumpyPolicy  # noqa: E402
@@ -134,9 +136,17 @@ def episode(args):
     plan = []
     if kind == "emote":
         t = 0.5
+        styler = None if os.environ.get("PINCH_EMOTE_PLAIN") else EmoteStyler(np.random.default_rng(seed + 7))
+        mood = np.random.default_rng(seed + 11)              # (own streams: the world draws stay as they were)
         for name in seq:
-            plan.append((t, name))
-            t += EMOTES[name].duration + 0.3
+            emo = EMOTES[name]
+            if styler is not None:
+                side, gaze = mood.choice([0, 1, -1]), mood.uniform(-0.15, 0.15)
+                emo = styler.vary(name, arousal=mood.uniform(0, 1), valence=mood.uniform(-1, 1),
+                                  sleepy=mood.uniform(0, 1), gain=mood.uniform(0.3, 1.0),
+                                  side=int(side) or None, gaze=gaze if mood.random() < 0.5 else None)
+            plan.append((t, emo))
+            t += emo.duration + 0.3
         T = t
     else:
         T = 12.5
@@ -173,7 +183,7 @@ def episode(args):
             if cur is None:
                 ref, ahead, prog = STAND, STAND, 0.0
             else:
-                emo = EMOTES[cur[1]]
+                emo = cur[1]
                 te = t - cur[0]
                 ref, ahead = emo.target(min(te, emo.duration)), emo.target(min(te + 0.1, emo.duration))
                 prog = min(te / emo.duration, 1.0)

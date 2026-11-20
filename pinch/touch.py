@@ -9,14 +9,159 @@ Inputs (all on the robot already):
 Gestures: tap, double_tap, hold, stroke (head -> back = petting, back -> head = ruffled), boop (face
 tap), tickle (fast alternating side touches), claw_hold (a "handshake" on a claw pad), plus lifted,
 shaken, bumped, upside_down, held_leg.
+
+Pad gestures come out as Touch objects: the gesture name (so the mind takes them unchanged) plus the pads it
+involved; touch_place() turns those into a side, a region and a direction for the reaction (ReactTouch).
+TouchHabituation makes repeated touch wear off and recover; WakeRules decide which touches wake it from sleep.
 """
 
+import math
 from collections import deque
 
 import numpy as np
 
 ZONES = ["head", "back_left", "back_right", "side_left", "side_right", "face", "claw_left", "claw_right"]
 ORDER = {"face": 0, "head": 1, "back_left": 2, "back_right": 2}        # front -> back, for strokes
+# where each pad is: side (+1 left, -1 right, 0 middle), region, and its direction in the body frame (rad, 0 ahead,
+# + to the left)
+ZONE_INFO = {
+    "face": (0, "front", 0.0), "head": (0, "top", 0.0),
+    "back_left": (1, "back", 2.6), "back_right": (-1, "back", -2.6),
+    "side_left": (1, "side", 1.57), "side_right": (-1, "side", -1.57),
+    "claw_left": (1, "claw", 0.5), "claw_right": (-1, "claw", -0.5),
+}
+REGION_RANK = ("claw", "side", "back", "front", "top")       # a gesture over several pads: the most telling one
+
+
+class Touch(str):
+    """A gesture that also says where it was: compares, hashes and prints as its name ("stroke"), so everything
+    that takes a gesture name takes it unchanged, and carries the pads it involved. A plain string is a touch
+    whose place is unknown (the twin's buttons, the HTTP API)."""
+
+    zones: tuple = ()
+
+    def __new__(cls, name, zones=()):
+        s = super().__new__(cls, name)
+        s.zones = tuple(z for z in zones if z in ZONE_INFO)
+        return s
+
+    def __reduce__(self):                       # (pickles and copies keep the pads)
+        return (Touch, (str(self), self.zones))
+
+
+def touch_place(gesture):
+    """(side, region, direction) of a gesture: side +1 left / -1 right / 0 middle or unknown; region one of
+    claw, side, back, front, top, or "" if unknown; direction in the body frame (rad, + left) or None."""
+    zones = getattr(gesture, "zones", ())
+    if not zones:
+        return 0, "", None
+    info = [ZONE_INFO[z] for z in zones]
+    s = sum(i[0] for i in info)
+    side = 0 if s == 0 else (1 if s > 0 else -1)
+    region = min((i[1] for i in info), key=REGION_RANK.index)
+    dirs = [i[2] for i in info if i[1] == region]
+    d = math.atan2(sum(math.sin(a) for a in dirs), sum(math.cos(a) for a in dirs))
+    return side, region, d
+
+
+class TouchHabituation:
+    """Repeated touch wears off, rests back, and a rough touch sharpens everything again. After the behavioural
+    characteristics of habituation (Thompson & Spencer 1966, revised by Rankin et al. 2009) in the discrete form of
+    Stanley's model as used on robots (Marsland, Nehmzow & Shapiro 2000):
+
+      * each touch on a channel: h <- h + alpha (1 - h)  - an exponential decrement toward an asymptote (the
+        response never drops below FLOOR)
+      * between touches: h <- h exp(-dt / TAU_RECOVER)   - spontaneous recovery, several times slower than the
+        decrement (more frequent touches therefore habituate more: less time to recover)
+      * weaker stimuli habituate faster (a tap's alpha > a stroke's > a tickle's)
+      * an intense touch (tickle, ruffle, being lifted or shaken) dishabituates every channel (h halves) and adds a
+        sensitisation term that fades in ~20 s (the dual-process view, Groves & Thompson 1970)
+    response = FLOOR + (1 - FLOOR)(1 - h) + sensitisation, at most 1: 1 = full reaction, FLOOR = barely."""
+
+    ALPHA = {"pet": 0.25, "tap": 0.35, "tickle": 0.15, "claw": 0.25, "ruffle": 0.2}
+    CHANNEL = {"stroke": "pet", "hold": "pet", "tap": "tap", "double_tap": "tap", "boop": "tap",
+               "tickle": "tickle", "claw_hold": "claw", "ruffle": "ruffle"}
+    INTENSE = {"tickle", "ruffle", "lifted", "shaken", "upside_down", "held_leg"}
+    TAU_RECOVER, TAU_SENSITISE = 60.0, 20.0
+    FLOOR, SENSITISE, DISHABITUATE = 0.15, 0.3, 0.5
+
+    def __init__(self):
+        self.h = {c: 0.0 for c in self.ALPHA}
+        self.s = 0.0
+        self.t = None
+        self.count = {c: 0 for c in self.ALPHA}
+
+    def _relax(self, t):
+        if self.t is not None and t > self.t:
+            k = math.exp(-(t - self.t) / self.TAU_RECOVER)
+            self.h = {c: v * k for c, v in self.h.items()}
+            self.s *= math.exp(-(t - self.t) / self.TAU_SENSITISE)
+        self.t = t if self.t is None else max(self.t, t)
+
+    def response(self, gesture, t):
+        """How strongly it would react to this gesture now (no change)."""
+        save = (dict(self.h), self.s, self.t)
+        self._relax(t)
+        c = self.CHANNEL.get(str(gesture))
+        r = 1.0 if c is None else min(1.0, self.FLOOR + (1 - self.FLOOR) * (1 - self.h[c]) + self.s)
+        self.h, self.s, self.t = save
+        return r
+
+    def stimulate(self, gesture, t):
+        """A touch arrives: returns the response strength to it (0..1), then habituates / sensitises."""
+        r = self.response(gesture, t)
+        self._relax(t)
+        g = str(gesture)
+        c = self.CHANNEL.get(g)
+        if c is not None:
+            self.h[c] += self.ALPHA[c] * (1 - self.h[c])
+            self.count[c] += 1
+        if g in self.INTENSE:
+            self.h = {k: v * (1 - self.DISHABITUATE) if k != c else v for k, v in self.h.items()}
+            self.s = min(0.6, self.s + self.SENSITISE)
+        return r
+
+
+# Asleep (resting with its eyes shut), which touches wake it. "always": wakes at once. Others add wake pressure
+# (fading with WAKE_TAU s); it wakes when the pressure reaches 1. A stroke while asleep soothes (lowers it).
+# Chosen by the owner's setting memory.data["settings"]["wake_on_touch"]; "any" is the old behaviour.
+WAKE_RULES = {
+    "any": dict(always="*", weights={}),
+    "gentle": dict(always={"lifted", "shaken", "upside_down", "held_leg", "tickle", "boop"},
+                   weights={"tap": 0.4, "double_tap": 0.7, "claw_hold": 0.5, "hold": 0.25, "ruffle": 0.6,
+                            "put_down": 1.0, "stroke": -0.2}),
+    "deep": dict(always={"lifted", "shaken", "upside_down"},
+                 weights={"tap": 0.2, "double_tap": 0.35, "claw_hold": 0.25, "boop": 0.4, "tickle": 0.5,
+                          "ruffle": 0.3, "held_leg": 0.5, "put_down": 1.0, "hold": 0.1, "stroke": -0.2}),
+}
+WAKE_DEFAULT, WAKE_TAU = "gentle", 30.0
+
+
+class WakeRules:
+    """Decides, once per touch, whether a touch while asleep wakes Pinch."""
+
+    def __init__(self):
+        self.pressure, self.t = 0.0, None
+        self.decided = {}                        # touch event -> bool (the mind asks again every 0.5 s)
+
+    def wakes(self, event, mode=WAKE_DEFAULT):
+        if event in self.decided:
+            return self.decided[event]
+        gesture, t = event
+        rule = WAKE_RULES.get(mode, WAKE_RULES[WAKE_DEFAULT])
+        if self.t is not None:
+            self.pressure *= math.exp(-max(0.0, t - self.t) / WAKE_TAU)
+        self.t = t
+        g = str(gesture)
+        if rule["always"] == "*" or g in rule["always"]:
+            woke = True
+        else:
+            self.pressure = max(0.0, self.pressure + rule["weights"].get(g, 0.0))
+            woke = self.pressure >= 1.0
+        if woke:
+            self.pressure = 0.0
+        self.decided = {event: woke}
+        return woke
 
 
 class TouchGestures:
@@ -39,11 +184,11 @@ class TouchGestures:
             dur = t - t0
             if dur < 0.35:
                 if z == "face":
-                    out.append("boop")
+                    out.append(Touch("boop", [z]))
                 elif t - self.last_tap.get(z, -9) < 0.6:
-                    out.append("double_tap")
+                    out.append(Touch("double_tap", [z]))
                 else:
-                    out.append("tap")
+                    out.append(Touch("tap", [z]))
                 self.last_tap[z] = t
             stroke = self._stroke(t)
             if stroke:
@@ -51,9 +196,10 @@ class TouchGestures:
         for z, t0 in self.down.items():
             if t - t0 > 1.2 and (z, t0) not in getattr(self, "_held", set()):
                 self._held = getattr(self, "_held", set()) | {(z, t0)}
-                out.append("claw_hold" if z.startswith("claw") else "hold")
-        if self._tickle(t):
-            out.append("tickle")
+                out.append(Touch("claw_hold" if z.startswith("claw") else "hold", [z]))
+        tickle = self._tickle(t)
+        if tickle:
+            out.append(tickle)
         return out
 
     def _stroke(self, t):
@@ -61,12 +207,13 @@ class TouchGestures:
         if len(ons) < 2:
             return None
         seq = [ORDER[z] for _, z in sorted(ons)]
+        zones = sorted({z for _, z in ons})
         if seq[-1] - seq[0] >= 1 and all(b >= a for a, b in zip(seq, seq[1:])):
             self.history.clear()
-            return "stroke"              # head -> back: petting the right way
+            return Touch("stroke", zones)          # head -> back: petting the right way
         if seq[0] - seq[-1] >= 1 and all(b <= a for a, b in zip(seq, seq[1:])):
             self.history.clear()
-            return "ruffle"
+            return Touch("ruffle", zones)
         return None
 
     def _tickle(self, t):
@@ -74,8 +221,8 @@ class TouchGestures:
         flips = sum(1 for a, b in zip(ons, ons[1:]) if a != b)
         if flips >= 3:
             self.history.clear()
-            return True
-        return False
+            return Touch("tickle", sorted(set(ons)))
+        return None
 
 
 class StuckSense:
