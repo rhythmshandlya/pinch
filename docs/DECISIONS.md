@@ -1236,3 +1236,12 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       size, tracked velocity, score and an appearance signature); not built yet.
     - **Rejected:** a pure novelty drive (no caution); learning-progress curiosity (fits skill learning, not
       encounters); putting unknown things into the world model's named objects (Play and GuardEdge would act on them).
+96. **terrain-push-v2 not adopted; gait-v2 stays the walker.**
+    - **Why:** one walker for hurdles, ramps and crouched pushing (decision 84's terrain_push env) was meant to get
+      terrain-v1's obstacle skill back without losing gait-v2's tidying.
+    - **Evidence:** the adoption gate (docs/dev/TRAINING.md): the experiment's own benches, same seeds and layouts.
+    - **Measured** (144M steps, A10G; `ops eval configs/experiments/terrain-push.toml gait_tp2`): terrain world 0
+      falls, 86 % speed tracking; desk 0 falls, 87 %; forward ramps 10 deg 3/3 (scripted 1/3); tidy, 24 layouts:
+      eraser 16/24 (gait-v2 12/24) but cap 2/24 (gait-v2 9-11/24).
+    - **Rejected:** adopting it for the eraser gain - the cap, pushed rather than picked, is the case the crouched
+      push references exist for, and it collapsed. Kept local as `gait_tp2` for a later mixed-curriculum attempt.
