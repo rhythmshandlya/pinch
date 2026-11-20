@@ -29,7 +29,7 @@ def _fmt(tmpl, job, host, **kw):
         extra += ["--num-envs", str(job.num_envs)]
     if job.timesteps:
         extra += ["--timesteps", str(job.timesteps)]
-    return tmpl.format(job_root=js.JOB_ROOT, run=job.run, repo=host.repo, python=host.python, sha=job.sha,
+    return tmpl.format(job_root=host.job_root, stop_when_done=int(host.stop_when_done), run=job.run, repo=host.repo, python=host.python, sha=job.sha,
                        remote=gitutil.remote_url(), experiment=job.experiment, timeout_min=job.timeout_min,
                        extra=" ".join(extra), **kw)
 
@@ -41,7 +41,7 @@ def _task_name(job):
 def launch_windows(job, host):
     # PowerShell single-quoted string: nothing inside is expanded ($HOME must reach bash, not PowerShell);
     # a literal ' is written ''
-    wsl_cmd = f"-d {host.wsl_distro} -- bash -lc 'bash {js.JOB_ROOT}/{job.run}/job.sh'".replace("'", "''")
+    wsl_cmd = f"-d {host.wsl_distro} -- bash -lc 'bash {host.job_root}/{job.run}/job.sh'".replace("'", "''")
     ps = f"""
 $a = New-ScheduledTaskAction -Execute 'wsl.exe' -Argument '{wsl_cmd}'
 $p = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U -RunLevel Limited
@@ -61,7 +61,7 @@ def submit(job):
     else:
         run_bash(host, _fmt(js.LAUNCH_LINUX, job, host))
     job.state, job.started = "running", now()
-    job.handle = dict(host=host.name, job_dir=f"{js.JOB_ROOT}/{job.run}")
+    job.handle = dict(host=host.name, job_dir=f"{host.job_root}/{job.run}")
     return job
 
 

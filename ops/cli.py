@@ -94,8 +94,14 @@ def _small_gpu_envs(job, host):
 
 def _start(job):
     if job.backend == "ssh":
-        from ops.hosts import load_hosts
-        _small_gpu_envs(job, load_hosts()[job.host])
+        from ops.hosts import budget_timeout_min, load_hosts
+        host = load_hosts()[job.host]
+        _small_gpu_envs(job, host)
+        cap = budget_timeout_min(host)
+        if cap:                                  # a rented GPU: never run past what the budget pays for
+            job.timeout_min = min(job.timeout_min, cap)
+            print(f"paid host {host.name}: ${host.price_per_h}/h, budget ${host.budget_usd} -> "
+                  f"job stops after {cap} min (~${host.price_per_h * cap / 60:.2f})")
     if job.backend in PAID:
         print(f"paid backend: {job.backend} {job.gpu or 'A10G'}, last-resort limit {job.timeout_min} min; check it ~4 h in")
     backend(job.backend).submit(job)

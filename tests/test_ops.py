@@ -72,12 +72,13 @@ def test_remote_command_survives_both_shells():
 def test_job_scripts_are_complete():
     job = Job(run="r1", experiment="configs/experiments/smoke.toml", backend="ssh", host="h", sha="a" * 40,
               timeout_min=7, num_envs=512)
-    kw = dict(job_root=jobscript.JOB_ROOT, run=job.run, repo="~/pinch", python=".venv-rl/bin/python", sha=job.sha,
+    kw = dict(job_root=jobscript.JOB_ROOT, stop_when_done=1, run=job.run, repo="~/pinch", python=".venv-rl/bin/python", sha=job.sha,
               remote="https://example.invalid/pinch.git", experiment=job.experiment, timeout_min=7,
               extra="--num-envs 512")
     prep = jobscript.PREPARE.format(**kw)
     assert "git -C \"$REPO\" archive " + "a" * 40 in prep and "timeout 7m" in prep and "--num-envs 512" in prep
     assert "{" not in prep.replace("${", "").replace("^{commit}", "")       # every placeholder filled
+    assert 'runpodctl pod stop "$RUNPOD_POD_ID"' in prep and '[ "1" = "1" ]' in prep
     assert jobscript.parse_status("exit_code=0\nlast={\"step\": 5}") == ("done", {"step": 5})
     assert jobscript.parse_status("exit_code=1")[0] == "failed"
     assert jobscript.parse_status("exit_code=143")[0] == "stopped"
@@ -100,3 +101,11 @@ def test_guard():
     assert not guard.check_message("fix the gait")
     assert guard.TAILNET_IP.search("ssh u@" + ".".join(["100", "101", "2", "3"])) and not guard.TAILNET_IP.search("v 100.2.3.4")
     assert guard.check_tree() == 0, "a tracked file is private or holds a tailnet address"
+
+
+def test_paid_host_budget_caps_the_job():
+    from ops.hosts import budget_timeout_min
+    assert budget_timeout_min(Host("free", "u@h")) == 0
+    h = Host("pod", "root@1.2.3.4", port=40122, price_per_h=0.89, budget_usd=13.0)
+    m = budget_timeout_min(h)
+    assert 0.89 * m / 60 <= 13.0 * 0.85 + 1e-9 and m > 700        # ~12.4 h for $13 at $0.89/h, with slack

@@ -21,6 +21,9 @@ export PINCH_GIT_SHA={sha} PINCH_GIT_DIRTY=0 XLA_PYTHON_CLIENT_MEM_FRACTION=0.85
 echo $$ > "$JOB/pid"
 timeout {timeout_min}m "$REPO/{python}" -m training.train --experiment {experiment} --run {run} --out-root "$JOB/out" {extra} > "$JOB/train.log" 2>&1
 echo $? > "$JOB/exit_code"
+if [ "{stop_when_done}" = "1" ] && [ -n "${{RUNPOD_POD_ID:-}}" ] && command -v runpodctl >/dev/null; then
+  runpodctl pod stop "$RUNPOD_POD_ID"        # a rented pod: stop billing for the GPU (/workspace keeps the results)
+fi
 JOBEOF
 chmod +x "$JOB/job.sh"
 echo prepared "$JOB"

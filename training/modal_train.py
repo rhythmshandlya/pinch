@@ -113,3 +113,41 @@ def fetch(run: str = "gait-v1", dest: str = ""):
     for name, data in files.items():
         (dst / name).write_bytes(data)
     print(f"downloaded {sorted(files)} -> {dst}")
+
+
+# ---- throughput benchmark: which GPU gives the most simulation steps per dollar on OUR workload ----------------
+
+BENCH_GPUS = ("A10G", "L4", "L40S", "A100-40GB", "H100")
+BENCH_CASES = (("gait_v2", "gait_v2", 2048), ("gait_v2", "gait_v2", 8192), ("grasp", "grasp", 4096))
+
+
+@app.function(gpu="A10G", timeout=1800)
+def bench_one(env: str, preset: str, num_envs: int, gpu_name: str) -> dict:
+    """A short real training run; steps/s between the 2nd and last evaluation (after XLA compilation)."""
+    import subprocess
+    import time
+    sys.path.insert(0, "/root/pinch")
+    os.chdir("/root/pinch")
+    from training.train import run_training
+    t0 = time.time()
+    out = run_training(preset, env, 3_000_000, f"bench-{env}-{num_envs}", True, out_root="/tmp/bench",
+                       num_envs=num_envs, overrides=dict(num_evals=4, num_eval_envs=128))
+    rows = [json.loads(x) for x in (out / "progress.jsonl").read_text().splitlines()]
+    a, b = rows[1], rows[-1]
+    smi = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.used,memory.total", "--format=csv,noheader"],
+                         capture_output=True, text=True).stdout.strip()
+    return dict(gpu=gpu_name, gpu_seen=smi, env=env, num_envs=num_envs,
+                steps_per_s=round((b["step"] - a["step"]) / max(1e-6, b["time_s"] - a["time_s"])),
+                compile_s=round(rows[1]["time_s"] - rows[0]["time_s"]), wall_s=round(time.time() - t0))
+
+
+@app.local_entrypoint()
+def throughput(gpus: str = ",".join(BENCH_GPUS)):
+    """python -m modal run training/modal_train.py::throughput  ->  one JSON line per (GPU, case)."""
+    calls = [(g, c, bench_one.with_options(gpu=g).spawn(c[0], c[1], c[2], g))
+             for g in gpus.split(",") for c in BENCH_CASES]
+    for g, c, call in calls:
+        try:
+            print(json.dumps(call.get()), flush=True)
+        except Exception as e:                       # noqa: BLE001 - one GPU's failure must not hide the rest
+            print(json.dumps(dict(gpu=g, env=c[0], num_envs=c[2], error=str(e)[:300])), flush=True)

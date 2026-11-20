@@ -37,6 +37,11 @@ class Host:
     max_jobs: int = 1
     gpu: str = ""
     notes: str = ""
+    port: int = 22                  # a Runpod pod's direct SSH is on a mapped port
+    price_per_h: float = 0.0        # paid hosts (a rented pod): jobs get a budget-derived timeout
+    budget_usd: float = 0.0         # spend at most this on one job here (0: no budget limit)
+    job_root: str = "$HOME/pinch-jobs"   # a Runpod pod: /workspace/pinch-jobs (the container disk is wiped on stop)
+    stop_when_done: bool = False    # a Runpod pod: stop itself when the job ends, so an idle GPU doesn't bill
 
     def __post_init__(self):
         if self.os not in ("linux", "windows-wsl"):
@@ -72,9 +77,22 @@ def remote_command(host, script):
     return inner
 
 
+def _ssh_base(host):
+    return [ssh_exe(), "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new",
+            "-p", str(host.port), host.ssh]
+
+
+def budget_timeout_min(host, margin=0.85):
+    """Minutes a job may run on a paid host before its budget is spent (85 % of it, the rest is slack for setup
+    and fetching). 0 when the host has no budget."""
+    if not (host.price_per_h and host.budget_usd):
+        return 0
+    return int(60 * margin * host.budget_usd / host.price_per_h)
+
+
 def run_bash(host, script, timeout=60, check=True):
     """Run script on host; returns stdout. Batch mode: never prompts (key login only)."""
-    cmd = [ssh_exe(), "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host.ssh, remote_command(host, script)]
+    cmd = [*_ssh_base(host), remote_command(host, script)]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     if check and r.returncode != 0:
         raise RuntimeError(f"{host.name}: exit {r.returncode}: {r.stderr.strip() or r.stdout.strip()}")
@@ -84,8 +102,7 @@ def run_bash(host, script, timeout=60, check=True):
 def run_powershell(host, ps, timeout=60):
     """A PowerShell command on a Windows host (its SSH shell is PowerShell). Encoded, so quotes survive."""
     enc = base64.b64encode(ps.encode("utf-16-le")).decode()
-    cmd = [ssh_exe(), "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host.ssh,
-           f"powershell -NoProfile -NonInteractive -EncodedCommand {enc}"]
+    cmd = [*_ssh_base(host), f"powershell -NoProfile -NonInteractive -EncodedCommand {enc}"]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     if r.returncode != 0:
         raise RuntimeError(f"{host.name}: exit {r.returncode}: {r.stderr.strip() or r.stdout.strip()}")
