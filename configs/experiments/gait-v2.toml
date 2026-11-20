@@ -7,7 +7,7 @@ description = "walking v2: 48 commands plus crouched pushing; the adopted walker
 [compute]
 min_vram_gb = 6
 small_gpu_num_envs = 2048
-timeout_min = 240
+timeout_min = 1440
 gpu = "A10G"
 cloud_ok = true
 

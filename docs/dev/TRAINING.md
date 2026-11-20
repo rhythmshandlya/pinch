@@ -6,7 +6,7 @@ The loop: **experiment file → job → checkpoint → numpy policy → bench �
 
 Copy the closest file in `configs/experiments/` (format in its README). An experiment names an environment from
 `training/registry.py` (`python -m ops envs`), a preset from `configs/train/presets.toml`, any overrides, its
-compute needs (with a hard timeout) and the benches that judge it.
+compute needs (with a last-resort timeout) and the benches that judge it.
 
 A new environment: add its module under `training/`, register it once in `training/registry.py`, add an
 experiment and run `python tests/run.py ops` (it checks every experiment resolves).

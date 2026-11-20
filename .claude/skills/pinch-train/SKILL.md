@@ -11,8 +11,8 @@ Everything goes through `python -m ops` (run from the repo root with `.venv\Scri
 ## Steps
 
 1. **Pick or write the experiment** in `configs/experiments/` (`python -m ops envs` lists environments). Copy the
-   closest file; change `name`, `env`, `preset`, `[overrides]`. Keep `[compute] timeout_min` - paid backends
-   refuse to run without a hard stop. Run `python tests/run.py ops` after editing.
+   closest file; change `name`, `env`, `preset`, `[overrides]`. Keep `[compute] timeout_min` (24 h, a last-resort net:
+   runs end when their steps are done). Run `python tests/run.py ops` after editing.
 2. **Commit and push.** Jobs train a pushed commit (`ops submit` refuses unpushed or dirty trees for remote
    backends). Name the run after the task: `--run <task>-<skill>-v<n>`.
 3. **Choose compute:**
@@ -32,4 +32,5 @@ Everything goes through `python -m ops` (run from the repo root with `.venv\Scri
   laptop is off or Tailscale is down - ask the user, don't retry in a loop.
 - `success` means different things per skill: fraction of commanded speed (walking), success rate (get-up, grasp).
 - A NaN reward stops the run on purpose (the trainer raises to save GPU time).
-- Never leave paid jobs running without a reason: `python -m ops stop <run>`.
+- Long runs are not capped: schedule a check about 4 h in (and every few hours after). Stop a run that is stuck
+  (no new evaluation for 30+ min), diverging, or flat for its last several evaluations: `python -m ops stop <run>`.

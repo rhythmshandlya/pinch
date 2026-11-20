@@ -33,8 +33,9 @@ project as a package: entry points put their own checkout on `sys.path`, which i
   trace, DECISIONS.md, README, policy registry) are edited only by the integrator when merging.
 - **Public repository.** Never commit the local-only documents or machine addresses (`ops/guard.py` enforces it),
   never add AI attribution lines to commits, commit with the project's noreply address.
-- **Paid compute.** Every Modal/cloud job carries a hard timeout (the experiment's `timeout_min`); stop what is
-  not needed.
+- **Paid compute.** Runs are not cut short: a job ends when its steps are done. `timeout_min` (24 h) is only a
+  last-resort net. Check every long run about 4 h in (`ops jobs -r`, `ops logs`): stop it if it's stuck, diverging
+  or no longer improving, and stop anything not needed.
 
 ## Agent skills in this repo (`.claude/skills/`)
 

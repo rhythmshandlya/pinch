@@ -1,4 +1,4 @@
-"""Modal cloud GPUs (paid: every job carries a hard timeout and an explicit GPU type).
+"""Modal cloud GPUs (paid: an explicit GPU type; a 24 h last-resort timeout, runs end when their steps are done).
 
 Drives training/modal_train.py through the Modal CLI. The image carries this checkout's files, so submit
 requires a clean tree at the job's commit (ops.cli enforces it) and passes the commit to the run record.

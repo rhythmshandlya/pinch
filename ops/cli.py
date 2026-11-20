@@ -97,7 +97,7 @@ def _start(job):
         from ops.hosts import load_hosts
         _small_gpu_envs(job, load_hosts()[job.host])
     if job.backend in PAID:
-        print(f"paid backend: {job.backend} {job.gpu or 'A10G'}, hard timeout {job.timeout_min} min")
+        print(f"paid backend: {job.backend} {job.gpu or 'A10G'}, last-resort limit {job.timeout_min} min; check it ~4 h in")
     backend(job.backend).submit(job)
     jobs.upsert(job)
     print(f"started {job.run} on {job.backend}{(' ' + job.host) if job.host else ''} at {job.sha[:8]}")

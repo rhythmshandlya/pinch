@@ -10,7 +10,7 @@ num_timesteps = 40_000_000
 [compute]
 min_vram_gb = 6
 small_gpu_num_envs = 2048
-timeout_min = 120
+timeout_min = 1440
 gpu = "A10G"
 cloud_ok = true
 

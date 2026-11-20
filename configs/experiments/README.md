@@ -16,7 +16,7 @@ num_timesteps = 150_000_000
 [compute]
 min_vram_gb = 6                # hosts with less are skipped
 small_gpu_num_envs = 2048      # num_envs on GPUs under 12 GB
-timeout_min = 240              # hard stop on every backend
+timeout_min = 1440             # last-resort stop (Modal's 24 h maximum); runs end when their steps are done
 gpu = "A10G"                   # Modal / cloud GPU type
 cloud_ok = true                # may it run on a paid backend (Modal, SkyPilot)?
 

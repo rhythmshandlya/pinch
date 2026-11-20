@@ -22,7 +22,7 @@ description: Add a new reinforcement-learning environment or task variant for Pi
 2. Put the observation/action contract the robot also uses in `crab/policy_io.py` (numpy, no JAX), so training
    and deployment share one definition.
 3. Register it once in `training/registry.py` (`EnvSpec`: name, skill, factory, kwargs, randomiser, description).
-4. Add `configs/experiments/<name>.toml` with a hard timeout and an `[eval]` that runs a bench.
+4. Add `configs/experiments/<name>.toml` with a last-resort timeout and an `[eval]` that runs a bench.
 5. A bench in `sim/benches/` if none measures the skill yet (`common.run_parallel`, `--json`, many seeds).
 6. `python tests/run.py ops architecture` then a smoke run: `python -m training.train --env <name> --preset smoke`
    with `.venv-rl` (CPU, minutes).

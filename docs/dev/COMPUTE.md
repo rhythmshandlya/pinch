@@ -4,7 +4,7 @@
 |---|---|---|---|
 | `local` | smoke runs, CPU checks | free | `.venv-rl` |
 | `ssh` | your machines and friends' machines on Tailscale (msi-1, a rented GPU, a server) | free | one entry in `ops/hosts.local.toml` + `ops hosts bootstrap` |
-| `modal` | burst GPUs (A10G default) | paid, hard timeout per job | `pip install modal`, `modal token new` |
+| `modal` | burst GPUs (A10G default) | paid; runs end when done, 24 h last-resort limit, checked ~4 h in | `pip install modal`, `modal token new` |
 | `skypilot` | the cheapest cloud GPU across RunPod, Lambda, Vast.ai, AWS, GCP...; Linux servers as SSH Node Pools | paid (cloud) | `pip install "skypilot[runpod,lambda]"` on Linux/WSL, `sky check` |
 
 All four run the same contract: snapshot a pushed commit, `python -m training.train --experiment ...`, write
@@ -45,4 +45,4 @@ queued jobs on the first host with enough free VRAM, or on Modal when the experi
   list has no WSL2, so the Windows laptops get a small SSH backend instead.
 - **SkyPilot** (10.8k stars, UC Berkeley, NSDI '23): the standard way to reach the cheapest cloud GPU across
   providers, with managed jobs that survive preemption.
-- **Modal**: already in use, per-second billing, hard timeouts.
+- **Modal**: already in use, per-second billing, a 24 h last-resort limit per run.
