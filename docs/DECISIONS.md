@@ -1261,3 +1261,15 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       host carries `price_per_h` and `budget_usd`; `ops` caps each job at 85 % of the budget, jobs run in
       `/workspace` (kept when a pod stops), and the pod stops itself when its job ends.
     - **When:** the motion-tracking policy, once its environment exists; until then msi-1 trains.
+98. **The claw stays as it is; grabbing works within it.**
+    - **Why:** the owner saw a pen pick fail because the claw closes sideways with a 15-23 mm opening, so a pen is
+      graspable only lying along the arm.
+    - **Studied:** a "crab tongs" redesign (two hooked fingers geared together, closing front-to-back). In a scratch
+      rig it held a pen lying across the claw 9/9 (today's claw 0/9), the eraser 27/27 (1/27) and the cap 9/9 (0/9).
+      Sources behind it: Dogar & Srinivasa 2010 (push-grasp funnels), Rodriguez, Mason & Ferry 2012 (caging to
+      grasping), the Petoi Bittle claw (a proven gear-coupled micro-servo claw). Rejected options: wider sideways
+      jaws (no pen across) and a scoop (it pushed things instead of sliding under them).
+    - **Decision:** the owner chose to keep today's claw; the tongs add printed or bought gears and a more delicate
+      build. Instead, the pick planner checks fit before grabbing (approach a pen along its length), pushes or
+      rotates a thing into a pickable pose, or pushes it to the tray; the cap and ball stay push-only. The tongs
+      study is the fallback if grabbing stays the bottleneck.
