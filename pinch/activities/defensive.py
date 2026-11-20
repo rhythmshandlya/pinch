@@ -63,11 +63,14 @@ class Shy(Activity):
     def run(self, m):
         yield ("face", "shy")
         yield ("goto", m.memory.home_of("pinch") or m.world.desk.home_xy, 0.05)
-        yield ("look_at", m.world.desk.owner_xy)
-        yield ("wait", 4.0)
-        yield ("face", "curious")
-        if not m.affect.quiet:
-            yield ("sound", "curious_chirp")
+        peeks = 0
+        while m.people.strangers_here(m.world.clock()) and peeks < 12:    # one shy spell, not a restart loop
+            yield ("look_at", m.world.desk.owner_xy)
+            yield ("wait", 4.0 + 2.0 * m.rng.random())
+            yield ("face", "curious" if peeks % 2 else "shy")
+            if peeks == 0 and not m.affect.quiet:
+                yield ("sound", "curious_chirp")
+            peeks += 1
 
 
 class Hide(Activity):

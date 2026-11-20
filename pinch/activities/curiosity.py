@@ -124,7 +124,9 @@ class Investigate(Activity):
             return
         prev = m.decisions[-1]["prev"] if m.decisions else None
         if prev and prev not in NO_RESUME and m.suspended is None:
-            m.suspended = (prev, m.t)                   # whatever it was doing comes back afterwards
+            m._suspend(prev)                            # whatever it was doing comes back afterwards
+        elif m.suspended is not None:
+            m.suspended = (m.suspended[0], m.t)         # still waiting: its resume window restarts with this bout
         m.attend_key(th.key)
         start, first = th.xy, th.bouts == 0
         d0, closest, views, why = _dist(m, th.xy), [], [], None

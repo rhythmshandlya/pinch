@@ -211,6 +211,9 @@ class FirmwareCore:
         if self.t - self.last_save >= SAVE_EVERY:
             self.save_memory()
         self.body.life.liveliness = self.mind.affect.arousal
+        if self.body.mood_fn is None:          # the emote style follows the whole mood (decision 92)
+            a = self.mind.affect
+            self.body.mood_fn = lambda: dict(arousal=a.arousal, valence=a.valence, sleepy=a.needs.sleep)
         q = self.body.tick()                                 # 20 ms: servos (and physics when emulated)
         cmd = getattr(self.body, "cmd_vel", (0.0, 0.0, 0.0))
         self.loc.predict(cmd, DT, self.t)

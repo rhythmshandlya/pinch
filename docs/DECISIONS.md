@@ -1167,3 +1167,72 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Rejected:** Hydra for configs (a dependency and indirection the configs don't need yet), a tracking
       server (workers would need to reach it; `run.json` can be imported into MLflow later), an editable install
       (it would make worktrees import each other's code).
+91. **Long-duration runs: a whole day of full autonomy and a week of memory, in minutes.**
+    - **Why:** the soak bench covered hours. A full simulated day in physics would take ~7 h on CPU (the twin
+      runs at 3.5-4x real time; the mind alone at 1000-1500x).
+    - **Evidence:** fast-forward plus warm-started sampled windows, as in SMARTS (Wunderlich et al., ISCA 2003);
+      accelerated testing that skips uneventful stretches (Feng et al., Nature 615, 2023).
+    - **Change:** `sim/benches/longrun.py day|week`. The day: the real mind on a no-physics desk for 24 h
+      (stand-up, meeting, lunch, a visitor, night), plus five 10-minute twin windows warm-started from its state.
+      The week: 7 days with a reboot each night through the memory file. Checks: observer, sleep at night, quiet
+      hours, meetings, variety, physics safety; memory, people, fear, danger map, routines, likes. Known mind bugs
+      are strict expected failures (fixing one turns its test red until it is removed from the list).
+      `tests/test_long_day.py`, `tests/test_long_week.py` run shortened versions (~90 s together).
+    - **Measured:** it found four real bugs (night sleep, attention-seeking loops, fear restored on reboot, things
+      kicked off while turning); three are fixed in decision 94. Week: guest familiarity decay ratio 0.9549 vs
+      0.9548 expected, guest fear ratio 0.250 (3-day half-life), stand-up learned as a routine on day 2.
+    - **Rejected:** 24 h of physics (7 h per day); a faster twin clock or coarser mind tick (they change behaviour).
+92. **Emote variation and touch nuance.**
+    - **Why:** emotes were identical every time, touch reactions ignored where and how often Pinch was touched,
+      and any touch woke it.
+    - **Evidence:** layered motion with mood as a time/size pass (Snibbe, Scheeff & Rahardja 1999; Knight & Simmons,
+      HRI 2015); an animation engine tracked by a learned policy (Grandia et al., RSS 2024, Disney's bipedal
+      character); habituation characteristics (Rankin et al. 2009, updating Thompson & Spencer 1966); Stanley's
+      habituation model on a robot (Marsland, Nehmzow & Shapiro 2000); dual-process sensitisation (Groves &
+      Thompson 1970).
+    - **Change:** each emote play gets a seeded style (tempo, size, arm asymmetry and lag, mirror, body turn) from
+      the whole mood (arousal, valence, sleepiness; the twin and firmware pass it), within joint, shin and speed
+      limits; legs get half the size change and no lag; back-to-back repeats are pushed apart. Touch gestures carry
+      their pads: ReactTouch reacts by side and region (look and turn toward the hand, the touched claw answers, a
+      back stroke settles), habituates (60 s recovery, 15 % floor; rough touch dishabituates and sensitises), and
+      follows wake rules (`any` / `gentle` default / `deep`). The robustness bench plays variants.
+    - **Measured:** emote robustness, 40 episodes: 0 -> 0 falls, tilt RMS 1.4 -> 1.2 deg, worst 7.4 -> 7.0 deg;
+      88 extreme variants pass `sim/check.py`'s servo criteria (worst 96 % of the speed limit, as the plain clips).
+    - **Rejected:** side-specific new emotes (would change the balance policy's training set); lag on the legs.
+93. **grasp-v6 adopted; the gentler get-up at 20M not.**
+    - **grasp-v6** (30.6M steps on Modal, stopped at its 3 h cap): pick bench, 24 layouts each: eraser into the
+      tray 11/24 (scripted grab 2/24), pen 10/24 (9/24), 0 falls, pen knock-offs 2 (1). Now `policies/grasp.npz`.
+    - **righting-smooth-v1** (20.6M of 40M on msi-1, its 2 h cap): 200/200, 0.54 s, but commanded joint speed
+      p95 20.2 rad/s vs 18.4 for righting-v1 - not gentler. Kept local; the full 40M run (righting-smooth-v2) is
+      training on msi-1. The righting bench now reports commanded joint speed (p95 and peak).
+94. **Three mind bugs the long runs found, fixed; nested interruptions resume.**
+    - **Night sleep:** Rest ended once sleepiness fell below 0.05 and each 10 s nap took 0.08 off, so a night was
+      ~1 minute of nap per 16 of idling. At night Rest now sleeps on until morning (touch, voice and the owner still
+      preempt it) and pays sleepiness off 4x more slowly; one rest covers a night (watchdog 9 h).
+    - **Attention-seeking loop:** SeekAttention won every ~75 s for hours. Unanswered bids now back off
+      exponentially (90 s, 3, 6, 12 ... up to 20 min), reset when the owner pays attention - the
+      escalate-then-give-up pattern of a needy pet, not a nag. Shy stays one shy spell while a stranger is here
+      instead of restarting every 10 s.
+    - **Fear restored on reboot:** the danger map's decay was never saved; it is now written back every minute.
+    - **Resume stack:** an interrupted activity that was waiting to resume was forgotten when the next interrupt
+      came; interrupted activities now stack (3 deep), and a waiting one gets a fresh window when what interrupted
+      it restarts.
+95. **Curiosity about unknown things and motion.**
+    - **Why:** vision knew only 4 named things and faces; nothing noticed new objects or motion.
+    - **Evidence:** approach-retreat novelty management (Gordon, Fonio & Ahissar 2014, J. Neurosci.); novelty as a
+      threat prediction unlearned by safe encounters (Akiti et al. 2022, Neuron); the Wundt curve as a difference
+      of two sigmoids (Berlyne; Saunders & Gero 2001); releasing stimuli plus motivation (Arkin, Fujita et al., AIBO).
+    - **Change:** `pinch/novelty.py`: a sensor-agnostic `Observation(kind, xy, velocity, size, confidence,
+      signature)`; novelty (x0.55 per safe close look, remembered per signature, half recovers in 3 days) and
+      wariness (0.3 + 0.6 x timidity, lowered by safe looks); distance kept 9 cm + 16 cm x wariness; startle
+      proportional to closeness x speed x looming. `pinch/activities/curiosity.py`: Watch (gaze and turn follow
+      motion; allowed when quiet) and Investigate (freeze, stop-go slow approach, pause, 2+ sides, retreat, revisit
+      until familiar; edge, tray and danger-map aware; resumes what it interrupted). Twin props (box, tube, toy)
+      that can appear, vanish and move, perceived with noise and field of view; the firmware passes observations
+      through. The new activities draw their tie-break noise from their own stream.
+    - **Measured:** 5 seeds: 3 looks, closest 18 -> 15 -> 13 cm, 2-3 sides per look, familiar after ~125 s, 0 falls,
+      0 edge recoveries; gaze tracking error 0.03; a toy rushing to 12 cm at 0.45 m/s startles, slow motion at 33 cm
+      does not. The robot's camera pipeline must provide these observations (unknown blobs with desk position,
+      size, tracked velocity, score and an appearance signature); not built yet.
+    - **Rejected:** a pure novelty drive (no caution); learning-progress curiosity (fits skill learning, not
+      encounters); putting unknown things into the world model's named objects (Play and GuardEdge would act on them).

@@ -31,7 +31,8 @@ class Idle(Activity):
 
 
 class Rest(Activity):
-    state, max_s = "rest", 1800.0
+    # a whole night is one rest (decision 94): the watchdog limit covers 22:00-06:00 plus margin
+    state, max_s = "rest", 9 * 3600.0
     name, min_s, quiet_ok = "rest", 20.0, True
 
     def utility(self, m):
@@ -46,8 +47,11 @@ class Rest(Activity):
         while True:
             yield ("face", "asleep")
             yield ("pose", "nap", 10.0)
-            m.affect.needs.sleep = max(0.0, m.affect.needs.sleep - 0.08)
-            if m.affect.needs.sleep < 0.05 and m.t > m.sleeping_until:
+            night = m.routine.is_night(m.world.clock())
+            # by day a nap pays off sleepiness and ends; at night it sleeps on until morning (or something wakes it:
+            # touch, voice and the owner preempt Rest through the usual selection), paying it off 4x more slowly
+            m.affect.needs.sleep = max(0.0, m.affect.needs.sleep - (0.02 if night else 0.08))
+            if m.affect.needs.sleep < 0.05 and m.t > m.sleeping_until and not night:
                 break
         yield ("face", "sleepy")
         yield ("emote", "stretch")

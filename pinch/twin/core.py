@@ -130,6 +130,9 @@ class TwinCore:
             self.face.update(DT * FACE_EVERY, expr, gaze)
             set_face(self.m, self.face.rgb(scale=2))
         self.body.life.liveliness = self.mind.affect.arousal
+        if self.body.mood_fn is None:          # the emote style follows the whole mood (decision 92)
+            a = self.mind.affect
+            self.body.mood_fn = lambda: dict(arousal=a.arousal, valence=a.valence, sleepy=a.needs.sleep)
         self.body.tick()                                   # 20 ms of physics through the robot runtime
         self.k += 1
         self.t += DT

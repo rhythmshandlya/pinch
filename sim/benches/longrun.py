@@ -445,17 +445,10 @@ def physics_window(args):
 # shows as KNOWN and doesn't fail the verdict, and the tests expect it to still fail (a strict xfail): when one is
 # fixed, its test fails and says to delete the entry here.
 KNOWN_ISSUES = {
-    "sleeps_at_night": "Rest ends once sleepiness < 0.05 and each 10 s nap takes 0.08 off it, ~20x faster than the "
-                       "night drive (x3) builds it back, so a night is ~1 min of nap per ~16 min of idling "
-                       "(pinch/activities/rest.py)",
-    "night_not_day": "same cause as sleeps_at_night",
-    "observer_no_failure_loop": "SeekAttention (and Shy while a stranger is near) finishes in ~10 s and wins again, "
-                                "every ~75 s for hours while you work; the observer counts each re-choice as a restart",
+    # fixed in decision 94: night sleep, attention-seeking and shy loops, faded fear lost on reboot
     "physics_nothing_knocked_off": "turning in place doesn't keep the legs off nearby things: in the evening window "
                                    "the ball flew 16 cm in 1 s during SeekAttention's turn_to with Pinch ~10 cm "
                                    "away, and the ball and cap then roll on to the edge (pinch/body turn_to)",
-    "danger_extinction_survives_reboot": "the danger map's decay is never written back to memory.data['danger'] "
-                                         "(pinch/mind/selfcare.py), so a reboot restores the fear as last learned",
 }
 
 

@@ -141,7 +141,7 @@ def test_it_goes_back_to_what_it_was_doing():
     sim.mind._start("explore", "test")
     sim.run(1.0)
     sim.show_prop("box", (0.15, 0.0))
-    sim.run(60.0)
+    sim.run(90.0)                                   # room for a nested interruption (e.g. guard_edge) to unwind
     recs = [(r["to"], r["reason"]) for r in sim.mind.decisions]
     i = next((k for k, (a, _) in enumerate(recs) if a == "investigate"), None)
     assert i is not None, recs

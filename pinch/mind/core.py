@@ -37,6 +37,7 @@ class MindCore:
         self.phases = deque(maxlen=1000)     # (t, activity, phase): where it is inside an activity
         self.phase = ""                      # the current activity's phase ("" until it says)
         self.suspended = None                # (activity, t): cut short by something urgent, may resume
+        self.resume_stack = []               # older interrupted activities, newest last (nested interruptions)
         self.timed_out = None                # (activity, t): ended by its max_s
         self.danger_map = DangerMap(self.memory.data.get("danger"))   # learned fears of desk spots (safety.py)
         self.playbook = PlayBook(self.memory.data.get("play"))      # games it invented and how fun they were

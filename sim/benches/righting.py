@@ -8,7 +8,8 @@ Each start: rolled 180 +- 30 deg, pitched +- 25 deg, any heading, joints +-0.2 r
 dropped from 8 cm; floor friction x0.4-1.2, masses +-15 %, servo strength x0.7-1.1. Both controllers are
 sensed as on the robot (the PWM arm servos report nothing: their angle is the last command, their speed 0;
 --true-arms gives the policy the true values) and handled like Body._right_self: once upright for 0.2 s they blend to the stand pose; success is still
-upright 2 s later. Reports the success rate and the time to upright (mean, 90th percentile).
+upright 2 s later. Reports the success rate, the time to upright (mean, 90th percentile) and how hard it drives
+the servos while getting up: the 95th percentile of the commanded joint speed (rad/s) and its peak (decision 85).
 """
 
 import argparse
@@ -66,6 +67,7 @@ def episode(args):
     sub = int(round(CTRL_DT / DT))
     last = np.zeros(len(JOINT_NAMES))
     t, up, up_t = 0.0, 0, None
+    prev, rates = d.ctrl.copy(), []
     while t < TIMEOUT:
         if pol is not None:
             R = d.xmat[body].reshape(3, 3)
@@ -77,6 +79,8 @@ def episode(args):
             d.ctrl[:] = pio.righting_targets(np, last, lo, hi)
         else:
             d.ctrl[:] = np.clip(righting.target(t), lo, hi)
+        rates.append(np.abs(d.ctrl - prev) / CTRL_DT)      # commanded joint speed this tick, every joint
+        prev = d.ctrl.copy()
         for _ in range(sub):
             mujoco.mj_step(m, d)
         t += CTRL_DT
@@ -84,14 +88,16 @@ def episode(args):
         if up >= int(0.2 / CTRL_DT):
             up_t = t
             break
+    r = np.concatenate(rates) if rates else np.zeros(1)
+    slew = (round(float(np.percentile(r, 95)), 2), round(float(r.max()), 2))
     if up_t is None:
-        return ctrl, seed, False, None
+        return ctrl, seed, False, None, slew
     q0 = d.ctrl.copy()
     for k in range(int(2.0 / DT)):                       # blend to stand (0.6 s) and stay up
         s = min(1.0, k * DT / 0.6)
         d.ctrl[:] = q0 + (STAND - q0) * s
         mujoco.mj_step(m, d)
-    return ctrl, seed, bool(d.xmat[body][8] > 0.85), up_t
+    return ctrl, seed, bool(d.xmat[body][8] > 0.85), up_t, slew
 
 
 def main():
@@ -115,7 +121,8 @@ def main():
         times = np.array([x[3] for x in ok]) if ok else np.array([np.nan])
         name = "swing (crab/righting.py)" if c == "swing" else f"policy ({a.policy})"
         print(f"{name:28s} upright and standing {len(ok)}/{len(r)}   time to upright mean "
-              f"{np.mean(times):.2f} s, p90 {np.percentile(times, 90):.2f} s")
+              f"{np.mean(times):.2f} s, p90 {np.percentile(times, 90):.2f} s   commanded joint speed p95 "
+              f"{np.median([x[4][0] for x in r]):.1f} rad/s, peak {np.median([x[4][1] for x in r]):.0f} rad/s (medians)")
     return 0
 
 

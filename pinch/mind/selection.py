@@ -78,7 +78,7 @@ class Selection:
         better = scores[best] > scores.get(cur.name, 0) + 0.15 and elapsed > cur.min_s
         if (cur.interruptible and (urgent or better)) or (not cur.interruptible and urgent and best in ("startle", "right_self")):
             if urgent and cur.name != best:
-                self.suspended = (cur.name, self.t)              # (it may come back to it afterwards)
+                self._suspend(cur.name)                          # (it may come back to it afterwards)
             self._start(best, ("urgent" if urgent else "clearly better") + f" than {cur.name}"
                         + (" (after an interrupt)" if self._force else ""))
             return True
@@ -102,10 +102,23 @@ class Selection:
 
     start_score = 0.0
 
+    RESUME_DEPTH = 3                     # interruptions remembered at once (explore -> investigate -> guard_edge)
+
+    def _suspend(self, name):
+        """Remember an interrupted activity. One already waiting moves down the resume stack instead of being
+        forgotten, so nested interruptions unwind in order."""
+        if self.suspended and self.suspended[0] != name:
+            self.resume_stack = (self.resume_stack + [self.suspended])[-self.RESUME_DEPTH:]
+        self.suspended = (name, self.t)
+
     def _start(self, name, reason=""):
         if self.suspended and self.suspended[0] == name:
             reason += " (resumed)"
             self.suspended = None
+            while self.resume_stack and self.suspended is None:    # the next one down gets its own window
+                older, _ = self.resume_stack.pop()
+                if older != name:
+                    self.suspended = (older, self.t)
         if self.timed_out and self.timed_out[0] == name and self.t - self.timed_out[1] < 1.0:
             reason = "restarted after a timeout"
         self._record_decision(name, reason)

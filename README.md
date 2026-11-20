@@ -27,9 +27,12 @@ Every part was in stock in India on 2026-11-19, about ₹91k plus prints ([hardw
 | Walking | Learned corrections on a scripted trot: **0 falls** in 200 randomised episodes over five worlds (flat, rough, caught foot, hurdles, steeper hurdles), 80–86 % speed tracking (scripted alone: 65–69 %) | [docs/ROBUSTNESS.md](docs/ROBUSTNESS.md) and the `ROBUSTNESS_*` reports |
 | Obstacles | Cables, pens and a book, forward and sideways; bars and ramps in [docs/HURDLES.md](docs/HURDLES.md) | `sim/benches/obstacles.py`, `sim/benches/hurdles.py` |
 | Getting up | **200/200** random falls on its back, 0.54 s on average (the searched swing it replaced: 107/200) | `sim/benches/righting.py` |
-| Emotes | 22 emotes with a learned balance policy, 0 falls | [docs/ROBUSTNESS.md](docs/ROBUSTNESS.md) |
+| Emotes | 22 emotes with a learned balance policy, 0 falls; each play varies with its mood (tempo, size, asymmetry, mirror), within joint and speed limits | [docs/ROBUSTNESS.md](docs/ROBUSTNESS.md), `tests/test_variation.py` |
+| Touch | Reacts to where it was touched (turns to your hand, the touched claw answers, a back stroke settles it), gets used to repeated petting and recovers, and only wakes for the touches you allow | `tests/test_touch_nuance.py` |
+| Curiosity | Notices unknown things and motion: freezes, creeps closer slowly, looks from two sides, backs off, comes back until it's familiar; its eyes follow a moving toy; something rushing at it close by startles it | `tests/test_curiosity.py` |
+| A day and a week | 24 hours of full autonomy (sleeps through the night, silent in meetings and quiet hours, varied, 0 falls in the physics windows) and 7 days of memory across reboots, each in minutes | `sim/benches/longrun.py` |
 | Behaviour | 12 of 13 scenarios, from tricks and learning your name to comforting you and raising the alarm when something nears the edge | [docs/BEHAVIOUR_TESTS.md](docs/BEHAVIOUR_TESTS.md) |
-| Tidying | Still the weakest skill: on a 24-layout bench the cap reaches the tray 11/24 times and the eraser 11/24, and the toy ball gets knocked off in about half the runs | `sim/benches/tidy.py` |
+| Tidying | Still the weakest skill: on a 24-layout bench the cap reaches the tray 9-11/24 times and the eraser 12/24, and the toy ball gets knocked off in about half the runs. Picking up: a learned grab gets the eraser into the tray 11/24 times (scripted: 2/24) | `sim/benches/tidy.py`, `sim/benches/pick.py` |
 | Firmware | 47/47 checks on emulated hardware, 40/40 selftest; the control tick fits the robot's CPU budget | `robot/firmware_test.py`, `robot/selftest.py` |
 | Code | 35+ tests: exact replay, a golden trace for refactors, fault injection, fuzzed servo safety, layering rules, the operations layer; ruff and a private-file guard on every commit and in CI | `python -m ops check` |
 

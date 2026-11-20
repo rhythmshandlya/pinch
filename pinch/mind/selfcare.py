@@ -22,6 +22,9 @@ class SelfCare:
 
     def _self_preservation(self, dt):
         self.danger_map.decay(dt / 3600.0)
+        if self.t - getattr(self, "_danger_saved_t", -1e9) > 60.0:    # faded fear survives a reboot (decision 94)
+            self._danger_saved_t = self.t
+            self.memory.data["danger"] = self.danger_map.to_list()
         if self.t - self._safe_check_t > 5.0:                 # walking through a feared spot safely unlearns it
             self._safe_check_t = self.t
             if not self.stuck and self.danger(self.world.pose[:2]) > 0.05:

@@ -140,9 +140,17 @@ class SeekAttention(Activity):
         if not m.world.owner_here() or m.affect.quiet or m.world.owner.busy == "meeting":
             return 0.0
         ignored = m.affect.ignored_s
+        if ignored < 30:                       # you just paid attention: the next bid starts patient again
+            m.seek_tries = 0
+        if m.t < getattr(m, "seek_next", 0.0):     # backing off after bids that got no answer (decision 94)
+            return 0.0
         return 0.9 * max(0.0, n - 0.45) * m.affect.personality.neediness + 0.25 * (ignored > 180)
 
+    BACKOFF_S, BACKOFF_MAX_S = 90.0, 1200.0     # wait 90 s, 3, 6, 12 ... up to 20 min between unanswered bids
+
     def run(self, m):
+        m.seek_tries = getattr(m, "seek_tries", 0) + 1
+        m.seek_next = m.t + min(self.BACKOFF_MAX_S, self.BACKOFF_S * 2 ** (m.seek_tries - 1))
         level = min(4, int(m.affect.ignored_s / 120))
         yield ("turn_to", m.world.desk.owner_xy)
         yield ("face", "lonely" if level < 3 else "sad")
