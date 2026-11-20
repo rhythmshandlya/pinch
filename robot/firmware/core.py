@@ -34,7 +34,7 @@ from robot.localizer import Localizer  # noqa: F401
 
 
 class FirmwareCore:
-    def __init__(self, hw, llm=True, memory_path=None):
+    def __init__(self, hw, llm=True, memory_path=None, record_dir=None):
         self.hw = hw
         self.desk = hw.desk if hasattr(hw, "desk") else Desk()
         self.crab = Crab(hw.backend, calibration=hw.calibration if hasattr(hw, "calibration") else Calibration.load())
@@ -78,6 +78,13 @@ class FirmwareCore:
         self._saving = None
         self.vision = self.flow = None
         self.faceid = None
+        # record_dir: keep a session recording there (pinch/recorder.py): the timeline and 5 Hz samples, no video
+        self.recorder, self._grav = None, None
+        if record_dir:
+            from pinch.recorder import SessionRecorder, run_header
+            from robot.crab_robot import MAX_STEP
+            self.recorder = SessionRecorder(record_dir, header=run_header(where="robot", hw=type(hw).__name__),
+                                            sample_every=10, state=False, dt=DT, max_step=MAX_STEP)
         if hw.camera is not None:
             from robot.vision import GroundFlow, Vision
             self.vision = Vision(hw.camera_model, self.desk)
@@ -164,12 +171,18 @@ class FirmwareCore:
                 motion, cancel = m.tick(DT * 5, self.body.busy, self.body.ok)
                 if cancel:
                     self.body.cancel()
+                    if self.recorder is not None:
+                        self.recorder.step_cancelled(self.t, "mind")
                 if motion is not None:
                     self.body.start(motion)
                     self.stats["motions"].append((round(self.t, 1), motion[0], motion[1] if len(motion) > 1 else ""))
+                    if self.recorder is not None:
+                        self.recorder.step_started(self.t, motion, "mind")
                 for s in m.outputs()[2]:
                     self.hw.play(s)
                     self.stats["sounds"].append(s)
+                    if self.recorder is not None:
+                        self.recorder.event(self.t, "sound", name=s, activity=m.activity.name if m.activity else None)
             # reflex: a beam sees no desk while walking toward its side -> back off away from it (latched,
             # so its own backing-off can't re-trigger it); a beam missing or stale -> no walking that way
             now = self._now()
@@ -179,7 +192,10 @@ class FirmwareCore:
             if back is not None:
                 self.body.reflex(back)
                 self.stats["edge_stops"] += 1
+                if self.recorder is not None:
+                    self.recorder.step_started(self.t, back, "cliff reflex")
             gyro, grav = self.hw.backend.read_imu()          # the backend rides out IMU hiccups itself
+            self._grav = grav
             feet = self._safe("feet", lambda: self.hw.feet_down(self.crab.state), None)
             for ev in self.bodysense.update(DT * 5, gyro, grav, feet_loaded=feet):
                 m.touch(ev)
@@ -191,12 +207,16 @@ class FirmwareCore:
                     and self.t - self.last_recover > 3.0:
                 self.body.reflex(("recover",))
                 self.last_recover = self.t
+                if self.recorder is not None:
+                    self.recorder.step_started(self.t, ("recover",), "edge reflex")
             # stuck: judged on what the camera measured, never on the integrated command
             for ev in self.stuck_sense.update(DT * 5, grav, feet, self.loc.measured_xy(self.t),
                                               float(np.hypot(*self.body.cmd_vel[:2])),
                                               lifted=self.bodysense.lifted, standing=not self.body.busy,
                                               walking=walking, feet_margin=margin):
                 m.touch(ev)
+                if self.recorder is not None:
+                    self.recorder.event(self.t, "body_sense", sense=ev, why=self.stuck_sense.why)
             self.loc.frozen = self.stuck_sense.stuck
         if self.k % 2 == 0 and self.hw.touch is not None:
             try:
@@ -215,6 +235,8 @@ class FirmwareCore:
             a = self.mind.affect
             self.body.mood_fn = lambda: dict(arousal=a.arousal, valence=a.valence, sleepy=a.needs.sleep)
         q = self.body.tick()                                 # 20 ms: servos (and physics when emulated)
+        if self.recorder is not None:
+            self.recorder.tick(self.t + DT, self.k, self.mind, self.body, q, self.crab.q_cmd, self._rec_sample)
         cmd = getattr(self.body, "cmd_vel", (0.0, 0.0, 0.0))
         self.loc.predict(cmd, DT, self.t)
         # the tick's own work: everything above except the wait for the next tick (a sleep on the robot, the
@@ -294,6 +316,11 @@ class FirmwareCore:
             except Exception as e:                             # noqa: BLE001 - still save the memory
                 log.error("shutdown: %s", e)
             self.save_memory(wait=True)
+            if self.recorder is not None:
+                try:
+                    self.recorder.close(self.t, stop=self.stop_kind)
+                except Exception as e:                         # noqa: BLE001 - a recording must not stop a shutdown
+                    log.error("recording: %s", e)
             if self.stop_kind == "battery" and hasattr(self.hw, "poweroff"):
                 # empty pack: say so, then power the computer down instead of draining the cells further
                 log.error("battery empty: shutting the computer down")
@@ -302,6 +329,10 @@ class FirmwareCore:
                 self.hw.poweroff()
 
     stop_kind = None
+
+    def _rec_sample(self):
+        g = self._grav
+        return dict(pose=self.loc.pose(), up=float(-g[2]) if g is not None else float("nan"))
 
     def _cpu_temp(self):
         return self.hw.cpu_temp() if hasattr(self.hw, "cpu_temp") else None

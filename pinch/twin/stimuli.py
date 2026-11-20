@@ -5,11 +5,13 @@
 class TwinStimuli:
     def say(self, text):
         self.user_active = True
+        self._rec("say", text=text)
         if "audio" in self.faults:                       # (the microphones are dead: nothing heard)
             return None
         return self.mind.hear_text(text)
 
     def touch(self, gesture):
+        self._rec("touch", gesture=gesture)
         self.mind.touch(gesture)
 
     def hear_audio(self, chunk):

@@ -33,10 +33,12 @@ from pinch.twin.common import (  # noqa: F401
 
 class TwinCore:
     def __init__(self, memory=None, llm=False, seed=0, start=None, render=False, policies=True, extras=(),
-                 epoch=SIM_EPOCH, decision_log=None, props=()):
+                 epoch=SIM_EPOCH, decision_log=None, props=(), record_dir=None, record=None):
         """epoch: the wall-clock time the run starts at (what the mind's clock reads at t = 0).
         decision_log: a file to write every activity switch and its reason to (JSON lines).
-        props: things Pinch doesn't know (names from sim.desk.PROPS), parked off the desk until shown."""
+        props: things Pinch doesn't know (names from sim.desk.PROPS), parked off the desk until shown.
+        record_dir: record the session there (pinch/recorder.py; off by default, and it changes nothing);
+        record: options for the recorder (header=dict(scenario=...), state=False, live_every=60 ...)."""
         self.t = 0.0
         self.faults = {}                                  # injected failures (inject())
         self.desk = Desk()
@@ -84,6 +86,43 @@ class TwinCore:
         self.mind.memory.teach_home("eraser", (self.desk.tray_xy[0] - 0.04, self.desk.tray_xy[1]))
         self.user_active = False          # the app sets this while you interact
         self.autonomous = True            # False: the mind doesn't move the body (skill tests)
+        if record_dir is not None:
+            self.start_recording(record_dir, seed=seed, props=list(props), epoch=epoch, **(record or {}))
+
+    # -- recording (opt-in: pinch/recorder.py) ---------------------------------------------------------------------
+    recorder = None
+
+    def start_recording(self, path, header=None, seed=None, **config):
+        """Record from now on into the directory path (header: more to put in header.json)."""
+        from pinch.recorder import SessionRecorder, run_header
+        from robot.crab_robot import MAX_STEP
+        opts = {k: config.pop(k) for k in ("sample_every", "state", "live_every", "chunk") if k in config}
+        self.recorder = SessionRecorder(path, header=run_header(seed=seed, **dict(config, **(header or {}))),
+                                        dt=DT, max_step=MAX_STEP, **opts)
+        if self.recorder.state:
+            mujoco.mj_saveModel(self.m, str(self.recorder.dir / "model.mjb"), None)
+        self._qadr = [(self.hw.qadr[j], self.hw.bl_qadr.get(j)) for j in self.hw.qadr]
+        return self.recorder
+
+    def stop_recording(self, analyse=True):
+        """Close the recording (flush, observer, report). Returns the report, or None."""
+        rec, self.recorder = self.recorder, None
+        return rec.close(self.t, analyse=analyse) if rec is not None else None
+
+    def _rec(self, kind, **data):
+        if self.recorder is not None:
+            self.recorder.event(self.t, kind, **data)
+
+    def _rec_sample(self):
+        q = self.d.qpos
+        R = self.d.xmat[1].reshape(3, 3)
+        out = dict(pose=self.pose(), z=float(q[2]), up=float(R[2, 2]),
+                   q_meas=[q[a] + (q[b] if b is not None else 0.0) for a, b in self._qadr])
+        if self.recorder.state:
+            out["qpos"] = q
+            if self.m.nmocap:
+                out["mocap"] = self.d.mocap_pos
+        return out
 
     def step(self):
         if self.prop_paths:
@@ -95,17 +134,24 @@ class TwinCore:
             motion, cancel = self.mind.tick(DT * MIND_EVERY, self.body.busy, self.body.ok)
             if cancel:
                 self.body.cancel()
+                if self.recorder is not None:
+                    self.recorder.step_cancelled(self.t, "mind")
             if motion is not None:
                 self.body.start(motion)
                 self.motions.append((round(self.t, 2), motion))
+                if self.recorder is not None:
+                    self.recorder.step_started(self.t, motion, "mind")
             for s in self.mind.outputs()[2]:
                 self.sounds_played.append((round(self.t, 2), s))
+                self._rec("sound", name=s, activity=self.mind.activity.name if self.mind.activity else None)
             # reflex: a cliff beam sees no desk while walking toward its side -> back off (latched)
             back = self.cliff.update(self.t, self.cliff_mm(), 0.0, self.body.cmd_vel)
             self.body.cliff_blocked = self.cliff.blocked
             if back is not None:
                 self.body.reflex(back)
                 self.edge_stops += 1
+                if self.recorder is not None:
+                    self.recorder.step_started(self.t, back, "cliff reflex")
             gyro, grav = self.hw.read_imu()
             for ev in self.senses.update(DT * MIND_EVERY, gyro, grav, feet_loaded=self.feet_down()):
                 self.mind.touch(ev)
@@ -118,11 +164,14 @@ class TwinCore:
                 self.body.reflex(("recover",))
                 self.last_recover = self.t
                 self.edge_recovers += 1
+                if self.recorder is not None:
+                    self.recorder.step_started(self.t, ("recover",), "edge reflex")
             for ev in self.stuck_sense.update(DT * MIND_EVERY, grav, self.feet_down(any_surface=True), (x, y),
                                               float(np.hypot(*self.body.cmd_vel[:2])), lifted=self.senses.lifted,
                                               standing=not self.body.busy, walking=walking, feet_margin=margin):
                 self.mind.touch(ev)
                 self.stuck_events.append((round(self.t, 1), ev, self.stuck_sense.why))
+                self._rec("body_sense", sense=ev, why=self.stuck_sense.why)
             if grav[2] > -0.5:
                 self.falls += 1
         if self.k % FACE_EVERY == 0:
@@ -133,7 +182,9 @@ class TwinCore:
         if self.body.mood_fn is None:          # the emote style follows the whole mood (decision 92)
             a = self.mind.affect
             self.body.mood_fn = lambda: dict(arousal=a.arousal, valence=a.valence, sleepy=a.needs.sleep)
-        self.body.tick()                                   # 20 ms of physics through the robot runtime
+        q_req = self.body.tick()                           # 20 ms of physics through the robot runtime
+        if self.recorder is not None:
+            self.recorder.tick(self.t + DT, self.k, self.mind, self.body, q_req, self.crab.q_cmd, self._rec_sample)
         self.k += 1
         self.t += DT
 

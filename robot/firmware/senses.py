@@ -82,6 +82,8 @@ class FirmwareSenses:
 
     def _apply(self, kind, data):
         m = self.mind
+        if self.recorder is not None and kind in ("say", "touch"):
+            self.recorder.event(self.t, kind, **{"text" if kind == "say" else "gesture": data})
         if kind == "say":
             m.hear_text(data)
         elif kind == "touch":

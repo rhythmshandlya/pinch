@@ -13,6 +13,7 @@ class TwinFaults:
           cliff_dead        one cliff beam stops answering (beam="rear" ...)
           weak_leg          one leg's servos at a fraction of their strength (leg="FL", strength=0.5)"""
         assert fault in self.FAULTS, fault
+        self._rec("fault", fault=fault, on=on, **kw)
         if not on:
             self.faults.pop(fault, None)
             if fault == "weak_leg" and "_forcerange0" in self.__dict__:
