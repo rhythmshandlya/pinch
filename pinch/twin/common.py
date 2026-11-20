@@ -21,7 +21,7 @@ from pinch.world import Desk  # noqa: E402
 from robot.backends import SimBackend  # noqa: E402
 from robot.crab_robot import DT, Crab  # noqa: E402
 from robot.servos import Calibration  # noqa: E402
-from sim.desk import OBJECTS, START, build_desk_model, object_pose, set_face  # noqa: E402
+from sim.desk import OBJECTS, PROP_PARK, PROPS, START, build_desk_model, object_pose, set_face  # noqa: E402
 
 MIND_EVERY = 5                        # mind at 10 Hz
 FACE_EVERY = 3                        # face texture at ~17 Hz

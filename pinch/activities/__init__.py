@@ -9,11 +9,13 @@ Each activity has
 The Mind (pinch/mind.py) re-scores every activity twice a second and switches when something else
 matters clearly more, or at once for urgent things (a scare, a command, a meeting starting).
 
-The activities live in families (pinch/activities/): rest, social, defensive, recovery, tasks, play;
+The activities live in families (pinch/activities/): rest, social, defensive, recovery, tasks, play,
+curiosity;
 the Activity base class and shared helpers in base.py. LIBRARY keeps its order (ties go to the first).
 """
 
 from pinch.activities.base import *  # noqa: F401,F403 - shared constants and helpers, as before the split
+from pinch.activities.curiosity import Investigate, Watch
 from pinch.activities.defensive import Hide, Orient, Shy, Startle
 from pinch.activities.play import Explore, Play, ShowOff
 from pinch.activities.recovery import HeadHome, LowPower, RightSelf, Unstick
@@ -32,4 +34,5 @@ from pinch.activities.social import (
 from pinch.activities.tasks import GuardEdge, Tidy
 
 LIBRARY = [Idle(), Obey(), GoQuiet(), AfterMeeting(), SeekAttention(), Comfort(), Celebrate(), ReactTouch(),
-           Startle(), Orient(), RightSelf(), Unstick(), Hide(), Shy(), HeadHome(), LowPower(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet()]
+           Startle(), Orient(), RightSelf(), Unstick(), Hide(), Shy(), HeadHome(), LowPower(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet(),
+           Watch(), Investigate()]

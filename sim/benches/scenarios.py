@@ -223,6 +223,46 @@ def scolded():
         f"sulked={sulk}, likes dance={sim.mind.memory.data['likes'].get('dance', 0)}"
 
 
+@scenario("a new thing on the desk: looks carefully from a distance, comes closer each time, gets used to it")
+def curious_new_thing():
+    from pinch.activities.curiosity import _sides
+    sim = PinchSim(memory=Memory(path=None), props=["box"])
+    sim.mind.memory.data["homes"] = {}
+    sim.run(2.0)
+    sim.show_prop("box", (0.15, 0.0))
+    th = None
+    for _ in range(240):
+        sim.run(1.0)
+        th = next(iter(sim.mind.novelty.things.values()), None)
+        if th is not None and th.familiar and sim.mind.activity.name != "investigate":
+            break
+    if th is None:
+        return False, "never saw the box"
+    ok = th.familiar and th.closest[0] >= 0.15 and th.closest[-1] < th.closest[0] and sim.falls == 0
+    return ok, (f"{th.bouts} looks, closest {', '.join(f'{c * 100:.0f}' for c in th.closest)} cm, familiar after "
+                f"{sim.t - 2:.0f} s, seen from {_sides(th.views)} sides")
+
+
+@scenario("something rushes at it: startles and backs off; something drifting past far away: just watches")
+def startle_motion():
+    sim = PinchSim(memory=Memory(path=None), props=["toy"])
+    sim.mind.memory.data["homes"] = {}
+    sim.run(2.0)
+    sim.move_prop("toy", [(0.33, -0.15), (0.33, 0.15)], speed=0.04)
+    sim.run(8.0)
+    calm = "startle" not in acts(sim) and "watch" in acts(sim)
+    sim.hide_prop("toy")
+    sim.run(8.0)
+    p = sim.pose()
+    c, s = np.cos(p[2]), np.sin(p[2])
+    t = sim.t
+    sim.move_prop("toy", [sim.desk.clamp((p[0] + 0.32 * c, p[1] + 0.32 * s), 0.03), (p[0] + 0.12 * c, p[1] + 0.12 * s)],
+                  speed=0.45)
+    sim.run(5.0)
+    startled = "startle" in acts(sim, t)
+    return calm and startled, f"watched the slow one calmly: {calm}, startled by the fast one: {startled}"
+
+
 @scenario("ten minutes of pet life on its own: never falls, never leaves the desk")
 def long_life():
     sim = fresh()
@@ -243,7 +283,7 @@ def main():
     print("Pinch behaviour scenarios (digital twin)")
     only = sys.argv[1:]
     for fn in (tricks, memory_restart, meeting, tidy_cap, tidy_spontaneous, ask_help, edge_alert, comfort, needy,
-               touch, scolded, right_self, long_life):
+               touch, scolded, right_self, curious_new_thing, startle_motion, long_life):
         if not only or fn.__name__ in only:
             fn()
     n = sum(ok for _, ok, _, _ in RESULTS)

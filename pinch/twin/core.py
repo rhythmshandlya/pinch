@@ -5,6 +5,8 @@ from pinch.twin.common import (  # noqa: F401
     FACE_EVERY,
     MIND_EVERY,
     OBJECTS,
+    PROP_PARK,
+    PROPS,
     SIM_EPOCH,
     SKILLS,
     START,
@@ -31,13 +33,18 @@ from pinch.twin.common import (  # noqa: F401
 
 class TwinCore:
     def __init__(self, memory=None, llm=False, seed=0, start=None, render=False, policies=True, extras=(),
-                 epoch=SIM_EPOCH, decision_log=None):
+                 epoch=SIM_EPOCH, decision_log=None, props=()):
         """epoch: the wall-clock time the run starts at (what the mind's clock reads at t = 0).
-        decision_log: a file to write every activity switch and its reason to (JSON lines)."""
+        decision_log: a file to write every activity switch and its reason to (JSON lines).
+        props: things Pinch doesn't know (names from sim.desk.PROPS), parked off the desk until shown."""
         self.t = 0.0
         self.faults = {}                                  # injected failures (inject())
         self.desk = Desk()
-        self.m = build_desk_model(self.desk, start=start or START, extras=extras)
+        self.props = {p: PROPS[p] for p in props}
+        self.prop_paths, self._prop_last = {}, {}
+        prop_extras = [dict(name=p, type=sh, size=sz, rgba=c, pos=list(PROP_PARK), mocap=True)
+                       for p, (sh, sz, c) in self.props.items()]
+        self.m = build_desk_model(self.desk, start=start or START, extras=tuple(extras) + tuple(prop_extras))
         self.hw = SimBackend(model=self.m, render=render)
         self.d = self.hw.d
         self.crab = Crab(self.hw, calibration=Calibration())
@@ -61,9 +68,10 @@ class TwinCore:
                          walk_policy=pols["walk"], push_policy=pols["push"], grasp_policy=pols["grasp"],
                          righting_policy=pols["righting"], life_seed=seed)
         self.body.grip_fn = self.gripping
-        self.body.bystanders_fn = self.mind.world.things_on_desk
+        self.body.bystanders_fn = lambda: self.mind.world.things_on_desk() + self.mind.unknown_things()
         self.body.grasp_view_fn = self.grasp_view
         self.view_rng = np.random.default_rng(seed + 7)
+        self.prop_rng = np.random.default_rng(seed + 11)     # the props' sightings (own stream: replay unchanged)
         self.k = 0
         self.t = 0.0
         self.sounds_played = []           # (t, name)
@@ -78,6 +86,8 @@ class TwinCore:
         self.autonomous = True            # False: the mind doesn't move the body (skill tests)
 
     def step(self):
+        if self.prop_paths:
+            self._advance_props()
         if self.k % MIND_EVERY == 0 and not self.autonomous:
             self.perceive()
         elif self.k % MIND_EVERY == 0:
