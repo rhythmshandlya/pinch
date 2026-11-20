@@ -63,18 +63,14 @@ class Manipulation:
             heading = float(np.arctan2(u[1], u[0]))
             radius = extent(name, o[0][2], heading, radius)   # how far the thing reaches back toward the paddle
             x, y, h = self.pose_fn()
-            side = self._side_for(x, y, h, ox, oy)
-            paddle = paddle_pose(side)
-            tip = np.array(self.tip_fn(side, paddle) if self.tip_fn else (0.085, 0.03 if side == "left" else -0.03))
-            c, s = np.cos(heading), np.sin(heading)
-            tip_w = np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
-            # stand 3 cm behind it to line up; near an edge, stand closer (down to touching) before giving up
-            for gap in (0.03, 0.02, 0.01, 0.0):
-                start = np.array((ox, oy)) - u * (radius + gap) - tip_w
-                fits = (self.desk.inside(start, self.desk.edge_margin) and           # (as _goto will clamp
-                        self.desk.feet_clear(start, heading) >= self.FEET_EDGE + 0.005)  # and fit it)
-                if fits:
-                    break
+            near_side = self._side_for(x, y, h, ox, oy)
+            # the near arm's paddle; the other arm only if the near one can't line up from the desk (decision 89:
+            # choosing the far arm to spare bystanders cost more pushes than it saved)
+            fits, start, side, paddle, tip, _ = self._push_lineup(name, ox, oy, u, heading, radius, near_side)
+            if not fits:
+                far = self._push_lineup(name, ox, oy, u, heading, radius, "right" if near_side == "left" else "left")
+                if far[0]:
+                    fits, start, side, paddle, tip, _ = far
             # can't get behind it from the desk (its feet, not just its centre, must fit there)
             if not fits:
                 self.trace("unreachable", obj=(round(ox, 3), round(oy, 3)), start=tuple(np.round(start, 3)),
@@ -111,6 +107,21 @@ class Manipulation:
                 self.pushes = getattr(self, "pushes", 0) + 1
             yield from self._settle(0.3)
         return False
+
+    def _push_lineup(self, name, ox, oy, u, heading, radius, side):
+        """Where to stand to push with this arm's paddle: 3 cm behind the thing, or closer near an edge.
+        Returns (fits, start, side, paddle pose, paddle tip in the body frame, bystander cost)."""
+        paddle = paddle_pose(side)
+        tip = np.array(self.tip_fn(side, paddle) if self.tip_fn else (0.085, 0.03 if side == "left" else -0.03))
+        c, s = np.cos(heading), np.sin(heading)
+        tip_w = np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
+        for gap in (0.03, 0.02, 0.01, 0.0):
+            start = np.array((ox, oy)) - u * (radius + gap) - tip_w
+            fits = (self.desk.inside(start, self.desk.edge_margin) and           # (as _goto will clamp
+                    self.desk.feet_clear(start, heading) >= self.FEET_EDGE + 0.005)  # and fit it)
+            if fits:
+                break
+        return fits, start, side, paddle, tip, self._bystander_cost(start, heading, exclude=(name,), arm_tip=tip)
 
     def _side_for(self, x, y, h, ox, oy):
         ex, ey = np.cos(h) * (ox - x) + np.sin(h) * (oy - y), -np.sin(h) * (ox - x) + np.cos(h) * (oy - y)
@@ -159,7 +170,7 @@ class Manipulation:
                         # cheapest: feet fit (some room to spare) and clear of the other things, little walking
                         # and turning, the nearer claw, the usual arm swing
                         cost = ((100.0 if room < 0 else 0.0) + 3 * max(0.0, 0.03 - room) / 0.03
-                                + self._bystander_cost(st, hd, exclude=(name,))
+                                + self._bystander_cost(st, hd, exclude=(name,), arm_tip=tp)
                                 + np.hypot(st[0] - x, st[1] - y) / 0.10 + 0.3 * abs(_wrap(hd - h)) + 0.3 * si
                                 + abs(yw - 0.12))
                         if best is None or cost < best[0]:
@@ -315,17 +326,28 @@ class Manipulation:
         self.hold = STAND.copy()
         return True
 
-    BYSTANDER_CLEAR = 0.035   # m from any foot to another thing's centre when choosing where to stand (86)
+    BYSTANDER_CLEAR = 0.035   # m from any foot, or the working arm, to another thing's centre (86, 89)
+    SHOULDER = 0.03           # m: the arms' roots, forward of the body centre and out to each side
 
-    def _bystander_cost(self, xy, heading, exclude=()):
-        """0 when every foot stands BYSTANDER_CLEAR from the other things on the desk, rising to 4 as a foot
-        comes onto one: legs bump what they stand next to (the toy ball rolls off the desk)."""
+    def _bystander_cost(self, xy, heading, exclude=(), arm_tip=None):
+        """0 when every foot - and the working arm, shoulder to claw tip (arm_tip, body frame), if given - stays
+        BYSTANDER_CLEAR from the other things on the desk, rising to 4 as one comes onto a thing: legs and
+        arms bump what they work next to (the toy ball rolls off the desk)."""
         if self.bystanders_fn is None:
             return 0.0
-        things = [np.asarray(p) for n, p in self.bystanders_fn() if n not in exclude]
+        things = [np.asarray(p, float) for n, p in self.bystanders_fn() if n not in exclude]
         if not things:
             return 0.0
         gap = min(float(np.hypot(*(np.asarray(f) - p))) for f in self.desk.feet(xy, heading) for p in things)
+        if arm_tip is not None:
+            c, s = np.cos(heading), np.sin(heading)
+            rot = np.array(((c, -s), (s, c)))
+            root = np.array(xy) + rot @ np.array((self.SHOULDER, np.sign(arm_tip[1]) * self.SHOULDER))
+            tip = np.array(xy) + rot @ np.asarray(arm_tip[:2], float)
+            d = tip - root
+            for p in things:
+                k = np.clip(np.dot(p - root, d) / max(float(np.dot(d, d)), 1e-12), 0.0, 1.0)
+                gap = min(gap, float(np.hypot(*(root + k * d - p))))
         return 4.0 * max(0.0, self.BYSTANDER_CLEAR - gap) / self.BYSTANDER_CLEAR
 
     def _drop(self, goal):
@@ -352,7 +374,7 @@ class Manipulation:
                 c, s = np.cos(hd), np.sin(hd)
                 st = goal - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
                 if self.desk.feet_clear(st, hd) >= self.FEET_EDGE + 0.005:
-                    fits.append((self._bystander_cost(st, hd, exclude=(name,)) > 0, abs(dh), hd))
+                    fits.append((self._bystander_cost(st, hd, exclude=(name,), arm_tip=tip) > 0, abs(dh), hd))
             best = min(fits)[2] if fits else None
             heading = _wrap(best if best is not None else direct)
         c, s = np.cos(heading), np.sin(heading)

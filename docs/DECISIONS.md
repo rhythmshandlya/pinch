@@ -1116,3 +1116,26 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       verdict.
     - **History:** git history still has the removed files. None of them are secret (the private PRD
       was already rewritten out of history).
+88. **Learned push steering (push2-v1) failed; not used.**
+    - **Setup:** 30M steps on Modal. A 10 Hz command policy over the JAX gait was to steer a pushed thing to
+      a goal (decision 67).
+    - **Result:** reward rose from −21 to +7, but it learned only to stay near the thing (episodes are no
+      longer "lost"). Progress toward the goal stayed at 0 and no episode succeeded.
+    - **Instead:** pushing improved from the other side. gait-v2 learned crouched pushing in the walking
+      policy itself (decision 84: cap 3/24 → 11/24) under the scripted push planner.
+    - **If revisited:** the progress reward needs shaping that pays for moving the thing, not for being near
+      it (the "near" term dominated), and a curriculum from short pushes.
+    - **msi-1 queue:** after grasp-v6 come righting-smooth-v1 (5× action-rate cost, for decision 85's
+      current spikes) and a second terrain_push run (a seed replicate of terrain-push-v1).
+89. **The arms in the stance cost, and a second arm for pushing.**
+    - **Change:** the bystander cost (86) now also covers the working arm, shoulder to claw tip, for pick
+      and drop stances.
+    - **Tried, then narrowed:** choosing the push arm to spare bystanders cost more than it saved: cap 7/24
+      instead of 11/24, and no fewer knock-offs.
+    - **Kept for pushing:** the near arm as before, and the far arm only when the near one can't line up from
+      the desk. That case used to be an outright "unreachable".
+    - **Measured, same 24 layouts:** cap 11/24, eraser 12/24. Runs with something knocked off: 14 and 14
+      (13 and 12 before), within noise. Golden trace identical.
+    - **Conclusion:** where Pinch stands can't keep the ball on the desk. It rests where Pinch has to work at
+      the tray. The fix is behavioural: clear the work area first (move a rollable thing away from the tray
+      and the edge before pushing or dropping there), or let `guard_edge` catch it sooner.
