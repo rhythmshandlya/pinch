@@ -39,9 +39,11 @@ def _task_name(job):
 
 
 def launch_windows(job, host):
-    wsl_cmd = f"-d {host.wsl_distro} -- bash -lc 'bash {js.JOB_ROOT}/{job.run}/job.sh'"
+    # PowerShell single-quoted string: nothing inside is expanded ($HOME must reach bash, not PowerShell);
+    # a literal ' is written ''
+    wsl_cmd = f"-d {host.wsl_distro} -- bash -lc 'bash {js.JOB_ROOT}/{job.run}/job.sh'".replace("'", "''")
     ps = f"""
-$a = New-ScheduledTaskAction -Execute 'wsl.exe' -Argument "{wsl_cmd}"
+$a = New-ScheduledTaskAction -Execute 'wsl.exe' -Argument '{wsl_cmd}'
 $p = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U -RunLevel Limited
 $s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 Register-ScheduledTask -TaskName '{_task_name(job)}' -Action $a -Principal $p -Settings $s -Force | Out-Null
