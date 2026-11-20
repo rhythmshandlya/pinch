@@ -60,6 +60,7 @@ EVENT_EFFECTS = {
     "shaken":        (-0.50, +0.70, dict(safety=+0.70)),
     "bumped":        (-0.15, +0.40, dict(safety=+0.30)),
     "loud_noise":    (-0.20, +0.60, dict(safety=+0.50)),
+    "sudden_motion": (-0.15, +0.50, dict(safety=+0.80)),     # something moved at it (scaled by timidity by the caller)
     "praised":       (+0.55, +0.35, dict(social=-0.30)),
     "scolded":       (-0.55, +0.25, dict(social=+0.10)),
     "greeted":       (+0.40, +0.40, dict(social=-0.30)),

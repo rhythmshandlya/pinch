@@ -1,8 +1,10 @@
 """Where things are in the twin: Pinch's pose, the desk things, the claw tip, the feet, and moving things by hand."""
 
 from pinch.twin.common import (  # noqa: F401
+    DT,
     JOINT_NAMES,
     OBJECTS,
+    PROP_PARK,
     mujoco,
     np,
     object_pose,
@@ -70,3 +72,44 @@ class TwinWorld:
         self.d.qpos[adr + 3:adr + 7] = (np.cos(yaw / 2), 0, 0, np.sin(yaw / 2))   # lying flat, turned by yaw
         self.d.qvel[self.m.jnt_dofadr[b.jntadr[0]]:self.m.jnt_dofadr[b.jntadr[0]] + 6] = 0
         mujoco.mj_forward(self.m, self.d)
+
+    # -- things Pinch doesn't know (PinchSim(props=[...]); kinematic: they move only when told to) -----------
+    def _prop_height(self, name):
+        shape, size, _ = self.props[name]
+        return size[1] if shape == "cylinder" else size[-1] if shape == "box" else size[0]
+
+    def show_prop(self, name, xy):
+        """Put an unknown thing on the desk (you set something down)."""
+        self.prop_paths.pop(name, None)
+        self.d.mocap_pos[self.m.body(name).mocapid[0]] = (xy[0], xy[1], self._prop_height(name) + 0.0005)
+
+    def hide_prop(self, name):
+        """Take it away."""
+        self.prop_paths.pop(name, None)
+        self.d.mocap_pos[self.m.body(name).mocapid[0]] = PROP_PARK
+
+    def prop_xy(self, name):
+        p = self.d.mocap_pos[self.m.body(name).mocapid[0]]
+        return (float(p[0]), float(p[1])) if p[2] > -0.1 else None
+
+    def move_prop(self, name, waypoints, speed=0.05):
+        """Slide it along waypoints at speed (m/s), from where it is (shown at the first waypoint if hidden)."""
+        if self.prop_xy(name) is None:
+            self.show_prop(name, waypoints[0])
+        self.prop_paths[name] = ([tuple(w) for w in waypoints], float(speed))
+
+    def _advance_props(self):
+        for name, (pts, v) in list(self.prop_paths.items()):
+            p = np.array(self.prop_xy(name))
+            step = v * DT
+            while pts and step > 0:
+                d = np.array(pts[0]) - p
+                n = float(np.linalg.norm(d))
+                if n <= step:
+                    p, step = np.array(pts[0]), step - n
+                    pts.pop(0)
+                else:
+                    p, step = p + d / n * step, 0.0
+            self.d.mocap_pos[self.m.body(name).mocapid[0]][:2] = p
+            if not pts:
+                del self.prop_paths[name]

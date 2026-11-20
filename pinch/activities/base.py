@@ -24,6 +24,7 @@ class Activity:
     min_s = 2.0
     max_s = 300.0
     quiet_ok = False
+    own_jitter = False         # True: its tie-break jitter comes from its own random stream (Selection._own_jitter)
 
     def utility(self, m) -> float:
         return 0.0

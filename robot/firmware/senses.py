@@ -124,6 +124,8 @@ class FirmwareSenses:
                     self.stats["things_seen"] += 1
             if data["face"]:
                 m.world.owner.present, m.world.owner.last_seen = True, m.t
+            for obs in data.get("observations", ()):        # unknown things and motion (pinch/novelty.py), once
+                m.observe(obs)                               # the vision pipeline reports them
             for pid, conf, _box in data.get("people", ()):
                 if pid is not None:
                     m.see_person(pid, conf)

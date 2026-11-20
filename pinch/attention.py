@@ -55,6 +55,15 @@ class Attention:
         self.stimuli = [x for x in self.stimuli if x.key != key] + [s]
         return sal
 
+    def track(self, key, t, direction=None, xy=None):
+        """A stimulus already noticed is still there (a moving thing seen again): keep it fresh and follow where it
+        is, without counting it as new (no habituation). False if there is no such stimulus."""
+        for s in self.stimuli:
+            if s.key == key:
+                s.t, s.direction, s.xy = t, direction, xy
+                return True
+        return False
+
     def salience(self, s, t):
         v = s.salience0 * 0.5 ** ((t - s.t) / FADE_S)
         if self.inhibited.get(s.key, -1.0) > t:

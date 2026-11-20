@@ -4,6 +4,7 @@ from pinch.mind.common import (  # noqa: F401
     LIBRARY,
     MOOD_REPLY,
     MOTION_STEPS,
+    np,
     situations,
 )
 
@@ -40,6 +41,15 @@ class Selection:
             except OSError:
                 pass                                         # (a full or read-only disk must not stop the pet)
 
+    @property
+    def _own_jitter(self):
+        """The tie-breaking jitter of activities with own_jitter (a separate stream: adding such an activity doesn't
+        reshuffle the random choices every other activity makes, so seeded runs of the rest replay as before)."""
+        r = self.__dict__.get("_own_jitter_rng")
+        if r is None:
+            r = self._own_jitter_rng = np.random.default_rng(0x9E3779B9)
+        return r
+
     RESUME_S, RESUME_BONUS = 60.0, 0.1   # an activity cut short by something urgent is preferred back for 60 s
 
     def _choose(self):
@@ -50,7 +60,7 @@ class Selection:
                 u = 0.0
             if u > 0 and self.suspended and self.suspended[0] == a.name and self.t - self.suspended[1] < self.RESUME_S:
                 u += self.RESUME_BONUS
-            scores[a.name] = u + 0.02 * self.rng.random()
+            scores[a.name] = u + 0.02 * (self._own_jitter.random() if a.own_jitter else self.rng.random())
         cur = self.activity
         # commitment: an activity under way keeps most of the priority it started with, so a job doesn't
         # evaporate halfway (e.g. a pushed cap stops counting as "settled" the moment Pinch moves it)

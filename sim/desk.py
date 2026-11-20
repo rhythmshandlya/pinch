@@ -32,6 +32,14 @@ OBJECTS = {
     "cap":    ("cylinder", (0.014, 0.006), 0.003, (0.85, 0.15, 0.12, 1), False),
     "ball":   ("sphere", (0.015,), 0.006, (0.98, 0.82, 0.10, 1), False),
 }
+# things Pinch has never seen (no names, not in OBJECTS): PinchSim(props=[...]) adds them, parked off the desk until
+# shown (sim.show_prop / move_prop). name: (shape, size, rgba)
+PROPS = {
+    "box":  ("box", (0.02, 0.02, 0.02), (0.55, 0.45, 0.30, 1)),       # a 4 cm cardboard cube
+    "tube": ("cylinder", (0.015, 0.035), (0.20, 0.65, 0.35, 1)),     # a 3 cm wide, 7 cm tall tube standing up
+    "toy":  ("sphere", (0.018,), (0.70, 0.30, 0.80, 1)),             # a 36 mm toy (moves along paths)
+}
+PROP_PARK = (3.0, 3.0, -0.5)          # where a hidden prop waits (far off the desk, above the room floor)
 START = {"pen": (-0.18, -0.02, 0.6), "eraser": (0.10, -0.12, 0.3), "cap": (-0.12, 0.06, 0.0), "ball": (0.05, 0.15, 0.0)}
 
 
@@ -54,6 +62,12 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True,
                  pos=[0, 0, -0.015], rgba=[0.62, 0.47, 0.33, 1], contype=0, conaffinity=1,
                  friction=[0.8, 0.02, 0.001])
     for e in extras:
+        if e.get("mocap"):                                 # a thing moved by script (PinchSim props): a mocap body
+            b = wb.add_body(name=e["name"], mocap=True, pos=e["pos"])
+            b.add_geom(name=f"{e['name']}_geom", type=getattr(mujoco.mjtGeom, "mjGEOM_" + e["type"].upper()),
+                       size=list(e["size"]) + [0] * (3 - len(e["size"])), rgba=list(e.get("rgba", (0.5, 0.5, 0.55, 1))),
+                       friction=[0.8, 0.02, 0.001])
+            continue
         top.add_geom(name=e["name"], type=getattr(mujoco.mjtGeom, "mjGEOM_" + e["type"].upper()),
                      size=list(e["size"]) + [0] * (3 - len(e["size"])), pos=e["pos"], euler=e.get("euler", [0, 0, 0]),
                      rgba=[0.15, 0.15, 0.15, 1], friction=[0.8, 0.02, 0.001])

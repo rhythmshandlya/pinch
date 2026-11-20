@@ -1,5 +1,6 @@
 """Pinch's simulated senses: the camera's sightings, the cliff beams, the close-up grasp view and the claw's grip."""
 
+from pinch.novelty import FOV_HALF, FOV_RANGE, Observation
 from pinch.twin.common import (  # noqa: F401
     OBJECTS,
     np,
@@ -67,6 +68,37 @@ class TwinSensors:
         if self.user_active:
             w.owner.present = True
             w.owner.last_seen = self.mind.t
+        if self.props:
+            self.perceive_props()
+
+    def perceive_props(self):
+        """What the camera reports of things it can't name (pinch/novelty.py Observation): where (4 mm noise), how
+        big, how fast (from successive frames, ~1 cm/s noise) and how sure, within its field of view; the same
+        failures as the named things (vision dead, flaky detection). On the robot this comes from the camera."""
+        x, y, h = self.pose()
+        flaky = "flaky_detection" in self.faults
+        for name, (shape, size, _) in self.props.items():
+            p = self.prop_xy(name)
+            last = self._prop_last.get(name)
+            self._prop_last[name] = (p, self.t)
+            if p is None or "vision" in self.faults:
+                continue
+            vel = (0.0, 0.0)
+            if last is not None and last[0] is not None and self.t - last[1] > 1e-6:
+                vel = ((p[0] - last[0][0]) / (self.t - last[1]), (p[1] - last[0][1]) / (self.t - last[1]))
+            bearing = (np.arctan2(p[1] - y, p[0] - x) - h + np.pi) % (2 * np.pi) - np.pi
+            dist = float(np.hypot(p[0] - x, p[1] - y))
+            if not (abs(bearing) < FOV_HALF and 0.05 < dist < FOV_RANGE):
+                continue
+            if flaky and self.prop_rng.random() < 0.5:
+                continue
+            k = 3.0 if flaky else 1.0
+            n = self.prop_rng.normal(0, 1, 4)
+            conf = float(np.clip(0.95 - 0.8 * max(0.0, dist - 0.25), 0.3, 0.95)) * (0.7 if flaky else 1.0)
+            across = 2 * max(size[0], size[1] if shape == "box" else size[0])
+            self.mind.observe(Observation("unknown", (p[0] + 0.004 * k * n[0], p[1] + 0.004 * k * n[1]),
+                                          (vel[0] + 0.01 * k * n[2], vel[1] + 0.01 * k * n[3]),
+                                          across + 0.003 * n[0], conf, f"{shape}:{round(across * 1000)}"))
 
     def cliff_mm(self):
         """The cliff ring's readings (mm; the rangefinder's -1 = nothing within reach = 9999)."""
