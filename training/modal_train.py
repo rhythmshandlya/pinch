@@ -150,4 +150,4 @@ def throughput(gpus: str = ",".join(BENCH_GPUS)):
         try:
             print(json.dumps(call.get()), flush=True)
         except Exception as e:                       # noqa: BLE001 - one GPU's failure must not hide the rest
-            print(json.dumps(dict(gpu=g, env=c[0], num_envs=c[2], error=str(e)[:300])), flush=True)
+            print(json.dumps(dict(gpu=g, env=c[0], num_envs=c[2], error=repr(e)[:500])), flush=True)

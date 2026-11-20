@@ -1245,3 +1245,19 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       eraser 16/24 (gait-v2 12/24) but cap 2/24 (gait-v2 9-11/24).
     - **Rejected:** adopting it for the eraser gain - the cap, pushed rather than picked, is the case the crouched
       push references exist for, and it collapsed. Kept local as `gait_tp2` for a later mixed-curriculum attempt.
+97. **GPU choice by measured throughput; Runpod RTX 4090 (Secure) for the next big run.**
+    - **Why:** pick the GPU that gives the most simulation steps per dollar on this workload (MJX + Brax PPO),
+      not by spec sheet; and use the owner's $15 Runpod credit without a run dying when it runs out.
+    - **Measured** (`modal_train.py::throughput`: a short real training run, steps/s after XLA compilation,
+      gait_v2): A10G 13.9k (2048 envs) / 14.9k (8192); A100-40GB 18.6k / 21.5k; L40S 27.2k / 25.3k. Ada (L40S,
+      RTX 4090 family) is ~1.8x the A10G; the A100 is ~1.4x at ~2x the price; more than 2048 envs barely helps.
+      The L4, H100 and grasp cases didn't run: the Modal workspace paused at 15:39 (spend limit), which also
+      stopped grasp-v7b (checkpoint on the volume).
+    - **Choice:** Runpod RTX 4090 Secure Cloud, $0.89/h (catalog read 2026-11-20: stock MEDIUM in EU-RO-1 and
+      US-IL-1), ~2x Modal's steps per dollar; to be confirmed with a 5-minute run before a long one. Community
+      Cloud (RTX 3090 at $0.22/h) rejected: hosts can disappear mid-run and stock was low. A100/H100 rejected on
+      value.
+    - **Never dying mid-run:** at a $0 balance Runpod stops pods and loses anything outside a volume. So a rented
+      host carries `price_per_h` and `budget_usd`; `ops` caps each job at 85 % of the budget, jobs run in
+      `/workspace` (kept when a pod stops), and the pod stops itself when its job ends.
+    - **When:** the motion-tracking policy, once its environment exists; until then msi-1 trains.
