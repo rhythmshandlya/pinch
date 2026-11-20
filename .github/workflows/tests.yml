@@ -1,0 +1,21 @@
+# Every push and pull request: the private-file guard, ruff, and the test suite (replay, golden trace, states,
+# observer, supervisor fuzzing, fault injection, attention, idle life, layering, ops). CPU only; JAX-only tests
+# skip themselves without JAX. The golden trace is exact only on the platform that recorded it and skips elsewhere.
+name: checks
+on:
+  push:
+  pull_request:
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install mujoco==4.0.1 numpy pillow opencv-python-headless ruff
+      - run: python -m ops.guard tree
+      - run: ruff check .
+      - run: python tests/run.py
