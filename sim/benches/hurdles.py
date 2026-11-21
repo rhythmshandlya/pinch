@@ -22,11 +22,14 @@ sys.path.insert(0, str(ROOT))
 from crab import policy_io as pio  # noqa: E402
 from crab.emotes import STAND  # noqa: E402
 from crab.gait import _S, GAITS, Gait  # noqa: E402
-from crab.params import JOINT_NAMES  # noqa: E402
+from crab.params import (
+    JOINT_NAMES,  # noqa: E402
+    PARAMS,  # noqa: E402
+)
 from crab.policy_np import POLICY_DIR, NumpyPolicy  # noqa: E402
 from sim.benches.common import run_parallel, save_json  # noqa: E402
 
-MODEL = ROOT / "sim" / "models" / "crab.xml"
+MODEL = ROOT / "sim" / "models" / PARAMS.model_file   # follows CRAB_DESIGN (crab.xml for v1)
 HURDLES_MM = (4, 6, 8, 10, 12, 15, 18, 20)
 RAMPS_DEG = (5, 10, 15, 20, 25)
 START_GAP = 0.03          # m from the feet's reach to the obstacle's near side

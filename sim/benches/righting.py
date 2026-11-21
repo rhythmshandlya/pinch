@@ -1,5 +1,6 @@
 """Self-righting bench: the searched swing (crab/righting.py) against a learned policy (policies/<name>.npz),
-from the same random starts on its back, in the CPU twin's physics (sim/models/crab.xml, 2 ms steps).
+from the same random starts on its back, in the CPU twin's physics (sim/models/crab.xml, or crab_v2.xml with CRAB_DESIGN=v2;
+2 ms steps).
 
     python sim/benches/righting.py                      # swing + policies/righting.npz if there is one
     python sim/benches/righting.py --policy <candidate> --starts 200
@@ -27,7 +28,10 @@ sys.path.insert(0, str(ROOT))
 from crab import policy_io as pio  # noqa: E402
 from crab import righting  # noqa: E402
 from crab.emotes import STAND  # noqa: E402
-from crab.params import JOINT_NAMES  # noqa: E402
+from crab.params import (
+    JOINT_NAMES,  # noqa: E402
+    PARAMS,  # noqa: E402
+)
 from crab.policy_np import POLICY_DIR, NumpyPolicy  # noqa: E402
 from robot.servos import PWM_JOINTS  # noqa: E402
 from sim.benches.common import run_parallel, save_json  # noqa: E402
@@ -35,7 +39,7 @@ from sim.benches.stats import rate  # noqa: E402
 
 PWM = np.array([JOINT_NAMES.index(j) for j in PWM_JOINTS])     # the arm servos: they report nothing
 
-MODEL = ROOT / "sim" / "models" / "crab.xml"
+MODEL = ROOT / "sim" / "models" / PARAMS.model_file   # follows CRAB_DESIGN (crab.xml for v1)
 DT, CTRL_DT, TIMEOUT = 0.002, pio.CTRL_DT, 8.0
 
 
