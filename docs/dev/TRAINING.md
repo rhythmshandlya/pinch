@@ -27,6 +27,10 @@ Commit and push first: every job trains a pushed commit, and its `run.json` reco
 
 On a GPU under 12 GB the experiment's `small_gpu_num_envs` is used automatically.
 
+One run is one draw of the dice. Before believing that a change to an environment or a reward helped, train it
+under at least three seeds: `python -m ops submit <experiment> --seed 1` (then 2, 3; the default is 0, or the
+`seed` in the file's `[experiment]` section). The seed is in each run's `run.json`.
+
 ## 3. Judge it
 
 ```powershell
@@ -38,10 +42,24 @@ On a GPU under 12 GB the experiment's `small_gpu_num_envs` is used automatically
 Compare with the incumbent's numbers in `policies/registry.toml` (re-run the same benches on the incumbent when
 in doubt: the twin's contacts are chaotic, so compare pass rates over many layouts, never single runs).
 
+Every bench prints a success count with its 95 % range, for example `11/24 = 46 % (95 % range 28-65 %)`. To
+compare two results:
+
+```powershell
+.venv\Scripts\python sim/benches/stats.py 11/24 2/24        # -> p = 0.008, different
+.venv\Scripts\python sim/benches/stats.py 19/48 14/48       # -> p = 0.390, inconclusive
+.venv\Scripts\python sim/benches/stats.py --need 0.46 0.67  # -> about 87 layouts per policy
+```
+
+With 24 layouts only a gap of about 30 points can be told from chance. Use 100 or more layouts for an adoption
+decision, the same layouts for both policies (`stats.paired` counts only the layouts where they disagree).
+A bench with pass criteria exits non-zero when it fails (the robustness bench does when any verdict is FAIL),
+and `ops eval` then fails too.
+
 ## 4. Adopt it
 
 Only if it beats the incumbent on the experiment's benches without losing elsewhere (the golden trace and the
-behaviour scenarios still pass):
+behaviour scenarios still pass). "Beats" means the comparison says `different`; `inconclusive` is not a win:
 
 1. copy `policies/<slot>_<tag>.*` over `policies/<slot>.*`;
 2. update the slot in `policies/registry.toml` (run, steps, env, evidence, decision number);

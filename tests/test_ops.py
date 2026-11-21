@@ -109,3 +109,43 @@ def test_paid_host_budget_caps_the_job():
     h = Host("pod", "root@1.2.3.4", port=40122, price_per_h=0.89, budget_usd=13.0)
     m = budget_timeout_min(h)
     assert 0.89 * m / 60 <= 13.0 * 0.85 + 1e-9 and m > 700        # ~12.4 h for $13 at $0.89/h, with slack
+
+
+def test_seed_is_recorded_and_reaches_every_backend():
+    """One training seed per policy cannot show whether a change helped (the audit of 2026-11-21): the seed is part
+    of the resolved config, so run.json names it, and `ops submit --seed N` carries it to every backend."""
+    from ops.backends import ssh
+    try:
+        from training.train import resolve_config
+    except ModuleNotFoundError as e:                           # the commit hook's bare Python has no numpy
+        print(f"    (trainer part skipped: {e.name} not installed)")
+    else:
+        assert resolve_config("smoke")["seed"] == 0
+        assert resolve_config("smoke", seed=3)["seed"] == 3
+        try:
+            resolve_config("smoke", overrides=dict(seed=1))
+        except ValueError:
+            pass                                               # the seed belongs in [experiment] or --seed
+        else:
+            raise AssertionError("a seed among the preset overrides must be refused")
+    job = Job(run="r1", experiment="configs/experiments/smoke.toml", backend="ssh", host="h", sha="a" * 40, seed=3)
+    host = Host(name="h", ssh="u@h", repo="~/pinch", python=".venv-rl/bin/python")
+    assert "--seed 3" in ssh._fmt(jobscript.PREPARE, job, host)
+    assert "--seed 3" in skypilot.task_yaml(job)
+    plain = Job(run="r2", experiment="configs/experiments/smoke.toml", backend="ssh", host="h", sha="a" * 40)
+    assert "--seed" not in ssh._fmt(jobscript.PREPARE, plain, host) and "--seed" not in skypilot.task_yaml(plain)
+    for backend in ("modal", "local"):                          # the same three-line pattern as --num-envs
+        src = (ROOT / "ops" / "backends" / f"{backend}.py").read_text(encoding="utf-8")
+        assert '"--seed", str(job.seed)' in src, backend
+
+
+def test_installer_copies_only_folders_that_exist():
+    """deploy/install.sh once copied a folder that had been removed, and failed at its second step on a clean
+    checkout. Every folder it copies must exist, and it must take every package the robot imports."""
+    sh = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
+    line = next(ln for ln in sh.splitlines() if ln.startswith("cp -r ") and '"$DEST"/' in ln)
+    folders = line.split()[2:-1]
+    assert folders, line
+    for f in folders:
+        assert (ROOT / f).is_dir(), f"deploy/install.sh copies {f}/, which does not exist"
+    assert {"crab", "pinch", "robot", "policies"} <= set(folders), folders

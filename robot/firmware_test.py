@@ -15,6 +15,7 @@ lens model (undistort before solvePnP).
 """
 
 import json
+import os
 import signal
 import sys
 import tempfile
@@ -374,7 +375,11 @@ def sigterm_and_memory():
     print("faces (YuNet + SFace)")
     from pinch.faces import FaceID
     if not FaceID.available():
-        check("face models present (deploy/install.sh fetches them)", False, "models/faces/ missing")
+        if os.environ.get("PINCH_REQUIRE_FACE_MODELS"):
+            check("face models present (deploy/install.sh fetches them)", False, "models/faces/ missing")
+        else:                                                 # a fresh checkout or CI: the 39 MB models are not in git
+            print("  [SKIP] face recognition: models/faces/ missing (deploy/install.sh fetches them; "
+                  "set PINCH_REQUIRE_FACE_MODELS=1 to make this a failure)", flush=True)
     else:
         import cv2
         import matplotlib

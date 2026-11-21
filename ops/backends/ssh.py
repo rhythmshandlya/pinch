@@ -29,6 +29,8 @@ def _fmt(tmpl, job, host, **kw):
         extra += ["--num-envs", str(job.num_envs)]
     if job.timesteps:
         extra += ["--timesteps", str(job.timesteps)]
+    if job.seed:
+        extra += ["--seed", str(job.seed)]
     return tmpl.format(job_root=host.job_root, stop_when_done=int(host.stop_when_done), run=job.run, repo=host.repo, python=host.python, sha=job.sha,
                        remote=gitutil.remote_url(), experiment=job.experiment, timeout_min=job.timeout_min,
                        extra=" ".join(extra), **kw)

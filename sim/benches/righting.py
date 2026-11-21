@@ -29,6 +29,7 @@ from crab.params import JOINT_NAMES  # noqa: E402
 from crab.policy_np import POLICY_DIR, NumpyPolicy  # noqa: E402
 from robot.servos import PWM_JOINTS  # noqa: E402
 from sim.benches.common import run_parallel, save_json  # noqa: E402
+from sim.benches.stats import rate  # noqa: E402
 
 PWM = np.array([JOINT_NAMES.index(j) for j in PWM_JOINTS])     # the arm servos: they report nothing
 
@@ -120,7 +121,7 @@ def main():
         ok = [x for x in r if x[2]]
         times = np.array([x[3] for x in ok]) if ok else np.array([np.nan])
         name = "swing (crab/righting.py)" if c == "swing" else f"policy ({a.policy})"
-        print(f"{name:28s} upright and standing {len(ok)}/{len(r)}   time to upright mean "
+        print(f"{name:28s} upright and standing {rate(len(ok), len(r))}   time to upright mean "
               f"{np.mean(times):.2f} s, p90 {np.percentile(times, 90):.2f} s   commanded joint speed p95 "
               f"{np.median([x[4][0] for x in r]):.1f} rad/s, peak {np.median([x[4][1] for x in r]):.0f} rad/s (medians)")
     return 0

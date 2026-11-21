@@ -1,6 +1,13 @@
-# Every push and pull request: the private-file guard, ruff, and the test suite (replay, golden trace, states,
-# observer, supervisor fuzzing, fault injection, attention, idle life, layering, ops). CPU only; JAX-only tests
-# skip themselves without JAX. The golden trace is exact only on the platform that recorded it and skips elsewhere.
+# Every push and pull request: the private-file guard, ruff, the test suite (replay, golden trace, states,
+# observer, supervisor fuzzing, fault injection, attention, idle life, layering, ops, bench statistics) and the
+# robot's own self-tests against emulated hardware. CPU only.
+#
+# MuJoCo needs somewhere to draw: without a display it aborts the Python process instead of raising. A virtual
+# display (Xvfb) with Mesa's software renderer gives it one, so the filming test and the robot's camera checks
+# really run here; PINCH_REQUIRE_RENDER makes a missing renderer a failure instead of a skip.
+# JAX-only tests skip themselves without JAX. The golden trace is exact only on the platform that recorded it
+# and skips elsewhere. The face-recognition check needs 39 MB of models that are not in git, so it is skipped
+# here and runs wherever deploy/install.sh has fetched them.
 name: checks
 on:
   push:
@@ -8,14 +15,27 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: "1"
+      PINCH_REQUIRE_RENDER: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
+      - name: Virtual display and software OpenGL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xauth libgl1 libglx-mesa0 libgl1-mesa-dri libegl1 \
+            libx11-6 libxext6 libxrandr2 libxinerama1 libxcursor1 libxi6 libxxf86vm1 libxkbcommon0
       - run: pip install mujoco==4.0.1 numpy pillow opencv-python-headless ruff
       - run: python -m ops.guard tree
       - run: ruff check .
-      - run: python tests/run.py
+      - name: Tests
+        run: xvfb-run -a -s "-screen 0 1280x1024x24" python tests/run.py
+      - name: Robot self-test (emulated bus, PWM and sensors)
+        run: xvfb-run -a -s "-screen 0 1280x1024x24" python robot/selftest.py
+      - name: Robot firmware test (emulated hardware, camera pipeline)
+        run: xvfb-run -a -s "-screen 0 1280x1024x24" python robot/firmware_test.py

@@ -40,6 +40,8 @@ def submit(job):
         cmd += ["--num-envs", str(job.num_envs)]
     if job.timesteps:
         cmd += ["--timesteps", str(job.timesteps)]
+    if job.seed:
+        cmd += ["--seed", str(job.seed)]
     env = dict(os.environ, PINCH_GIT_SHA=job.sha, PINCH_GIT_DIRTY="0", PYTHONUNBUFFERED="1")
     log = open(d / "train.log", "w")
     flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS if os.name == "nt" else 0

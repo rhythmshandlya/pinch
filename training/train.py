@@ -76,8 +76,9 @@ def load_experiment(path):
     return exp
 
 
-def resolve_config(preset, overrides=None, timesteps=None, num_envs=None):
-    """The preset, then the experiment's overrides, then command-line overrides."""
+def resolve_config(preset, overrides=None, timesteps=None, num_envs=None, seed=None):
+    """The preset, then the experiment's overrides, then command-line overrides. The seed is part of the
+    resolved config, so every run record names it."""
     if preset not in PRESETS:
         raise ValueError(f"unknown preset {preset!r}; known: {', '.join(PRESETS)}")
     cfg = dict(PRESETS[preset])
@@ -89,6 +90,7 @@ def resolve_config(preset, overrides=None, timesteps=None, num_envs=None):
         cfg["num_timesteps"] = int(timesteps)
     if num_envs:                                  # (a smaller GPU: msi-1's 6 GB RTX 4050)
         cfg["num_envs"] = int(num_envs)
+    cfg["seed"] = int(seed or 0)                  # train a change under several seeds before trusting it
     return cfg
 
 
@@ -99,7 +101,7 @@ def _write_record(out, record):
 
 
 def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize=True,
-                 out_root=None, on_save=None, num_envs=None, overrides=None, experiment=None):
+                 out_root=None, on_save=None, num_envs=None, overrides=None, experiment=None, seed=None):
     """Train one policy. on_save() is called after every checkpoint (Modal commits its volume)."""
     import platform
     import socket
@@ -110,7 +112,7 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
     from training.registry import randomizer, spec
 
     skill = spec(env).skill                       # fails fast on an unknown env
-    cfg = resolve_config(preset, overrides, timesteps, num_envs)
+    cfg = resolve_config(preset, overrides, timesteps, num_envs, seed)
     run = run or f"{env}-{preset}-{datetime.now():%Y%m%d-%H%M%S}"
     out = Path(out_root or ROOT / "training" / "checkpoints") / run
     out.mkdir(parents=True, exist_ok=True)
@@ -167,7 +169,7 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
             clipping_epsilon=0.2,
             gae_lambda=0.95,
             max_grad_norm=1.0,
-            seed=0,
+            seed=cfg["seed"],
             progress_fn=progress,
             policy_params_fn=save,
             **{k: cfg[k] for k in PPO_KEYS},
@@ -188,12 +190,13 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
     return out
 
 
-def run_experiment(path, run=None, out_root=None, on_save=None, num_envs=None, timesteps=None):
+def run_experiment(path, run=None, out_root=None, on_save=None, num_envs=None, timesteps=None, seed=None):
     """Train what an experiment file describes (its env, preset and overrides)."""
     exp = load_experiment(path)
     e = exp["experiment"]
     return run_training(e["preset"], e["env"], timesteps, run or e.get("name"), e.get("randomize", True),
-                        out_root, on_save, num_envs, exp.get("overrides"), experiment=e)
+                        out_root, on_save, num_envs, exp.get("overrides"), experiment=e,
+                        seed=e.get("seed") if seed is None else seed)
 
 
 def main():
@@ -206,12 +209,14 @@ def main():
     ap.add_argument("--no-randomize", action="store_true", help="disable domain randomisation")
     ap.add_argument("--run", default=None, help="run name (default: the experiment's name, or env-preset-time)")
     ap.add_argument("--num-envs", type=int, default=None, help="override num_envs (smaller GPUs)")
+    ap.add_argument("--seed", type=int, default=None, help="training seed (default: the experiment's, else 0)")
     ap.add_argument("--out-root", default=None, help="where run directories go (default training/checkpoints)")
     a = ap.parse_args()
     if a.experiment:
-        run_experiment(a.experiment, a.run, a.out_root, num_envs=a.num_envs, timesteps=a.timesteps)
+        run_experiment(a.experiment, a.run, a.out_root, num_envs=a.num_envs, timesteps=a.timesteps, seed=a.seed)
     else:
-        run_training(a.preset, a.env, a.timesteps, a.run, not a.no_randomize, a.out_root, num_envs=a.num_envs)
+        run_training(a.preset, a.env, a.timesteps, a.run, not a.no_randomize, a.out_root, num_envs=a.num_envs,
+                     seed=a.seed)
 
 
 if __name__ == "__main__":

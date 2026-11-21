@@ -45,9 +45,10 @@ Learned skills cross from `training/` to the robot only as exported numpy files 
   training, pinned in `requirements-train.txt`).
 - **No editable install.** Every entry point puts its own checkout first on `sys.path`, so several git
   worktrees can share one `.venv` without importing each other's code.
-- **Checks:** `ruff check .` (lint), `python tests/run.py` (34+ tests, including the golden trace and the
-  layering rules), `python -m ops check` (both, plus the private-file guard). Pre-commit runs the fast ones;
-  CI runs all of them on every push.
+- **Checks:** `ruff check .` (lint), `python tests/run.py` (about 100 tests, including the golden trace and the
+  layering rules), `python -m ops check` (both, plus the private-file guard and the robot's two self-tests
+  against emulated hardware). Pre-commit runs the fast ones; CI runs all of them on every push and pull request,
+  on Linux with a virtual display so that rendering and the robot's camera checks run there too.
 - **Private files never leave the machine:** a guard (`ops/guard.py`, run by pre-commit and CI) refuses commits
   that add the local-only documents or AI attribution lines.
 - **Decisions:** every non-trivial choice gets a numbered entry in `docs/DECISIONS.md` with its measurement.
@@ -78,6 +79,8 @@ configs/experiments/<name>.toml  ->  ops submit  ->  backend (local | ssh host |
   commit, whether the tree was dirty, the host, the full resolved config and its final metrics.
 - **Adoption gate:** a candidate replaces a policy only after its experiment's bench beats the current one;
   `policies/registry.toml` records which run, which commit and which decision each adopted policy came from.
+  Benches print every success count with its 95 % range, and `sim/benches/stats.py` says whether two results
+  differ or the comparison is inconclusive. Each run names its seed, so a change can be trained several times.
 
 ## 4. Compute
 
@@ -140,5 +143,6 @@ Every tool is an established, actively maintained project (GitHub stars and last
 | Own GPUs (incl. Windows) | small **SSH backend** (`ops/backends/ssh.py`) | SkyPilot's SSH Node Pools install k3s + NVIDIA GPU Operator, and WSL2 is not on the GPU Operator's platform list | SkyPilot SSH pools on WSL2 |
 | Configs | **TOML** files read with Python's standard `tomllib` | PEP 680; no dependency on every worker | Hydra (10.8k stars): powerful, but adds a dependency and indirection the current configs don't need |
 | Run records | `run.json` per run (commit, host, config, metrics) | the minimum MLflow/W&B track; importable into MLflow (29k stars) later | a tracking server reachable from every worker |
-| Training stack | Brax PPO on MJX today; **mjlab** (MuJoCo Warp + RSL-RL) is the planned migration | mujocolab/mjlab 3.4k stars (arXiv 2601.22074); MuJoCo Warp (google-deepmind, 1.6k); Isaac Lab 8.7k | Isaac Lab 3.0 as the main stack: PhysX by default would differ from the MuJoCo twin |
+| Training stack | Brax PPO on MJX today; **mjlab** (MuJoCo Warp + RSL-RL) for new environments | mujocolab/mjlab 3.4k stars (arXiv 2601.22074), with two templates on it: pollen-robotics/microduck_rl (2.9k, a small servo robot) and KingKongRobotics/jumper (3.2k, a crab). Brax's README says only its training code is still maintained, and MuJoCo Playground 1.0 (November 2026) moved to PyTorch + MuJoCo Warp + RSL-RL (checked 2026-11-21, [the audit](research/PROJECT_AUDIT.md)) | Isaac Lab 3.0 as the main stack: a heavier install. It now ships Newton with a MuJoCo-Warp solver, so it stays the fallback |
+| Bench statistics | Wilson range, Fisher's exact and McNemar tests in `sim/benches/stats.py` | pure Python (so it runs in CI and on the robot), pinned to SciPy's values in `tests/test_stats.py`; scipy/scipy 15k stars is the reference | rliable (google-research, archived since 2024): built for many tasks with few seeds, not one yes/no rate |
 | Agent instructions | **AGENTS.md** + CLAUDE.md, skills in `.claude/skills/` | the format used by mjlab, MuJoCo Playground and MuJoCo Warp; anthropics/skills (198k stars) | - |

@@ -32,6 +32,8 @@ def submit(job):
         args += ["--num-envs", str(job.num_envs)]
     if job.timesteps:
         args += ["--timesteps", str(job.timesteps)]
+    if job.seed:
+        args += ["--seed", str(job.seed)]
     if job.dirty:
         args += ["--git-dirty"]
     out = _modal(*args, env=dict(PINCH_GPU=job.gpu or "A10G", PINCH_TIMEOUT_MIN=str(job.timeout_min)))

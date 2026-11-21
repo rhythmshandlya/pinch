@@ -18,6 +18,7 @@ from ops.jobs import now
 def task_yaml(job):
     """The SkyPilot task for a job: same snapshot-and-train contract as the ssh backend."""
     extra = (f" --num-envs {job.num_envs}" if job.num_envs else "") + (f" --timesteps {job.timesteps}" if job.timesteps else "")
+    extra += f" --seed {job.seed}" if job.seed else ""
     return f"""name: pinch-{job.run}
 resources:
   accelerators: {job.gpu or "A10G"}:1

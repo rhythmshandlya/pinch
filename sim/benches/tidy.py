@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from sim.benches.common import run_parallel, save_json  # noqa: E402
+from sim.benches.stats import rate  # noqa: E402
 
 
 def one(args):
@@ -59,7 +60,7 @@ def main():
     for c in ("cap", "eraser"):
         rs = [r for r in res if r["case"] == c]
         ok = [r for r in rs if r["ok"]]
-        print(f"{c:7s} {len(ok)}/{len(rs)} tidied  mean time {sum(r['t'] for r in ok) / max(1, len(ok)):.0f} s  "
+        print(f"{c:7s} {rate(len(ok), len(rs))} tidied  mean time {sum(r['t'] for r in ok) / max(1, len(ok)):.0f} s  "
               f"falls {sum(r['falls'] for r in rs)}  knocked off: {sum(len(r['off']) for r in rs)} "
               f"{[(r['seed'], r['off']) for r in rs if r['off']]}")
     return 0

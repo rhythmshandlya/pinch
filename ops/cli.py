@@ -1,6 +1,6 @@
 """`python -m ops <command>`: the one entry point for checks, training jobs, hosts and worktrees.
 
-    ops check                         lint + tests + layering + private-file guard (what CI and pre-commit run)
+    ops check                         private-file guard + lint + tests + the robot's self-tests (what CI runs)
     ops envs                          the training environments (training/registry.py)
     ops hosts [check|bootstrap NAME]  the SSH/Tailscale GPU machines
     ops submit EXP [--host H|any] [--backend local|ssh|modal|skypilot]   start or queue a job
@@ -81,7 +81,7 @@ def _make_job(a):
     run = a.run or jobs.unique_run(e.get("name", e["env"]))
     return jobs.Job(run=run, experiment=exp_path, backend=backend_name, host=a.host or "", sha=sha,
                     dirty=dirty and backend_name in ("local", "modal"), num_envs=a.num_envs or 0,
-                    timesteps=a.timesteps or 0, timeout_min=a.timeout or int(c.get("timeout_min", 90)),
+                    timesteps=a.timesteps or 0, seed=getattr(a, "seed", None) or 0, timeout_min=a.timeout or int(c.get("timeout_min", 90)),
                     gpu=a.gpu or c.get("gpu", ""), cloud_ok=bool(c.get("cloud_ok", False)) and a.cloud_fallback)
 
 
@@ -230,6 +230,9 @@ def cmd_check(a):
     steps = [("guard", lambda: check_tree()),
              ("ruff", lambda: subprocess.call([sys.executable, "-m", "ruff", "check", "."], cwd=ROOT)),
              ("tests", lambda: subprocess.call([sys.executable, "tests/run.py", *a.only], cwd=ROOT))]
+    if not a.only:                                # the robot's own checks against emulated hardware (about a minute)
+        steps += [("robot self-test", lambda: subprocess.call([sys.executable, "robot/selftest.py"], cwd=ROOT)),
+                  ("robot firmware test", lambda: subprocess.call([sys.executable, "robot/firmware_test.py"], cwd=ROOT))]
     failed = []
     for name, fn in steps:
         print(f"== {name}", flush=True)
@@ -275,6 +278,7 @@ def build_parser():
     p.add_argument("--run")
     p.add_argument("--num-envs", type=int)
     p.add_argument("--timesteps", type=int)
+    p.add_argument("--seed", type=int, help="training seed (default: the experiment's, else 0)")
     p.add_argument("--timeout", type=int, help="minutes (default: the experiment's)")
     p.add_argument("--gpu", help="Modal/SkyPilot GPU type (default: the experiment's)")
     p.add_argument("--cloud-fallback", action="store_true", help="with --host any: use Modal if no host is free")

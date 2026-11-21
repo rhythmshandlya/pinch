@@ -34,7 +34,8 @@ def main():
             except Exception:                                    # noqa: BLE001 - a crash is a failure, not a stop
                 ok, why = False, traceback.format_exc(limit=3)
             results.append((f.stem, name, ok))
-            print(f"  [{'PASS' if ok else 'FAIL'}] {f.stem}.{name}  ({time.time() - t0:.1f} s)" + (f"\n    {why}" if why else ""))
+            print(f"  [{'PASS' if ok else 'FAIL'}] {f.stem}.{name}  ({time.time() - t0:.1f} s)" + (f"\n    {why}" if why else ""),
+                  flush=True)
     n = sum(ok for *_, ok in results)
     print(f"\n{n}/{len(results)} passed")
     return 0 if n == len(results) else 1

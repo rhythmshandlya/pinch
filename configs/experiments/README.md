@@ -9,6 +9,7 @@ name = "terrain-push"          # default run name (ops adds -<n> when a run of t
 env = "terrain_push"           # training/registry.py
 preset = "gait_v2"             # configs/train/presets.toml
 description = "one walker for hurdles, ramps and pushing"
+seed = 0                       # optional; `ops submit --seed N` overrides it. The run's run.json records it
 
 [overrides]                    # any preset key
 num_timesteps = 150_000_000
