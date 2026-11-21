@@ -22,6 +22,7 @@ bus_baud = {value = 1000000, unit = "baud", source = "estimate", why = "the firm
 sync_write_bytes_per_servo = {value = 7, unit = "bytes", source = "estimate", why = "id + 2-byte position + 2-byte time + 2-byte speed in one SYNC_WRITE row; from robot/feetech_bus.py, not checked against Feetech's protocol manual today", ref = "robot/feetech_bus.py"}
 bus_overhead_bytes = {value = 8, unit = "bytes", source = "estimate", why = "header, id, length, instruction, address, data length, checksum of one SYNC_WRITE packet", ref = "robot/feetech_bus.py"}
 idle_current_a = {value = 0.04, unit = "A", source = "estimate", why = "a holding servo with torque on draws a few tens of mA; no number published for the STS3215", ref = "hardware/electronics.md"}
+sustained_current_a = {value = 1.5, unit = "A", source = "estimate", why = "holding the maker's printed stall torque (19.5 kg*cm = 1.91 N*m) takes 1.91 / kt = 1.5 A; a longer hold overheats the servo and its overload protection ends it. Used for the wire and connector ratings", ref = "https://www.waveshare.com/wiki/ST3215_Servo"}
 
 # --- the measured motor model of the v2 design (docs/dev/V2_MODEL.md): Rhoban BAM m6, fitted at 7.4 V and firmware
 # gain 32 (read with gh api on 2026-11-21; copy in sim/sizing/bam_sts3215_m6.json). The gear version is inferred.
@@ -209,7 +210,8 @@ rating_a = {value = 20.0, unit = "A", source = "estimate", why = "the BOM's ASW-
 contact_mohm = {value = 15.0, unit = "mOhm", source = "estimate", why = "rocker switches list 10-50 mOhm initial contact resistance; not listed for this one", ref = "hardware/BOM.md"}
 
 [shunt]
-ohm = {value = 0.005, unit = "ohm", source = "estimate", why = "the BOM's 0.005 ohm 2512 resistor replaces the INA219 board's 0.1 ohm one; its tolerance and the part itself are not bought yet (BOM: UNVERIFIED)", ref = "hardware/BOM.md"}
+ohm = {value = 0.002, unit = "ohm", source = "estimate", why = "the BOM says 0.005 ohm, but that burns 1.1 W at the fuse's 15 A in a 1 W 2512 resistor (crab/wiring.py rating check); 0.002 ohm burns 0.45 W and still gives the INA219 a 5 mA step (10 uV / 2 mOhm) and reads up to 160 A. The part is not bought yet (BOM: UNVERIFIED): a BOM change", ref = "hardware/BOM.md"}
+power_w = {value = 1.0, unit = "W", source = "estimate", why = "a 2512 chip resistor is sold as 1 W (BOM row 'current-sense resistor, 1 W')", ref = "hardware/BOM.md"}
 
 # ---- connectors (rating per contact, resistance per mated pair) -------------------------------------------------------
 [connector.xt60]

@@ -514,3 +514,75 @@ mass_ref = "hardware/BOM.md"
 why = "wires, connectors, servo extension cables (ten 900 mm 3-wire cables at about 5 g), the 14 AWG trunk, heat shrink: about 60 g, spread around the centre"
 pos_mm = [0.0, 0.0, -12.0]
 mass_only = true
+
+[part.pad_head]
+kind = "pad"
+size_mm = [14.0, 10.0, 0.2]
+size_source = "estimate"
+size_ref = "hardware/BOM.md"
+mass_g = 0.3
+mass_source = "estimate"
+mass_ref = "hardware/BOM.md"
+why = "10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'head'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
+pos_mm = [4.0, 0.0, 17.76]
+wall_mounted = true
+
+[part.pad_back_left]
+kind = "pad"
+size_mm = [14.0, 10.0, 0.2]
+size_source = "estimate"
+size_ref = "hardware/BOM.md"
+mass_g = 0.3
+mass_source = "estimate"
+mass_ref = "hardware/BOM.md"
+why = "10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'back_left'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
+pos_mm = [-40.0, 40.0, 12.75]
+wall_mounted = true
+
+[part.pad_back_right]
+kind = "pad"
+size_mm = [14.0, 10.0, 0.2]
+size_source = "estimate"
+size_ref = "hardware/BOM.md"
+mass_g = 0.3
+mass_source = "estimate"
+mass_ref = "hardware/BOM.md"
+why = "10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'back_right'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
+pos_mm = [-40.0, -40.0, 12.75]
+wall_mounted = true
+
+[part.pad_side_left]
+kind = "pad"
+size_mm = [14.0, 10.0, 0.2]
+size_source = "estimate"
+size_ref = "hardware/BOM.md"
+mass_g = 0.3
+mass_source = "estimate"
+mass_ref = "hardware/BOM.md"
+why = "10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'side_left'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
+pos_mm = [0.0, 70.0, 12.75]
+wall_mounted = true
+
+[part.pad_side_right]
+kind = "pad"
+size_mm = [14.0, 10.0, 0.2]
+size_source = "estimate"
+size_ref = "hardware/BOM.md"
+mass_g = 0.3
+mass_source = "estimate"
+mass_ref = "hardware/BOM.md"
+why = "10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'side_right'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
+pos_mm = [0.0, -70.0, 12.75]
+wall_mounted = true
+
+[part.pad_face]
+kind = "pad"
+size_mm = [14.0, 10.0, 0.2]
+size_source = "estimate"
+size_ref = "hardware/BOM.md"
+mass_g = 0.3
+mass_source = "estimate"
+mass_ref = "hardware/BOM.md"
+why = "10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'face'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
+pos_mm = [38.0, 0.0, 15.8]
+wall_mounted = true
