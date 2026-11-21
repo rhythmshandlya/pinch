@@ -1,0 +1,921 @@
+"""The printable v2 body: the pill shell split into a bottom TRAY and a top COVER, with every mount, window and opening.
+
+    python cad/v2/body.py            # build, export cad/out/v2/print/{tray,cover}.stl, render the review picture
+
+Units mm, body frame (x forward, y left, z up, hip plane z = 0). Everything is placed from the project's own numbers:
+the shell from cad/v2/shell.py, the lid hinge from cad/v2/lid.py, the parts from configs/layout_v2.toml (crab.electronics
+Layout), the joint ranges from sim/models/crab_v2.xml, and the servo interfaces agreed with the limbs CAD (below).
+
+How it is built (all cached, a full build takes about a minute):
+  tray  = lower shell (z <= SPLIT_Z) + a 2 mm lip + every internal mount, minus the cut-outs and the joint openings
+  cover = upper shell + the lid's fixed hinge knuckle, minus the cut-outs (mic holes, grille, pad recesses, cable slot)
+Six M2.5 heat-set inserts in tray bosses at the split, screws from the top through the cover's bosses.
+`features()` lists every added or cut solid with the layout part it belongs to, so body_check.py can tell a part's
+own mount from anything else in its way.
+"""
+
+import math
+import os
+import sys
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from functools import cache
+from pathlib import Path
+
+import numpy as np
+
+os.environ.setdefault("CRAB_DESIGN", "v2")
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from build123d import Align, Box, Cone, Cylinder, Location, Plane, Polyline, Pos, extrude, import_step, make_face  # noqa: E402, I001
+
+from cad.servo import STS3032  # noqa: E402
+from cad.servo import case as servo_case  # noqa: E402
+from cad.v2 import lid as LID  # noqa: E402
+from cad.v2 import shell as SHELL  # noqa: E402
+from crab.electronics import Layout  # noqa: E402
+from crab.shapes import Shell  # noqa: E402
+
+OUT = ROOT / "cad" / "out" / "v2" / "print"
+RENDER = ROOT / "media" / "review" / "phase-02" / "cad_body.png"
+MODEL_XML = ROOT / "sim" / "models" / "crab_v2.xml"
+
+# ---------------------------------------------------------------------------------------------------- design numbers
+WALL = SHELL.WALL
+SPLIT_Z = 28.0             # tray / cover parting plane: just above the shoulder servo cases (top z 27.55), so every
+#                            servo, board and joint opening is in the tray and the cover is a lid with mics and pads
+LIP_H, LIP_T, LIP_GAP = 2.0, 1.2, 0.2      # the tray's lip rises 2 mm inside the cover's wall, 0.2 mm slip fit
+FIT = 0.3                  # clearance around bought parts (FDM +-0.2 mm, plus unknowns; cad/servo.py uses the same)
+CLEAR = 2.0                # clearance around every moving part at a joint opening
+PETG_G_CM3 = 1.27
+
+M2_PILOT, M2_CLEAR = 1.7, 2.2              # self-tapping M2 into PETG / clearance (cad/servo.py)
+M25_PILOT, M25_CLEAR = 2.1, 2.7            # thread-forming M2.5 into PETG / clearance
+M25_INSERT, M25_INSERT_L = 3.6, 5.0        # ESTIMATE: hole for an M2.5 x 5 brass heat-set insert (check the insert)
+M25_HEAD = 5.0                             # counterbore for an M2.5 cap / pan head
+BOSS_R, BOSS_INSET = 4.0, 3.0              # split bosses: radius, centre this far inside the inner wall
+POST_R = {"M2": 2.25, "M2.5": 2.75}
+PILOT = {"M2": M2_PILOT, "M2.5": M25_PILOT}
+
+# Hip (leg yaw) servos, Feetech STS3215: the real model, cad/parts_ext/STS3215_03a.step (SO-ARM100, Apache-2.0), and the
+# interface agreed with the limbs CAD (coordinator, 2026-11-22, revised): shaft vertical through the hip point, horn up,
+# STEP origin at body z -5.2 (horn top face z +15.0, idler boss bottom z -24.6), the case running along body x toward
+# the middle: front hips STEP +x -> body +x, rear hips rotated 180 deg; the STEP is moved by -STEP_SHAFT_X first.
+STS3215_STEP = ROOT / "cad" / "parts_ext" / "STS3215_03a.step"
+STEP_Z0 = -5.2
+STEP_SHAFT_X = 11.25       # the interface's shaft position in the STEP (cad/v2/servos.py on the limbs branch)
+STEP_SHAFT_MEASURED = 12.5  # where the STEP's horn and idler holes actually centre (7 mm circle): body_check reports it
+STEP_CASE = (-22.7, 22.7, -12.4, 12.4, -17.7, 14.4)   # main case box (STEP frame): bottom face -17.7, top face 14.4
+STEP_BOTTOM_HOLES = ((4.2, 10.25), (4.2, -10.25), (-20.3, 10.25), (-20.3, -10.25))    # dia 1.5, in recesses
+HIP_KEEPOUT_R = 34.0       # coxa U-bracket swings within this radius ...
+HIP_PLATES = ((15.0, 18.0), (-27.6, -24.6))      # ... as a top plate on the horn and a bottom plate on the idler boss
+# Moving envelope of one coxa (local x along the link from the hip axis, z in the body frame): the two U-bracket
+# plates, and the web at the plates' ends carrying the thigh servo and the knee (crab_v2.xml: thigh servo box
+# 5.8..51 mm, knee disc r 19 mm). ESTIMATE until the limbs CAD's bracket lands: (name, x0, x1, half width, z0, z1).
+LEG_ENVELOPE = (("plate_top", -14.0, HIP_KEEPOUT_R, 14.0) + HIP_PLATES[0],
+                ("plate_bottom", -14.0, HIP_KEEPOUT_R, 14.0) + HIP_PLATES[1],
+                ("web_knee", 28.0, 51.2, 19.0, -27.6, 19.0))
+
+# Shoulder (arm yaw) servos, STS3032 (cad/servo.py profile), interface from the limbs CAD: shaft vertical through the
+# shoulder point, mounted upside down (servo x -> body x, y -> -y, z -> -z), servo origin at body z +13.8, so the horn
+# face is at z -5.4 and the case spans z 0.05..27.55; ears at z 5.55..7.05 screwed from above.
+SHOULDER_Z0 = 13.8
+# Moving envelope of one arm about the yaw axis (shoulder local x forward): the bracket under the horn hanging to the
+# pitch axis (r 13 mm, crab_v2.xml L_shoulder cylinder), the pitch servo and its horn (crab_v2.xml L_upper).
+ARM_ENVELOPE = (("bracket", "cyl", 13.0, -28.7, -5.4),
+                ("pitch_servo", 12.5, 35.5, 13.75, -20.9, -8.9),
+                ("pitch_horn", 10.0, 38.0, 15.5, -28.9, -0.9))
+
+# Wall-mounted sensor apertures: radius of the window at the sensor face (the cone grows from it)
+APERTURE_R = {"camera_lens": 8.5, "tof8": 4.0, "mic_l": 0.8, "mic_r": 0.8}
+TOF_APERTURE_R = 3.0       # VL53L0X emitter + receiver (both inside a 6 mm circle on the GY board)
+WINDOW_CHECK_MM = 20.0     # every window is clear this far along its direction
+
+STANDOFFS = {             # board -> (screw, inset of the holes from the board's edges); ESTIMATE where no drawing
+    "radxa": ("M2.5", 3.5), "driver": ("M2.5", 3.0), "hub": ("M2.5", 3.0), "reg_a": ("M2", 2.5),
+    "reg_b": ("M2", 2.5), "ina": ("M2.5", 2.5), "imu": ("M2.5", 2.5), "mpr121": ("M2.5", 2.5),
+    "amp": ("M2.5", 2.5), "dock_board": ("M2", 2.0)}
+WALL_BOARDS = ("tof8", "tof_fl", "tof_fr", "tof_rear", "tof_left", "tof_right")
+CRADLES = ("xt60", "fuse")
+PADS = ("pad_head", "pad_back_left", "pad_back_right", "pad_side_left", "pad_side_right", "pad_face")
+PAD_RECESS = 0.4           # copper tape recess depth
+BOSS_ANGLES = (0.0, 25.0, -25.0, 168.0, -168.0, 180.0)    # split bosses (deg about the shell centre): front
+#                            and rear only, the sides between the legs are joint openings up to z 21
+VENT_X = (16.0, 20.0, 24.0, 28.0, 32.0)                     # side vents by the computer
+NO_MOUNT = {"radxa_heatsink": "stuck on the radxa", "oled": "in the lid (lid.py)", "visor": "the lid (lid.py)",
+            "harness": "mass only"}
+
+
+# ---------------------------------------------------------------------------------------------------- small helpers
+@dataclass(frozen=True)
+class Feature:
+    name: str
+    owner: str             # layout part (or joint) it belongs to; "" = structure
+    half: str              # "tray" | "cover"
+    op: str                # "add" | "cut"
+    solid: object
+    clip: bool = True      # adds: keep only the part inside the shell's outer surface (fuses posts into the wall)
+    trimmed: float = 0.0   # mm^3 the joint sweeps and the bracket zones took away from this add (body_check reports it)
+
+
+def loc(center, R):
+    R = np.asarray(R, float)
+    return Location(Plane(origin=tuple(map(float, center)), x_dir=tuple(R[:, 0]), z_dir=tuple(R[:, 2])))
+
+
+def obox(center, size, R=None):
+    """A box of `size` centred at `center`, its axes the columns of R."""
+    return loc(center, np.eye(3) if R is None else R) * Box(*map(float, size))
+
+
+def abox(lo, hi):
+    lo, hi = np.asarray(lo, float), np.asarray(hi, float)
+    return obox((lo + hi) / 2, hi - lo)
+
+
+def zcyl(x, y, r, z0, z1):
+    return Pos(x, y, (z0 + z1) / 2) * Cylinder(r, z1 - z0)
+
+
+def axis_cyl(p, d, r, length, back=0.0):
+    """Cylinder of radius r from p - back*d along unit d."""
+    d = np.asarray(d, float) / np.linalg.norm(d)
+    base = np.asarray(p, float) - back * d
+    return Location(Plane(origin=tuple(base), z_dir=tuple(d))) * Cylinder(r, length + back, align=(Align.CENTER, Align.CENTER, Align.MIN))
+
+
+def cone(p, d, r0, half_deg, length, back=0.0):
+    """The view cone of a window: radius r0 at p, opening at half_deg along unit d for `length`; starts `back` behind."""
+    d = np.asarray(d, float) / np.linalg.norm(d)
+    t = math.tan(math.radians(half_deg))
+    base = np.asarray(p, float) - back * d
+    r_base = max(r0 - back * t, 0.05)
+    return Location(Plane(origin=tuple(base), z_dir=tuple(d))) * Cone(r_base, r0 + length * t, length + back,
+                                                                     align=(Align.CENTER, Align.CENTER, Align.MIN))
+
+
+def fuse(solids):
+    solids = [s for s in solids if s is not None]
+    if not solids:
+        return None
+    out = solids[0]
+    for s in solids[1:]:
+        out = out + s
+    return out
+
+
+def volume(s):
+    return 0.0 if s is None else float(sum(abs(x.volume) for x in s.solids())) if hasattr(s, "solids") else 0.0
+
+
+# ---------------------------------------------------------------------------------------------------- inputs
+@cache
+def layout():
+    return Layout()
+
+
+@cache
+def shell_math():
+    return Shell.from_chassis(layout().chassis)
+
+
+@cache
+def joints():
+    """name -> dict(pos mm, base yaw rad, axis sign, range rad) for the four coxae and the two shoulder yaws."""
+    root = ET.parse(MODEL_XML).getroot()
+    out = {}
+    for body in root.iter("body"):
+        name = body.get("name", "")
+        if not (name.endswith("_coxa_link") or name.endswith("_shoulder")):
+            continue
+        j = body.find("joint")
+        pos = np.array([float(v) for v in body.get("pos").split()]) * 1000.0
+        yaw = float(body.get("euler", "0 0 0").split()[2])
+        sign = float(j.get("axis").split()[2])
+        lo, hi = (float(v) for v in j.get("range").split())
+        key = name.split("_")[0]                         # FL, FR, RL, RR, L, R
+        out[key] = dict(joint=j.get("name"), pos=pos, yaw=yaw, sign=sign, range=(lo, hi),
+                        world=tuple(sorted((yaw + sign * lo, yaw + sign * hi))))
+    return out
+
+
+LEGS = ("FL", "FR", "RL", "RR")
+ARMS = ("L", "R")
+
+
+@cache
+def outer():
+    return SHELL._solid(0.0)
+
+
+@cache
+def inner():
+    return SHELL._solid(WALL)
+
+
+@cache
+def _inset(d):
+    return SHELL._solid(d)
+
+
+def below(z):
+    return Pos(0, 0, z - 150) * Box(400, 400, 300)
+
+
+def above(z):
+    return Pos(0, 0, z + 150) * Box(400, 400, 300)
+
+
+def section_point(angle_deg, z, inset):
+    """Point on the shell's horizontal section at height z, `inset` mm inside the outer surface (approx.), at the
+    polar angle (deg, about the shell centre) - the superellipse parameter v equals the polar angle here."""
+    a, b, c, ctr, ev, eh = SHELL.dims(inset)
+    w = abs((z - ctr[2]) / c)
+    cu = max(1.0 - w ** (2 / ev), 0.0) ** (ev / 2)
+    v = math.radians(angle_deg)
+    sp = lambda q, e: math.copysign(abs(q) ** e, q)  # noqa: E731
+    return np.array([ctr[0] + a * cu * sp(math.cos(v), eh), ctr[1] + b * cu * sp(math.sin(v), eh), z])
+
+
+# ---------------------------------------------------------------------------------------------------- servos
+@cache
+def _sts3215_step():
+    return import_step(str(STS3215_STEP))
+
+
+def _hip_dir(leg):
+    """+1 when the STEP's +x runs along body +x (front hips), -1 for the rear hips (rotated 180 deg)."""
+    return 1.0 if joints()[leg]["pos"][0] > 0 else -1.0
+
+
+def hip_location(leg):
+    p, d = joints()[leg]["pos"], _hip_dir(leg)
+    return Location((p[0], p[1], STEP_Z0), (0, 0, 0.0 if d > 0 else 180.0)) * Pos(-STEP_SHAFT_X, 0, 0)
+
+
+def hip_to_body(leg, q):
+    p, d = joints()[leg]["pos"], _hip_dir(leg)
+    x, y, z = q
+    return np.array([p[0] + d * (x - STEP_SHAFT_X), p[1] + d * y, z + STEP_Z0])
+
+
+@cache
+def hip_servo(leg):
+    return hip_location(leg) * _sts3215_step()
+
+
+def hip_case_aabb(leg):
+    x0, x1, y0, y1, z0, z1 = STEP_CASE
+    pts = np.array([hip_to_body(leg, (x, y, z)) for x in (x0, x1) for y in (y0, y1) for z in (z0, z1)])
+    return pts.min(0), pts.max(0)
+
+
+def shoulder_location(arm):
+    p = joints()[arm]["pos"]
+    return Location((p[0], p[1], SHOULDER_Z0), (180.0, 0, 0))
+
+
+@cache
+def shoulder_servo(arm):
+    return shoulder_location(arm) * servo_case(STS3032)
+
+
+def shoulder_case_aabb(arm, ears=False):
+    p, P = joints()[arm]["pos"], STS3032
+    ext = P.ear_len if ears else 0.0
+    return (np.array([p[0] + P.x_rear - ext, p[1] - P.half_w, SHOULDER_Z0 - P.face]),
+            np.array([p[0] + P.x_out + ext, p[1] + P.half_w, SHOULDER_Z0 + P.face]))
+
+
+# ---------------------------------------------------------------------------------------------------- joint sweeps
+def _sector(cx, cy, r0, r1, a0, a1, z0, z1, step_deg=2.0):
+    n = max(2, int(math.ceil((a1 - a0) / math.radians(step_deg))) + 1)
+    ts = np.linspace(a0, a1, n)
+    rc = r1 / math.cos((a1 - a0) / (n - 1) / 2)          # circumscribed: the polygon never cuts inside the arc
+    pts = [(cx + rc * math.cos(t), cy + rc * math.sin(t)) for t in ts]
+    pts += [(cx + r0 * math.cos(t), cy + r0 * math.sin(t)) for t in ts[::-1]] if r0 > 0 else [(cx, cy)]
+    face = make_face(Polyline(*[(x, y, z0) for x, y in pts], close=True))
+    return extrude(face, amount=z1 - z0)
+
+
+def _env_box(cx, cy, t, x0, x1, hw, z0, z1):
+    return Location((cx, cy, 0), (0, 0, math.degrees(t))) * abox((x0, -hw, z0), (x1, hw, z1))
+
+
+def envelope_at(key, q, grow=0.0):
+    """The moving envelope of a joint (leg or arm) at joint angle q (rad), grown by `grow` mm."""
+    j = joints()[key]
+    t = j["yaw"] + j["sign"] * q
+    cx, cy = j["pos"][:2]
+    parts = []
+    for e in (LEG_ENVELOPE if key in LEGS else ARM_ENVELOPE):
+        if e[1] == "cyl":
+            parts.append(zcyl(cx, cy, e[2] + grow, e[3] - grow, e[4] + grow))
+        else:
+            _, x0, x1, hw, z0, z1 = e
+            parts.append(_env_box(cx, cy, t, x0 - grow, x1 + grow, hw + grow, z0 - grow, z1 + grow))
+    return fuse(parts)
+
+
+@cache
+def sweep(key, grow=0.0):
+    """Volume swept by a joint's moving envelope over its range (grown by `grow`): for each box, the annular sector
+    out to its corners' radius over the range (the corners sweep all of it) plus the box at both ends."""
+    j = joints()[key]
+    a0, a1 = j["world"]
+    cx, cy = j["pos"][:2]
+    parts = []
+    for e in (LEG_ENVELOPE if key in LEGS else ARM_ENVELOPE):
+        if e[1] == "cyl":
+            parts.append(zcyl(cx, cy, e[2] + grow, e[3] - grow, e[4] + grow))
+            continue
+        _, x0, x1, hw, z0, z1 = e
+        x0, x1, hw, z0, z1 = x0 - grow, x1 + grow, hw + grow, z0 - grow, z1 + grow
+        r1 = math.hypot(max(abs(x0), abs(x1)), hw)
+        r0 = max(x0, 0.0)
+        parts.append(_sector(cx, cy, r0, r1, a0, a1, z0, z1))
+        if x0 < 0:                                   # the part behind the axis sweeps a disc
+            parts.append(zcyl(cx, cy, math.hypot(x0, hw), z0, z1))
+        for t in (a0, a1):
+            parts.append(_env_box(cx, cy, t, x0, x1, hw, z0, z1))
+    return fuse(parts)
+
+
+def hip_keepouts(leg, grow=0.0):
+    """The limbs CAD's free zones around a hip: the U-bracket's two plates swing within 34 mm of the shaft."""
+    p = joints()[leg]["pos"]
+    return [zcyl(p[0], p[1], HIP_KEEPOUT_R + grow, z0 - grow, z1 + grow) for z0, z1 in HIP_PLATES]
+
+
+# ---------------------------------------------------------------------------------------------------- features
+def _column_ok(lo_xy, hi_xy, z_top, owner, z_bot=-60.0):
+    """A vertical column (an axis-aligned footprint, from the floor - or z_bot - to z_top) stays 0.5 mm clear of
+    every other part and servo, outside the hip brackets' bottom-plate zone and the shoulder brackets."""
+    lay = layout()
+    lo = np.array([lo_xy[0] - 0.5, lo_xy[1] - 0.5, z_bot])
+    hi = np.array([hi_xy[0] + 0.5, hi_xy[1] + 0.5, z_top - 0.01])
+    for n, p in lay.parts.items():
+        if n == owner or p.mass_only or p.d.get("in_model") or n in ("oled", "visor") or p.on == owner:
+            continue
+        c = p.corners()
+        if np.all(c.max(0) > lo) and np.all(c.min(0) < hi):
+            return False
+    for blo, bhi in [hip_case_aabb(leg) for leg in LEGS] + [shoulder_case_aabb(a, ears=True) for a in ARMS]:
+        if np.all(bhi > lo) and np.all(blo < hi):
+            return False
+    ctr, rad = (lo[:2] + hi[:2]) / 2, float(np.hypot(*(hi[:2] - lo[:2]))) / 2
+    for leg in LEGS:                                   # the bottom plate's free zone (columns cross it on their way down)
+        p = joints()[leg]["pos"]
+        if (math.hypot(ctr[0] - p[0], ctr[1] - p[1]) < HIP_KEEPOUT_R + rad and z_top > HIP_PLATES[1][0] - CLEAR
+                and z_bot < HIP_PLATES[1][1] + CLEAR):
+            return False
+    for arm in ARMS:
+        p = joints()[arm]["pos"]
+        if math.hypot(ctr[0] - p[0], ctr[1] - p[1]) < 13.0 + CLEAR + rad:
+            return False
+    return True
+
+
+def _post_ok(xy, r, z_top, owner):
+    return _column_ok((xy[0] - r, xy[1] - r), (xy[0] + r, xy[1] + r), z_top, owner)
+
+
+def _edge_ribs(p, name, bottom, width=1.6, step=2.0, min_len=6.0):
+    """Ribs (1.6 mm walls from the floor) under a board's edge strips, where nothing stands below them."""
+    out = []
+    for ax in (0, 1):                                  # the rib runs along axis `ax` of the part, on side sg of 1-ax
+        for sg in (-1, 1):
+            n = int(2 * p.half[ax] // step)
+            ok = []
+            for k in range(n):
+                q0, q1 = np.zeros(3), np.zeros(3)
+                q0[ax], q1[ax] = -p.half[ax] + k * step, -p.half[ax] + (k + 1) * step
+                q0[1 - ax], q1[1 - ax] = sorted((sg * (p.half[1 - ax] - width), sg * p.half[1 - ax]))
+                w = np.array([p.world(q0), p.world(q1)])
+                ok.append(_column_ok(w.min(0)[:2], w.max(0)[:2], bottom, name))
+            k = 0
+            while k < n:
+                if not ok[k]:
+                    k += 1
+                    continue
+                k0 = k
+                while k < n and ok[k]:
+                    k += 1
+                if (k - k0) * step >= min_len:
+                    q0, q1 = np.zeros(3), np.zeros(3)
+                    q0[ax], q1[ax] = -p.half[ax] + k0 * step, -p.half[ax] + k * step
+                    q0[1 - ax], q1[1 - ax] = sorted((sg * (p.half[1 - ax] - width), sg * p.half[1 - ax]))
+                    q0[2], q1[2] = -p.half[2] - 80.0, -p.half[2]
+                    out.append(obox(p.world((q0 + q1) / 2), q1 - q0, p.R))
+    return out
+
+
+def standoffs(name):
+    """Posts under a board's corner holes; for a board stacked over other parts (fewer than two free corners), ribs
+    under the edge strips that have nothing below them (the board is glued or zip-tied to them)."""
+    p = layout()[name]
+    screw, inset = STANDOFFS[name]
+    r = POST_R[screw]
+    bottom = p.corners()[:, 2].min()
+    out, skipped = [], []
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            c = p.world((sx * (p.half[0] - inset), sy * (p.half[1] - inset), -p.half[2]))
+            if _post_ok(c[:2], r, bottom, name):
+                post = zcyl(c[0], c[1], r, -60.0, bottom) - zcyl(c[0], c[1], PILOT[screw] / 2, bottom - 6.0, bottom + 0.1)
+                out.append(Feature(f"{name}_post{len(out)}", name, "tray", "add", post))
+            else:
+                skipped.append((sx, sy))
+    if len(out) >= 2:
+        return out, skipped
+    for rib in _edge_ribs(p, name, bottom):            # boards stacked over other parts: ribs under the free edges
+        out.append(Feature(f"{name}_rib{len(out)}", name, "tray", "add", rib))
+    if len(out) < 2:                                   # still not held: beams under it to pillars beside the parts below
+        for beam in _bridges(p, name, bottom):
+            out.append(Feature(f"{name}_bridge{len(out)}", name, "tray", "add", beam))
+    return out, skipped
+
+
+def _bridges(p, name, bottom, depth=2.5, width=3.0, reach=40.0, step=2.0):
+    """Up to two beams under a board (depth mm under its bottom face, along one of its axes), each carried by two
+    pillars found along the beam's line beyond the board's ends, where a column to the floor is free."""
+    out = []
+    for ax in (0, 1):
+        for off in (-1, 1):
+            lat = off * (p.half[1 - ax] - width / 2 - 1.0)
+            ends = []
+            for sg in (-1, 1):
+                for k in range(int(reach / step) + 1):
+                    q = np.zeros(3)
+                    q[ax] = sg * (p.half[ax] - 2.5 + k * step)
+                    q[1 - ax] = lat
+                    c = p.world(q)
+                    if _post_ok(c[:2], 2.5, bottom, name):
+                        ends.append(sg * (p.half[ax] - 2.5 + k * step))
+                        break
+            if len(ends) < 2:
+                continue
+            q0, q1 = np.zeros(3), np.zeros(3)
+            q0[ax], q1[ax] = ends[0] - 2.5, ends[1] + 2.5
+            q0[1 - ax], q1[1 - ax] = lat - width / 2, lat + width / 2
+            q0[2], q1[2] = -p.half[2] - depth, -p.half[2]
+            w = np.array([p.world(q0), p.world(q1)])
+            if not _column_ok(w.min(0)[:2], w.max(0)[:2], bottom, name, z_bot=bottom - depth):
+                continue
+            beam = obox(p.world((q0 + q1) / 2), q1 - q0, p.R)
+            for e in ends:
+                q = np.zeros(3)
+                q[ax], q[1 - ax] = e, lat
+                c = p.world(q)
+                beam = beam + zcyl(c[0], c[1], 2.5, -60.0, bottom - depth + 0.5)
+            out.append(beam)
+            if len(out) == 2:
+                return out
+        if out:
+            return out
+    return out
+
+
+def wall_board(name):
+    """A sensor board sitting in the wall (window flush outside): a pocket through the wall, the view cone, and a
+    backing bar across each end of the board's inner face; the board is pressed in from outside, a drop of glue."""
+    p = layout()[name]
+    wp, wd = p.window_pose()
+    k = int(np.argmax(np.abs(np.asarray(p.window["dir"], float))))
+    k_out = float(np.sign(p.window["dir"][k]))
+    i, j = sorted((a for a in range(3) if a != k), key=lambda a: -p.half[a])
+    h = p.half
+    half = "tray" if p.pos[2] < SPLIT_Z else "cover"
+    feats = [Feature(f"{name}_pocket", name, half, "cut", obox(p.pos, p.size + 2 * FIT, p.R))]
+    r0 = APERTURE_R.get(name, TOF_APERTURE_R)
+    feats.append(Feature(f"{name}_window", name, half, "cut",
+                         cone(wp, wd, r0 + FIT, p.window.get("cone_deg", 10.0), WINDOW_CHECK_MM + 2, back=0.5)))
+    for si in (-1, 1):
+        lo, hi = np.zeros(3), np.zeros(3)
+        lo[i], hi[i] = sorted((si * (h[i] - 4.0), si * h[i]))
+        lo[j], hi[j] = -(h[j] + FIT + 2.0), h[j] + FIT + 2.0
+        back = sorted((-k_out * (h[k] + FIT), -k_out * (h[k] + FIT + 1.5)))
+        lo[k], hi[k] = back
+        bar = obox(p.world((lo + hi) / 2), hi - lo, p.R)
+        for sj in (-1, 1):                      # legs from the bar out into the wall
+            llo, lhi = lo.copy(), hi.copy()
+            llo[j], lhi[j] = sorted((sj * (h[j] + FIT), sj * (h[j] + FIT + 2.0)))
+            llo[k], lhi[k] = sorted((back[0] if k_out > 0 else back[1], k_out * (h[k] + 4.0)))
+            bar = bar + obox(p.world((llo + lhi) / 2), lhi - llo, p.R)
+        feats.append(Feature(f"{name}_bar{si:+d}", name, half, "add", bar))
+    return feats
+
+
+def camera_mount():
+    cam, lens = layout()["camera"], layout()["camera_lens"]
+    feats = []
+    x = cam.pos[0]
+    top = cam.corners()[:, 2].max()
+    bottom = cam.corners()[:, 2].min()
+    for s in (-1, 1):                               # two slotted posts hold the board's edges
+        y0 = s * (cam.half[1] - 1.5)
+        post = abox((x - 2.5, min(y0, y0 + s * 5.5), -60), (x + 2.5, max(y0, y0 + s * 5.5), top - 4.0))
+        slot = abox((x - cam.half[0] - FIT, min(y0 - s, s * (cam.half[1] + FIT)), bottom - 1.0),
+                    (x + cam.half[0] + FIT, max(y0 - s, s * (cam.half[1] + FIT)), top + 1.0))
+        feats.append(Feature(f"camera_post{s:+d}", "camera", "tray", "add", post - slot))
+    wp, wd = lens.window_pose()
+    feats.append(Feature("camera_lens_pocket", "camera_lens", "tray", "cut", obox(lens.pos, lens.size + 2 * FIT, lens.R)))
+    feats.append(Feature("camera_window", "camera_lens", "tray", "cut",
+                         cone(wp, wd, APERTURE_R["camera_lens"] + FIT, lens.window["cone_deg"], WINDOW_CHECK_MM + 2, back=0.5)))
+    return feats
+
+
+def cradle(name):
+    """A U-channel for a power part (XT60 pair, fuse holder): a block from the floor, two side walls to half height,
+    a zip-tie tunnel under the part."""
+    p = layout()[name]
+    h = p.half
+    i = int(np.argmax(h[:2]))                    # long horizontal axis (part frame)
+    j = 1 - i
+    lo, hi = -h - FIT, h + FIT
+    feats = []
+    base_lo, base_hi = lo.copy(), hi.copy()
+    base_lo[i], base_hi[i] = -(h[i] - 2.0), h[i] - 2.0
+    base_lo[j], base_hi[j] = -(h[j] + FIT + 1.6), h[j] + FIT + 1.6
+    base_lo[2], base_hi[2] = -h[2] - 60.0, -h[2]
+    base = obox(p.world((base_lo + base_hi) / 2), base_hi - base_lo, p.R)
+    for s in (-1, 1):
+        wlo, whi = base_lo.copy(), base_hi.copy()
+        wlo[j], whi[j] = sorted((s * (h[j] + FIT), s * (h[j] + FIT + 1.6)))
+        wlo[2], whi[2] = -h[2], 0.0
+        base = base + obox(p.world((wlo + whi) / 2), whi - wlo, p.R)
+    tlo, thi = np.zeros(3), np.zeros(3)
+    tlo[i], thi[i] = -2.0, 2.0
+    tlo[j], thi[j] = -(h[j] + 6.0), h[j] + 6.0
+    tlo[2], thi[2] = -h[2] - 4.0, -h[2] - 1.5
+    base = base - obox(p.world((tlo + thi) / 2), thi - tlo, p.R)
+    feats.append(Feature(f"{name}_cradle", name, "tray", "add", base))
+    return feats
+
+
+def battery_cradle():
+    p = layout()["pack"]
+    lo, hi = p.corners().min(0), p.corners().max(0)
+    walls = []
+    for y0, y1 in ((lo[1] - FIT - 2.0, lo[1] - FIT), (hi[1] + FIT, hi[1] + FIT + 2.0)):
+        walls.append(abox((lo[0] + 4.0, y0, -60.0), (hi[0] - 4.0, y1, (lo[2] + hi[2]) / 2)))
+    for x0, x1 in ((lo[0] - FIT - 2.0, lo[0] - FIT), (hi[0] + FIT, hi[0] + FIT + 2.0)):
+        walls.append(abox((x0, p.pos[1] - 10.0, -60.0), (x1, p.pos[1] + 10.0, lo[2] + 8.0)))
+    for yc in (p.pos[1] - 12.0, p.pos[1] + 12.0):
+        walls.append(abox((lo[0] + 4.0, yc - 1.5, -60.0), (hi[0] - 4.0, yc + 1.5, lo[2])))
+    strap = abox((p.pos[0] - 11.0, lo[1] - 6.0, lo[2] - 3.5), (p.pos[0] + 11.0, hi[1] + 6.0, lo[2] - 0.5))
+    return [Feature("pack_cradle", "pack", "tray", "add", fuse(walls) - strap)]
+
+
+def speaker_mount():
+    p = layout()["speaker"]
+    x, y = p.pos[:2]
+    zb = p.corners()[:, 2].min()
+    r_in = p.half[0] + FIT
+    ring = zcyl(x, y, r_in + 1.6, zb - 0.9, zb + 3.0) - zcyl(x, y, r_in, zb - 1.0, zb + 3.1)
+    parts = [ring]
+    for a in (0, 90, 180, 270):
+        c, s = math.cos(math.radians(a)), math.sin(math.radians(a))
+        parts.append(Location((x, y, 0), (0, 0, a)) * abox((r_in - 2.5, -2.0, zb - 0.9), (r_in + 0.1, 2.0, zb)))
+        px, py = x + (r_in + 0.8) * c, y + (r_in + 0.8) * s
+        if _post_ok((px, py), 2.25, zb - 0.9, "speaker"):
+            parts.append(zcyl(px, py, 2.25, -60.0, zb - 0.9))
+    return [Feature("speaker_ring", "speaker", "tray", "add", fuse(parts))]
+
+
+def grille():
+    """Speaker grille in the cover over the speaker: 2 mm holes on a 4 mm hex grid, kept off the pads and mics."""
+    lay = layout()
+    x0, y0 = lay["speaker"].pos[:2]
+    keep_off = [lay[n].corners() for n in ("pad_back_left", "pad_back_right", "mic_l", "mic_r")]
+    holes = []
+    for row in range(-4, 5):
+        for col in range(-4, 5):
+            x = x0 + 4.0 * col + (2.0 if row % 2 else 0.0)
+            y = y0 + 4.0 * row * math.sqrt(3) / 2
+            if math.hypot(x - x0, y - y0) > 13.0:
+                continue
+            if any(c[:, 0].min() - 2.5 < x < c[:, 0].max() + 2.5 and c[:, 1].min() - 2.5 < y < c[:, 1].max() + 2.5
+                   for c in keep_off):
+                continue
+            holes.append(zcyl(x, y, 1.0, SPLIT_Z + LIP_H + 5.0, 70.0))
+    return [Feature("speaker_grille", "speaker", "cover", "cut", fuse(holes))], len(holes)
+
+
+def mic_mount(name):
+    p = layout()[name]
+    wp, wd = p.window_pose()
+    rim = obox(p.pos, p.size + 2 * (FIT + 1.2) + np.array([0, 0, 4.0]), p.R) - obox(p.pos, p.size + 2 * FIT + np.array([0, 0, 10.0]), p.R)
+    return [Feature(f"{name}_rim", name, "cover", "add", rim),
+            Feature(f"{name}_pocket", name, "cover", "cut", obox(p.pos, p.size + 2 * FIT, p.R)),
+            Feature(f"{name}_hole", name, "cover", "cut",
+                    cone(wp, wd, APERTURE_R[name] + FIT, p.window["cone_deg"], WINDOW_CHECK_MM + 2, back=0.5))]
+
+
+def pad_recess(name):
+    """A shallow recess on the outside for the copper tape, and a 1.8 mm hole for its lead."""
+    p = layout()[name]
+    n = p.R[:, 2]
+    if n @ (p.pos - shell_math().c) < 0:
+        n = -n
+    t = shell_math().ray(p.pos + 40.0 * n, -n)
+    s = p.pos + (40.0 - t) * n
+    half = "tray" if s[2] < SPLIT_Z else "cover"
+    recess = obox(s, (p.size[0] + 1.0, p.size[1] + 1.0, 2 * PAD_RECESS), p.R)
+    lead = axis_cyl(s, -n, 0.9, 8.0, back=1.0)
+    return [Feature(f"{name}_recess", name, half, "cut", recess + lead)]
+
+
+def switch_cut():
+    p = layout()["switch"]
+    lo, hi = p.corners().min(0) - FIT, p.corners().max(0) + FIT
+    lo[0] -= 20.0
+    return [Feature("switch_cutout", "switch", "tray", "cut", abox(lo, hi))]
+
+
+def pogo_mount(name):
+    p = layout()[name]
+    lo, hi = p.corners().min(0), p.corners().max(0)
+    block = abox((lo[0] - 10.0, p.pos[1] - 5.0, p.pos[2] - 4.0), (hi[0] - 4.0, p.pos[1] + 5.0, p.pos[2] + 4.0))
+    pins = fuse([axis_cyl((lo[0] - 15.0, p.pos[1] + dy, p.pos[2]), (1, 0, 0), 0.7, 40.0) for dy in (-2.0, 2.0)])
+    return [Feature(f"{name}_block", name, "tray", "add", block - pins),
+            Feature(f"{name}_holes", name, "tray", "cut", pins)]
+
+
+def hip_seat(leg):
+    """Seat of an STS3215 below z 12: a rail along the case's inner long side, an end rib at the middle (x = 0, shared
+    with the other hip on that side; outside the 34 mm free radius, so it may reach the floor) and a bottom tab at
+    the inner end with two M2 screws from below into the case's bottom holes. The case's outer side stays open: the
+    coxa web swings there."""
+    p, d = joints()[leg]["pos"], _hip_dir(leg)
+    s = 1.0 if p[1] > 0 else -1.0
+    lo, hi = hip_case_aabb(leg)
+    zb = lo[2]                                           # case bottom face (STEP z -17.7)
+    x_in = p[0] + d * (STEP_CASE[0] - STEP_SHAFT_X)     # inner end of the case, near x = 0
+    y_in = s * (abs(p[1]) - STEP_CASE[3])               # inner long side
+    w = 2.5
+    xr = sorted((x_in - d * FIT, p[0]))
+    rail = abox((xr[0], min(y_in - s * (FIT + w), y_in - s * FIT), -24.4),
+                (xr[1], max(y_in - s * (FIT + w), y_in - s * FIT), 6.0))
+    ys = sorted((y_in - s * (FIT + w), s * abs(hi[1] if s > 0 else lo[1])))
+    xe = sorted((x_in - d * FIT, 0.0))
+    end = abox((xe[0], ys[0], -60.0), (xe[1], ys[1], 6.0))
+    xt = sorted((x_in - d * FIT, x_in + d * 14.0))
+    tab = abox((xt[0], ys[0], -24.4), (xt[1], ys[1], zb))
+    seat = fuse([rail, end, tab]) - abox(lo - FIT, hi + FIT)
+    owner = f"hip_{leg.lower()}"
+    feats = []
+    for hx, hy in STEP_BOTTOM_HOLES[2:]:
+        c = hip_to_body(leg, (hx, hy, 0))
+        seat = seat - zcyl(c[0], c[1], M2_CLEAR / 2, -30.0, zb + 0.1) - zcyl(c[0], c[1], 2.1, -30.0, -24.4 + 1.2)
+        feats.append(Feature(f"{owner}_access{len(feats)}", owner, "tray", "cut", zcyl(c[0], c[1], 3.0, -70.0, -30.0)))
+    return [Feature(f"{owner}_seat", owner, "tray", "add", seat)] + feats
+
+
+def shoulder_seat(arm):
+    """The upside-down STS3032: a post under the rear ear (2 x M2 from above) inside the shell, a chin pad under the
+    front ear outside the shell's front, and the pocket where the case passes through the front wall."""
+    P, p = STS3032, joints()[arm]["pos"]
+    ear_lo = SHOULDER_Z0 - P.ear_z0 - P.ear_t
+    rear = abox((p[0] + P.x_rear - P.ear_len - 1.0, p[1] - P.half_w - 1.0, -60.0),
+                (p[0] + P.x_rear + 1.0, p[1] + P.half_w + 1.0, ear_lo))
+    chin = abox((p[0] + 0.0, p[1] - P.half_w - 1.0, -1.5), (p[0] + P.x_out + P.ear_len + 1.0, p[1] + P.half_w + 1.0, ear_lo))
+    holes = []
+    for ex in P.ear_holes_x:                       # servo x -> body x, servo y -> body -y
+        for ey in P.ear_holes_y:
+            holes.append(zcyl(p[0] + ex, p[1] - ey, M2_PILOT / 2, ear_lo - 8.0, ear_lo + 0.1))
+    lo, hi = shoulder_case_aabb(arm)
+    pocket = abox(lo - FIT, hi + FIT)
+    elo, ehi = shoulder_case_aabb(arm, ears=True)
+    pocket = pocket + abox((elo[0] - FIT, elo[1] - FIT, ear_lo), (ehi[0] + FIT, ehi[1] + FIT, ear_lo + P.ear_t + 2 * FIT))
+    owner = f"shoulder_{arm.lower()}"
+    return [Feature(f"{owner}_rear_post", owner, "tray", "add", rear - fuse(holes) - pocket),
+            Feature(f"{owner}_chin", owner, "tray", "add", chin - fuse(holes) - pocket, clip=False),
+            Feature(f"{owner}_pocket", owner, "tray", "cut", pocket)]
+
+
+def split_bosses():
+    """Six joints across the split: a tray boss with an M2.5 heat-set insert at the lip, a cover boss with a
+    counterbored clearance hole, the screw from the top."""
+    feats = []
+    for k, a in enumerate(BOSS_ANGLES):
+        c = section_point(a, SPLIT_Z, WALL + BOSS_INSET)
+        tray = (zcyl(c[0], c[1], BOSS_R, SPLIT_Z - 10.0, SPLIT_Z + LIP_H)
+                + Pos(c[0], c[1], SPLIT_Z - 10.0) * Cone(0.5, BOSS_R, 8.0, align=(Align.CENTER, Align.CENTER, Align.MAX)))
+        tray = tray - zcyl(c[0], c[1], M25_INSERT / 2, SPLIT_Z + LIP_H - M25_INSERT_L, SPLIT_Z + LIP_H + 0.1)
+        cov = zcyl(c[0], c[1], BOSS_R, SPLIT_Z + LIP_H, SPLIT_Z + 30.0)
+        hole = zcyl(c[0], c[1], M25_CLEAR / 2, SPLIT_Z + LIP_H - 0.1, SPLIT_Z + 40.0)
+        cbore = zcyl(c[0], c[1], M25_HEAD / 2 + 0.2, SPLIT_Z + LIP_H + 4.0, SPLIT_Z + 40.0)
+        feats.append(Feature(f"boss{k}_tray", "", "tray", "add", tray))
+        feats.append(Feature(f"boss{k}_cover", "", "cover", "add", cov))
+        feats.append(Feature(f"boss{k}_hole", "", "cover", "cut", hole + cbore))
+    return feats
+
+
+def side_vents():
+    feats = []
+    for s in (-1, 1):
+        slots = [abox((x - 1.0, s * 80.0 - 30.0, -40.0), (x + 1.0, s * 80.0 + 30.0, -33.0)) for x in VENT_X]
+        slots = [Pos(0, 0, 0) * sl for sl in slots]
+        cut = fuse(slots) - _inset(WALL + 0.01)     # through the wall only
+        feats.append(Feature(f"vents_{'l' if s > 0 else 'r'}", "radxa", "tray", "cut", cut))
+    return feats
+
+
+def lid_knuckle():
+    hx, hy, hz = LID.hinge_location().position
+    k = Pos(hx, hy, hz) * LID.shell_knuckle()            # no tilt: the shell's knuckle stays fixed
+    slot = Pos(hx + LID.LID_T / 2, 0, hz - 6.0) * Box(5.0, LID.CABLE_SLOT[0] + 1.0, 28.0)
+    return [Feature("lid_knuckle", "", "cover", "add", k - inner(), clip=False),
+            Feature("hdmi_slot", "oled", "cover", "cut", slot)]
+
+
+def joint_openings():
+    feats = []
+    for key in LEGS + ARMS:
+        half = "tray"
+        feats.append(Feature(f"opening_{key}", key, half, "cut", sweep(key, CLEAR)))
+    return feats
+
+
+@cache
+def features():
+    lay = layout()
+    f = []
+    for leg in LEGS:
+        f += hip_seat(leg)
+    for arm in ARMS:
+        f += shoulder_seat(arm)
+    for name in STANDOFFS:
+        f += standoffs(name)[0]
+    for name in WALL_BOARDS:
+        f += wall_board(name)
+    for name in CRADLES:
+        f += cradle(name)
+    f += battery_cradle() + camera_mount() + speaker_mount() + grille()[0]
+    f += mic_mount("mic_l") + mic_mount("mic_r")
+    for name in PADS:
+        f += pad_recess(name)
+    f += switch_cut() + pogo_mount("pogo_l") + pogo_mount("pogo_r")
+    f += split_bosses() + side_vents() + lid_knuckle()
+    f = [_trim(x) for x in f] + joint_openings()
+    assert all(n in lay.parts for n in {x.owner for x in f} if n and n not in LEGS + ARMS)
+    return tuple(f)
+
+
+@cache
+def joint_zones():
+    """Where no printed feature may be: every joint's swept volume + 2 mm, and the hip brackets' plate zones."""
+    return fuse([sweep(k, CLEAR) for k in LEGS + ARMS]
+                + [z for leg in LEGS for z in hip_keepouts(leg)])
+
+
+def _overlaps(a, b):
+    ba, bb = a.bounding_box(), b.bounding_box()
+    return not (ba.max.X < bb.min.X or bb.max.X < ba.min.X or ba.max.Y < bb.min.Y or bb.max.Y < ba.min.Y
+                or ba.max.Z < bb.min.Z or bb.max.Z < ba.min.Z)
+
+
+@cache
+def part_boxes():
+    """name -> the room each layout part takes (its box + FIT; the servos' case boxes + FIT), for shaping features."""
+    out = {}
+    for n, p in layout().parts.items():
+        if p.mass_only or n in ("oled", "visor") or n in PADS or p.d.get("in_model"):
+            continue
+        out[n] = obox(p.pos, p.size + 2 * FIT, p.R)
+    for leg in LEGS:
+        lo, hi = hip_case_aabb(leg)
+        out[f"hip_{leg.lower()}"] = abox(lo - FIT, hi + FIT)
+    for arm in ARMS:
+        lo, hi = shoulder_case_aabb(arm, ears=True)
+        out[f"shoulder_{arm.lower()}"] = abox(lo - FIT, hi + FIT)
+    return out
+
+
+def _trim(f):
+    """Shape an added feature around the joint zones and around every other part's room; record what was taken."""
+    if f.op != "add":
+        return f
+    lay = layout()
+    own = {f.owner} | ({lay[f.owner].on} if f.owner in lay.parts and lay[f.owner].on else set())
+    own |= {n for n, p in lay.parts.items() if p.on and p.on == f.owner}
+    zones = [s for s in joint_zones().solids() if _overlaps(f.solid, s)]
+    zones += [b for n, b in part_boxes().items() if n not in own and _overlaps(f.solid, b)]
+    if not zones:
+        return f
+    zone = fuse(zones)
+    taken = volume((f.solid & outer()) & zone if f.clip else f.solid & zone)
+    if taken < 0.5:
+        return f
+    return Feature(f.name, f.owner, f.half, f.op, f.solid - zone, f.clip, taken)
+
+
+# ---------------------------------------------------------------------------------------------------- the two halves
+@cache
+def tray_shell():
+    lower = (outer() - inner()) & below(SPLIT_Z)
+    lip = (_inset(WALL + LIP_GAP) - _inset(WALL + LIP_GAP + LIP_T)) & above(SPLIT_Z) & below(SPLIT_Z + LIP_H)
+    return lower + lip
+
+
+@cache
+def cover_shell():
+    return (outer() - inner()) & above(SPLIT_Z)
+
+
+def _assemble(base, half):
+    fs = [x for x in features() if x.half == half]
+    adds_in = fuse([x.solid for x in fs if x.op == "add" and x.clip])
+    adds_out = fuse([x.solid for x in fs if x.op == "add" and not x.clip])
+    body = base
+    if adds_in is not None:
+        body = body + (adds_in & outer())
+    if adds_out is not None:
+        body = body + adds_out
+    cuts = fuse([x.solid for x in features() if x.op == "cut"])
+    body = body - cuts
+    if half == "tray":
+        body = body & below(SPLIT_Z + LIP_H + 0.01)
+    else:
+        body = body & above(SPLIT_Z)
+    return body
+
+
+@cache
+def tray():
+    return _assemble(tray_shell(), "tray")
+
+
+@cache
+def cover():
+    return _assemble(cover_shell(), "cover")
+
+
+def mass_g(s):
+    return volume(s) / 1000.0 * PETG_G_CM3
+
+
+# ---------------------------------------------------------------------------------------------------- export, render
+def export():
+    from build123d import export_stl
+    OUT.mkdir(parents=True, exist_ok=True)
+    for name, s in (("tray", tray()), ("cover", cover())):
+        export_stl(s, str(OUT / f"{name}.stl"), tolerance=0.02, angular_tolerance=0.1)
+    return OUT
+
+
+def _mesh(shape, tol=0.4):
+    v, t = shape.tessellate(tol, 0.3)
+    return np.array([(p.X, p.Y, p.Z) for p in v]), np.array(t, int)
+
+
+def render(path=RENDER):
+    """Tray and cover (lifted 40 mm) with the servos, in two views; flat-shaded matplotlib."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+    items = [(tray(), (0.95, 0.50, 0.15), 0.0), (cover(), (0.98, 0.62, 0.30), 45.0)]
+    items += [(hip_servo(leg), (0.15, 0.15, 0.17), 0.0) for leg in LEGS]
+    items += [(shoulder_servo(a), (0.15, 0.15, 0.17), 0.0) for a in ARMS]
+    meshes = []
+    for shape, rgb, dz in items:
+        v, t = _mesh(shape)
+        meshes.append((v + [0, 0, dz], t, np.array(rgb)))
+    light = np.array([0.3, -0.5, 0.8])
+    light /= np.linalg.norm(light)
+    fig = plt.figure(figsize=(16, 8), dpi=110)
+    for k, (elev, azim, title) in enumerate(((28, -55, "front-left, cover lifted 45 mm"),
+                                             (62, 150, "rear-right from above"))):
+        ax = fig.add_subplot(1, 2, k + 1, projection="3d")
+        for v, t, rgb in meshes:
+            tri = v[t]
+            n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+            n /= np.linalg.norm(n, axis=1, keepdims=True) + 1e-12
+            shade = 0.35 + 0.65 * np.abs(n @ light)
+            pc = Poly3DCollection(tri, facecolors=np.clip(shade[:, None] * rgb, 0, 1), linewidths=0)
+            ax.add_collection3d(pc)
+        ax.set_xlim(-110, 110)
+        ax.set_ylim(-110, 110)
+        ax.set_zlim(-60, 110)
+        ax.set_box_aspect((220, 220, 170))
+        ax.view_init(elev=elev, azim=azim)
+        ax.set_axis_off()
+        ax.set_title(title)
+    fig.suptitle(f"Pinch v2 printable body: tray {mass_g(tray()):.0f} g + cover {mass_g(cover()):.0f} g PETG, "
+                 f"split at z = {SPLIT_Z:.0f} mm (cad/v2/body.py)")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+if __name__ == "__main__":
+    import time
+    t0 = time.time()
+    tr, cv = tray(), cover()
+    print(f"tray {mass_g(tr):.1f} g, cover {mass_g(cv):.1f} g PETG ({time.time() - t0:.0f} s)")
+    print("STL:", export())
+    print("render:", render(), f"({time.time() - t0:.0f} s)")

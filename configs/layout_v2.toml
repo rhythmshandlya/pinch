@@ -374,7 +374,7 @@ mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
 pos_mm = [0, 97.22, -29.91]
-rpy_deg = [-120.0, 0.0, 0.0]
+rpy_deg = [-180.0, 60.0, -90.0]
 wall_mounted = true
 window = {pos_mm = [0.0, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
 connectors = [{name = "header", side = "-z", reach_mm = 5.0, width_mm = 8.0}]
@@ -390,7 +390,7 @@ mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
 pos_mm = [0, -97.22, -29.91]
-rpy_deg = [120.0, 0.0, 0.0]
+rpy_deg = [-180.0, -60.0, -90.0]
 wall_mounted = true
 window = {pos_mm = [0.0, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
 connectors = [{name = "header", side = "-z", reach_mm = 5.0, width_mm = 8.0}]
@@ -575,9 +575,9 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'side_left'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [0, 105.9, 5]
+pos_mm = [0, 94.52, 34.0]
 wall_mounted = true
-rpy_deg = [-89.13, -15.04, 0]
+rpy_deg = [-40.15, -0.15, 0.12]
 
 [part.pad_side_right]
 kind = "pad"
@@ -588,9 +588,9 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'side_right'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [0, -105.9, 5]
+pos_mm = [0, -94.52, 34.0]
 wall_mounted = true
-rpy_deg = [89.13, -15.04, 0]
+rpy_deg = [40.15, -0.15, -0.12]
 
 [part.pad_face]
 kind = "pad"
