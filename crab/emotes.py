@@ -33,6 +33,9 @@ if DESIGN == "v2":
                        "*_shoulder_yaw": 0.0, "*_shoulder_pitch": 0.35})
 
 
+TALL_STANCE = DESIGN == "v2" and STAND_DICT["*_femur"] < 0.349     # thighs under 20 deg up
+
+
 def pose(*overrides) -> np.ndarray:
     """Full joint-target vector: STAND, then each layer applied in order. A layer is an override dict,
     or a whole pose vector (which replaces everything so far: "start from this pose")."""
@@ -50,7 +53,11 @@ def pose(*overrides) -> np.ndarray:
 
 
 def crouch(amount: float, legs: str = "*") -> dict:
-    """Lower the body by lifting knees while keeping tibias near vertical."""
+    """Lower the body by lifting knees while keeping tibias near vertical. In a tall stance (v2 with the thighs under
+    20 deg, design v2.1) the body never rises above it: a stretch there loads the thighs past the heat limit (scared,
+    yawn and sneeze measured 73-83 % of rated RMS), so the arms carry the stretch."""
+    if TALL_STANCE and amount < 0:
+        amount = 0.0
     return {f"{legs}_femur": STAND_DICT["*_femur"] + amount, f"{legs}_tibia": STAND_DICT["*_tibia"] - amount}
 
 
@@ -205,7 +212,7 @@ def _build() -> dict:
     # scared: drops low, claws up as a shield, trembles
     cower = pose(crouch(0.36), {"*_shoulder_pitch": 0.55, "*_shoulder_yaw": 0.0, "*_claw": 0.0})
     E["scared"] = Emote("scared", _seq(
-        [(0.0, STAND), (0.25, cower)]
+        [(0.0, STAND), (0.45 if TALL_STANCE else 0.25, cower)]          # tall stance: a slower drop (thigh heat)
         + [(0.12, pose(cower, {"?L_coxa": 0.04 * s, "?R_coxa": -0.04 * s})) for s in (1, -1) * 5]
         + [(1.0, cower), (1.0, STAND)]))
 
@@ -229,7 +236,7 @@ def _build() -> dict:
     pre = pose(crouch(-0.06, "F?"), crouch(0.06, "R?"), {"*_shoulder_pitch": 0.6})
     choo = pose(crouch(0.22, "F?"), {"*_shoulder_pitch": 0.1, "*_claw": 0.5})
     E["sneeze"] = Emote("sneeze", _seq([(0.0, STAND), (0.5, pre), (0.4, pose(pre, {"*_shoulder_pitch": 0.75})),
-                                        (0.22, choo), (0.5, choo), (0.7, STAND)]))
+                                        (0.35 if TALL_STANCE else 0.22, choo), (0.5, choo), (0.7, STAND)]))
 
     # look around: turns the body left and right on planted feet (all coxas together)
     left, right = pose({"?L_coxa": 0.22, "?R_coxa": -0.22}), pose({"?L_coxa": -0.22, "?R_coxa": 0.22})
