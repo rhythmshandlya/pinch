@@ -1311,3 +1311,73 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       unit-to-unit spread still need a short check on real units.
     - **Rejected:** staying with the STS3032 and measuring it ourselves first (possible, but training would wait
       for a bench and the model would be ours alone to maintain); the XL330-M288 (reasons above).
+
+101. **The twin's electronics are data with a stated source, and can be switched from perfect to realistic.**
+    - **Why:** the twin had perfect electronics (no command delay, an exact IMU, stepless joint angles, a battery
+      that never changed, beams that never missed), so nothing learned or tested in it had met the errors a real
+      robot has (decision 99, finding 2).
+    - **Evidence:** domain randomisation of delay, noise and supply voltage is standard practice in the templates
+      this project follows: pollen-robotics/microduck_rl (2.9k stars) randomises command delay and battery voltage
+      6.5-8.2 V; Rhoban/bam (629 stars, ICRA 2025, arXiv 2410.08650) measures the servo's command delay. Part
+      numbers come from the makers' datasheets (BNO055 rev 1.8, INA219 SBOS448G, MPR121, Feetech and Pololu pages).
+    - **Change:** `configs/electronics.toml` holds every electronic value with a unit, a source (measured,
+      datasheet or estimate) and a reference; `crab/electronics.py` loads it and `tests/test_electronics.py`
+      refuses a value without a source. `realism="ideal"` (default, the golden trace) or `"datasheet"` in
+      `PinchSim` and `SimBackend`: servo command delay, encoder steps, IMU rate, lag, noise and bias, distance-beam
+      noise and dropouts, battery drain and sag, the 5 V regulator's limit, INA219 steps. Seeded and replayable.
+      Described in [dev/ELECTRONICS.md](dev/ELECTRONICS.md).
+    - **Measured:** falls, ideal against datasheet, 40 runs each: scripted trot 0/40 and 0/40, trained walk 0/40
+      and 0/40, emotes 0/40 and 0/40 (95 % range 0-9 % each). Get-up: trained policy 100/100 in both (96-100 %);
+      scripted swing 53/100 against 49/100 (not distinguishable).
+    - **Honest limit:** 24 values are measured, 20 come from datasheets and 50 are estimates (wire resistance, pack
+      internal resistance, computer power, sensor rates in our configuration). An estimate says why in the file and
+      is replaced when a real number exists. Camera, microphone and touch signals are not yet modelled.
+    - **Rejected:** hard-coding the numbers in the twin (no way to see which are guesses); making the realistic
+      mode the default now (the golden trace pins today's behaviour; the switch flips when training has moved).
+
+102. **Parts list rebuilt around the STS3215: servos run straight from a 2S Li-ion pack, three separate orders,
+     charging dock parts included.**
+    - **Why:** decision 100 changed the leg servo. The old power design asked one 5 V 5 A regulator to feed twelve
+      leg servos, which it cannot (audit report `ext_runtime_power.md`).
+    - **Evidence:** Open Duck Mini v2 (apirrone/Open_Duck_Mini, 4.8k stars) runs 14 of the same servos straight
+      from two 18650 cells with a BMS, and a 5 V regulator for its computer; its parts sheet and wiring drawing were
+      read for this. TheRobotStudio/SO-ARM100 (8.2k stars) uses the Waveshare bus driver board chosen here.
+      Details and every seller page opened are in [research/BOM_CHANGE.md](research/BOM_CHANGE.md).
+    - **Change:** `hardware/bom.py`, `hardware/BOM.md`, `hardware/BOM.csv`, `hardware/electronics.md`: 12 + 2
+      STS3215 7.4 V; a prebuilt Samsung 25R 2S pack (2500 mAh, BMS) through a 15 A fuse and a 20 A switch to the
+      servos; two 5 V 5 A regulators (computer and sensors; arm servos); Waveshare servo driver board; a 0.005 ohm
+      shunt on the INA219; one VL53L5CX; the dock's charger module, spring contacts and protection parts.
+    - **Measured:** whole list INR 77,412 (was 88,566). Order 1, servo bench: INR 10,859. Order 2, bring-up:
+      INR 13,214. Order 3, full build: INR 50,424 (53,339 with the recommended extras). In stock on 2026-11-21:
+      ThinkRobotics, Waveshare ST3215 7.4 V, SKU WVSH0593, INR 2,399.99. Nothing has been bought.
+    - **Risk:** a full pack is 8.4 V on a servo sold as 7.4 V (sellers disagree on the range; test one servo on the
+      bench first, or add a 7.6 V regulator); the 5 V regulator board is sold as 7 V minimum input, which a nearly
+      empty pack falls below; the pack's BMS cut-off current is not on its listing; the in-stock servo is probably,
+      not provably, the gear version the published model describes.
+    - **Rejected:** a 7.4 V regulator for the legs (10 A or more: large and hot, and the published model already
+      contains supply voltage); LiPo packs (out of stock, no built-in protection); building a pack from loose cells
+      (soldering cells is not a beginner's job).
+
+103. **A second design in the twin, v2: the robot resized for the STS3215, driven by the servo's published
+     measured model.**
+    - **Why:** decision 100 needs a body that fits the larger servo, and the point of that servo is that its model
+      is measured. No CAD or hardware exists for it, so the model is built from primitives.
+    - **Evidence:** the sizing study, [research/SIZING_STS3215.md](research/SIZING_STS3215.md) (leg scale 1.6,
+      trot slowed 1.5 times); Rhoban/bam `bam/params/feetech_sts3215_7_4V/m6.json` at commit b9e1111 and its
+      `MujocoController`, the same model Open Duck Mini trains on.
+    - **Change:** `CRAB_DESIGN=v2` (read once in `crab/params.py`; v1 stays the default, bit for bit).
+      `sim/build_model.py --design v2` writes `sim/models/crab_v2.xml`: links 35 / 48 / 83 mm, 1.571 kg, each
+      servo a box of its real size and mass. Two servo levels in `crab/servo_model.py`: the full BAM model
+      (voltage, back-EMF, load-dependent friction) and a first-order form for places the full model cannot run.
+      `SimBackend(servo_model="first_order"|"bam")`. Described in [dev/V2_MODEL.md](dev/V2_MODEL.md).
+    - **Measured:** stands with the worst joint at 9 % of the maker's stall torque (23 % of rated). Scripted trot:
+      10.0 cm/s forward, 10.2 cm/s sideways, tilt under 6 degrees, no falls (today's robot: about 12 cm/s).
+      Sideways at the cap runs the thigh at 71-78 % of stall at peak and 81-83 % of rated on average: heat, not
+      speed, is the limit. Full model against first order on the same walk: speed within 0.7 %, peak torque 1-7
+      points higher in the full model, power 4-6 % higher.
+    - **Honest limit:** the fit is from a one-servo pendulum rig at 7.4 V and firmware gain 32; the gear version
+      of the fitted servo is inferred; no temperature or current limit is modelled. The arms are 1.5 times longer
+      on the same micro servos: fine alone, marginal with a held load (75 % of rated with a 10 g pen). Emotes and
+      desk routines are still tuned for v1.
+    - **Rejected:** replacing v1 in place (every adopted policy and the golden trace are v1's; they stay until v2
+      policies beat them); using BAM's deprecated first-order export alone (it cannot follow the supply voltage).
