@@ -197,9 +197,9 @@ def cmd_stop(a):
 
 
 def _rl_python():
-    for p in (ROOT / ".venv-rl" / "Scripts" / "python.exe", ROOT / ".venv-rl" / "bin" / "python"):
-        if p.exists():
-            return str(p)
+    p = gitutil.training_python()
+    if p:
+        return p
     raise SystemExit("no .venv-rl: export needs the training environment (requirements-train.txt)")
 
 

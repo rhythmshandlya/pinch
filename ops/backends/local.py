@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tarfile
 
-from ops import ROOT, STATE
+from ops import ROOT, STATE, gitutil
 from ops.backends.jobscript import parse_status
 from ops.jobs import now
 
@@ -16,10 +16,7 @@ BASE = STATE / "local"
 
 
 def _python():
-    for p in (ROOT / ".venv-rl" / "Scripts" / "python.exe", ROOT / ".venv-rl" / "bin" / "python"):
-        if p.exists():
-            return str(p)
-    return sys.executable
+    return gitutil.training_python() or sys.executable
 
 
 def _dir(job):

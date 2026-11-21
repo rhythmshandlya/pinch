@@ -149,3 +149,19 @@ def test_installer_copies_only_folders_that_exist():
     for f in folders:
         assert (ROOT / f).is_dir(), f"deploy/install.sh copies {f}/, which does not exist"
     assert {"crab", "pinch", "robot", "policies"} <= set(folders), folders
+
+
+def test_training_python_is_found_from_a_task_worktree():
+    """A task worktree has no .venv-rl of its own; local jobs and exports must use the main checkout's."""
+    import tempfile
+
+    from ops import gitutil
+    with tempfile.TemporaryDirectory() as tmp:
+        wt, main = Path(tmp) / "wt", Path(tmp) / "main"
+        exe = main / ".venv-rl" / "bin" / "python"
+        exe.parent.mkdir(parents=True)
+        wt.mkdir()
+        exe.write_text("")
+        assert gitutil.training_python((wt, main)) == str(exe)
+        assert gitutil.training_python((wt,)) is None
+    assert gitutil.main_checkout().is_dir()
