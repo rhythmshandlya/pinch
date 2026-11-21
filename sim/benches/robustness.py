@@ -235,6 +235,28 @@ def summary(rows):
     return out
 
 
+def passes(kind, p, scripted):
+    """The pass criteria for one row: falls in at most 5 % of the episodes, no more falls than the scripted
+    controller, and (walking) at least 60 % of the commanded speed."""
+    ok = p["falls"] <= 0.05 * p["n"] and (scripted is None or p["falls"] <= scripted["falls"])
+    return bool(ok and (kind != "walk" or p["track"] >= 0.6))
+
+
+def verdict_lines(s):
+    """One PASS/FAIL line per learned controller present in the summary s[(kind, controller)]."""
+    out = []
+    for kind, ctrl in (("walk", "policy"), ("walk", "residual"), ("emote", "policy")):
+        p = s.get((kind, ctrl))
+        if p:
+            out.append(f"- **{kind} ({ctrl}): {'PASS' if passes(kind, p, s.get((kind, 'scripted'))) else 'FAIL'}**")
+    return out
+
+
+def exit_code(verdicts):
+    """A bench with pass criteria fails loudly: `ops eval` combines the benches' exit codes."""
+    return 1 if any("FAIL" in v for v in verdicts) else 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true")
@@ -271,13 +293,7 @@ def main():
                      + ("-" if np.isnan(v['track']) else f"{100 * v['track']:.0f} %") + " |")
     lines += ["", "Pass criteria: the trained policy falls in at most 5 % of these episodes and does no worse than the "
               "scripted controller; walking tracks at least 60 % of the commanded speed.", ""]
-    verdicts = []
-    for kind, ctrl in (("walk", "policy"), ("walk", "residual"), ("emote", "policy")):
-        p, sc = s.get((kind, ctrl)), s.get((kind, "scripted"))
-        if p:
-            ok = p["falls"] <= 0.05 * p["n"] and (sc is None or p["falls"] <= sc["falls"])
-            ok = ok and (kind != "walk" or p["track"] >= 0.6)
-            verdicts.append(f"- **{kind} ({ctrl}): {'PASS' if ok else 'FAIL'}**")
+    verdicts = verdict_lines(s)
     lines += verdicts
     if a.world != "desk":
         lines.insert(3, f"World: **{a.world}** - see the module docstring.")
@@ -285,7 +301,8 @@ def main():
     if os.environ.get("PINCH_GAIT_POLICY", "gait") == "gait" and "PINCH_EMOTE_POLICY" not in os.environ:
         (ROOT / "docs" / out).write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
+    return exit_code(verdicts)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

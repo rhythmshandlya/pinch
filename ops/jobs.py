@@ -34,6 +34,7 @@ class Job:
     state: str = "queued"
     num_envs: int = 0                  # 0: the preset's
     timesteps: int = 0                 # 0: the experiment's
+    seed: int = 0                      # 0: the experiment's, else 0
     timeout_min: int = 90
     gpu: str = ""
     cloud_ok: bool = False             # may dispatch fall back to a paid backend?

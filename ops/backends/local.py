@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tarfile
 
-from ops import ROOT, STATE
+from ops import ROOT, STATE, gitutil
 from ops.backends.jobscript import parse_status
 from ops.jobs import now
 
@@ -16,10 +16,7 @@ BASE = STATE / "local"
 
 
 def _python():
-    for p in (ROOT / ".venv-rl" / "Scripts" / "python.exe", ROOT / ".venv-rl" / "bin" / "python"):
-        if p.exists():
-            return str(p)
-    return sys.executable
+    return gitutil.training_python() or sys.executable
 
 
 def _dir(job):
@@ -40,6 +37,8 @@ def submit(job):
         cmd += ["--num-envs", str(job.num_envs)]
     if job.timesteps:
         cmd += ["--timesteps", str(job.timesteps)]
+    if job.seed:
+        cmd += ["--seed", str(job.seed)]
     env = dict(os.environ, PINCH_GIT_SHA=job.sha, PINCH_GIT_DIRTY="0", PYTHONUNBUFFERED="1")
     log = open(d / "train.log", "w")
     flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS if os.name == "nt" else 0

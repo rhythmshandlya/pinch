@@ -3,7 +3,10 @@ session; a short recording has every stream; the same seed and inputs give the s
 records too (no video); and a recording can be filmed afterwards."""
 
 import json
+import os
 import platform
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -124,12 +127,20 @@ def test_firmware_records_without_video():
         assert (Path(tmp) / "robot" / "report.txt").exists()
 
 
-def test_a_recording_can_be_filmed():
+def _can_render():
+    """Try the renderer in a child process. Without a display MuJoCo does not raise: it aborts the interpreter,
+    which took the whole test run down on the Linux CI machine."""
+    probe = "import mujoco; mujoco.Renderer(mujoco.MjModel.from_xml_string('<mujoco/>'), 8, 8).close()"
     try:
-        import mujoco
-        mujoco.Renderer(mujoco.MjModel.from_xml_string("<mujoco/>"), 8, 8).close()
-    except Exception as e:                                    # noqa: BLE001 - no OpenGL here (CI): nothing to film
-        print(f"    (skipped: no renderer: {e})")
+        return subprocess.run([sys.executable, "-c", probe], capture_output=True, timeout=120).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def test_a_recording_can_be_filmed():
+    if not _can_render():
+        assert not os.environ.get("PINCH_REQUIRE_RENDER"), "no renderer, but PINCH_REQUIRE_RENDER is set (CI)"
+        print("    (skipped: no renderer here)")
         return
     from sim.record import render
     with tempfile.TemporaryDirectory() as tmp:

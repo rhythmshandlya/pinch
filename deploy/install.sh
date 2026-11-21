@@ -12,7 +12,7 @@ apt-get install -y python3-venv python3-libgpiod alsa-utils i2c-tools      # (no
 
 echo "== code -> $DEST"
 mkdir -p "$DEST"
-cp -r crab pinch robot brain policies sim "$DEST"/
+cp -r crab pinch robot policies sim "$DEST"/
 rm -f "$DEST/robot/calibration.json"                 # calibration lives in /var/lib/pinch, never in the code folder
 python3 -m venv --system-site-packages "$DEST/venv"
 "$DEST/venv/bin/pip" install --quiet numpy pyserial smbus2 pillow mujoco "opencv-python-headless>=4.8,<5"   # aarch64 wheels; ArucoDetector needs >= 4.7, OpenCV 5 drops CascadeClassifier

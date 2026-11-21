@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from sim.benches.common import run_parallel, save_json  # noqa: E402
+from sim.benches.stats import rate  # noqa: E402
 
 
 def one(args):
@@ -63,7 +64,8 @@ def main():
     print(f"grab: {a.grasp or 'scripted'}")
     for th in ("pen", "eraser"):
         r = [x for x in res if x["thing"] == th]
-        print(f"  {th:6s} picked {sum(x['held'] for x in r)}/{len(r)}, in the tray {sum(x['in_tray'] for x in r)}/{len(r)}"
+        print(f"  {th:6s} picked {rate(sum(x['held'] for x in r), len(r))}, "
+              f"in the tray {rate(sum(x['in_tray'] for x in r), len(r))}"
               f"  falls {sum(x['falls'] for x in r)}  knocked off {sum(x['off'] for x in r)}")
     return 0
 

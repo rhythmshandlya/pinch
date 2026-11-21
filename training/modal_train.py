@@ -43,7 +43,7 @@ vol = modal.Volume.from_name(VOLUME, create_if_missing=True)
 
 @app.function(gpu=GPU, timeout=TIMEOUT_S, volumes={"/ckpt": vol})
 def train(env: str = "", preset: str = "", run: str = "", timesteps: int = 0, experiment: str = "",
-          num_envs: int = 0, git_sha: str = "", git_dirty: bool = False):
+          num_envs: int = 0, git_sha: str = "", git_dirty: bool = False, seed: int = 0):
     import time
     sys.path.insert(0, "/root/pinch")
     os.chdir("/root/pinch")
@@ -58,10 +58,11 @@ def train(env: str = "", preset: str = "", run: str = "", timesteps: int = 0, ex
             last[0] = time.time()
     try:
         if experiment:
-            run_experiment(experiment, run or None, "/ckpt", commit, num_envs or None, timesteps or None)
+            run_experiment(experiment, run or None, "/ckpt", commit, num_envs or None, timesteps or None,
+                           seed or None)
         else:
             run_training(preset, env, timesteps or None, run, True, out_root="/ckpt", on_save=commit,
-                         num_envs=num_envs or None)
+                         num_envs=num_envs or None, seed=seed or None)
     finally:
         vol.commit()
     return run
@@ -75,10 +76,10 @@ def main(env: str = "gait", preset: str = "gait", run: str = "gait-v1", timestep
 
 @app.local_entrypoint()
 def launch(env: str = "", preset: str = "", run: str = "", timesteps: int = 0, experiment: str = "",
-           num_envs: int = 0, git_sha: str = "", git_dirty: bool = False):
+           num_envs: int = 0, git_sha: str = "", git_dirty: bool = False, seed: int = 0):
     """Start a run and return at once (use with `modal run --detach`): the run lives on Modal, not on this
     laptop. Its hard timeout still applies; `status` and `fetch` read its results."""
-    call = train.spawn(env, preset, run, timesteps, experiment, num_envs, git_sha, git_dirty)
+    call = train.spawn(env, preset, run, timesteps, experiment, num_envs, git_sha, git_dirty, seed)
     print(json.dumps(dict(launched=run, gpu=GPU, timeout_min=TIMEOUT_S // 60, call_id=call.object_id)))
 
 
