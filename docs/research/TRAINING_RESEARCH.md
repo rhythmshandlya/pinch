@@ -1,6 +1,8 @@
 # Training research: getting unstuck, and how to train a robot like Pinch
 
-*Research note, 2026-11-20. It answers two questions from the owner:*
+*Research note, 2026-11-20. It answers two questions from the owner. Corrected on 2026-11-21 after the project
+audit ([PROJECT_AUDIT.md](PROJECT_AUDIT.md), section 7): DribbleBot's training length, the BeyondMimic repository's
+status and Isaac Lab's Newton support.*
 
 - *Q1: how do research and production systems detect and recover from being stuck, wedged, tangled or blocked,
   and which combination fits Pinch?*
@@ -50,7 +52,7 @@ thin or comes from a much bigger robot, the text says so.*
 
    That design reached 93.6 % success in simulation [S24]. Two more tools apply: potential-based shaping, which
    pays nothing for hovering [S27], and a reverse curriculum that starts episodes close to success [S28]. The
-   budget was also small: 30M steps, against about 15 GPU-hours for [S24] and 77 billion steps for DribbleBot [S25].
+   budget was also small: 30M steps, against about 15 GPU-hours for [S24] and 7 billion steps (about 48 hours) for DribbleBot [S25].
 5. **The single-walker approach hit interference.** terrain-push-v2 gained the eraser but lost the cap
    (decision 96). Walk These Ways [S20] makes the regime an explicit *command* (gait, body height, step height), so
    push-crouch and high-step climbing stop competing for the same uncommanded behaviour. Barkour [S22] shows that
@@ -62,7 +64,7 @@ thin or comes from a much bigger robot, the text says so.*
    - RSL-RL brings teacher–student distillation, symmetry augmentation and RND curiosity out of the box [S51];
    - it keeps the MuJoCo physics the twin uses.
 
-   Isaac Lab remains the fallback: PhysX by default differs from the twin; Newton integration is on its roadmap
+   Isaac Lab remains the fallback: PhysX by default differs from the twin, though v3.0.0 (October 2026) also ships Newton
    [S52]. **Uncertain:** mjlab's throughput on Pinch has not been measured. Benchmark it as decision 97 did for
    MJX before committing.
 
@@ -293,7 +295,8 @@ reflexes, and keeps the danger map:
   - **MaskedMimic** unifies many control modes in one tracker through masked motion inpainting (NVlabs/ProtoMotions,
     2.5k ★, active) [S36].
   - **BeyondMimic** tracks highly dynamic clips on hardware, then distils them into a guided diffusion controller.
-    Code: HybridRobotics/whole_body_tracking, 2.4k ★, active; mjlab ships a tracking task in this style [S35].
+    Code: HybridRobotics/whole_body_tracking (2.4k ★) is archived; the maintained version is mjlab's tracking task,
+     which supports the Unitree G1 only [S35].
   - **Disney's BD-X** uses an animation engine and separate RL policies: perpetual (standing), periodic (walking)
     and episodic (per clip), tracking artist animation [S30]. **Olaf** adds actuator temperature as an
     observation, a thermal reward and a foot-impact reward (−13.5 dB) [S31]. **AMOR** makes reward weights an
@@ -317,7 +320,7 @@ reflexes, and keeps the danger map:
     reward design is in the first bullet of the implications below. The authors report that pure extrinsic reward
     stalls during approach, and that proximity terms left on near the goal hurt accuracy [S24].
   - **DribbleBot** commands the *ball velocity* and rewards velocity tracking, with distance and alignment terms.
-    It trained for 77 billion steps [S25].
+    It trained for 7 billion steps, about 48 hours [S25].
   - **Curiosity (RND)** lets loco-manipulation learn from sparse task rewards without heavy shaping [S27b]. RSL-RL
     ships an RND extension [S51].
   - **Pedipulation** [S55], **legs as manipulators** [S56] and **LocoMan** (leg-mounted 3-DoF manipulators) [S57]
@@ -406,7 +409,7 @@ reflexes, and keeps the danger map:
 |---|---|---|
 | Brax PPO on MJX (current) | google/brax 3.3k ★, last push 2026-10-20; MuJoCo Playground 2.3k ★, active [S54]; measured 14–27k steps/s (decision 97) | Keep for existing envs (gait, righting, grasp) until they need retraining. Brax's last push is older than the rest |
 | **mjlab** (MuJoCo Warp + RSL-RL) | mujocolab/mjlab 3.4k ★, pushed today; tech report Jan 2026 [S50]; ships velocity, tracking and manipulation tasks. RSL-RL 3.2k ★, active: PPO, distillation, SAC, RND, symmetry [S51]. MuJoCo Warp 1.6k ★ | **New envs here**: motion tracking first, then locomotion v3 and push v3. Same physics family as the twin. Benchmark throughput first (*unmeasured*) |
-| Isaac Lab | isaac-sim/IsaacLab 8.7k ★, active; paper 2025 [S52] | Fallback. PhysX would diverge from the MuJoCo twin; Newton integration is on its roadmap [S52] |
+| Isaac Lab | isaac-sim/IsaacLab 8.7k ★, active; paper 2025 [S52] | Fallback. PhysX would diverge from the MuJoCo twin; v3.0.0 (October 2026) ships Newton with a MuJoCo-Warp solver path [S52] |
 | legged_gym | 3.2k ★, last push 2025-05 | Superseded by Isaac Lab and mjlab; reference only [S21] |
 
 ### Q2.8 Sources for Q2
@@ -418,7 +421,7 @@ reflexes, and keeps the danger map:
 | S22 | Barkour | Caluwaerts, Iscen, Tan et al. | arXiv 2023 / Google | https://arxiv.org/abs/2305.14654 | Specialists plus a distilled Locomotion-Transformer; generalist slightly lower score, smoother transitions | Condition first, distil later |
 | S23 | DeepMimic | Peng, Abbeel, Levine, van de Panne | SIGGRAPH 2018 | https://arxiv.org/abs/1804.02717 | Imitation reward on reference clips (xbpeng/DeepMimic 3.1k ★) | Basis of the motion tracker |
 | S24 | Learning whole-body manipulation for quadrupedal robot | Jeon, Jung, Choi, Kim, Hwangbo | arXiv 2023 | https://arxiv.org/abs/2308.16820 | 5 Hz velocity-command policy over a frozen walker; log-distance extrinsic + object-velocity intrinsic reward; 93.6 % in sim | Template for push v3 |
-| S25 | DribbleBot | Ji, Margolis, Agrawal | ICRA 2023 | https://arxiv.org/abs/2304.01159 | Commanded ball velocity; velocity-matching rewards; 77B steps | Object-velocity command alternative; budget reality |
+| S25 | DribbleBot | Ji, Margolis, Agrawal | ICRA 2023 | https://arxiv.org/abs/2304.01159 | Commanded ball velocity; velocity-matching rewards; 7B steps (about 48 h) | Object-velocity command alternative; budget reality |
 | S26 | AMP: adversarial motion priors | Peng, Ma, Abbeel, Levine, Kanazawa | SIGGRAPH 2021 | https://arxiv.org/abs/2104.02180 | Discriminator style reward | Optional crab style |
 | S26b | AMP make good substitutes for complex reward functions | Escontrela et al. | IROS 2022 | https://arxiv.org/abs/2203.15103 | AMP on a real quadruped | Same |
 | S26c | ASE: adversarial skill embeddings | Peng, Guo, Halper, Levine, Fidler | SIGGRAPH 2022 | https://arxiv.org/abs/2205.01906 | Reusable latent skills (nv-tlabs/ASE 1.1k ★) | Later, if many skills share one controller |
@@ -442,7 +445,7 @@ reflexes, and keeps the danger map:
 | S48 | ANYmal parkour | Hoeller, Rudin, Sako, Hutter | Science Robotics 2024 | https://arxiv.org/abs/2306.14874 | Perception + skill library + navigation selector | Skill library under a selector |
 | S50 | mjlab: a lightweight framework for GPU-accelerated robot learning | Zakka et al. | arXiv 2601.22074, 2026 | https://arxiv.org/abs/2601.22074 | Isaac Lab-style API on MuJoCo Warp, RSL-RL training | Recommended stack for new envs |
 | S51 | RSL-RL | Robotic Systems Lab, ETH | GitHub (3.2k ★, pushed 2026-11-20) | https://github.com/leggedrobotics/rsl_rl | PPO, distillation, SAC, RND and symmetry extensions | Teacher–student, curiosity, mirror augmentation |
-| S52 | Isaac Lab | Mittal et al. (NVIDIA) | arXiv 2511.04831, 2025 | https://arxiv.org/abs/2511.04831 | GPU sim framework; Newton integration on the roadmap (8.7k ★) | Fallback stack |
+| S52 | Isaac Lab | Mittal et al. (NVIDIA) | arXiv 2511.04831, 2025 | https://arxiv.org/abs/2511.04831 | GPU sim framework; Newton shipped in v3.0.0, October 2026 (8.7k ★) | Fallback stack |
 | S53 | Symmetry considerations for learning task symmetric robot policies | Mittal, Rudin, Klemm, Allshire, Hutter | ICRA 2024 | https://arxiv.org/abs/2403.04359 | Data augmentation beats a mirror loss | Pinch is left-right symmetric |
 | S54 | MuJoCo Playground | Zakka et al. | RSS 2025 | https://arxiv.org/abs/2502.08844 | MJX envs with sim-to-real examples, minutes to hours on one GPU | Current stack's basis |
 | S55 | Pedipulate | Arm, Mittal, Kolvenbach, Hutter | ICRA 2024 | https://arxiv.org/abs/2402.10837 | RL foot-position tracking for manipulation, robust to interaction forces | Claw and leg poke or push play |
