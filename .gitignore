@@ -17,6 +17,10 @@ models/faces/
 # the owner's PRD and the traceability matrix quoting it: private, kept locally
 docs/PRD.md
 docs/PLAN.md
+docs/CHARACTER.md
+docs/MOVES.md
+docs/HW_REQUIREMENTS.md
+docs/phase1/
 docs/TRACEABILITY.md
 media/
 

@@ -1381,3 +1381,38 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       desk routines are still tuned for v1.
     - **Rejected:** replacing v1 in place (every adopted policy and the golden trace are v1's; they stay until v2
       policies beat them); using BAM's deprecated first-order export alone (it cannot follow the supply voltage).
+
+104. **Every electronic part placed in the resized body, wired, and simulated as a circuit.**
+    - **Why:** the owner asked for all electronics fitted and wired, and an exact simulation; a lumped 171 g "electronics"
+      mass and a simple battery model could hide parts that do not fit and power that does not hold.
+    - **Change:** `configs/layout_v2.toml` (outline, mass, pose, connector side, keep-out of every part) with
+      `sim/fit_check.py`; `configs/wiring_v2.toml` with `crab/wiring.py` checks (pins, I2C addresses incl. the VL53
+      reset-pin readdressing, the BNO055 on its own bus, ratings, regulator load); a circuit solved every control tick
+      in the twin (pack, fuse, BMS, wire drops, both 5 V regulators, INA219 at its shunt, brown-out restarts the mind
+      from memory); IMU and cliff beams at their mounts; the visor face on v2. A later audit replaced 18 estimates
+      with datasheet values and tagged the rest needs-bench, design-choice or unverified.
+    - **Measured:** fits after raising the chassis 4.2 mm; 1.75 kg (was 1.571); worst pack draw 16.2 A peak during a
+      get-up swing, no fuse blow or brown-out at full charge; a mixed session lasts about 92 minutes to 80 % used.
+    - **Needs the bench:** pack resistance and curve, BMS limit, regulator dropout, harness resistance, most outlines.
+    - **Parts list changes found** (for phase 2): a 0.002 ohm shunt, one cable per servo, a larger hub board, four pogo pins.
+
+105. **A second trainer on mjlab (MuJoCo Warp + RSL-RL), next to Brax/MJX.**
+    - **Why:** audit finding 5: Brax maintains only its training code, MuJoCo Playground moved to this stack, and the
+      measured servo models (BAM) plug into mjlab, not MJX.
+    - **Evidence:** mujocolab/mjlab (Isaac Lab's manager-based API on MuJoCo Warp); pollen-robotics/microduck_rl as the
+      template.
+    - **Change:** `training/mjlab_pinch/` (velocity task with position or BAM actuators, randomised delay, bias, IMU
+      misalignment, pushes, friction, mass, motor strength), ONNX and numpy export, a sim-to-sim replay, `ops/mjlab_run.py`.
+    - **Measured:** msi-1 (RTX 4050): 57,600 steps/s at 16,384 envs in 3.9 GB. The first proof walker does not move
+      in the CPU twin (0 cm/s, 0 falls in 20 rollouts): open, to be solved before it trains anything adopted.
+    - **Also:** experiments may set `design = "v2"`; the trainer, run records and `ops eval` follow it.
+
+106. **A locked 15-phase plan; phase 1 started.**
+    - **Why:** the project kept changing parts and retraining with no measurable path to the finished pet.
+    - **Evidence:** how BD-X and Olaf (Disney), Cozmo and Vector (Anki), AIBO (Sony), Open Duck Mini and ToddlerBot
+      were developed: character first; body, motion and simulated training shaped together, then frozen; servos
+      measured before training; a minimal real body early. Outline in [ROADMAP.md](ROADMAP.md).
+    - **Change:** the stale roadmap replaced by the outline; the plan, the character brief, the move vocabulary and
+      the hardware requirements are kept locally by the owner (guard and .gitignore). Three task branches that belong
+      to later phases were archived with tags instead of merged: `archive/navigation` (phase 10), `archive/grab-fit`
+      (phase 8/11), `archive/activity-mix` (phase 4/11).

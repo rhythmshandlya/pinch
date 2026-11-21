@@ -171,7 +171,7 @@ Turn every joint gently by hand over its range (`crab/params.py`). The CAD check
 ## Stage 5: electronics into the body
 
 > Board positions in this stage are the plan from the design's weight estimate; they haven't been
-> fitted in the CAD yet (see docs/ROADMAP.md). If a board doesn't fit where it says, find it another
+> fitted in the CAD yet (configs/layout_v2.toml places every part of the resized design; the CAD follows in phase 2-3 of docs/ROADMAP.md). If a board doesn't fit where it says, find it another
 > spot inside the body before taping anything.
 
 1. **Deck:** the FE-URT-1, servo hub and fuse holder go on the deck between the yaw servos, held with
