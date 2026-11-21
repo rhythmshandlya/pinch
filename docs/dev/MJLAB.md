@@ -93,7 +93,32 @@ a single-branch clone, which msi-1's is).
 Speed saturates around 16k environments; 16,384 is the working size. The Brax/MJX trainer is not measured on the
 same robot here, so no comparison is claimed; mjlab's own Go1 probe on the same GPU gave 38,000 steps/s.
 
-PROOF_RUN_PLACEHOLDER
+## The proof run (pipeline proof, not an adopted policy)
+
+`ops.mjlab_run start --envs 16384 --iterations 300`, run `proof2`: 58,982,400 steps in 16 min 53 s (about 58,000
+steps/s; GPU memory 3.1 GB sampled every 5 s, 3.9 GB peak in the short sizing run). Exported with the normaliser
+baked in: ONNX, numpy and torch agree to 4e-7 (limit 1e-4).
+
+Training curve (iterations 0 / 100 / 200 / 299; early values are low because episodes are still aging from random
+lengths until about iteration 85): mean reward 0.15 / 30 / 63 / 76; track_linear_velocity (weight 3) 0.001 / 0.64 /
+1.24 / 1.42; track_angular_velocity (weight 2) 0 / 0.11 / 0.35 / 0.54; upright 0.91 at the end; no falls; every
+penalty <= 0. mjlab's tracking-error metrics (summed over an episode, scaled to an 8 s command window): xy 0.146 at
+iteration 100 down to 0.094, yaw 0.97 down to 0.67, still falling when the run ended, so it was not converged.
+Policy noise (action std) fell from 0.35 to 0.10.
+
+An earlier run (`proof1`, entropy 0.01, air-time weight 3) kept its action noise at 0.56, flailed (body angular
+velocity penalty -0.4, tracking 0.33/3) and plateaued at reward 63 from iteration 170. Lowering the exploration
+noise and the air-time weight is what made `proof2` keep improving.
+
+**Sim-to-sim on the CPU twin (mujoco 4.0.1, 2 ms, full model), 20 s, 5 seeds, commands stand / forward 4 cm/s /
+sideways 4 cm/s / turn 0.4 rad/s: 0 falls in 20 of 20 rollouts (95 % range 0-16 %) but the policy does not walk
+there.** Body velocity is 0.0 cm/s for every command (tracking error 4.0 cm/s xy for forward and sideways, 0.40
+rad/s yaw for the turn), the body sits at 42-43 mm. Two extra control steps of action delay change nothing. So the
+trained behaviour (it tracks about 47 % of the way in the trainer) does not transfer to the twin: the pipeline
+(train, export, replay with the same observation function) works end to end, the policy does not yet. Untested
+suspects: the twin clamps targets to the joint range and runs 2 ms physics against 5 ms, foot friction (twin 1.1,
+trainer 0.8 randomised 0.3-1.25), the trainer's soft joint limits, and mujoco 3.11 against 4.0.1 contacts. Next step:
+replay the same checkpoint in CPU mujoco 3.11 at 5 ms with the trainer's model to split the causes.
 
 ## What differs from the MJX environments
 
