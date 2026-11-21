@@ -145,7 +145,7 @@ mass_g = 14.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "the BOM's add-a-circuit holder with a 15 A ATC blade fuse (a blade is 19 x 5 x 18.5 mm, ISO 8820) and its short leads; the holder was not measured"
-pos_mm = [42.0, 48.0, -20.0]
+pos_mm = [46.0, 50.0, -20.0]
 connectors = [{name = "in", side = "-x", reach_mm = 8.0}, {name = "out", side = "+x", reach_mm = 8.0}]
 
 [part.ina]
@@ -157,7 +157,7 @@ mass_g = 4.5
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "a 7Semi INA219 breakout is about the size of Adafruit's (25.5 x 22.3 mm) plus screw terminals 11 mm high; the 0.005 ohm 2512 shunt is soldered across the terminals"
-pos_mm = [-16.0, 0.0, -22.0]
+pos_mm = [-12.0, 0.0, -22.0]
 rpy_deg = [0, 0, 90]
 connectors = [{name = "terminals", side = "+y", reach_mm = 10.0}, {name = "i2c", side = "-y", reach_mm = 8.0}]
 
@@ -182,19 +182,19 @@ mass_g = 5.5
 mass_source = "estimate"
 mass_ref = "https://hubtronics.in/ap64500-5v-5a-dc-dc-buck-converter"
 why = "module 25 x 22 mm and 2 g per the Hubtronics listing (read 2026-11-21); the 10 x 20 mm input capacitor lies beside it (33 mm wide) and adds 3.5 g; the height is our estimate"
-pos_mm = [-2.0, 42.0, -1.0]
+pos_mm = [-2.0, 42.0, 0.0]
 connectors = [{name = "in", side = "-x", reach_mm = 8.0}, {name = "out", side = "+x", reach_mm = 8.0}]
 
 [part.hub]
 kind = "board"
-size_mm = [50.0, 30.0, 14.0]
+size_mm = [55.0, 36.0, 14.0]
 size_source = "estimate"
 size_ref = "hardware/BOM.md"
-mass_g = 18.0
+mass_g = 24.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
-why = "a cut piece of the BOM's 8 x 12 cm prototype board with 4 leg + 6 arm 3-pin headers in two rows and the two 1000 uF capacitors lying across it; the BOM's 3 x 2 cm piece is too small for ten headers"
-pos_mm = [-24.0, 30.0, -24.0]
+why = "a cut piece of the BOM 8 x 12 cm prototype board with 12 leg + 6 arm 3-pin headers in three rows and the two 1000 uF capacitors lying across it; the BOM's 3 x 2 cm piece is too small for ten headers"
+pos_mm = [-22.0, 34.0, -23.0]
 connectors = [{name = "servo_cables", side = "+z", reach_mm = 10.0}, {name = "power_in", side = "-x", reach_mm = 8.0, width_mm = 12.0}]
 
 [part.driver]
@@ -206,7 +206,7 @@ mass_g = 15.0
 mass_source = "estimate"
 mass_ref = "https://www.waveshare.com/wiki/Bus_Servo_Adapter_(A)"
 why = "board 42 x 33 mm per Waveshare's wiki; the page lists no height or weight: 12 mm covers the DC jack and the USB-C socket"
-pos_mm = [20.0, 14.0, -24.0]
+pos_mm = [24.0, 14.0, -23.0]
 rpy_deg = [0, 0, 90]
 connectors = [{name = "usb", side = "+x", reach_mm = 14.0, width_mm = 12.0}, {name = "servo_port", side = "-x", reach_mm = 8.0, width_mm = 12.0}]
 
@@ -391,17 +391,33 @@ proud_mm = 3.5
 
 [part.oled]
 kind = "display"
-size_mm = [61.0, 43.0, 7.0]
+size_mm = [39.5, 61.5, 7.0]
 size_source = "estimate"
 size_ref = "hardware/BOM.md"
 mass_g = 19.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
-why = "2.42 inch SSD1309 module: about 61 x 43 mm with its frame and FPC (the Amazon listing gives no outline); tilted 10 degrees up toward the front, under the dome"
-pos_mm = [30.0, 0.0, 7.5]
-rpy_deg = [0, 10, 0]
-window = {pos_mm = [0.0, 0.0, 3.5], dir = [0.0, 0.0, 1.0], cone_deg = 35.0, clear_mm = 150.0, max_depth_mm = 10.0}
-connectors = [{name = "header", side = "-x", reach_mm = 8.0, width_mm = 20.0}]
+why = "2.42 inch SSD1309 module (Teyleten, Amazon B09LND6QJ1): 61.5 x 39.5 mm and a 55 x 27.5 mm lit area are v1's numbers (cad/parts.py FACE_MODULE, FACE_ACTIVE), taken from the same screen; 7 mm thick with its board, glass and FPC and 19 g are our estimates (the listing gives neither). It sits in a visor set into the front of the body, leaning back 25 degrees like v1's (FACE_TILT); not scaled"
+pos_mm = [63.46, 0.0, 31.68]
+rpy_deg = [0, 65.0, 0]
+outside_ok = true
+face = true
+window = {pos_mm = [0.0, 0.0, 3.5], dir = [0.0, 0.0, 1.0], cone_deg = 35.0, clear_mm = 300.0, exposed = true, check_shell = true}
+connectors = [{name = "header", side = "-z", reach_mm = 8.0, width_mm = 20.0, through_wall = true}]
+
+[part.visor]
+kind = "printed"
+size_mm = [45.0, 67.5, 1.7]
+size_source = "estimate"
+size_ref = "hardware/BOM.md"
+mass_g = 12.0
+mass_source = "estimate"
+mass_ref = "hardware/BOM.md"
+why = "the orange bezel in front of the glass: v1's 67.5 x 45 mm outline (cad/parts.py FACE_HOUSING), 1.7 mm of bezel ahead of the glass; the mass is the whole printed visor with its side walls, about 12 g of PETG"
+pos_mm = [67.41, 0.0, 33.52]
+rpy_deg = [0, 65.0, 0]
+on = "oled"
+outside_ok = true
 
 [part.mic_l]
 kind = "microphone"
@@ -468,25 +484,25 @@ connectors = [{name = "to_pack", side = "+x", reach_mm = 8.0}]
 
 [part.pogo_l]
 kind = "contact"
-size_mm = [16.35, 2.0, 2.0]
+size_mm = [16.35, 6.0, 2.0]
 size_source = "estimate"
 size_ref = "hardware/BOM.md"
-mass_g = 0.4
+mass_g = 0.8
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
-why = "P50-E2 spring test probe, about 16 mm long and 2 mm across (the Robocraze listing in the BOM gives no drawing); two on the back wall, 40 mm apart"
+why = "P50-E2 spring test probe, about 16 mm long, a PAIR of them 4 mm apart (so each polarity has two pins in parallel) (the Robocraze listing in the BOM gives no drawing); two on the back wall, 40 mm apart"
 pos_mm = [-52.6, 20.0, 3.0]
 wall_mounted = true
 
 [part.pogo_r]
 kind = "contact"
-size_mm = [16.35, 2.0, 2.0]
+size_mm = [16.35, 6.0, 2.0]
 size_source = "estimate"
 size_ref = "hardware/BOM.md"
-mass_g = 0.4
+mass_g = 0.8
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
-why = "P50-E2 spring test probe, about 16 mm long and 2 mm across (the Robocraze listing in the BOM gives no drawing); two on the back wall, 40 mm apart"
+why = "P50-E2 spring test probe, about 16 mm long, a PAIR of them 4 mm apart (so each polarity has two pins in parallel) (the Robocraze listing in the BOM gives no drawing); two on the back wall, 40 mm apart"
 pos_mm = [-52.6, -20.0, 3.0]
 wall_mounted = true
 

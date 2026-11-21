@@ -278,9 +278,21 @@ def _v2_params() -> CrabParams:
               tibia_mass=0.0303)
     arm = Arm(shoulder_offset=0.024, upper_len=0.045, finger_len=0.036, upper_mass=0.0150, jaw_mass=0.0022,
               shoulder_mass=0.0085)
-    body = Body(half_size=(0.0677, 0.0897, 0.0229), mass=0.7260, chassis_pos=(0.0069, 0.0, -0.0118),
-                dome_half=(0.0736, 0.0923, 0.0190), dome_pos=(0.0096, 0.0, 0.0016),
-                shell_mass=0.3354, battery_mass=0.0810, electronics_mass=0.0900)
+    # The chassis is the one in configs/layout_v2.toml, where every electronic part has its place (the fit check
+    # raised the box by 4.2 mm: the hip servos stood through the lid). The printed body's 335 g was for the old
+    # 45.8 mm box: scaled by the box's surface area. The pack and electronics are now the parts of the layout.
+    from .electronics import Layout
+    lay = Layout()
+    ch = lay.chassis
+    m = lambda key: tuple(v / 1000.0 for v in ch[key])          # noqa: E731
+    old_h = 0.0458
+    a = lambda hz: 2 * (0.1354 * 0.1794 + (0.1354 + 0.1794) * hz)  # noqa: E731
+    shell = 0.3354 * a(2 * ch["box_half_mm"][2] / 1000.0) / a(old_h)
+    pack = lay["pack"].mass_g / 1000.0
+    elec = sum(p.mass_g for p in lay.parts.values() if not p.in_model and p.name != "pack") / 1000.0
+    body = Body(half_size=m("box_half_mm"), mass=shell + pack + elec + 4 * sv, chassis_pos=m("box_center_mm"),
+                dome_half=m("dome_half_mm"), dome_pos=m("dome_center_mm"),
+                shell_mass=shell, battery_mass=pack, electronics_mass=elec)
     return CrabParams(body=body, leg=leg, arm=arm,
                       leg_mounts={"F": ((0.0352, 0.0736, 0.0), radians(64)),
                                   "R": ((-0.0352, 0.0736, 0.0), radians(116))},
@@ -324,5 +336,12 @@ CLIFF_BEAMS = [
     ("side_left", -8.0, 55.0, -16.0, (0.0, 0.866, -0.5)),
     ("side_right", -8.0, -55.0, -16.0, (0.0, -0.866, -0.5)),
 ]
-if DESIGN == "v2":                  # the windows move out with the body (hips x1.6); the beam directions stay
-    CLIFF_BEAMS = [(n, 1.6 * x, 1.6 * y, 1.6 * z, d) for n, x, y, z, d in CLIFF_BEAMS]
+if DESIGN == "v2":                  # the windows are where configs/layout_v2.toml puts the five sensors' windows
+    from .electronics import Layout as _Layout
+    _lay = _Layout()
+    CLIFF_BEAMS = []
+    for _n, _part in (("front_left", "tof_fl"), ("front_right", "tof_fr"), ("rear", "tof_rear"),
+                      ("side_left", "tof_left"), ("side_right", "tof_right")):
+        _pos, _dir = _lay[_part].window_pose()
+        CLIFF_BEAMS.append((_n, round(float(_pos[0]), 2), round(float(_pos[1]), 2), round(float(_pos[2]), 2),
+                            tuple(round(float(v), 3) for v in _dir)))

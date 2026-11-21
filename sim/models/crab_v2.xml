@@ -48,6 +48,8 @@
     <material name="printed" rgba="0.92 0.40 0.22 1" specular="0.25" shininess="0.3"/>
     <material name="horn" rgba="0.75 0.76 0.78 1" specular="0.6" shininess="0.8"/>
     <material name="pcb" rgba="0.10 0.45 0.25 1"/>
+    <texture name="face_tex" type="2d" builtin="flat" rgb1="0.02 0.02 0.03" width="256" height="128"/>
+    <material name="face_mat" texture="face_tex" emission="0.9" specular="0.3"/>
 
   </asset>
 
@@ -58,24 +60,53 @@
     <body name="body" pos="0 0 0.0767" childclass="crab">
       <freejoint name="root"/>
       <camera name="track" mode="trackcom" pos="0.3494 -0.416 0.2496" xyaxes="0.7657 0.6432 -0 -0.2685 0.3197 0.9087"/>
-      <camera name="eye_cam" pos="0.06431 0 0.01145" xyaxes="0 -1 0 0 0 1" fovy="102"/>
-      <site name="imu" pos="0 0 0" size="0.0083" rgba="0 0 0 0"/>
+      <camera name="eye_cam" pos="0.0746 0 -0.0195" xyaxes="0 -1 0 -0 0 1" fovy="102"/>
+      <site name="imu" pos="-0.02 0 0.01" quat="1 0 0 0" size="0.0083" rgba="0 0 0 0"/>
       
-      <geom name="chassis" type="box" pos="0.0069 0 -0.0118" size="0.0677 0.0897 0.0229" mass="0.25155" material="shell"/>
-      <geom name="dome" type="ellipsoid" pos="0.0096 0 0.0016" size="0.0736 0.0923 0.019" mass="0.08385" material="shell"/>
+      <geom name="chassis" type="box" pos="0.0069 0 -0.0097" size="0.0677 0.0897 0.025" mass="0.26014" material="shell"/>
+      <geom name="dome" type="ellipsoid" pos="0.0096 0 0.0016" size="0.0736 0.0923 0.019" mass="0.086714" material="shell"/>
       <geom class="visual" type="box" size="0.0226 0.01235 0.0175" pos="0.0352 0.0736 -0.00525" mass="0.055" material="servo"/>
       <geom class="visual" type="box" size="0.0226 0.01235 0.0175" pos="0.0352 -0.0736 -0.00525" mass="0.055" material="servo"/>
       <geom class="visual" type="box" size="0.0226 0.01235 0.0175" pos="-0.0352 0.0736 -0.00525" mass="0.055" material="servo"/>
       <geom class="visual" type="box" size="0.0226 0.01235 0.0175" pos="-0.0352 -0.0736 -0.00525" mass="0.055" material="servo"/>
-      <geom class="visual" type="box" size="0.05754 0.01309 0.009" pos="0.0069 0 -0.0237" mass="0.081" material="pcb"/>
-      <geom class="visual" type="box" size="0.03 0.035 0.008" pos="0.005 0 0.012" mass="0.09" material="pcb"/>
+      <geom name="part_pack" class="visual" type="box" size="0.036 0.01925 0.00975" pos="-0.012 -0.036 -0.021" quat="1 0 0 0" mass="0.1" material="servo"/>
+      <geom name="part_xt60" class="visual" type="box" size="0.013 0.004 0.008" pos="0.04 -0.036 -0.021" quat="0.7071 0 0 0.7071" mass="0.012" material="pcb"/>
+      <geom name="part_fuse" class="visual" type="box" size="0.015 0.009 0.011" pos="0.046 0.05 -0.02" quat="1 0 0 0" mass="0.014" material="pcb"/>
+      <geom name="part_ina" class="visual" type="box" size="0.01275 0.01115 0.0055" pos="-0.012 0 -0.022" quat="0.7071 0 0 0.7071" mass="0.0045" material="pcb"/>
+      <geom name="part_reg_a" class="visual" type="box" size="0.0125 0.0165 0.0055" pos="-0.03 -0.034 -0.004" quat="1 0 0 0" mass="0.0055" material="pcb"/>
+      <geom name="part_reg_b" class="visual" type="box" size="0.0125 0.0165 0.0055" pos="-0.002 0.042 0" quat="1 0 0 0" mass="0.0055" material="pcb"/>
+      <geom name="part_hub" class="visual" type="box" size="0.0275 0.018 0.007" pos="-0.022 0.034 -0.023" quat="1 0 0 0" mass="0.024" material="pcb"/>
+      <geom name="part_driver" class="visual" type="box" size="0.021 0.0165 0.006" pos="0.024 0.014 -0.023" quat="0.7071 0 0 0.7071" mass="0.015" material="pcb"/>
+      <geom name="part_radxa" class="visual" type="box" size="0.0325 0.015 0.00325" pos="0.016 0 -0.012" quat="1 0 0 0" mass="0.0125" material="pcb"/>
+      <geom name="part_imu" class="visual" type="box" size="0.01 0.0135 0.002" pos="-0.02 0 0.01" quat="1 0 0 0" mass="0.003" material="pcb"/>
+      <geom name="part_mpr121" class="visual" type="box" size="0.0105 0.009 0.0015" pos="0.016 -0.032 -0.008" quat="1 0 0 0" mass="0.002" material="pcb"/>
+      <geom name="part_amp" class="visual" type="box" size="0.0097 0.0089 0.0015" pos="-0.038 0.042 0" quat="1 0 0 0" mass="0.0012" material="pcb"/>
+      <geom name="part_radxa_heatsink" class="visual" type="box" size="0.007 0.007 0.003" pos="0.021 0 -0.00575" quat="1 0 0 0" mass="0.003" material="pcb"/>
+      <geom name="part_camera" class="visual" type="box" size="0.0008 0.0125 0.012" pos="0.0618 0 -0.0195" quat="1 0 0 0" mass="0.004" material="pcb"/>
+      <geom name="part_camera_lens" class="visual" type="box" size="0.006 0.0085 0.0085" pos="0.0686 0 -0.0195" quat="1 0 0 0" mass="0.006" material="pcb"/>
+      <geom name="part_tof8" class="visual" type="box" size="0.002 0.0125 0.007" pos="0.0726 0 0.001" quat="1 0 0 0" mass="0.003" material="pcb"/>
+      <geom name="part_tof_fl" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0.069 0.0258 -0.0233" quat="0.2011 0.6016 0.6779 0.3716" mass="0.0014" material="pcb"/>
+      <geom name="part_tof_fr" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0.069 -0.0258 -0.0233" quat="0.2011 -0.6016 0.6779 -0.3716" mass="0.0014" material="pcb"/>
+      <geom name="part_tof_rear" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="-0.0575 0 -0.0245" quat="-0.2988 0.6409 0.6409 -0.2988" mass="0.0014" material="pcb"/>
+      <geom name="part_tof_left" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0 0.0882 -0.0247" quat="0.5 -0.866 0 0" mass="0.0014" material="pcb"/>
+      <geom name="part_tof_right" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0 -0.0882 -0.0247" quat="0.5 0.866 0 0" mass="0.0014" material="pcb"/>
+      <geom name="part_oled" class="visual" type="box" size="0.01975 0.03075 0.0035" pos="0.06346 0 0.03168" quat="0.8434 0 0.5373 0" mass="0.019" rgba="0 0 0 0"/>
+      <geom name="part_visor" class="visual" type="box" size="0.0225 0.03375 0.00085" pos="0.06741 0 0.03352" quat="0.8434 0 0.5373 0" mass="0.012" rgba="0 0 0 0"/>
+      <geom name="part_mic_l" class="visual" type="box" size="0.009 0.00625 0.0015" pos="-0.02 0.035 0.011" quat="1 0 0 0" mass="0.0015" material="pcb"/>
+      <geom name="part_mic_r" class="visual" type="box" size="0.009 0.00625 0.0015" pos="-0.02 -0.035 0.011" quat="1 0 0 0" mass="0.0015" material="pcb"/>
+      <geom name="part_speaker" class="visual" type="box" size="0.014 0.014 0.0025" pos="-0.038 0.042 0.005" quat="1 0 0 0" mass="0.004" material="pcb"/>
+      <geom name="part_switch" class="visual" type="box" size="0.0135 0.015 0.011" pos="-0.0473 0 -0.003" quat="1 0 0 0" mass="0.012" material="pcb"/>
+      <geom name="part_dock_board" class="visual" type="box" size="0.009 0.006 0.002" pos="-0.048 -0.048 0.005" quat="1 0 0 0" mass="0.003" material="pcb"/>
+      <geom name="part_pogo_l" class="visual" type="box" size="0.008175 0.003 0.001" pos="-0.0526 0.02 0.003" quat="1 0 0 0" mass="0.0008" material="pcb"/>
+      <geom name="part_pogo_r" class="visual" type="box" size="0.008175 0.003 0.001" pos="-0.0526 -0.02 0.003" quat="1 0 0 0" mass="0.0008" material="pcb"/>
+      <geom name="part_harness" class="visual" type="sphere" size="0.003" pos="0 0 -0.012" mass="0.06" material="pcb"/>
       
-      <geom class="visual" type="capsule" fromto="0.04536 0.01973 0.01603 0.05958 0.02422 0.04122" size="0.0072" material="shell"/>
-      <geom class="visual" type="sphere" pos="0.05958 0.02422 0.04122" size="0.0176" material="eye"/>
-      <geom class="visual" type="sphere" pos="0.07238 0.02422 0.04442" size="0.0088" material="pupil"/>
-      <geom class="visual" type="capsule" fromto="0.04536 -0.01973 0.01603 0.05958 -0.02422 0.04122" size="0.0072" material="shell"/>
-      <geom class="visual" type="sphere" pos="0.05958 -0.02422 0.04122" size="0.0176" material="eye"/>
-      <geom class="visual" type="sphere" pos="0.07238 -0.02422 0.04442" size="0.0088" material="pupil"/>
+      <geom class="visual" type="box" size="0.00325 0.03375 0.001225" pos="0.05624 0 0.05179" quat="0.9763 0 -0.2164 0" material="shell" mass="0"/>
+      <geom class="visual" type="box" size="0.00325 0.03375 0.001225" pos="0.07422 0 0.01322" quat="0.9763 0 -0.2164 0" material="shell" mass="0"/>
+      <geom class="visual" type="box" size="0.00325 0.00135 0.0225" pos="0.06523 0.0324 0.0325" quat="0.9763 0 -0.2164 0" material="shell" mass="0"/>
+      <geom class="visual" type="box" size="0.00325 0.00135 0.0225" pos="0.06523 -0.0324 0.0325" quat="0.9763 0 -0.2164 0" material="shell" mass="0"/>
+      <geom class="visual" type="box" size="0.0006 0.03075 0.01975" pos="0.066 0 0.03286" quat="0.9763 0 -0.2164 0" material="servo" mass="0"/>
+      <geom class="visual" type="box" size="0.0012 0.0275 0.01375" pos="0.06554 0 0.03265" quat="0.9763 0 -0.2164 0" material="face_mat" mass="0"/>
 
       <body name="FL_coxa_link" pos="0.0352 0.0736 0" euler="0 0 1.1170">
         <joint name="FL_coxa" class="srv_STS3215M6" axis="0 0 -1" range="-0.9599 0.4887"/>

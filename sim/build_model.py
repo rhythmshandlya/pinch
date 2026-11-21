@@ -212,7 +212,7 @@ def jaw_geoms(s):
 
 
 def eyes_xml() -> str:
-    if USE_CAD:
+    if USE_CAD or V2:                  # v2 has the real face screen (face_xml), not eyes on stalks
         return ""
     S = 1.6 if V2 else globals()["S"]                    # v2: eyes sized with the 1.6x legs
     hx, hy, hz = P.body.half_size
@@ -224,6 +224,39 @@ def eyes_xml() -> str:
       <geom class="visual" type="sphere" pos="{f(*top)}" size="{0.011*S:.4f}" material="eye"/>
       <geom class="visual" type="sphere" pos="{f(top[0] + 0.008*S, top[1], top[2] + 0.002*S)}" size="{0.0055*S:.4f}" material="pupil"/>""")
     return "".join(out)
+
+
+def face_xml() -> str:
+    """v2: the same face as today's robot (cad/parts.py: visor 67.5 x 45 mm, module 61.5 x 39.5, lit area 55 x 27.5, leaning
+    back FACE_TILT), set into the front of the body where configs/layout_v2.toml puts the OLED. An orange bezel in
+    the shell's material (four bars round the module's opening, 6.5 mm deep like v1's), a dark module face, and the
+    lit area as sim/desk.py draws it: a thin visual box with material face_mat (emission 0.9) textured by face_tex
+    (256 x 128, written by set_face). Visual only: no mass (the layout's oled and visor parts carry it)."""
+    if not V2:
+        return ""
+    from crab.electronics import Layout
+    ol = Layout()["oled"]
+    n = ol.R @ np.array([0.0, 0.0, 1.0])
+    centre = ol.pos + n * 1.7                                 # FACE_CENTRE: the module's glass is 1.8 mm ahead of it
+    # the screen frame of cad/parts.py FACE_LOC / sim/desk.py: x out of the screen, y across, z up the screen
+    Rs = ol.R @ np.array([[0.0, 0.0, -1.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]])
+    q = f(*_quat_of(Rs))
+
+    def box(p, half, mat):
+        w = (centre + Rs @ np.asarray(p, float)) / 1000.0
+        h = np.asarray(half, float) / 1000.0
+        return f'<geom class="visual" type="box" size="{f(*h)}" pos="{f(*w)}" quat="{q}" material="{mat}" mass="0"/>'
+    mw, mh, hw, hh = 61.5, 39.5, 67.5, 45.0
+    ow, oh = mw + 0.6, mh + 0.6                              # the module pocket
+    bz = (hh - oh) / 4.0, (hw - ow) / 4.0
+    return "\n      ".join([
+        box((0.25, 0, oh / 2 + bz[0]), (3.25, hw / 2, bz[0]), "shell"),             # bezel: top, bottom, left, right
+        box((0.25, 0, -(oh / 2 + bz[0])), (3.25, hw / 2, bz[0]), "shell"),
+        box((0.25, ow / 2 + bz[1], 0), (3.25, bz[1], hh / 2), "shell"),
+        box((0.25, -(ow / 2 + bz[1]), 0), (3.25, bz[1], hh / 2), "shell"),
+        box((1.1, 0, 0), (0.6, mw / 2, mh / 2), "servo"),                           # the module's dark face
+        box((0.6, 0, 0), (1.2, 27.5, 13.75), "face_mat"),                           # lit area, glass front at x = 1.8
+    ])
 
 
 def servo_defaults() -> str:
@@ -275,26 +308,60 @@ def leg_xml_v2(leg_id: str) -> str:
       </body>"""
 
 
+def _quat_of(R):
+    """Quaternion (w, x, y, z) of a rotation matrix."""
+    t = np.trace(R)
+    if t > 0:
+        w = np.sqrt(1 + t) / 2
+        return np.array([w, (R[2, 1] - R[1, 2]) / (4 * w), (R[0, 2] - R[2, 0]) / (4 * w), (R[1, 0] - R[0, 1]) / (4 * w)])
+    i = int(np.argmax(np.diag(R)))
+    j, k = (i + 1) % 3, (i + 2) % 3
+    q = np.zeros(4)
+    r = np.sqrt(1 + R[i, i] - R[j, j] - R[k, k]) / 2
+    q[1 + i] = r
+    q[0] = (R[k, j] - R[j, k]) / (4 * r)
+    q[1 + j] = (R[j, i] + R[i, j]) / (4 * r)
+    q[1 + k] = (R[k, i] + R[i, k]) / (4 * r)
+    return q
+
+
+def layout_geoms() -> list:
+    """Every electronic part of configs/layout_v2.toml as a box with its own mass (and so inertia) inside the body.
+    They do not collide (visual class: no contact, group 2); the servos the model builds elsewhere are skipped."""
+    from crab.electronics import Layout
+    out = []
+    for p in Layout().parts.values():
+        if p.in_model:
+            continue
+        pos = p.pos / 1000.0
+        if p.mass_only:
+            out.append(f'<geom name="part_{p.name}" class="visual" type="sphere" size="0.003" pos="{f(*pos)}" '
+                       f'mass="{p.mass_g / 1000:.5g}" material="pcb"/>')
+            continue
+        mat = {"battery": "servo", "servo": "servo"}.get(p.kind, "pcb")
+        # the screen module and the visor are drawn by face_xml: here they only carry their mass
+        look = 'rgba="0 0 0 0"' if p.d.get("face") or p.kind == "printed" else f'material="{mat}"'
+        out.append(f'<geom name="part_{p.name}" class="visual" type="box" size="{f(*(p.half / 1000.0))}" '
+                   f'pos="{f(*pos)}" quat="{f(*_quat_of(p.R))}" mass="{p.mass_g / 1000:.5g}" {look}/>')
+    return out
+
+
 def body_v2() -> str:
-    """v2 body from primitives (sizing study, sim/sizing/model.py): chassis box and dome shell (they collide),
-    the four yaw servos at the hips (shaft vertical), the pack low in the belly, the electronics above."""
+    """v2 body from primitives (sizing study, sim/sizing/model.py): chassis box and dome shell (they collide), the
+    four yaw servos at the hips (shaft vertical), and every electronic part of configs/layout_v2.toml where the
+    layout puts it, with its own mass (this replaced the lumped pack and electronics blocks)."""
     B = P.body
     ch, cp = B.half_size, B.chassis_pos
     sv = servo_for("FL_coxa")
     lh, wh, hh = (v / 2000 for v in sv.size_mm)
     hx, hy = abs(P.leg_mounts["F"][0][0]), P.leg_mounts["F"][0][1]
-    pack_t, pack_len = 0.018, 2 * ch[0] * 0.85
-    pack_w = B.battery_mass / 1494.0 / (pack_len * pack_t)          # 46 g in 57 x 30 x 18 mm: the BOM pack
     out = [f'<geom name="chassis" type="box" pos="{f(*cp)}" size="{f(*ch)}" mass="{B.shell_mass * 0.75:.5g}" material="shell"/>',
            f'<geom name="dome" type="ellipsoid" pos="{f(*B.dome_pos)}" size="{f(*B.dome_half)}" mass="{B.shell_mass * 0.25:.5g}" material="shell"/>']
     for sx in (1, -1):
         for sy in (1, -1):
             out.append(f'<geom class="visual" type="box" size="{f(lh, wh, hh)}" pos="{f(sx * hx, sy * hy, -0.15 * 2 * hh)}" '
                        f'mass="{sv.mass:.5g}" material="servo"/>')
-    out.append(f'<geom class="visual" type="box" size="{f(pack_len / 2, pack_w / 2, pack_t / 2)}" '
-               f'pos="{f(cp[0], 0, cp[2] - ch[2] + pack_t / 2 + 0.002)}" mass="{B.battery_mass:.5g}" material="pcb"/>')
-    out.append(f'<geom class="visual" type="box" size="{f(0.030, 0.035, 0.008)}" pos="{f(0.005, 0, 0.012)}" '
-               f'mass="{B.electronics_mass:.5g}" material="pcb"/>')
+    out += layout_geoms()
     return "\n      ".join(out)
 
 
@@ -310,6 +377,10 @@ def carapace() -> str:
     return f'<geom name="carapace" type="ellipsoid" size="{f(*B.half_size)}" mass="{B.mass}" material="shell"/>'
 
 
+FACE_ASSET = ('    <texture name="face_tex" type="2d" builtin="flat" rgb1="0.02 0.02 0.03" width="256" height="128"/>\n'
+              '    <material name="face_mat" texture="face_tex" emission="0.9" specular="0.3"/>') if V2 else ""
+
+
 def build() -> str:
     B, L = P.body, P.leg
     fem, tib = STAND[JOINT_NAMES.index("FL_femur")], STAND[JOINT_NAMES.index("FL_tibia")]
@@ -321,6 +392,16 @@ def build() -> str:
     meshes = "\n".join(f'    <mesh name="{v["mesh"]}" file="{v["file"]}" scale="0.001 0.001 0.001"/>'
                        for items in VIS.values() for v in items) if USE_CAD else ""
     eye_cam = COL["eye_cam"] if COL else (0.95 * B.half_size[0], 0, 0.5 * B.half_size[2])
+    imu_pose, eye_axes = 'pos="0 0 0"', "0 -1 0 0 0 1"
+    if V2:                              # the IMU and the camera are where configs/layout_v2.toml mounts them
+        from crab.electronics import Layout
+        lay = Layout()
+        im = lay["imu"]
+        imu_pose = f'pos="{f(*(im.pos / 1000))}" quat="{f(*_quat_of(im.R))}"'
+        cpos, cdir = lay["camera_lens"].window_pose()
+        right = np.cross(cdir, [0, 0, 1.0])
+        right /= np.linalg.norm(right)
+        eye_cam, eye_axes = tuple(cpos / 1000.0), f(*right, *np.cross(right, cdir))
     prim_group = 3 if USE_CAD else 0
     return f"""<!-- AUTO-GENERATED by sim/build_model.py from crab/params.py{' (design v2, primitives only)' if V2 else ''}{' + CAD (cad/build.py)' if USE_CAD else ''}. Do not edit by hand. -->
 <mujoco model="robotic_crab{'_v2' if V2 else ''}">
@@ -357,6 +438,7 @@ def build() -> str:
     <material name="printed" rgba="0.92 0.40 0.22 1" specular="0.25" shininess="0.3"/>
     <material name="horn" rgba="0.75 0.76 0.78 1" specular="0.6" shininess="0.8"/>
     <material name="pcb" rgba="0.10 0.45 0.25 1"/>
+{FACE_ASSET}
 {meshes}
   </asset>
 
@@ -367,11 +449,12 @@ def build() -> str:
     <body name="body" pos="0 0 {z0:.4f}" childclass="crab">
       <freejoint name="root"/>
       <camera name="track" mode="trackcom" pos="{f(*cam_pos)}" xyaxes="{lookat_xyaxes(cam_pos, (0, 0, 0))}"/>
-      <camera name="eye_cam" pos="{f(*eye_cam)}" xyaxes="0 -1 0 0 0 1" fovy="{COL.get('eye_fovy', 102) if COL else 102}"/>
-      <site name="imu" pos="0 0 0" size="{0.01*S:.4f}" rgba="0 0 0 0"/>
+      <camera name="eye_cam" pos="{f(*eye_cam)}" xyaxes="{eye_axes}" fovy="{COL.get('eye_fovy', 102) if COL else 102}"/>
+      <site name="imu" {imu_pose} size="{0.01*S:.4f}" rgba="0 0 0 0"/>
       {cad("body")}
       {carapace()}
       {eyes_xml()}
+      {face_xml()}
 {"".join((leg_xml_v2 if V2 else leg_xml)(lg) for lg in LEG_IDS)}
 {"".join(arm_xml(a) for a in ARM_IDS)}
     </body>

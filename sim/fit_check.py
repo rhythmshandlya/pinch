@@ -69,6 +69,17 @@ def ray_box(o, d, c, h, R):
     return s0 if s0 >= 0 else (s1 if s1 >= 0 else None)
 
 
+def ray_ellipsoid(o, d, c, h):
+    """Distance along the ray o + s d to the (outer) ellipsoid with centre c and half sizes h, or None."""
+    o, d = (np.asarray(o, float) - c) / h, np.asarray(d, float) / h
+    a, b, cc = d @ d, 2 * (o @ d), o @ o - 1.0
+    disc = b * b - 4 * a * cc
+    if disc < 0:
+        return None
+    t = (-b - math.sqrt(disc)) / (2 * a)
+    return t if t >= 0 else None
+
+
 class Interior:
     """The inside of the chassis: the box and the dome, each shrunk by the wall (and by a margin)."""
 
@@ -168,7 +179,7 @@ def check(layout=None, report=None):
             cc, ch, cR = p.connector_box(c)
             label = f"{p.name}.{c['name']}"
             rm = -inter.wall if p.d.get("wall_mounted") else 0.0         # a wall-mounted part may reach into its pocket
-            ok, bad = inter.box_inside(cc, ch, cR, margin=rm)
+            ok, bad = (True, None) if c.get("through_wall") else inter.box_inside(cc, ch, cR, margin=rm)
             if not ok:
                 rep.fail("cable room", f"{label}: the {c['reach_mm']:.0f} mm of cable room leaves the chassis near "
                                        f"{np.round(bad, 1).tolist()} mm")
@@ -189,7 +200,7 @@ def check(layout=None, report=None):
         label = f"{p.name} window"
         dep = inter.depth(pos)
         deep = float(w.get("max_depth_mm", inter.wall + wall_tol))
-        if not (-wall_tol <= dep <= deep):
+        if not w.get("exposed") and not (-wall_tol <= dep <= deep):
             rep.fail("window", f"{label} is {dep:.1f} mm below the outer surface (must be within "
                                f"{-wall_tol:.1f}..{inter.wall + wall_tol:.1f} mm)")
         half = math.radians(float(w.get("cone_deg", 12.5)))
@@ -204,6 +215,12 @@ def check(layout=None, report=None):
         for r in rays:
             r = r / np.linalg.norm(r)
             o = pos + 0.05 * r
+            if w.get("check_shell"):                      # a window above the dome: the shell must not hide it either
+                s_dome = ray_ellipsoid(o, r, inter.dc, inter.dh)
+                s_box = ray_box(o, r, inter.bc, inter.bh, np.eye(3))
+                for name, hit in (("the dome", s_dome), ("the chassis box", s_box)):
+                    if hit is not None and hit > 0.5:
+                        rep.fail("window", f"{label}: {name} is in the way of its view, {hit:.0f} mm out")
             for q in parts:
                 if q is p or _family(L, p, q):
                     continue
