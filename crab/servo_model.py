@@ -131,6 +131,10 @@ class BamServos(_Drive):
         act = model.actuator
         act.vin, act.kp, act.error_gain, act.max_pwm = g("supply_v"), g("firmware_kp"), g("error_gain"), g("max_pwm")
         self.model, self.vin0 = model, act.vin
+        # the servos' firmware angle limits (min/max angle registers, set at calibration): a goal outside the joint's
+        # range is clamped, exactly as the position actuators' ctrlrange does in the first-order model
+        self.goal_lo = np.array([m.actuator_ctrlrange[a, 0] for a in self.leg_act])
+        self.goal_hi = np.array([m.actuator_ctrlrange[a, 1] for a in self.leg_act])
         for a in self.leg_act:             # the position actuator becomes a plain torque motor (ctrl = N*m)
             m.actuator_gaintype[a] = 0
             m.actuator_biastype[a] = 0
@@ -159,7 +163,7 @@ class BamServos(_Drive):
     def step(self):
         d = self.d
         d.ctrl[self.act] = self.target                             # arms: straight through
-        self.ctl.q_target[:] = self.target[self.leg_pos]
+        self.ctl.q_target[:] = np.clip(self.target[self.leg_pos], self.goal_lo, self.goal_hi)
         self.ctl.update()                                          # leg torques into ctrl, friction into the joints
         if not self.torque_on:
             d.ctrl[self.leg_act] = 0.0

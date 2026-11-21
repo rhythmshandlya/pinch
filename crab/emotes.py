@@ -184,10 +184,12 @@ def _build() -> dict:
                                           (0.4, pose(reach, {"*_claw": 0.3})), (0.9, STAND)]))
 
     # excited: quick bounces with claws up
+    # v2 (2.1 kg): slower, shallower bounces keep the hottest leg joint within the owner's heat limit (R-03)
+    ex_dt, ex_lo, ex_hi = (0.30, 0.12, -0.05) if DESIGN == "v2" else (0.22, 0.18, -0.08)
     E["excited"] = Emote("excited", _seq(
         [(0.0, STAND)]
-        + [(0.22, q) for q in (pose(crouch(0.18), {"*_shoulder_pitch": 0.9, "*_claw": 0.7}),
-                               pose(crouch(-0.08), {"*_shoulder_pitch": 1.15, "*_claw": 0.2})) * 4]
+        + [(ex_dt, q) for q in (pose(crouch(ex_lo), {"*_shoulder_pitch": 0.9, "*_claw": 0.7}),
+                                pose(crouch(ex_hi), {"*_shoulder_pitch": 1.15, "*_claw": 0.2})) * 4]
         + [(0.5, STAND)]))
 
     # sad: sinks low, claws hang, a slow sigh
@@ -235,9 +237,11 @@ def _build() -> dict:
                                                   (0.8, right), (0.7, STAND)]))
 
     # applause: claws up and clacking open / shut
+    # v2: the arm servos run at a 40 % torque limit (child safety), so the claps are slower and a little smaller
+    cl_dt, cl_open = (0.26, 0.6) if DESIGN == "v2" else (0.18, 0.8)
     E["applause"] = Emote("applause", _seq(
-        [(0.0, STAND), (0.5, pose({"*_shoulder_pitch": 0.8, "*_shoulder_yaw": 0.0, "*_claw": 0.8}))]
-        + [(0.18, pose({"*_shoulder_pitch": 0.8, "*_shoulder_yaw": 0.0, "*_claw": c})) for c in (0.05, 0.8) * 5]
+        [(0.0, STAND), (0.5, pose({"*_shoulder_pitch": 0.8, "*_shoulder_yaw": 0.0, "*_claw": cl_open}))]
+        + [(cl_dt, pose({"*_shoulder_pitch": 0.8, "*_shoulder_yaw": 0.0, "*_claw": c})) for c in (0.05, cl_open) * 5]
         + [(0.5, STAND)]))
 
     return E

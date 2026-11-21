@@ -36,7 +36,7 @@ def test_v2_is_selected_explicitly_and_has_the_sizing_study_geometry():
     r = probe()
     assert r["design"] == "v2" and r["model_file"] == "crab_v2.xml"
     assert abs(r["scale"] - 0.8) < 1e-9                                       # style B: tibia 80 mm
-    assert r["leg_servo"] == "STS3215M6" and r["arm_servo"] == "STS3032" and "STS3215M6" in r["servos"]
+    assert r["leg_servo"] == "STS3215M6" and r["arm_servo"] == "STS3032T" and "STS3215M6" in r["servos"]   # arms: STS3032 at its torque limit
     assert abs(r["trot_period"] - 0.9 * 0.8 ** 0.5 * 1.5) < 1e-9              # the trot slowed 1.5x
     try:
         subprocess.run([sys.executable, "-c", "import crab.params"], env=dict(os.environ, CRAB_DESIGN="v3"),

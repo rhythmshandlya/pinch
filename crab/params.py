@@ -171,10 +171,26 @@ def _measured_sts3215() -> ServoSpec:
 if DESIGN == "v2":
     SERVOS["STS3215M6"] = _measured_sts3215()
 
+
+def _torque_limited(name: str, permille: float) -> "ServoSpec":
+    """A bus servo with its firmware torque limit (register 48): the limit caps the PWM duty, so the servo behaves as
+    if fed `permille` of its voltage: stall torque, no-load speed, stiffness and the speed limit all scale."""
+    from dataclasses import replace
+    sp, k = SERVOS[name], permille / 1000.0
+    return replace(sp, name=f"{name}T", source=f"{sp.source}, torque limit {permille:g} per mille",
+                   model_stall=sp.model_stall * k, model_noload=sp.model_noload * k, kp=sp.kp * k,
+                   datasheet_stall=sp.datasheet_stall * k, datasheet_noload=sp.datasheet_noload * k,
+                   max_cmd_speed=sp.max_cmd_speed * k)
+
+
+if DESIGN == "v2":                  # the arm servos run at the torque limit the wiring check enforces (child safety)
+    from .electronics import Data as _Data
+    SERVOS["STS3032T"] = _torque_limited("STS3032", float(_Data()("arm_servo.torque_limit_permille")))
+
 # Which servo drives which joint: STS3032 bus servos in the legs (they carry the body), the tiny
 # GS-4308MG in the arms (light work). The env vars let the simulator try others. v2: STS3215 in the legs.
 _LEG_SERVO = "STS3215M6" if DESIGN == "v2" else "STS3032"
-_ARM_DEFAULT = "STS3032" if DESIGN == "v2" else "GS4308"       # v2: the STS3032 is a placeholder (parts decision pending)
+_ARM_DEFAULT = "STS3032T" if DESIGN == "v2" else "GS4308"      # v2: STS3032 at its firmware torque limit (owner, 2026-11-21)
 FEMUR_SERVO = os.environ.get("CRAB_FEMUR_SERVO", _LEG_SERVO)
 MICRO_SERVO = os.environ.get("CRAB_MICRO_SERVO", _LEG_SERVO)
 ARM_SERVO = os.environ.get("CRAB_ARM_SERVO", _ARM_DEFAULT)

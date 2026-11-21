@@ -52,3 +52,4 @@ CLAUDE.local.md
 
 # agent worktrees created by Claude Code
 .claude/worktrees/
+cad/parts_ext/private/

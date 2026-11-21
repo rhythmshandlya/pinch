@@ -16,12 +16,12 @@
       <default class="visual">
         <geom contype="0" conaffinity="0" group="2" density="0"/>
       </default>
-      <!-- STS3032: Feetech spec table @6 V, scaled to 5 V -->
-      <default class="srv_STS3032">
+      <!-- STS3032T: Feetech spec table @6 V, scaled to 5 V, torque limit 400 per mille -->
+      <default class="srv_STS3032T">
         <joint armature="0.0005" damping="0.044017" frictionloss="0.012"/>
-        <position kp="2" kv="0.0" forcerange="-0.3675 0.3675"/>
+        <position kp="0.8" kv="0.0" forcerange="-0.147 0.147"/>
       </default>
-      <default class="bl_STS3032">
+      <default class="bl_STS3032T">
         <joint damping="0.00512" armature="0.0041" frictionloss="0" range="-0.00873 0.00873"/>
       </default>
       <!-- STS3215M6: Rhoban BAM m6 (measured), configs/electronics.toml -->
@@ -41,6 +41,7 @@
     <material name="floor" texture="sand" texrepeat="10 10" reflectance="0.05"/>
     <material name="shell" rgba="0.93 0.40 0.14 1" specular="0.5" shininess="0.6"/>
     <material name="claw" rgba="0.93 0.40 0.14 1" specular="0.3"/>
+    <material name="pad" rgba="0.18 0.18 0.2 1" specular="0.1"/>
     <material name="tip" rgba="0.22 0.22 0.24 1"/>
     <material name="servo" rgba="0.13 0.13 0.15 1"/>
     <material name="eye" rgba="0.97 0.97 0.95 1"/>
@@ -230,16 +231,16 @@
       </body>
 
       <body name="L_shoulder" pos="0.0867 0.04 -0.0149" euler="0 0 0.0000">
-        <joint name="L_shoulder_yaw" class="srv_STS3032" axis="0 0 1" range="-0.1396 0.3491"/>
-        <joint name="L_shoulder_yaw_backlash" class="bl_STS3032" axis="0 0 1"/>
+        <joint name="L_shoulder_yaw" class="srv_STS3032T" axis="0 0 1" range="-0.1396 0.3491"/>
+        <joint name="L_shoulder_yaw_backlash" class="bl_STS3032T" axis="0 0 1"/>
         
         
         <geom class="visual" type="cylinder" size="0.013 0.0138" material="servo"/>
         <geom class="visual" type="box" size="0.0115 0.01375 0.006" pos="0.0240 0 0" mass="0.02" material="servo"/>
         <geom type="sphere" size="0.0105" mass="0.008" material="shell"/>
         <body name="L_upper" pos="0.024 0 0">
-          <joint name="L_shoulder_pitch" class="srv_STS3032" axis="0 -1 0" range="-0.6981 1.257"/>
-        <joint name="L_shoulder_pitch_backlash" class="bl_STS3032" axis="0 -1 0"/>
+          <joint name="L_shoulder_pitch" class="srv_STS3032T" axis="0 -1 0" range="-0.6981 1.257"/>
+        <joint name="L_shoulder_pitch_backlash" class="bl_STS3032T" axis="0 -1 0"/>
           
           <geom class="visual" type="cylinder" size="0.014 0.0155" euler="1.5708 0 0" material="servo"/>
           <geom class="visual" type="capsule" fromto="0 0 0 0.0350 0 0" size="0.011" material="shell"/>
@@ -247,7 +248,17 @@
           <geom class="visual" type="box" size="0.0115 0.006 0.01375" pos="0.0410 0 0.002" mass="0.02" material="servo"/>
           <geom class="visual" type="cylinder" size="0.011 0.016" pos="0.0450 0 0" material="servo"/>
           <geom class="visual" type="mesh" mesh="v2_cover" pos="0.08233 -0.0102 -0.02267" euler="0 -0.1396 0" material="claw"/>
-          <geom name="L_pollex_hook" type="box" pos="0.1032 0.0035 -0.01329" euler="0 -0.1396 0" size="0.0015 0.004 0.0045" mass="0.0002" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          
+          <geom name="L_pollex_pad0" type="box" pos="0.07412 0.001184 -0.02795" quat="0.9216 0.3818 -0.06445 0.02669" size="0.01356 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="L_pollex_pad1" type="box" pos="0.07476 0.001184 -0.03253" quat="0.3818 0.9216 -0.02669 0.06445" size="0.01356 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="L_pollex_pad2" type="box" pos="0.07499 0.0015 -0.0342" quat="0.9976 0 -0.06976 0" size="0.01356 0.002 0.0005" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="L_pollex_pad3" type="box" pos="0.07299 0.0015 -0.01995" quat="0.9976 0 -0.06976 0" size="0.01356 0.002 0.006893" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="L_pollex_pad4" type="box" pos="0.07444 -0.00025 -0.03024" quat="0.9976 0 -0.06976 0" size="0.01356 0.00025 0.0035" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="L_pollex_pad5" type="box" pos="0.1001 0.0012 -0.01603" quat="0.9514 0.02098 -0.06653 -0.3" size="0.005415 0.0008 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="L_pollex_pad6" type="box" pos="0.09129 0.0012 -0.01727" quat="0.9514 -0.02098 -0.06653 0.3" size="0.005415 0.0008 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="L_pollex_pad7" type="box" pos="0.09568 0 -0.01665" quat="0.9976 0 -0.06976 0" size="0.009372 0.0005 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="L_pollex_pad8" type="box" pos="0.09721 0.0015 -0.02754" quat="0.9976 0 -0.06976 0" size="0.009372 0.002 0.004" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="L_pollex_pad9" type="box" pos="0.1036 0.002 -0.01488" quat="0.9976 0 -0.06976 0" size="0.00125 0.0025 0.006143" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           <geom type="capsule" fromto="0 0 0 0.0300 0 0" size="0.0075" mass="0.0036" material="shell"/>
           <geom name="L_palm" type="ellipsoid" pos="0.0390 0 -0.006" size="0.0165 0.00975 0.0135" mass="0.0084" material="shell"/>
           <!-- fixed finger: the gripping strip (blade + TPU pad, level with the desk at the grip pitch) and
@@ -256,28 +267,38 @@
           <geom name="L_pollex_blade" type="box" pos="0.06225 -0.0041 -0.0165" size="0.0072 0.0018 0.012" mass="0.0006" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           <site name="L_grip_site" pos="0.08312 0 -0.02826" euler="0 -0.1396 0" size="0.005" rgba="0 0 0 0"/>
           <body name="L_dactyl" pos="0.0450 0 0">
-            <joint name="L_claw" class="srv_STS3032" axis="0 0 1" range="0 1.658"/>
-        <joint name="L_claw_backlash" class="bl_STS3032" axis="0 0 1"/>
+            <joint name="L_claw" class="srv_STS3032T" axis="0 0 1" range="0 1.658"/>
+        <joint name="L_claw_backlash" class="bl_STS3032T" axis="0 0 1"/>
             
-            <geom class="visual" type="mesh" mesh="v2_cover" pos="0.03733 0.0132 -0.02267" quat="0.9976 0 -0.06976 0" material="claw"/>
-            <geom name="L_dactyl_hook" type="box" pos="0.05816 -0.0005 -0.01329" quat="0.9976 0 -0.06976 0" size="0.0015 0.004 0.0045" mass="0.0002" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
-            <geom name="L_dactyl_jaw" type="box" pos="0.03733 0.0062 -0.02267" quat="0.9976 0 -0.06976 0" size="0.02343 0.0027 0.01089" mass="0.003" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
-            <geom name="L_dactyl_blade" type="box" pos="0.01995 0.0071 -0.01238" quat="1 0 0 0" size="0.0045 0.0018 0.008625" mass="0.0004" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom class="visual" type="mesh" mesh="v2_cover" pos="0.03733 0.0172 -0.02267" quat="0.9976 0 -0.06976 0" material="claw"/>
+            
+            <geom name="L_dactyl_pad0" type="box" pos="0.02912 0.005816 -0.02795" quat="0.9216 -0.3818 -0.06445 -0.02669" size="0.01356 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_pad1" type="box" pos="0.02976 0.005816 -0.03253" quat="0.3818 -0.9216 -0.02669 -0.06445" size="0.01356 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_pad2" type="box" pos="0.02999 0.0055 -0.0342" quat="0.9976 0 -0.06976 0" size="0.01356 0.002 0.0005" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_pad3" type="box" pos="0.02799 0.0055 -0.01995" quat="0.9976 0 -0.06976 0" size="0.01356 0.002 0.006893" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_pad4" type="box" pos="0.02944 0.00725 -0.03024" quat="0.9976 0 -0.06976 0" size="0.01356 0.00025 0.0035" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_pad5" type="box" pos="0.05508 0.0058 -0.01603" quat="0.9514 -0.02098 -0.06653 0.3" size="0.005415 0.0008 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_pad6" type="box" pos="0.04629 0.0058 -0.01727" quat="0.9514 0.02098 -0.06653 -0.3" size="0.005415 0.0008 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_pad7" type="box" pos="0.05068 0.007 -0.01665" quat="0.9976 0 -0.06976 0" size="0.009372 0.0005 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_pad8" type="box" pos="0.05221 0.0055 -0.02754" quat="0.9976 0 -0.06976 0" size="0.009372 0.002 0.004" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_pad9" type="box" pos="0.05864 0.005 -0.01488" quat="0.9976 0 -0.06976 0" size="0.00125 0.0025 0.006143" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_jaw" type="box" pos="0.03733 0.0102 -0.02267" quat="0.9976 0 -0.06976 0" size="0.02343 0.0027 0.01089" mass="0.003" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_blade" type="box" pos="0.01995 0.0111 -0.01238" quat="1 0 0 0" size="0.0045 0.0018 0.008625" mass="0.0004" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
             <geom name="L_dactyl_drop" type="box" pos="0.01988 0.00975 0.00675" size="0.002625 0.00285 0.01575" mass="0.0004" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           </body>
         </body>
       </body>
       <body name="R_shoulder" pos="0.0867 -0.04 -0.0149" euler="0 0 -0.0000">
-        <joint name="R_shoulder_yaw" class="srv_STS3032" axis="0 0 -1" range="-0.1396 0.3491"/>
-        <joint name="R_shoulder_yaw_backlash" class="bl_STS3032" axis="0 0 -1"/>
+        <joint name="R_shoulder_yaw" class="srv_STS3032T" axis="0 0 -1" range="-0.1396 0.3491"/>
+        <joint name="R_shoulder_yaw_backlash" class="bl_STS3032T" axis="0 0 -1"/>
         
         
         <geom class="visual" type="cylinder" size="0.013 0.0138" material="servo"/>
         <geom class="visual" type="box" size="0.0115 0.01375 0.006" pos="0.0240 0 0" mass="0.02" material="servo"/>
         <geom type="sphere" size="0.0105" mass="0.008" material="shell"/>
         <body name="R_upper" pos="0.024 0 0">
-          <joint name="R_shoulder_pitch" class="srv_STS3032" axis="0 -1 0" range="-0.6981 1.257"/>
-        <joint name="R_shoulder_pitch_backlash" class="bl_STS3032" axis="0 -1 0"/>
+          <joint name="R_shoulder_pitch" class="srv_STS3032T" axis="0 -1 0" range="-0.6981 1.257"/>
+        <joint name="R_shoulder_pitch_backlash" class="bl_STS3032T" axis="0 -1 0"/>
           
           <geom class="visual" type="cylinder" size="0.014 0.0155" euler="1.5708 0 0" material="servo"/>
           <geom class="visual" type="capsule" fromto="0 0 0 0.0350 0 0" size="0.011" material="shell"/>
@@ -285,7 +306,17 @@
           <geom class="visual" type="box" size="0.0115 0.006 0.01375" pos="0.0410 0 0.002" mass="0.02" material="servo"/>
           <geom class="visual" type="cylinder" size="0.011 0.016" pos="0.0450 0 0" material="servo"/>
           <geom class="visual" type="mesh" mesh="v2_cover" pos="0.08233 0.0102 -0.02267" euler="0 -0.1396 0" material="claw"/>
-          <geom name="R_pollex_hook" type="box" pos="0.1032 -0.0035 -0.01329" euler="0 -0.1396 0" size="0.0015 0.004 0.0045" mass="0.0002" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          
+          <geom name="R_pollex_pad0" type="box" pos="0.07412 -0.001184 -0.02795" quat="0.9216 -0.3818 -0.06445 -0.02669" size="0.01356 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="R_pollex_pad1" type="box" pos="0.07476 -0.001184 -0.03253" quat="0.3818 -0.9216 -0.02669 -0.06445" size="0.01356 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="R_pollex_pad2" type="box" pos="0.07499 -0.0015 -0.0342" quat="0.9976 0 -0.06976 0" size="0.01356 0.002 0.0005" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="R_pollex_pad3" type="box" pos="0.07299 -0.0015 -0.01995" quat="0.9976 0 -0.06976 0" size="0.01356 0.002 0.006893" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="R_pollex_pad4" type="box" pos="0.07444 0.00025 -0.03024" quat="0.9976 0 -0.06976 0" size="0.01356 0.00025 0.0035" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="R_pollex_pad5" type="box" pos="0.1001 -0.0012 -0.01603" quat="0.9514 -0.02098 -0.06653 0.3" size="0.005415 0.0008 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="R_pollex_pad6" type="box" pos="0.09129 -0.0012 -0.01727" quat="0.9514 0.02098 -0.06653 -0.3" size="0.005415 0.0008 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="R_pollex_pad7" type="box" pos="0.09568 0 -0.01665" quat="0.9976 0 -0.06976 0" size="0.009372 0.0005 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="R_pollex_pad8" type="box" pos="0.09721 -0.0015 -0.02754" quat="0.9976 0 -0.06976 0" size="0.009372 0.002 0.004" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="R_pollex_pad9" type="box" pos="0.1036 -0.002 -0.01488" quat="0.9976 0 -0.06976 0" size="0.00125 0.0025 0.006143" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           <geom type="capsule" fromto="0 0 0 0.0300 0 0" size="0.0075" mass="0.0036" material="shell"/>
           <geom name="R_palm" type="ellipsoid" pos="0.0390 0 -0.006" size="0.0165 0.00975 0.0135" mass="0.0084" material="shell"/>
           <!-- fixed finger: the gripping strip (blade + TPU pad, level with the desk at the grip pitch) and
@@ -294,13 +325,23 @@
           <geom name="R_pollex_blade" type="box" pos="0.06225 0.0041 -0.0165" size="0.0072 0.0018 0.012" mass="0.0006" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           <site name="R_grip_site" pos="0.08312 0 -0.02826" euler="0 -0.1396 0" size="0.005" rgba="0 0 0 0"/>
           <body name="R_dactyl" pos="0.0450 0 0">
-            <joint name="R_claw" class="srv_STS3032" axis="0 0 -1" range="0 1.658"/>
-        <joint name="R_claw_backlash" class="bl_STS3032" axis="0 0 -1"/>
+            <joint name="R_claw" class="srv_STS3032T" axis="0 0 -1" range="0 1.658"/>
+        <joint name="R_claw_backlash" class="bl_STS3032T" axis="0 0 -1"/>
             
-            <geom class="visual" type="mesh" mesh="v2_cover" pos="0.03733 -0.0132 -0.02267" quat="0.9976 0 -0.06976 0" material="claw"/>
-            <geom name="R_dactyl_hook" type="box" pos="0.05816 0.0005 -0.01329" quat="0.9976 0 -0.06976 0" size="0.0015 0.004 0.0045" mass="0.0002" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
-            <geom name="R_dactyl_jaw" type="box" pos="0.03733 -0.0062 -0.02267" quat="0.9976 0 -0.06976 0" size="0.02343 0.0027 0.01089" mass="0.003" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
-            <geom name="R_dactyl_blade" type="box" pos="0.01995 -0.0071 -0.01238" quat="1 0 0 0" size="0.0045 0.0018 0.008625" mass="0.0004" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom class="visual" type="mesh" mesh="v2_cover" pos="0.03733 -0.0172 -0.02267" quat="0.9976 0 -0.06976 0" material="claw"/>
+            
+            <geom name="R_dactyl_pad0" type="box" pos="0.02912 -0.005816 -0.02795" quat="0.9216 0.3818 -0.06445 0.02669" size="0.01356 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_pad1" type="box" pos="0.02976 -0.005816 -0.03253" quat="0.3818 0.9216 -0.02669 0.06445" size="0.01356 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_pad2" type="box" pos="0.02999 -0.0055 -0.0342" quat="0.9976 0 -0.06976 0" size="0.01356 0.002 0.0005" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_pad3" type="box" pos="0.02799 -0.0055 -0.01995" quat="0.9976 0 -0.06976 0" size="0.01356 0.002 0.006893" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_pad4" type="box" pos="0.02944 -0.00725 -0.03024" quat="0.9976 0 -0.06976 0" size="0.01356 0.00025 0.0035" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_pad5" type="box" pos="0.05508 -0.0058 -0.01603" quat="0.9514 0.02098 -0.06653 -0.3" size="0.005415 0.0008 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_pad6" type="box" pos="0.04629 -0.0058 -0.01727" quat="0.9514 -0.02098 -0.06653 0.3" size="0.005415 0.0008 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_pad7" type="box" pos="0.05068 -0.007 -0.01665" quat="0.9976 0 -0.06976 0" size="0.009372 0.0005 0.007" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_pad8" type="box" pos="0.05221 -0.0055 -0.02754" quat="0.9976 0 -0.06976 0" size="0.009372 0.002 0.004" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_pad9" type="box" pos="0.05864 -0.005 -0.01488" quat="0.9976 0 -0.06976 0" size="0.00125 0.0025 0.006143" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_jaw" type="box" pos="0.03733 -0.0102 -0.02267" quat="0.9976 0 -0.06976 0" size="0.02343 0.0027 0.01089" mass="0.003" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_blade" type="box" pos="0.01995 -0.0111 -0.01238" quat="1 0 0 0" size="0.0045 0.0018 0.008625" mass="0.0004" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
             <geom name="R_dactyl_drop" type="box" pos="0.01988 -0.00975 0.00675" size="0.002625 0.00285 0.01575" mass="0.0004" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           </body>
         </body>
@@ -321,12 +362,12 @@
     <position name="RR_coxa" joint="RR_coxa" class="srv_STS3215M6" inheritrange="1"/>
     <position name="RR_femur" joint="RR_femur" class="srv_STS3215M6" inheritrange="1"/>
     <position name="RR_tibia" joint="RR_tibia" class="srv_STS3215M6" inheritrange="1"/>
-    <position name="L_shoulder_yaw" joint="L_shoulder_yaw" class="srv_STS3032" inheritrange="1"/>
-    <position name="L_shoulder_pitch" joint="L_shoulder_pitch" class="srv_STS3032" inheritrange="1"/>
-    <position name="L_claw" joint="L_claw" class="srv_STS3032" inheritrange="1"/>
-    <position name="R_shoulder_yaw" joint="R_shoulder_yaw" class="srv_STS3032" inheritrange="1"/>
-    <position name="R_shoulder_pitch" joint="R_shoulder_pitch" class="srv_STS3032" inheritrange="1"/>
-    <position name="R_claw" joint="R_claw" class="srv_STS3032" inheritrange="1"/>
+    <position name="L_shoulder_yaw" joint="L_shoulder_yaw" class="srv_STS3032T" inheritrange="1"/>
+    <position name="L_shoulder_pitch" joint="L_shoulder_pitch" class="srv_STS3032T" inheritrange="1"/>
+    <position name="L_claw" joint="L_claw" class="srv_STS3032T" inheritrange="1"/>
+    <position name="R_shoulder_yaw" joint="R_shoulder_yaw" class="srv_STS3032T" inheritrange="1"/>
+    <position name="R_shoulder_pitch" joint="R_shoulder_pitch" class="srv_STS3032T" inheritrange="1"/>
+    <position name="R_claw" joint="R_claw" class="srv_STS3032T" inheritrange="1"/>
   </actuator>
 
   <sensor>

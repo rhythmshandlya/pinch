@@ -153,12 +153,14 @@ def arm_xml(arm_id: str) -> str:
                     f'<geom class="visual" type="cylinder" size="0.011 0.016" pos="{h:.4f} 0 0" material="servo"/>\n          '
                     f'<geom class="visual" type="mesh" mesh="v2_cover" pos="{f(JAW["strip"][0][0], JAW["strip"][0][1] - s * 0.007, JAW["strip"][0][2])}" '
                     f'euler="0 {-JAW["pitch"]:.4f} 0" material="claw"/>\n          '
-                    f'<geom name="{arm_id}_pollex_hook" type="box" pos="{f(*JAW["hook"][0])}" euler="0 {-JAW["pitch"]:.4f} 0" '
-                    f'size="{f(*JAW["hook"][1])}" mass="0.0002" material="claw"{PAD}/>')
+                    + "".join(f'\n          <geom name="{arm_id}_pollex_pad{i}" type="box" pos="{f(*(v / 1000 for v in c))}" '
+                              f'quat="{f(*qq)}" size="{f(*(v / 1000 for v in hh))}" mass="0.00015" material="pad"{PAD}/>'
+                              for i, (c, hh, qq) in enumerate(JAW["pads"]["pollex"])))
         dac_extra = ("\n            " + f'<geom class="visual" type="mesh" mesh="v2_cover" pos="{f(JAW["d_strip"][0][0], JAW["d_strip"][0][1] + s * 0.007, JAW["d_strip"][0][2])}" '
                      f'quat="{f(*JAW["d_strip"][2])}" material="claw"/>\n            '
-                     f'<geom name="{arm_id}_dactyl_hook" type="box" pos="{f(*JAW["d_hook"][0])}" quat="{f(*JAW["d_hook"][2])}" '
-                     f'size="{f(*JAW["d_hook"][1])}" mass="0.0002" material="claw"{PAD}/>')
+                     + "".join(f'\n            <geom name="{arm_id}_dactyl_pad{i}" type="box" pos="{f(*(v / 1000 for v in c))}" '
+                               f'quat="{f(*qq)}" size="{f(*(v / 1000 for v in hh))}" mass="0.00015" material="pad"{PAD}/>'
+                               for i, (c, hh, qq) in enumerate(JAW["pads"]["dactyl"])))
     return f"""
       <body name="{arm_id}_shoulder" pos="{f(x, s*y, z)}" euler="0 0 {s*yaw:.4f}">
         {jnt(arm_id + "_shoulder_yaw", f"0 0 {s}", A.shoulder_yaw_range)}
@@ -198,8 +200,8 @@ def jaw_geoms(s):
     if V2:
         strip_h = 22.0                                   # taller pads: a 36 mm ball is held above its middle, not by the pad's edge
     grip_w, q_par = 9.0 * K, np.radians(19.0)            # jaws parallel GRIP_W apart at CLAW_PARALLEL
-    if V2:                                               # v2: parallel (4 mm apart) when the claw is shut, so a pen is held flat
-        grip_w, q_par = 4.0, 0.0
+    if V2:      # v2: parallel when shut, the backing plates 8 mm apart so the two 4 mm TPU pads meet (v2_pads)
+        grip_w, q_par = 8.0, 0.0
     lu, dd, dd_y = P.arm.upper_len * 1000, tuple(K * v for v in (11.5, 15.0)), tuple(K * v for v in (4.6, 8.4))
     c, sn = np.cos(pitch), np.sin(pitch)
     ry = np.array([[c, 0, -sn], [0, 1, 0], [sn, 0, c]])       # rotation about y by -pitch (strip along x)
@@ -242,6 +244,8 @@ def jaw_geoms(s):
         "d_drop": (((dd[0] + dd[1]) / 2 * m, s * (dd_y[0] + dd_y[1]) / 2 * m, 4.5 * K * m),
                    ((dd[1] - dd[0]) / 2 * m, (dd_y[1] - dd_y[0]) / 2 * m, 10.5 * K * m)),
     }
+    if V2:
+        out["pads"] = v2_pads(s, strip_c, ry, d_strip, hx, hy, hz, quat)
     if V2:      # tip hooks (a crab claw's curved tips): on the upper part of each pad so a ball or cube cannot roll or slip out
         #           forward, while a pen or an eraser lying low passes under them
         hook = (1.5, 4.0, 4.5)                                       # half sizes, mm
@@ -249,6 +253,72 @@ def jaw_geoms(s):
         off_d = np.array([hx - 1.5, -s * (hy + hook[1]), hz - hook[2]])
         out["hook"] = (tuple((strip_c + ry @ off_f) * m), tuple(v * m for v in hook))
         out["d_hook"] = (tuple((d_strip[0] + d_strip[1] @ off_d) * m), tuple(v * m for v in hook), quat(d_strip[1]))
+    return out
+
+
+def v2_pads(s, strip_c, ry, d_strip, hx, hy, hz, quat):
+    """The v2 claw's TPU pads (phase 2 redesign after docs/phase2/gripper_research.md: the SO-101-style single-hinge pincer
+    kept, flat pads replaced by shaped ones). Built in each jaw's strip frame: x along the jaw toward the tip, n toward the
+    other jaw (from the backing plate's inner face), z up the jaw (the desk is at z = -hz when the arm grips).
+      groove: a 90 deg V along the proximal 60 % of the jaw at pen height (z = -hz + 4.5 mm), 3.5 mm deep in a 4 mm pad,
+              so a 9 mm pen and a 5 mm stick centre themselves (the two grooves leave a 7 mm diamond when shut)
+      rims:   flat 4 mm pad above and below the groove
+      cup:    on the distal 40 %, at ball height (z = -hz + 15 mm), two faces leaning 35 deg about z form a pocket that
+              stops a 30-36 mm ball sliding along the jaw
+      lip:    at the tip, only above pen height, 1 mm proud of the pad: a ball cannot pass the tips, a pen slides under
+    Returns {"pollex": [(pos, half, quat)], "dactyl": [...]} in mm, in the upper-arm and the dactyl frames."""
+    PAD, DEPTH = 4.0, 3.5
+    z_pen, z_ball = -hz + 4.5, min(-hz + 15.0, hz - 6.0)
+    L = 2 * hx
+    x_split = -hx + 0.6 * L
+    boxes = []                                  # (centre (x, n, z), half (x, n, z), rotation about local x, about z)
+
+    def plane(p0, p1, x0, x1, thick=1.6):
+        """A thin box whose inner surface runs from p0 to p1 in the (n, z) plane, spanning x0..x1."""
+        (n0, z0), (n1, z1) = p0, p1
+        ln = np.hypot(n1 - n0, z1 - z0)
+        ang = np.arctan2(z1 - z0, n1 - n0)       # direction in (n, z); the box's z half-axis runs along it
+        nrm = np.array([np.sin(ang), -np.cos(ang)])
+        if nrm[0] > 0:                          # keep the box behind the surface (away from the other jaw)
+            nrm = -nrm
+        c = np.array([(n0 + n1) / 2, (z0 + z1) / 2]) + nrm * thick / 2
+        boxes.append(((0.5 * (x0 + x1), c[0], c[1]), ((x1 - x0) / 2, thick / 2, ln / 2), np.pi / 2 - ang, 0.0))
+
+    def block(x0, x1, n0, n1, z0, z1, rz=0.0):
+        boxes.append((((x0 + x1) / 2, (n0 + n1) / 2, (z0 + z1) / 2), ((x1 - x0) / 2, (n1 - n0) / 2, (z1 - z0) / 2), 0.0, rz))
+
+    xg0, xg1 = -hx + 1.0, x_split
+    g_lo, g_hi = z_pen - DEPTH, z_pen + DEPTH                         # 90 deg: as wide as twice the depth
+    root = PAD - DEPTH
+    plane((root, z_pen), (PAD, g_hi), xg0, xg1)                       # groove: upper face
+    plane((root, z_pen), (PAD, g_lo), xg0, xg1)                       # groove: lower face
+    block(xg0, xg1, 0.0, PAD, -hz, g_lo)                              # rim below
+    block(xg0, xg1, 0.0, PAD, g_hi, hz)                               # rim above
+    block(xg0, xg1, 0.0, root, g_lo, g_hi)                            # groove root (filled behind)
+    # cup: two faces leaning 35 deg about z, meeting 3 mm deep in the middle of the distal part, around ball height
+    xc, w = (x_split + hx) / 2, (hx - x_split) / 2 - 0.5
+    lean = np.radians(35)
+    for sgn in (1, -1):
+        cx = xc + sgn * w / 2
+        boxes.append(((cx, PAD - 1.5 - 0.8, z_ball), (w / 2 / np.cos(lean), 0.8, 7.0), 0.0, -sgn * lean))
+    block(x_split, hx, 0.0, PAD - 3.0, z_ball - 7.0, z_ball + 7.0)    # cup backing
+    block(x_split, hx, 0.0, PAD, -hz, z_ball - 7.0)                   # flat pad under the cup (pens pass here)
+    block(hx - 2.5, hx, 0.0, PAD + 1.0, z_pen + 5.0, hz)              # tip lip, above pen height
+    out = {"pollex": [], "dactyl": []}
+
+    def rot(ax, a):
+        c_, s_ = np.cos(a), np.sin(a)
+        if ax == "x":
+            return np.array([[1, 0, 0], [0, c_, -s_], [0, s_, c_]])
+        return np.array([[c_, -s_, 0], [s_, c_, 0], [0, 0, 1]])
+
+    for jaw, M, R0, c0 in (("pollex", np.diag([1.0, s, 1.0]), ry, np.asarray(strip_c)),
+                           ("dactyl", np.diag([1.0, -s, 1.0]), d_strip[1], np.asarray(d_strip[0]))):
+        face = np.array([0.0, hy, 0.0])                                    # local origin on the plate's inner face
+        for (cx, cn, cz), half, rx, rz in boxes:
+            loc = M @ (np.array([cx, cn, cz]) + face)
+            Rl = M @ rot("x", rx) @ rot("z", rz) @ M
+            out[jaw].append((tuple(c0 + R0 @ loc), tuple(half), quat(R0 @ Rl)))
     return out
 
 
@@ -521,6 +591,7 @@ def build() -> str:
     <material name="floor" texture="sand" texrepeat="{8/S:.3g} {8/S:.3g}" reflectance="0.05"/>
     <material name="shell" rgba="{ORANGE if V2 else '0.90 0.33 0.20 1'}" specular="{0.5 if V2 else 0.3}" shininess="{0.6 if V2 else 0.4}"/>
     <material name="claw" rgba="{ORANGE if V2 else '0.75 0.22 0.15 1'}" specular="0.3"/>
+    <material name="pad" rgba="0.18 0.18 0.2 1" specular="0.1"/>
     <material name="tip" rgba="{RUBBER if V2 else '0.25 0.18 0.15 1'}"/>
     <material name="servo" rgba="{DARK if V2 else '0.12 0.12 0.14 1'}"/>
     <material name="eye" rgba="0.97 0.97 0.95 1"/>
