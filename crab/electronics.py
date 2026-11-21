@@ -38,6 +38,18 @@ class Data:
             node = node[part]
         return node["value"] if isinstance(node, dict) and "value" in node else node
 
+    def for_design(self, design):
+        """The data of one design: v1 is the file as it is; another design (v2) swaps in its own battery and
+        regulator sections ([battery_v2], [regulator_v2]) and leaves everything else."""
+        if design == "v1":
+            return self
+        out = Data.__new__(Data)
+        out.path = self.path
+        out.tree = dict(self.tree)
+        for part in ("battery", "regulator"):
+            out.tree[part] = self.tree[f"{part}_{design}"]
+        return out
+
     def parameters(self):
         """[(dotted name, {value, unit, source, ref, ...})] for every sourced number in the file."""
         out = []

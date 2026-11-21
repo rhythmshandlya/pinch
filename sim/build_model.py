@@ -3,6 +3,8 @@
     python sim/build_model.py                 -> writes sim/models/crab.xml
     python sim/build_model.py --primitive     -> ignore CAD meshes, simple shapes only
     python sim/build_model.py --no-backlash
+    python sim/build_model.py --design v2     -> writes sim/models/crab_v2.xml: the resized STS3215 robot
+                                                 (primitives only, no CAD exists for it; docs/dev/V2_MODEL.md)
 
 The right side is a mirror of the left: y positions, yaw angles and z-axis hinge axes
 are negated, so a given joint command means the same motion on both sides.
@@ -11,6 +13,7 @@ torque limit, torque-speed slope, rotor inertia, friction and gear backlash.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -18,18 +21,22 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+if "--design" in sys.argv:                                  # the design is read once, by crab/params.py
+    os.environ["CRAB_DESIGN"] = sys.argv[sys.argv.index("--design") + 1]
 
 from crab.emotes import STAND  # noqa: E402
 from crab.params import ARM_IDS, JOINT_NAMES, LEG_IDS, PARAMS, SERVOS, servo_for  # noqa: E402
 
-OUT = ROOT / "sim" / "models" / "crab.xml"
 P = PARAMS
+OUT = ROOT / "sim" / "models" / P.model_file
 S = P.scale                                   # size relative to the 100 mm-shin original
+V2 = P.design == "v2"
+K = P.arm_scale                               # claw / jaw geometry relative to v1
 
 VIS_FILE = ROOT / "sim" / "models" / "visuals.json"
 MP_FILE = ROOT / "sim" / "models" / "mass_props.json"
 COL_FILE = ROOT / "sim" / "models" / "collision.json"
-USE_CAD = VIS_FILE.exists() and MP_FILE.exists() and "--primitive" not in sys.argv
+USE_CAD = VIS_FILE.exists() and MP_FILE.exists() and "--primitive" not in sys.argv and not V2
 VIS = json.loads(VIS_FILE.read_text()) if USE_CAD else {}
 MP = json.loads(MP_FILE.read_text()) if USE_CAD else {}
 COL = json.loads(COL_FILE.read_text()) if (USE_CAD and COL_FILE.exists()) else None
@@ -128,12 +135,12 @@ def arm_xml(arm_id: str) -> str:
         {jnt(arm_id + "_shoulder_yaw", f"0 0 {s}", A.shoulder_yaw_range)}
         {cad(arm_id + "_shoulder")}
         {servo_box(arm_id + "_shoulder_yaw")}
-        <geom type="sphere" size="0.007" mass="0.002" material="shell"/>
+        <geom type="sphere" size="{0.007 * K:.4g}" mass="{A.shoulder_mass:.4g}" material="shell"/>
         <body name="{arm_id}_upper" pos="{A.shoulder_offset} 0 0">
           {jnt(arm_id + "_shoulder_pitch", "0 -1 0", A.shoulder_pitch_range)}
           {cad(arm_id + "_upper")}
-          <geom type="capsule" fromto="0 0 0 {h - 0.010:.4f} 0 0" size="0.005" mass="{A.upper_mass * 0.3:.4f}" material="shell"/>
-          <geom name="{arm_id}_palm" type="ellipsoid" pos="{h - 0.004:.4f} 0 -0.004" size="0.011 0.0065 0.009" mass="{A.upper_mass * 0.7:.4f}" material="shell"/>
+          <geom type="capsule" fromto="0 0 0 {h - 0.010 * K:.4f} 0 0" size="{0.005 * K:.4g}" mass="{A.upper_mass * 0.3:.4f}" material="shell"/>
+          <geom name="{arm_id}_palm" type="ellipsoid" pos="{h - 0.004 * K:.4f} 0 {-0.004 * K:.4g}" size="{f(0.011 * K, 0.0065 * K, 0.009 * K)}" mass="{A.upper_mass * 0.7:.4f}" material="shell"/>
           <!-- fixed finger: the gripping strip (blade + TPU pad, level with the desk at the grip pitch) and
                the blade above it, hanging below the palm (cad/parts.py jaw_side) -->
           <geom name="{arm_id}_pollex" type="box" pos="{f(*JAW['strip'][0])}" euler="0 {-JAW['pitch']:.4f} 0" size="{f(*JAW['strip'][1])}" mass="0.0008" material="claw"/>
@@ -156,9 +163,10 @@ def jaw_geoms(s):
     s = +1 left arm, -1 right (mirror). Returns {name: ((pos), (half sizes))} in metres, plus 'pitch'
     and the grip site."""
     pitch = np.radians(20.0)
-    x0, x1, low0, strip_h, pad_t, blade_t = 40.3, 55.5, -24.5, 10.0, 1.2, 2.4
-    grip_w, q_par = 9.0, np.radians(19.0)                # jaws parallel GRIP_W apart at CLAW_PARALLEL
-    lu, dd, dd_y = P.arm.upper_len * 1000, (11.5, 15.0), (4.6, 8.4)
+    # (v2: the whole claw is K = 1.5 times bigger; v1: K = 1.0, so every number below is unchanged)
+    x0, x1, low0, strip_h, pad_t, blade_t = (K * v for v in (40.3, 55.5, -24.5, 10.0, 1.2, 2.4))
+    grip_w, q_par = 9.0 * K, np.radians(19.0)            # jaws parallel GRIP_W apart at CLAW_PARALLEL
+    lu, dd, dd_y = P.arm.upper_len * 1000, tuple(K * v for v in (11.5, 15.0)), tuple(K * v for v in (4.6, 8.4))
     c, sn = np.cos(pitch), np.sin(pitch)
     ry = np.array([[c, 0, -sn], [0, 1, 0], [sn, 0, c]])       # rotation about y by -pitch (strip along x)
 
@@ -185,19 +193,20 @@ def jaw_geoms(s):
     m = 1e-3
     mid = s * (grip_w - 1.0) / 2                          # plane midway between the pads when parallel
     strip_c = np.array([centre[0], -s * (0.5 + hy), centre[1]])
-    blade_c = np.array([43.3, -s * (0.5 + pad_t + blade_t / 2), -8.25])
+    blade_c = np.array([43.3 * K, -s * (0.5 + pad_t + blade_t / 2), -8.25 * K])
     d_strip = to_dactyl(strip_c * [1, -1, 1] + [0, 2 * mid, 0], ry)
     d_blade = to_dactyl(blade_c * [1, -1, 1] + [0, 2 * mid, 0], np.eye(3))
     out = {
         "pitch": float(pitch),
         "strip": (tuple(strip_c * m), (hx * m, hy * m, hz * m)),
-        "blade": ((41.5 * m, -s * (0.5 + pad_t + blade_t / 2) * m, -11.0 * m), (4.8 * m, blade_t / 2 * m, 8.0 * m)),
+        "blade": ((41.5 * K * m, -s * (0.5 + pad_t + blade_t / 2) * m, -11.0 * K * m),
+                  (4.8 * K * m, blade_t / 2 * m, 8.0 * K * m)),
         # pen-sized things are held with their axis 3.5 mm above the strip's lower edge, mid-strip
-        "site": ((xm - 3.5 * sn) * m, 0.0, (low(xm) + 3.5 * c) * m),
+        "site": ((xm - 3.5 * K * sn) * m, 0.0, (low(xm) + 3.5 * K * c) * m),
         "d_strip": (tuple(d_strip[0] * m), (hx * m, hy * m, hz * m), quat(d_strip[1])),
-        "d_blade": (tuple(d_blade[0] * m), (3.0 * m, blade_t / 2 * m, 5.75 * m), quat(d_blade[1])),
-        "d_drop": (((dd[0] + dd[1]) / 2 * m, s * (dd_y[0] + dd_y[1]) / 2 * m, 4.5 * m),
-                   ((dd[1] - dd[0]) / 2 * m, (dd_y[1] - dd_y[0]) / 2 * m, 10.5 * m)),
+        "d_blade": (tuple(d_blade[0] * m), (3.0 * K * m, blade_t / 2 * m, 5.75 * K * m), quat(d_blade[1])),
+        "d_drop": (((dd[0] + dd[1]) / 2 * m, s * (dd_y[0] + dd_y[1]) / 2 * m, 4.5 * K * m),
+                   ((dd[1] - dd[0]) / 2 * m, (dd_y[1] - dd_y[0]) / 2 * m, 10.5 * K * m)),
     }
     return out
 
@@ -205,6 +214,7 @@ def jaw_geoms(s):
 def eyes_xml() -> str:
     if USE_CAD:
         return ""
+    S = 1.6 if V2 else globals()["S"]                    # v2: eyes sized with the 1.6x legs
     hx, hy, hz = P.body.half_size
     out = []
     for s in (1, -1):
@@ -232,8 +242,66 @@ def servo_defaults() -> str:
     return "\n".join(out)
 
 
+def leg_xml_v2(leg_id: str) -> str:
+    """v2 leg: printed capsules (they collide, so the legs can push the body up from the floor) and a real servo
+    box with the servo's real mass in the link that carries it: the thigh servo in the coxa link, the knee servo in
+    the femur link (the hip servo is in the body). Printed mass = the link's mass minus its servo."""
+    s = 1 if leg_id[1] == "L" else -1
+    (x, y, z), yaw = P.leg_mounts[leg_id[0]]
+    L = P.leg
+    sf, st = servo_for(leg_id + "_femur"), servo_for(leg_id + "_tibia")
+    lf, wf, hf = (v / 2000 for v in sf.size_mm)          # half length, width, height (shaft along the height)
+    lt, wt, ht = (v / 2000 for v in st.size_mm)
+
+    def box(half, pos, mass):
+        return (f'<geom class="visual" type="box" size="{f(*half)}" pos="{f(*pos)}" mass="{mass:.5g}" '
+                f'material="servo"/>')
+    return f"""
+      <body name="{leg_id}_coxa_link" pos="{f(x, s*y, z)}" euler="0 0 {s*yaw:.4f}">
+        {jnt(leg_id + "_coxa", f"0 0 {-s}", L.coxa_range_for(leg_id))}
+        <geom type="capsule" fromto="0 0 0 {L.coxa_len} 0 0" size="0.016" mass="{L.coxa_mass - sf.mass:.5g}" material="shell"/>
+        {box((lf, hf, wf), (L.coxa_len - 0.3 * lf, 0, 0), sf.mass)}
+        <body name="{leg_id}_femur_link" pos="{L.coxa_len} 0 0">
+          {jnt(leg_id + "_femur", "0 -1 0", L.femur_range)}
+          <geom type="capsule" fromto="0 0 0 {L.femur_len} 0 0" size="0.015" mass="{L.femur_mass - st.mass:.5g}" material="shell"/>
+          {box((lt, ht, wt), (L.femur_len - 0.3 * lt, 0, 0), st.mass)}
+          <body name="{leg_id}_tibia_link" pos="{L.femur_len} 0 0">
+            {jnt(leg_id + "_tibia", "0 -1 0", L.tibia_range)}
+            <geom type="capsule" fromto="0 0 0 {L.tibia_len} 0 0" size="0.010" mass="{L.tibia_mass - 0.001:.5g}" material="shell"/>
+            <geom name="{leg_id}_foot" type="sphere" pos="{L.tibia_len} 0 0" size="{L.foot_radius}" mass="0.001" material="tip" friction="1.1 0.02 0.001"/>
+            <site name="{leg_id}_foot_site" pos="{L.tibia_len} 0 0" size="{L.foot_radius*1.4:.4f}" rgba="0 0 0 0"/>
+          </body>
+        </body>
+      </body>"""
+
+
+def body_v2() -> str:
+    """v2 body from primitives (sizing study, sim/sizing/model.py): chassis box and dome shell (they collide),
+    the four yaw servos at the hips (shaft vertical), the pack low in the belly, the electronics above."""
+    B = P.body
+    ch, cp = B.half_size, B.chassis_pos
+    sv = servo_for("FL_coxa")
+    lh, wh, hh = (v / 2000 for v in sv.size_mm)
+    hx, hy = abs(P.leg_mounts["F"][0][0]), P.leg_mounts["F"][0][1]
+    pack_t, pack_len = 0.018, 2 * ch[0] * 0.85
+    pack_w = B.battery_mass / 1494.0 / (pack_len * pack_t)          # 46 g in 57 x 30 x 18 mm: the BOM pack
+    out = [f'<geom name="chassis" type="box" pos="{f(*cp)}" size="{f(*ch)}" mass="{B.shell_mass * 0.75:.5g}" material="shell"/>',
+           f'<geom name="dome" type="ellipsoid" pos="{f(*B.dome_pos)}" size="{f(*B.dome_half)}" mass="{B.shell_mass * 0.25:.5g}" material="shell"/>']
+    for sx in (1, -1):
+        for sy in (1, -1):
+            out.append(f'<geom class="visual" type="box" size="{f(lh, wh, hh)}" pos="{f(sx * hx, sy * hy, -0.15 * 2 * hh)}" '
+                       f'mass="{sv.mass:.5g}" material="servo"/>')
+    out.append(f'<geom class="visual" type="box" size="{f(pack_len / 2, pack_w / 2, pack_t / 2)}" '
+               f'pos="{f(cp[0], 0, cp[2] - ch[2] + pack_t / 2 + 0.002)}" mass="{B.battery_mass:.5g}" material="pcb"/>')
+    out.append(f'<geom class="visual" type="box" size="{f(0.030, 0.035, 0.008)}" pos="{f(0.005, 0, 0.012)}" '
+               f'mass="{B.electronics_mass:.5g}" material="pcb"/>')
+    return "\n      ".join(out)
+
+
 def carapace() -> str:
     B = P.body
+    if V2:
+        return body_v2()
     if COL:
         return "\n      ".join(
             f'<geom name="{g["name"]}" type="{g.get("type", "box")}" pos="{f(*g["pos"])}" size="{f(*g["size"])}"'
@@ -254,8 +322,8 @@ def build() -> str:
                        for items in VIS.values() for v in items) if USE_CAD else ""
     eye_cam = COL["eye_cam"] if COL else (0.95 * B.half_size[0], 0, 0.5 * B.half_size[2])
     prim_group = 3 if USE_CAD else 0
-    return f"""<!-- AUTO-GENERATED by sim/build_model.py from crab/params.py{' + CAD (cad/build.py)' if USE_CAD else ''}. Do not edit by hand. -->
-<mujoco model="robotic_crab">
+    return f"""<!-- AUTO-GENERATED by sim/build_model.py from crab/params.py{' (design v2, primitives only)' if V2 else ''}{' + CAD (cad/build.py)' if USE_CAD else ''}. Do not edit by hand. -->
+<mujoco model="robotic_crab{'_v2' if V2 else ''}">
   <compiler angle="radian" autolimits="true" meshdir="meshes"/>
   <option timestep="0.002" integrator="implicitfast"/>
 
@@ -304,7 +372,7 @@ def build() -> str:
       {cad("body")}
       {carapace()}
       {eyes_xml()}
-{"".join(leg_xml(lg) for lg in LEG_IDS)}
+{"".join((leg_xml_v2 if V2 else leg_xml)(lg) for lg in LEG_IDS)}
 {"".join(arm_xml(a) for a in ARM_IDS)}
     </body>
   </worldbody>
