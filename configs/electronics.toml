@@ -50,11 +50,22 @@ alpha = {value = 9.93094944677977, unit = "-", source = "measured", ref = "https
 stall_torque_nm = {value = 3.427506733774023, unit = "N*m", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json", why = "supply_v * kt / R from the same file: the torque at standstill with the full supply; the maker's printed 19.5 kg*cm (1.91 N*m) is lower, see docs/dev/V2_MODEL.md"}
 no_load_speed_rad_s = {value = 5.802464185690227, unit = "rad/s", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json", why = "supply_v / kt: where the back-EMF cancels the supply; the firmware limits the target to max_velocity long before"}
 
-# ---- arm servos: GOTECK GS-4308MG, plain 50 Hz PWM, no feedback ---------------------------------------------
+# ---- arm servos: Feetech STS3032 on the serial bus (IDs 13-18), 5 V rail B --------------------------------------
+# Owner's decision 2026-11-21: the six arm servos are Feetech STS3032 bus servos (position and load feedback) on the same
+# TTL bus as the 12 leg servos; the six GS-4308MG PWM servos and their PWM pins are gone. Evidence: Evelta page opened
+# 2026-11-21 (4.5 kg*cm stall, 1.5 kg*cm rated, 4.8-6 V, 20 g, 23.2 x 12.1 x 28.5 mm, 27 in stock).
+# pwm_frame_s / command_delay_s / idle_current_a are the twin's v1 numbers for a PWM servo, kept because
+# crab/electronics.py and its tests still read them for a joint marked as PWM; design v2 marks none.
 [arm_servo]
-pwm_frame_s = {value = 0.02, unit = "s", source = "estimate", why = "design choice: our hardware PWM runs exact 50 Hz frames (robot/backends.py BoardPWM PERIOD_NS)", ref = "robot/backends.py"}
-command_delay_s = {value = 0.015, unit = "s", source = "estimate", why = "needs bench: a new pulse width is picked up at the next frame (10 ms on average, 20 ms worst) plus about 5 ms for the servo's own electronics; matches crab/params.py GS4308 'up to 20 ms latency'", ref = "crab/params.py"}
-idle_current_a = {value = 0.015, unit = "A", source = "estimate", why = "needs bench: a hobby servo's amplifier idles at about 10-20 mA", ref = "hardware/electronics.md"}
+pwm_frame_s = {value = 0.02, unit = "s", source = "estimate", why = "legacy v1 PWM arm (GS-4308MG): our hardware PWM ran exact 50 Hz frames; no joint of design v2 uses it", ref = "robot/backends.py"}
+command_delay_s = {value = 0.015, unit = "s", source = "estimate", why = "legacy v1 PWM arm: a new pulse width is picked up at the next frame (10 ms on average, 20 ms worst) plus about 5 ms of the servo's electronics; a bus arm servo is faster (the bus adds to this in the twin)", ref = "crab/params.py"}
+idle_current_a = {value = 0.015, unit = "A", source = "estimate", why = "needs bench: a small servo's amplifier idles at about 10-20 mA; the STS3032 listing prints no idle current", ref = "hardware/electronics.md"}
+stall_torque_kgcm = {value = 4.5, unit = "kg*cm", source = "datasheet", ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor", why = "stall torque at 6 V per the Evelta page"}
+rated_torque_kgcm = {value = 1.5, unit = "kg*cm", source = "datasheet", ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor", why = "rated (continuous) torque at 6 V per the Evelta page"}
+stall_current_a = {value = 1.2, unit = "A", source = "datasheet", ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor", why = "stall current at 6 V per the Evelta page (the parts decision's figure); at the 5 V of rail B it is a little lower, so 1.2 A is the safe side. Six of them stalled at full torque would draw 7.2 A against the 5 A regulator"}
+# the firmware setting that keeps rail B inside its regulator: written into every arm servo by robot/setup_servo.py
+# (register torque_limit, address 48, robot/feetech_bus.py; 0-1000 per mille of the maximum torque)
+torque_limit_permille = {value = 400, unit = "per mille", source = "estimate", why = "design choice: a motor's current follows its torque, so a 40 % torque limit caps a stalled arm servo at about 0.48 A and all six at 2.9 A, inside the 5 A regulator with room for idle currents. The parts decision's torque model needs 0.69 kg*cm (46 % of RATED, 15 % of stall) at the 2x margin, so 40 % of stall (1.8 kg*cm) still lifts the toy. Register units not yet confirmed on a servo: bench order 1", ref = "configs/wiring_v2.toml"}
 
 # ---- IMU: Bosch BNO055 in IMU fusion mode (gyro + accelerometer, no magnetometer) ----------------------------
 [imu]
@@ -187,13 +198,12 @@ rail_3v3_efficiency = {value = 0.85, unit = "fraction", source = "estimate", why
 bno055_a = {value = 0.0123, unit = "A", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf", why = "normal power mode, all sensors and fusion running"}
 ina219_a = {value = 0.001, unit = "A", source = "datasheet", ref = "https://www.ti.com/lit/ds/symlink/ina219.pdf", why = "quiescent supply current, 1 mA maximum"}
 mpr121_a = {value = 0.001, unit = "A", source = "estimate", why = "needs bench: the chip runs on tens of uA; the breakout's power LED dominates", ref = "https://www.nxp.com/docs/en/data-sheet/MPR121.pdf"}
-oled_a = {value = 0.025, unit = "A", source = "estimate", why = "unverified: 2.42 inch SSD1309 with a mostly dark face: 20-40 mA depending on lit pixels; no figure on the listing", ref = "hardware/BOM.md"}
+panel_a = {value = 0.48, unit = "A", source = "estimate", why = "the Waveshare 6.25 inch HDMI panel takes 2 W at 5 V, at least 400 mA (Waveshare wiki figure as recorded in the 2026-11-21 parts decision, page not re-opened: 0.40 A) plus about 0.4 W (0.08 A) for the Radxa's HDMI transmitter, which the computer's own power figures do not include (parts decision section 2: estimate); it runs from regulator A through its USB-C power lead", ref = "hardware/BOM.md"}
 vl53l0x_a = {value = 0.020, unit = "A", source = "datasheet", ref = "https://www.pololu.com/product/2490", why = "about 20 mA typical during ranging, 40 mA peak"}
 vl53l5cx_a = {value = 0.100, unit = "A", source = "datasheet", why = "Pololu's VL53L5CX carrier page (quoting ST): typical active-ranging supply current 100 mA, peaks up to 150 mA; the page does not say which mode, so this is the sensor's headline figure, not the 8x8 15 Hz mode we use", ref = "https://www.pololu.com/product/3417"}
 mic_a = {value = 0.001, unit = "A", source = "datasheet", why = "MEMSensing MSM261S4030H0R datasheet DS-050 Ver 1.0 p.3: current consumption 750 uA nominal, 1000 uA maximum in normal mode (1 mA used here = the maximum); DFRobot's wiki calls the SEN0526 board MSM261-based but prints no current, so confirm the variant on the board", ref = "https://www.waveshare.com/w/upload/0/01/MSM261S4030H0R.pdf"}
 amp_idle_a = {value = 0.00275, unit = "A", source = "datasheet", why = "Maxim MAX98357A/B datasheet p.4 electrical characteristics: quiescent current IDD 2.75 mA typical (3.35 mA max) at VDD = 5 V (2.4 mA at 3.7 V); standby with SD_MODE at 1.8 V and no BCLK is 340 uA", ref = "https://cdn-shop.adafruit.com/product-files/3006/MAX98357A-MAX98357B.pdf"}
 amp_peak_w = {value = 0.625, unit = "W", source = "estimate", why = "design choice: the 0.5 W speaker driven flat out at 80 % amplifier efficiency (the mind only plays short tones)", ref = "hardware/BOM.md"}
-arm_servo_stall_a = {value = 0.8, unit = "A", source = "estimate", why = "needs bench: GOTECK lists no current and no maker datasheet for the GS-4308MG was found; a metal-gear micro servo stalls at 0.7-0.9 A at 5-6 V", ref = "crab/params.py"}
 pogo_charge_a = {value = 2.0, unit = "A", source = "estimate", why = "unverified: the dock charger module's 2 A output (BOM row robu 1794300, read 2026-11-21); the pack takes it through the BMS", ref = "hardware/BOM.md"}
 
 # ---- protection and switching ---------------------------------------------------------------------------------------
@@ -211,7 +221,7 @@ rating_a = {value = 20.0, unit = "A", source = "estimate", why = "unverified: th
 contact_mohm = {value = 15.0, unit = "mOhm", source = "estimate", why = "unverified: rocker switches list 10-50 mOhm initial contact resistance; not listed for this one", ref = "hardware/BOM.md"}
 
 [shunt]
-ohm = {value = 0.002, unit = "ohm", source = "estimate", why = "design choice: the BOM says 0.005 ohm, but that burns 1.1 W at the fuse's 15 A in a 1 W 2512 resistor (crab/wiring.py rating check); 0.002 ohm burns 0.45 W and still gives the INA219 a 5 mA step (10 uV / 2 mOhm) and reads up to 160 A. The part is not bought yet (BOM: UNVERIFIED): a BOM change", ref = "hardware/BOM.md"}
+ohm = {value = 0.002, unit = "ohm", source = "estimate", why = "design choice, now in the BOM: 0.005 ohm burns 1.1 W at the fuse's 15 A in a 1 W 2512 resistor (crab/wiring.py rating check); 0.002 ohm burns 0.45 W, gives the INA219 a 5 mA step (10 uV / 2 mOhm) and reads up to 160 A. No Indian shop page found: Mouser India / DigiKey India, priced as an allowance (BOM row UNVERIFIED)", ref = "hardware/BOM.md"}
 power_w = {value = 1.0, unit = "W", source = "estimate", why = "design choice: a 2512 chip resistor is sold as 1 W (BOM row 'current-sense resistor, 1 W')", ref = "hardware/BOM.md"}
 
 # ---- connectors (rating per contact, resistance per mated pair) -------------------------------------------------------

@@ -9,7 +9,11 @@
 #
 # Power: PACK -> XT60 -> fuse -> shunt (INA219) -> switch -> {hub (7.4 V servo rail), regulator A, regulator B}.
 #   regulator A (5 V): Radxa, audio, and through the Radxa's own 3.3 V pins the sensors
-#   regulator B (5 V): the six arm servos, on their own hub headers (never joined to the 7.4 V leg headers)
+#   regulator B (5 V): the six arm servos (Feetech STS3032 bus servos, IDs 13-18), on their own hub headers (never joined to
+#     the 7.4 V leg headers); their signal pins join the same one-wire bus as the legs. A torque limit in each servo
+#     (electronics.toml arm_servo.torque_limit_permille) keeps six stalled arms inside the 5 A regulator: crab/wiring.py checks it.
+#   the face: a Waveshare 6.25 inch HDMI panel in the hinged lid, 5 V from regulator A over its USB-C power lead, micro-HDMI
+#     from the Radxa through the lid hinge (touch could come later over USB: a note, nothing wired)
 # Return (ground) conductors are the same wire as the supply ones: the resistance of an edge is a loop.
 
 [meta]
@@ -21,7 +25,10 @@ radxa_note = "pin functions as printed in Radxa's 40-pin table (read 2026-11-21)
 i2c_max_utilisation = 0.6
 servo_bus_max_stub_mm = 1500
 servo_bus_baud = 1000000
-# 3-wire hobby / bus servo cables are bought: 900 mm for the 12 leg servos, 500 mm (a guess) for the arms
+servo_bus_cycle_hz = 50
+servo_bus_exchange_bytes = 30
+servo_bus_max_utilisation = 0.6
+# 18 servo cables (one per servo, three packs of six 5264 cables): 900 mm for the 12 leg servos, cut to about 500 mm for the arms
 
 [radxa.pin]
 "1" = ["+3.3V"]
@@ -79,10 +86,6 @@ note = "TI INA219: A0/A1 pins select 16 addresses 0x40-0x4F."
 addresses = [0x5A, 0x5B, 0x5C, 0x5D]
 bytes_per_s = 400
 note = "NXP MPR121: the ADDR pin selects 0x5A-0x5D."
-[device.ssd1309]
-addresses = [0x3C, 0x3D]
-bytes_per_s = 10500
-note = "SSD1309 OLED: 10 frames per second of 1024 bytes plus commands."
 [device.vl53l0x]
 addresses = [0x29]
 readdressable = true
@@ -104,7 +107,6 @@ speed_khz = 400
 devices = [
   {part = "ina", kind = "ina219", addr = 0x40},
   {part = "mpr121", kind = "mpr121", addr = 0x5A},
-  {part = "oled", kind = "ssd1309", addr = 0x3C},
 ]
 [[i2c]]
 name = "i2c4"
@@ -130,45 +132,8 @@ devices = [
   {part = "tof8", kind = "vl53l5cx", boot_addr = 0x29, addr = 0x35, reset_pin = 32},
 ]
 
-# ---- the six arm servos: hardware PWM, 50 Hz; `channel` = robot/servos.py PWM_CHANNEL ---------------------------------
-
-[[pwm]]
-channel = 0
-pin = 16
-function = "PWM8_M0"
-joint = "L_shoulder_yaw"
-part = "shoulder_l"
-
-[[pwm]]
-channel = 1
-pin = 18
-function = "PWM9_M0"
-joint = "L_shoulder_pitch"
-
-[[pwm]]
-channel = 2
-pin = 21
-function = "PWM12_M1"
-joint = "L_claw"
-
-[[pwm]]
-channel = 3
-pin = 24
-function = "PWM13_M1"
-joint = "R_shoulder_yaw"
-part = "shoulder_r"
-
-[[pwm]]
-channel = 4
-pin = 7
-function = "PWM14_M0"
-joint = "R_shoulder_pitch"
-
-[[pwm]]
-channel = 5
-pin = 19
-function = "PWM15_IR_M1"
-joint = "R_claw"
+# ---- no PWM outputs any more: the six arm servos are bus servos (see [servo_bus]). The header pins 7, 16, 18, 19, 21 and 24
+# that drove them are free (16 / 18 = UART4 and 19 / 21 / 23 / 24 = SPI3 are the ones a later add-on could use). -------------
 
 # ---- I2S (one codec bus, I2S3_M0): speaker amplifier out, two microphones in (left / right by their SEL pin) -----------
 [i2s]
@@ -179,10 +144,11 @@ data_in = 38
 out = [{part = "amp", pin = "DIN"}]
 in = [{part = "mic_l", select = "SEL to GND (left)"}, {part = "mic_r", select = "SEL to 3.3 V (right)"}]
 
-# ---- the servo bus: the Waveshare driver board turns USB into the one-wire half-duplex bus, 1 Mbaud. All twelve leg servos
-# hang on it in a star at the hub: each servo has its own 900 mm cable from its own hub header, the signal pins are joined
-# on the hub board. (A star, not a chain, because a chain would put three servos' current through one 3 A connector.)
-# The order of the headers is the servo ID: robot/servos.py SERVO_IDS.
+# ---- the servo bus: the Waveshare driver board turns USB into the one-wire half-duplex bus, 1 Mbaud. All eighteen servos
+# hang on it in a star at the hub: each servo has its own cable from its own hub header, the signal pins are joined on the hub
+# board (the 12 leg headers and the 6 arm headers). Only signal and GND are shared between the two servo supplies: the leg
+# headers carry the pack (6.4-8.4 V), the arm headers 5 V from regulator B. (A star, not a chain, because a chain would put
+# three servos' current through one 3 A connector.) The order of the headers is the servo ID: robot/servos.py SERVO_IDS.
 [servo_bus]
 driver = "driver"
 hub = "hub"
@@ -190,6 +156,7 @@ topology = "star at the hub"
 baud = 1000000
 
 order = ["FL_coxa", "FL_femur", "FL_tibia", "FR_coxa", "FR_femur", "FR_tibia", "RL_coxa", "RL_femur", "RL_tibia", "RR_coxa", "RR_femur", "RR_tibia"]
+arm_order = ["L_shoulder_yaw", "L_shoulder_pitch", "L_claw", "R_shoulder_yaw", "R_shoulder_pitch", "R_claw"]
 
 # ---- links that are not power wires -----------------------------------------------------------------------------
 [[link]]
@@ -207,12 +174,12 @@ to_part = "radxa"
 connectors = ["fpc22", "fpc22"]
 note = "22-pin 0.5 mm flex from the camera board to the Radxa's CSI connector"
 [[link]]
-id = "oled_flex"
-kind = "i2c-board"
-from_part = "oled"
-to_part = "radxa"
+id = "hdmi"
+kind = "hdmi"
+from_part = "radxa"
+to_part = "oled"
 connectors = []
-note = "STYLE B (face lid): the screen is now the 6.25 inch HDMI panel in the hinged lid; its micro-HDMI flat cable (and its USB power/touch lead, if used) runs through the lid hinge to the Radxa. The Radxa has no HDMI-in-lid cable data yet: this edge keeps the old OLED entry (its 3.3 V load and i2c address 0x3C are NOT removed yet: a data decision) so no pin changes; the I2C address is free once the entry goes. The six arm servos are STS3032 (placeholder, 5 V rail B) but their PWM wiring entries are unchanged"
+note = "STYLE B face: the Waveshare 6.25 inch 720 x 1560 IPS panel in the hinged lid. Micro-HDMI flat cable from the Radxa's HDMI port, through the lid hinge, to the panel (a thin cable that survives a hinge: INR 600 allowance in the BOM, to be tested at the bench). The panel's power comes over its USB-C lead from regulator A (edge rega_panel). Touch could be added later over a USB lead from the Radxa's USB-C port, which the servo driver board then must not use: drive the board from UART4 (pins 16 / 18) instead. The twin's layout still calls the lid display part `oled` (an id from the old 2.42 inch OLED, kept because the model builder and the lid pose use it): no OLED is bought or wired"
 [[link]]
 id = "speaker"
 kind = "audio"
@@ -319,7 +286,7 @@ from = "SHUNT_IN"
 to = "SHUNT_OUT"
 element = "shunt"
 parts = ["ina"]
-note = "the 0.005 ohm shunt across the INA219's VIN+ / VIN-: the monitor reads the whole pack current"
+note = "the 0.002 ohm shunt (2512, 1 W) across the INA219's VIN+ / VIN-: the monitor reads the whole pack current"
 [[edge]]
 id = "ina_switch"
 from = "SHUNT_OUT"
@@ -378,6 +345,16 @@ length_mm = "auto"
 connectors = []
 parts = ["reg_a", "amp"]
 [[edge]]
+id = "rega_panel"
+from = "RAIL_A"
+to = "PANEL5"
+awg = 22
+length_mm = "auto"
+connectors = ["usbc"]
+parts = ["reg_a", "oled"]
+note = "regulator A to the face panel's USB-C power input (2 W at 5 V), through the lid hinge"
+
+[[edge]]
 id = "regb_hub5"
 from = "RAIL_B"
 to = "HUB5"
@@ -385,7 +362,7 @@ awg = 20
 length_mm = "auto"
 connectors = []
 parts = ["reg_b", "hub"]
-note = "regulator B to the arm-servo headers of the hub: a separate rail from the leg headers"
+note = "regulator B to the arm-servo headers of the hub (six STS3032 bus servos): a separate rail from the leg headers; the 1000 uF on its input and the torque limit in each servo ride out their spikes"
 
 [[edge]]
 id = "cable_FL_coxa"
@@ -513,9 +490,9 @@ from = "HUB5"
 to = "A_L_shoulder_yaw"
 awg = 24
 length_mm = 500
-connectors = ["header254", "header254"]
+connectors = ["header254", "kk5264"]
 parts = ["hub"]
-note = "arm servo lead and extension, about 500 mm"
+note = "one of the 18 bought servo cables, cut to about 500 mm; the signal wire joins the shared bus on the hub"
 
 [[edge]]
 id = "cable_L_shoulder_pitch"
@@ -523,9 +500,9 @@ from = "HUB5"
 to = "A_L_shoulder_pitch"
 awg = 24
 length_mm = 500
-connectors = ["header254", "header254"]
+connectors = ["header254", "kk5264"]
 parts = ["hub"]
-note = "arm servo lead and extension, about 500 mm"
+note = "one of the 18 bought servo cables, cut to about 500 mm; the signal wire joins the shared bus on the hub"
 
 [[edge]]
 id = "cable_L_claw"
@@ -533,9 +510,9 @@ from = "HUB5"
 to = "A_L_claw"
 awg = 24
 length_mm = 500
-connectors = ["header254", "header254"]
+connectors = ["header254", "kk5264"]
 parts = ["hub"]
-note = "arm servo lead and extension, about 500 mm"
+note = "one of the 18 bought servo cables, cut to about 500 mm; the signal wire joins the shared bus on the hub"
 
 [[edge]]
 id = "cable_R_shoulder_yaw"
@@ -543,9 +520,9 @@ from = "HUB5"
 to = "A_R_shoulder_yaw"
 awg = 24
 length_mm = 500
-connectors = ["header254", "header254"]
+connectors = ["header254", "kk5264"]
 parts = ["hub"]
-note = "arm servo lead and extension, about 500 mm"
+note = "one of the 18 bought servo cables, cut to about 500 mm; the signal wire joins the shared bus on the hub"
 
 [[edge]]
 id = "cable_R_shoulder_pitch"
@@ -553,9 +530,9 @@ from = "HUB5"
 to = "A_R_shoulder_pitch"
 awg = 24
 length_mm = 500
-connectors = ["header254", "header254"]
+connectors = ["header254", "kk5264"]
 parts = ["hub"]
-note = "arm servo lead and extension, about 500 mm"
+note = "one of the 18 bought servo cables, cut to about 500 mm; the signal wire joins the shared bus on the hub"
 
 [[edge]]
 id = "cable_R_claw"
@@ -563,9 +540,9 @@ from = "HUB5"
 to = "A_R_claw"
 awg = 24
 length_mm = 500
-connectors = ["header254", "header254"]
+connectors = ["header254", "kk5264"]
 parts = ["hub"]
-note = "arm servo lead and extension, about 500 mm"
+note = "one of the 18 bought servo cables, cut to about 500 mm; the signal wire joins the shared bus on the hub"
 
 [[edge]]
 id = "v33_bno055"
@@ -595,16 +572,6 @@ awg = 28
 length_mm = "auto"
 connectors = ["dupont"]
 parts = ["radxa", "mpr121"]
-note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
-
-[[edge]]
-id = "v33_oled"
-from = "RAIL_3V3"
-to = "N_oled"
-awg = 28
-length_mm = "auto"
-connectors = ["dupont"]
-parts = ["radxa", "oled"]
 note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
 
 [[edge]]
@@ -741,11 +708,11 @@ kind = "fixed"
 current = "load.mpr121_a"
 
 [[load]]
-id = "oled"
+id = "panel"
 part = "oled"
-node = "N_oled"
+node = "PANEL5"
 kind = "fixed"
-current = "load.oled_a"
+current = "load.panel_a"
 
 [[load]]
 id = "tof_fl"
@@ -896,7 +863,7 @@ id = "servo_L_shoulder_yaw"
 node = "A_L_shoulder_yaw"
 kind = "arm_servo"
 joint = "L_shoulder_yaw"
-pwm = 0
+bus_id = 13
 part = "shoulder_l"
 
 [[load]]
@@ -904,21 +871,21 @@ id = "servo_L_shoulder_pitch"
 node = "A_L_shoulder_pitch"
 kind = "arm_servo"
 joint = "L_shoulder_pitch"
-pwm = 1
+bus_id = 14
 
 [[load]]
 id = "servo_L_claw"
 node = "A_L_claw"
 kind = "arm_servo"
 joint = "L_claw"
-pwm = 2
+bus_id = 15
 
 [[load]]
 id = "servo_R_shoulder_yaw"
 node = "A_R_shoulder_yaw"
 kind = "arm_servo"
 joint = "R_shoulder_yaw"
-pwm = 3
+bus_id = 16
 part = "shoulder_r"
 
 [[load]]
@@ -926,17 +893,17 @@ id = "servo_R_shoulder_pitch"
 node = "A_R_shoulder_pitch"
 kind = "arm_servo"
 joint = "R_shoulder_pitch"
-pwm = 4
+bus_id = 17
 
 [[load]]
 id = "servo_R_claw"
 node = "A_R_claw"
 kind = "arm_servo"
 joint = "R_claw"
-pwm = 5
+bus_id = 18
 
 # ---- the dock charging path (not part of the running circuit): pogo pins -> reverse guard + polyfuses -> the pack's
-# charge lead. Two pins in parallel per polarity. The current is the dock charger module's 2 A.
+# charge lead. Two pins in parallel per polarity (four pogo pins: Robocraze P50-E2, INR 94 for five). The current is the dock charger module's 2 A.
 [[charge_edge]]
 id = "pogo_l"
 from_part = "pogo_l"

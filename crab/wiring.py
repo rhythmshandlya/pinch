@@ -12,7 +12,11 @@ Part 1, the netlist: `Net(path)` loads the file, `check(net)` returns a `Report`
   rating       a wire, connector or switch below the current it can see (sustained and a short stall, see below), the shunt
                over its power rating, a regulator or the Radxa's 3.3 V pins loaded beyond their limit
   coverage     a part of the layout with no wire (or a wire to a part that is not in the layout)
-  servo bus    IDs or header order that do not match robot/servos.py, a stub longer than the bus allows
+  servo bus    IDs (legs 1-12, arms 13-18) or header order that do not match robot/servos.py, a stub longer than the bus allows,
+               a bus that cannot read all 18 servos at the control rate, and rail B: the six STS3032 arm servos would draw
+               more than the 5 A regulator if they all stalled at full torque, so a torque limit (electronics.toml
+               arm_servo.torque_limit_permille, written into each servo by the firmware's setup) must hold their stalled
+               current inside the regulator; the check refuses a missing or too-high limit
 Worst-case currents: a leg servo can stall (its locked-rotor current at the full pack) for the 2 s its overload protection
 allows, and hold the maker's printed stall torque for longer; everything upstream of the fuse is capped by the fuse's rating
 (sustained) and the BMS trip current (a stall). A wire or contact must carry the sustained figure at its rating and the stall
@@ -55,7 +59,6 @@ class Net:
         self.loads = list(tree.get("load", []))
         self.converters = list(tree.get("converter", []))
         self.i2c = list(tree.get("i2c", []))
-        self.pwm = list(tree.get("pwm", []))
         self.links = list(tree.get("link", []))
         self.charge = list(tree.get("charge_edge", []))
         self.pins = {int(k): v for k, v in tree["radxa"]["pin"].items()}
@@ -149,6 +152,17 @@ class Electrical:
 
 # -- worst-case currents -----------------------------------------------------------------------------------------------
 
+def arm_torque_limit(d):
+    """The torque limit written into every arm servo, as a fraction of its maximum (0-1)."""
+    return float(d("arm_servo.torque_limit_permille")) / 1000.0
+
+
+def arm_stalled_a(d):
+    """Current of one arm servo stalled against its torque limit: the motor current follows the torque, so the stall
+    current at full torque times the limit (idle current excluded)."""
+    return float(d("arm_servo.stall_current_a")) * arm_torque_limit(d)
+
+
 class Currents:
     """The sustained and the stall (transient) current every load can draw, at the load's own supply, and what that is at
     the pack for converters. Pure bookkeeping over the netlist tree."""
@@ -172,7 +186,7 @@ class Currents:
         if k == "leg_servo":
             return float(d("leg_servo.sustained_current_a")), self.v_max / float(d("leg_servo.resistance_ohm"))
         if k == "arm_servo":
-            a = float(d("load.arm_servo_stall_a"))
+            a = arm_stalled_a(d)                            # a stalled STS3032 at the firmware's torque limit
             return a, a
         if k == "computer":
             a = float(d("computer.power_npu_w")) / float(d("computer.min_input_v"))
@@ -232,8 +246,6 @@ def check_pins(net, rep):
         for dev in bus["devices"]:
             if "reset_pin" in dev:
                 uses.append((dev["reset_pin"], "GPIO", f"{dev['part']} reset"))
-    for p in net.pwm:
-        uses.append((p["pin"], p["function"], f"pwm {p['channel']} ({p['joint']})"))
     i2s = net.tree.get("i2s")
     if i2s:
         for key, fn in (("bclk", "I2S3_SCLK_M0"), ("lrck", "I2S3_LRCK_M0"), ("data_out", "I2S3_SDO_M0"),
@@ -394,7 +406,6 @@ def check_coverage(net, rep, layout):
             named |= set(x.get("parts", []))
     for bus in net.i2c:
         named |= {d["part"] for d in bus["devices"]}
-    named |= {p["part"] for p in net.pwm if p.get("part")}
     i2s = net.tree.get("i2s", {})
     named |= {x["part"] for x in i2s.get("out", []) + i2s.get("in", [])}
     exempt = set(net.tree.get("coverage", {}).get("exempt", []))
@@ -430,16 +441,52 @@ def check_bus(net, rep, el, servo_ids=None):
         e = by_edge.get(ld["node"])
         if e is None or el.length_mm(e) > float(net.rules.get("servo_bus_max_stub_mm", 1500)):
             rep.fail("servo bus", f"{ld['joint']}: its cable is missing or longer than the stub limit")
-    chans = sorted(p["channel"] for p in net.pwm)
-    if chans != list(range(len(net.pwm))):
-        rep.fail("pwm", f"PWM channels are not 0..{len(net.pwm) - 1}: {chans}")
+    # the six arm servos: bus servos too, IDs 13-18 in the order of arm_order, on the 5 V hub headers
     arms = [ld for ld in net.loads if ld["kind"] == "arm_servo"]
-    if sorted(p["joint"] for p in net.pwm) != sorted(ld["joint"] for ld in arms):
-        rep.fail("pwm", "the PWM outputs and the arm-servo loads do not name the same joints")
+    arm_order = sb.get("arm_order", [])
+    if sorted(arm_order) != sorted(ld["joint"] for ld in arms):
+        rep.fail("servo bus", "arm_order does not list exactly the arm servos of the loads")
+    arm_ids = [ld.get("bus_id") for ld in arms]
+    if None in arm_ids:
+        rep.fail("servo bus", "an arm servo has no bus_id: they are bus servos (IDs 13-18), not PWM outputs")
+    elif len(set(arm_ids)) != len(arm_ids) or set(arm_ids) & set(ids):
+        rep.fail("servo bus", f"arm servo IDs {sorted(arm_ids)} are not unique or clash with the legs {sorted(ids)}")
     for ld in arms:
-        mine = [p for p in net.pwm if p["joint"] == ld["joint"]]
-        if mine and mine[0]["channel"] != ld["pwm"]:
-            rep.fail("pwm", f"{ld['joint']}: channel {mine[0]['channel']} in [[pwm]], {ld['pwm']} in its load")
+        if ld.get("bus_id") is None:
+            continue
+        if arm_order and ld["joint"] in arm_order and arm_order.index(ld["joint"]) + 13 != ld["bus_id"]:
+            rep.fail("servo bus", f"{ld['joint']} is arm header {arm_order.index(ld['joint']) + 1} but has ID {ld['bus_id']}")
+        if servo_ids is not None and servo_ids.get(ld["joint"]) != ld["bus_id"]:
+            rep.fail("servo bus", f"{ld['joint']}: ID {ld['bus_id']} here, {servo_ids.get(ld['joint'])} in robot/servos.py")
+        e = by_edge.get(ld["node"])
+        if e is None or el.length_mm(e) > float(net.rules.get("servo_bus_max_stub_mm", 1500)):
+            rep.fail("servo bus", f"{ld['joint']}: its cable is missing or longer than the stub limit")
+    # one bus, 1 Mbaud: every servo read once per control cycle must fit with room to spare
+    n = len(legs) + len(arms)
+    cycle_s = n * float(net.rules.get("servo_bus_exchange_bytes", 30)) * 10.0 / float(net.rules.get("servo_bus_baud", 1000000))
+    util = cycle_s * float(net.rules.get("servo_bus_cycle_hz", 50))
+    rep.notes.append(f"servo bus: {n} servos, {cycle_s * 1000:.1f} ms per read cycle, {util:.0%} busy at "
+                     f"{net.rules.get('servo_bus_cycle_hz', 50)} Hz")
+    if util > float(net.rules.get("servo_bus_max_utilisation", 0.6)):
+        rep.fail("servo bus", f"{n} servos take {util:.0%} of the bus at {net.rules.get('servo_bus_cycle_hz', 50)} Hz "
+                              f"(limit {float(net.rules.get('servo_bus_max_utilisation', 0.6)):.0%})")
+    # rail B: the arm servos' stall current without a limit would exceed the regulator; the torque limit must hold it
+    if arms:
+        d = el.d
+        lim = arm_torque_limit(d)
+        reg = float(d("regulator_5v.current_limit_a"))
+        free = len(arms) * float(d("arm_servo.stall_current_a"))
+        held = len(arms) * arm_stalled_a(d) + len(arms) * float(d("arm_servo.idle_current_a"))
+        rep.notes.append(f"rail B: {len(arms)} arm servos stalled at full torque would draw {free:.1f} A; with the "
+                         f"{lim:.0%} torque limit {held:.2f} A of {reg:g} A")
+        if not 0.0 < lim <= 1.0:
+            rep.fail("arm limit", f"the arm torque limit {lim:.2f} is not between 0 and 1")
+        elif free > reg and lim >= 1.0:
+            rep.fail("arm limit", f"{len(arms)} arm servos stalled draw {free:.1f} A against regulator B's {reg:g} A and no "
+                                  f"torque limit is set (arm_servo.torque_limit_permille)")
+        elif held > reg:
+            rep.fail("arm limit", f"even at a {lim:.0%} torque limit the arm servos can draw {held:.2f} A against "
+                                  f"regulator B's {reg:g} A: lower the limit")
 
 
 def check(net=None, layout=None, data=None, servo_ids=None):
