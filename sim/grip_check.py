@@ -38,6 +38,7 @@ OBJECTS = {
     "box40x20": ("box", (0.020, 0.010, 0.010), 0.015),
 }
 ARM = "L"
+DESK_GAP = float(os.environ.get("GRIP_DESK_GAP", "0.002"))   # m: the jaw bottom this far above the desk when it closes (negative: pressing on it)
 
 
 def build(obj):
@@ -111,7 +112,7 @@ def target_for(m, d, q, a, obj, opening):
     for p in np.linspace(m.jnt_range[m.joint(f"{ARM}_shoulder_pitch").id][0], 0.6, 160):
         d.qpos[q[f"{ARM}_shoulder_pitch"]] = p
         mujoco.mj_kinematics(m, d)
-        err = abs(jaw_bottom(m, d) - 0.002)
+        err = abs(jaw_bottom(m, d) - DESK_GAP)
         if err < best:
             best, pick = err, p
     d.qpos[q[f"{ARM}_shoulder_pitch"]] = pick
@@ -139,6 +140,18 @@ def trial(m, obj, rng, stand_z, frames=None, renderer=None, cam=None):
         qyaw = _qmul(qyaw, qlay)
     d.qpos[tq + 3:tq + 7] = qyaw
     mujoco.mj_forward(m, d)
+    # a long toy lying along the claw would start inside the palm: slide it forward out of the claw's mouth until it
+    # touches nothing (a pen is picked up near one end)
+    toy, fwd = m.geom("toy").id, d.xmat[m.body(f"{ARM}_upper").id].reshape(3, 3)[:, 0].copy()
+    fwd[2] = 0.0
+    fwd /= np.linalg.norm(fwd)
+    for _ in range(30 if OBJECTS[obj][0] == "capsule" else 0):
+        if not any(toy in (d.contact[i].geom1, d.contact[i].geom2) and d.contact[i].dist < -0.0005
+                   and 0 not in (m.geom_bodyid[d.contact[i].geom1], m.geom_bodyid[d.contact[i].geom2])
+                   for i in range(d.ncon)):
+            break
+        d.qpos[tq:tq + 2] += fwd[:2] * 0.004
+        mujoco.mj_forward(m, d)
     dt = m.opt.timestep
     site = m.site(f"{ARM}_grip_site").id
     every = int(round(1 / 25 / dt))
@@ -158,8 +171,21 @@ def trial(m, obj, rng, stand_z, frames=None, renderer=None, cam=None):
     run(2.0, lambda t: d.ctrl.__setitem__(a[f"{ARM}_shoulder_yaw"], y0 + 0.15 * np.sin(2 * np.pi * 2 * t)))
     run(3.0, lambda t: d.ctrl.__setitem__(a[f"{ARM}_shoulder_yaw"], y0))
     toy = d.xpos[m.body("toy").id]
-    held = np.linalg.norm(toy - d.site_xpos[site]) < 0.030 and toy[2] > toy_rest_z(obj) + 0.010
+    held = between_jaws(m, d, obj, site) and toy[2] > toy_rest_z(obj) + 0.010
     return bool(held)
+
+
+def between_jaws(m, d, obj, site, tol=0.015):
+    """Part of the toy is at the grip point: for a long toy (pen, stick) its axis passes within `tol` of it (a pen is
+    held near one end, its middle far from the claw); for the others its centre is within 30 mm."""
+    kind, size, _ = OBJECTS[obj]
+    g = m.geom("toy").id
+    c, p = d.geom_xpos[g], d.site_xpos[site]
+    if kind != "capsule":
+        return np.linalg.norm(c - p) < 0.030
+    axis = d.geom_xmat[g].reshape(3, 3)[:, 2]
+    t = np.clip(np.dot(p - c, axis), -size[1], size[1])
+    return np.linalg.norm(c + t * axis - p) < tol + size[0]
 
 
 def main():
