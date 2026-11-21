@@ -100,13 +100,19 @@
       <geom name="part_pogo_l" class="visual" type="box" size="0.008175 0.003 0.001" pos="-0.0526 0.02 0.003" quat="1 0 0 0" mass="0.0008" material="pcb"/>
       <geom name="part_pogo_r" class="visual" type="box" size="0.008175 0.003 0.001" pos="-0.0526 -0.02 0.003" quat="1 0 0 0" mass="0.0008" material="pcb"/>
       <geom name="part_harness" class="visual" type="sphere" size="0.003" pos="0 0 -0.012" mass="0.06" material="pcb"/>
+      <geom name="part_pad_head" class="visual" type="box" size="0.007 0.005 0.0001" pos="0.004 0 0.01776" quat="1 0 0 0" mass="0.0003" material="pcb"/>
+      <geom name="part_pad_back_left" class="visual" type="box" size="0.007 0.005 0.0001" pos="-0.04 0.04 0.01275" quat="1 0 0 0" mass="0.0003" material="pcb"/>
+      <geom name="part_pad_back_right" class="visual" type="box" size="0.007 0.005 0.0001" pos="-0.04 -0.04 0.01275" quat="1 0 0 0" mass="0.0003" material="pcb"/>
+      <geom name="part_pad_side_left" class="visual" type="box" size="0.007 0.005 0.0001" pos="0 0.07 0.01275" quat="1 0 0 0" mass="0.0003" material="pcb"/>
+      <geom name="part_pad_side_right" class="visual" type="box" size="0.007 0.005 0.0001" pos="0 -0.07 0.01275" quat="1 0 0 0" mass="0.0003" material="pcb"/>
+      <geom name="part_pad_face" class="visual" type="box" size="0.007 0.005 0.0001" pos="0.038 0 0.0158" quat="1 0 0 0" mass="0.0003" material="pcb"/>
       
       <geom class="visual" type="box" size="0.00325 0.03375 0.001225" pos="0.05624 0 0.05179" quat="0.9763 0 -0.2164 0" material="shell" mass="0"/>
       <geom class="visual" type="box" size="0.00325 0.03375 0.001225" pos="0.07422 0 0.01322" quat="0.9763 0 -0.2164 0" material="shell" mass="0"/>
       <geom class="visual" type="box" size="0.00325 0.00135 0.0225" pos="0.06523 0.0324 0.0325" quat="0.9763 0 -0.2164 0" material="shell" mass="0"/>
       <geom class="visual" type="box" size="0.00325 0.00135 0.0225" pos="0.06523 -0.0324 0.0325" quat="0.9763 0 -0.2164 0" material="shell" mass="0"/>
       <geom class="visual" type="box" size="0.0006 0.03075 0.01975" pos="0.066 0 0.03286" quat="0.9763 0 -0.2164 0" material="servo" mass="0"/>
-      <geom class="visual" type="box" size="0.0012 0.0275 0.01375" pos="0.06554 0 0.03265" quat="0.9763 0 -0.2164 0" material="face_mat" mass="0"/>
+      <geom name="face_screen" class="visual" type="box" size="0.0012 0.0275 0.01375" pos="0.06554 0 0.03265" quat="0.9763 0 -0.2164 0" material="face_mat" mass="0"/>
 
       <body name="FL_coxa_link" pos="0.0352 0.0736 0" euler="0 0 1.1170">
         <joint name="FL_coxa" class="srv_STS3215M6" axis="0 0 -1" range="-0.9599 0.4887"/>

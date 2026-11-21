@@ -51,7 +51,7 @@ def test_v2_model_is_current_and_has_the_right_mass():
     r = probe()
     assert r["model_is_current"], "sim/models/crab_v2.xml is stale: python sim/build_model.py --design v2"
     assert r["nu"] == 18 and r["njnt"] == 1 + 2 * 18                          # root + 18 servo joints + 18 gear play
-    assert 1.50 < r["mass"] < 1.60, r["mass"]                                 # budget 1.55 kg + the longer arms
+    assert 1.70 < r["mass"] < 1.80, r["mass"]                                 # 1.57 kg with the lumped electronics; with every part of the layout (docs/dev/ELECTRONICS.md) 1.75 kg
     assert 0.70 < r["leg_mass"] < 0.85                                        # 4 legs: 12 servos + printed links
     assert r["min_inertia"] > 0.0
     assert 0.070 < r["stand_z"] < 0.082
@@ -75,7 +75,7 @@ def test_v2_stands_5_s_and_walks_forward_and_sideways_ideal():
 def test_v2_walks_with_datasheet_realism():
     r = probe()["datasheet"]
     _stands_and_walks(r)
-    assert 6.5 < r["bus_v"] < 7.45 and 7.0 < r["pack_v"] < 8.5               # the 7.4 V rail and the 2S pack
+    assert 7.5 < r["bus_v"] < 8.4 and 7.5 < r["pack_v"] < 8.5               # the servos run straight from the 2S pack (circuit model)
 
 
 def test_v2_full_bam_servo_model_stands_and_walks():
@@ -107,7 +107,7 @@ def test_the_electronics_file_has_the_measured_sts3215_block():
     assert d("leg_servo.max_velocity_rad_s") == 5.095754044445978
     assert d.for_design("v1") is d
     v2 = d.for_design("v2")
-    assert v2("regulator.output_v") == 7.4 and v2("battery.capacity_ah") == 1.5 and d("regulator.output_v") == 5.0
+    assert v2("regulator.output_v") == 7.4 and v2("battery.capacity_ah") == 2.5 and d("regulator.output_v") == 5.0
     sizing = json.loads((ROOT / "sim" / "sizing" / "bam_sts3215_m6.json").read_text())      # the BAM file's copy
     from crab.servo_model import measured_parameters
     mp = measured_parameters(d)

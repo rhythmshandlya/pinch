@@ -150,6 +150,43 @@ class Imu:
         return self.out[0].copy(), self.out[1].copy()
 
 
+class MountedImu(Imu):
+    """The BNO055 where configs/layout_v2.toml mounts it. It measures angular rate and specific force (gravity plus the
+    acceleration of the chip's own spot, lever arm included) in the chip's own axes; the fusion estimates the direction of
+    gravity by integrating the gyro and pulling slowly toward the accelerometer's direction (a complementary filter with time
+    constant imu.fusion_accel_tau_s, an estimate); the output is rotated into body axes (the chip's axis remap, `R`).
+    So walking accelerations leak into the tilt a little, as they do in the real chip, instead of the exact gravity vector
+    of `Imu`. read(t, gyro, accel) -> (gyro, unit vector toward the ground), body axes."""
+
+    def __init__(self, data, rng, R):
+        super().__init__(data, rng)
+        self.R = np.asarray(R, float)
+        self.tau_acc = float(data("imu.fusion_accel_tau_s"))
+        self.u = None
+
+    def read(self, t, gyro, accel):
+        idx = int(math.floor(t * self.rate + 1e-9))
+        if self.idx is not None and idx == self.idx:
+            return self.out[0].copy(), self.out[1].copy()
+        gyro, accel = np.asarray(gyro, float), np.asarray(accel, float)
+        n = float(np.linalg.norm(accel))
+        u_acc = -accel / n if n > 1e-6 else (self.u if self.u is not None else np.array([0.0, 0.0, -1.0]))
+        if self.idx is None:
+            self.gyro_s, self.u = gyro.copy(), u_acc.copy()
+        else:
+            dt = (idx - self.idx) / self.rate
+            self.gyro_s += (1 - math.exp(-dt / self.tau_gyro)) * (gyro - self.gyro_s)
+            w = self.gyro_s + self.gyro_bias
+            self.u = self.u - dt * np.cross(w, self.u)                         # a world-fixed vector turns against the body
+            self.u = self.u + (1 - math.exp(-dt / self.tau_acc)) * (u_acc - self.u)
+            self.u /= np.linalg.norm(self.u)
+        self.idx = idx
+        g = self.gyro_s + self.gyro_bias + self.rng.normal(0, self.gyro_sigma, 3)
+        v = self.u + self.grav_bias + self.rng.normal(0, self.grav_sigma, 3)
+        self.out = (self.R @ g, self.R @ (v / np.linalg.norm(v)))
+        return self.out[0].copy(), self.out[1].copy()
+
+
 class Distance:
     """The VL53L0X beams. read(name, range_m, t) -> metres, or -1 for "no answer" (nothing hit, out of reach or
     a dropped reading). Each beam keeps its own sample clock, so a beam read twice in 33 ms gives the same value."""
@@ -272,6 +309,7 @@ class Realism:
         self.imu = Imu(d, r_imu)
         self.distance = Distance(d, r_dist)
         self.power = Power(d, r_pow, soc)
+        self.circuit = None                                             # v2: crab/wiring.py Circuit, set by SimBackend
 
     def encoder(self, angle):
         """A leg servo's reported angle: the magnetic encoder's 4096 steps per turn."""

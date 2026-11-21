@@ -91,6 +91,20 @@ class FirstOrderServos(_Drive):
         super().reset()
         self.smooth = self.d.qpos[self.qadr].copy()
 
+    def set_supply(self, volts):
+        """The voltage at each leg servo's terminals (one number or one per leg joint, `self.legs` order). The servo's
+        stiffness (duty per error) and torque limit are proportional to it (BAM's own to_mujoco.py form, written for the
+        fitted 7.4 V); the back-EMF damping kt^2 / R does not depend on it. 0 V: no torque."""
+        if not hasattr(self, "_nominal"):
+            m, a = self.m, self.leg_act
+            self._nominal = (m.actuator_gainprm[a, 0].copy(), m.actuator_biasprm[a, 1].copy(),
+                             m.actuator_forcerange[a].copy(), float(self.data("leg_servo.supply_v")))
+        gain, bias, frc, v0 = self._nominal
+        k = np.broadcast_to(np.asarray(volts, float) / v0, gain.shape)
+        self.m.actuator_gainprm[self.leg_act, 0] = gain * k
+        self.m.actuator_biasprm[self.leg_act, 1] = bias * k
+        self.m.actuator_forcerange[self.leg_act] = frc * k[:, None]
+
     def step(self):
         step = self.vmax * self.dt
         tgt = self.target[self.leg_pos]
@@ -135,7 +149,8 @@ class BamServos(_Drive):
         self.ctl.q_target[:] = self.d.qpos[self.qadr]
 
     def set_supply(self, volts):
-        self.model.actuator.vin = float(volts)
+        v = np.asarray(volts, float)                 # one number, or one per leg joint (BAM's maths is element-wise)
+        self.model.actuator.vin = float(v) if v.ndim == 0 else v.copy()
 
     @property
     def duty(self):

@@ -535,6 +535,7 @@ class Circuit:
         self._build()
         self.servo_idle = float(d("leg_servo.idle_current_a"))
         self.t = 0.0
+        self.acc = dict(a=np.zeros(len(self.legs)), b=np.zeros(len(self.legs)), arm=np.zeros(len(self.arms)), t=0.0)
         self.events = []
         self.i_pack = self.i_shunt = 0.0
         self.v_servo = np.full(len(self.legs), 7.4)
@@ -646,6 +647,12 @@ class Circuit:
         self._servo_b = np.where(torque_on, np.asarray(b, float), 0.0)
         self._arm_a = np.where(torque_on, np.asarray(arm_amps, float), 0.0) + float(self.d("arm_servo.idle_current_a"))
         self._amp_w = 0.0
+        if dt > 0:                                            # running means of the servo coefficients (for battery runtime)
+            acc = self.acc
+            acc["a"] += dt * self._servo_a
+            acc["b"] += dt * self._servo_b
+            acc["arm"] += dt * self._arm_a
+            acc["t"] += dt
         self.t += dt
         dead = self.fuse_blown or self.bms_off
         voc, rint = self.open_circuit(), self.resistance()
@@ -700,7 +707,7 @@ class Circuit:
             if dead:
                 i_total = 0.0
             i_total = min(i_total, voc / (2 * rint))
-            V["PACK"] = voc - rint * i_total
+            V["PACK"] = 0.0 if dead else voc - rint * i_total
             for n in self.order["PACK"][1:]:
                 e = self.edges[n]
                 Vn = V[e["from"]] - cur[n] * self.R[n]
@@ -812,6 +819,11 @@ class Circuit:
     @property
     def v_pack(self):
         return self.v_pack_term
+
+    def mean_load(self):
+        """Time-averaged (a, b, arm amps) of the run so far: what a battery-life simulation replays."""
+        t = max(self.acc["t"], 1e-9)
+        return self.acc["a"] / t, self.acc["b"] / t, self.acc["arm"] / t
 
     def summary(self, seconds):
         s = self.stats

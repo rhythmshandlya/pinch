@@ -67,6 +67,7 @@ accel_bandwidth_hz = {value = 62.5, unit = "Hz", source = "datasheet", ref = "ht
 accel_zero_g_offset_mg = {value = 80, unit = "mg", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf"}
 offset_left_after_calibration = {value = 0.25, unit = "fraction", source = "estimate", why = "fusion mode runs a background accelerometer and gyro calibration while standing still; we assume three quarters of the datasheet offset is removed, so the tilt bias is about 1 deg", ref = "hardware/electronics.md"}
 fusion_lag_s = {value = 0.03, unit = "s", source = "estimate", why = "the fusion filter smooths the gravity direction; a first-order lag of about 30 ms is typical and not published", ref = "hardware/electronics.md"}
+fusion_accel_tau_s = {value = 0.5, unit = "s", source = "estimate", why = "how fast the fusion pulls its gravity direction toward the accelerometer (the rest of the time it follows the gyro); Bosch does not publish it. A larger value hides walking accelerations from the tilt, a smaller one lets them in; measure with a shake test", ref = "hardware/electronics.md"}
 i2c_read_delay_s = {value = 0.004, unit = "s", source = "estimate", why = "a 12-byte read at 400 kHz I2C plus the Linux driver takes a few ms; it makes every sample that much older", ref = "robot/backends.py"}
 
 # ---- cliff beams: 5 x ST VL53L0X time-of-flight ---------------------------------------------------------------
@@ -222,7 +223,7 @@ rating_a = {value = 3.0, unit = "A", source = "estimate", why = "the 2.54 mm 3-p
 contact_mohm = {value = 10.0, unit = "mOhm", source = "estimate", why = "a tin crimp contact mated: 5-20 mOhm", ref = "hardware/BOM.md"}
 [connector.header254]
 rating_a = {value = 3.0, unit = "A", source = "estimate", why = "a 2.54 mm pin header pin: about 3 A", ref = "hardware/BOM.md"}
-contact_mohm = {value = 10.0, unit = "mOhm", source = "estimate", why = "pin and housing", ref = "hardware/BOM.md"}
+contact_mohm = {value = 10.0, unit = "mOhm", source = "estimate", why = "the pin and its housing in series, mated", ref = "hardware/BOM.md"}
 [connector.dupont]
 rating_a = {value = 1.0, unit = "A", source = "estimate", why = "female Dupont jumper crimps are good for about 1 A; the Radxa's 5 V input uses two pins in parallel", ref = "hardware/BOM.md"}
 contact_mohm = {value = 20.0, unit = "mOhm", source = "estimate", why = "jumper crimp on a header pin", ref = "hardware/BOM.md"}
@@ -234,10 +235,10 @@ rating_a = {value = 3.0, unit = "A", source = "estimate", why = "a standard USB-
 contact_mohm = {value = 30.0, unit = "mOhm", source = "estimate", why = "USB-C cables are specified at up to 40 mOhm per contact path", ref = "hardware/BOM.md"}
 [connector.fpc22]
 rating_a = {value = 0.5, unit = "A", source = "estimate", why = "a 0.5 mm pitch flex carries about 0.5 A per contact; the camera takes 0.15 A", ref = "hardware/BOM.md"}
-contact_mohm = {value = 50.0, unit = "mOhm", source = "estimate", why = "FPC contact", ref = "hardware/BOM.md"}
+contact_mohm = {value = 50.0, unit = "mOhm", source = "estimate", why = "a flex-cable contact in its latch connector", ref = "hardware/BOM.md"}
 [connector.jst]
 rating_a = {value = 2.0, unit = "A", source = "estimate", why = "JST-PH / SH class housings: 1-2 A", ref = "hardware/BOM.md"}
-contact_mohm = {value = 20.0, unit = "mOhm", source = "estimate", why = "crimp contact", ref = "hardware/BOM.md"}
+contact_mohm = {value = 20.0, unit = "mOhm", source = "estimate", why = "a crimped contact mated with its housing", ref = "hardware/BOM.md"}
 
 [ratings]
 transient_factor = {value = 2.0, unit = "x", source = "estimate", why = "a connector or wire may carry its continuous rating times this for a stall of 2 s or less (the servo's overload protection cuts a longer one); wires and contacts heat over tens of seconds", ref = "hardware/BOM.md"}

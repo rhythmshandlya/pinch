@@ -242,10 +242,11 @@ def face_xml() -> str:
     Rs = ol.R @ np.array([[0.0, 0.0, -1.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]])
     q = f(*_quat_of(Rs))
 
-    def box(p, half, mat):
+    def box(p, half, mat, name=""):
         w = (centre + Rs @ np.asarray(p, float)) / 1000.0
         h = np.asarray(half, float) / 1000.0
-        return f'<geom class="visual" type="box" size="{f(*h)}" pos="{f(*w)}" quat="{q}" material="{mat}" mass="0"/>'
+        nm = f'name="{name}" ' if name else ""
+        return f'<geom {nm}class="visual" type="box" size="{f(*h)}" pos="{f(*w)}" quat="{q}" material="{mat}" mass="0"/>'
     mw, mh, hw, hh = 61.5, 39.5, 67.5, 45.0
     ow, oh = mw + 0.6, mh + 0.6                              # the module pocket
     bz = (hh - oh) / 4.0, (hw - ow) / 4.0
@@ -255,7 +256,7 @@ def face_xml() -> str:
         box((0.25, ow / 2 + bz[1], 0), (3.25, bz[1], hh / 2), "shell"),
         box((0.25, -(ow / 2 + bz[1]), 0), (3.25, bz[1], hh / 2), "shell"),
         box((1.1, 0, 0), (0.6, mw / 2, mh / 2), "servo"),                           # the module's dark face
-        box((0.6, 0, 0), (1.2, 27.5, 13.75), "face_mat"),                           # lit area, glass front at x = 1.8
+        box((0.6, 0, 0), (1.2, 27.5, 13.75), "face_mat", "face_screen"),                           # lit area, glass front at x = 1.8
     ])
 
 
