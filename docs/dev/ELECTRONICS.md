@@ -17,8 +17,9 @@ One file, `configs/electronics.toml`, lists every electronic part of the robot (
 distance beams, battery monitor, touch board, camera, microphones, battery, regulators). Every number carries a
 unit, a **source** and a **ref**:
 
-- `measured`: someone measured the part (a public data set). Today only the leg servo's command delay, from Rhoban
-  BAM's `feetech_sts3215_7_4V/m6.json`.
+- `measured`: someone measured the part (a public data set). The leg servo's whole motor model (torque constant,
+  resistance, rotor inertia, friction, speed limit, command delay), from Rhoban BAM's `feetech_sts3215_7_4V/m6.json`;
+  the twin uses it for the resized design only (CRAB_DESIGN=v2, [V2_MODEL.md](V2_MODEL.md)).
 - `datasheet`: printed in the maker's datasheet or product page, and the ref is the page it was read from.
 - `estimate`: our own reasoning, written in `why`. Replace it when a real number exists.
 
@@ -26,8 +27,9 @@ The loader is `crab/electronics.py` (`Data()("imu.fusion_rate_hz")`); `tests/tes
 has no valid source, no reference or an estimate without its reasoning. The datasheet and measured numbers were read
 on 2026-11-21 (BNO055 datasheet rev 1.8, INA219 SBOS448G, MPR121, Feetech and Pololu pages, the BAM JSON). ST's own
 VL53L0X datasheet could not be fetched, so its range, accuracy and resolution come from Pololu's product page, which
-quotes ST, and the page is the ref. The servo numbers (torque, speed) are not in this file: they stay in
-`crab/params.py` and the model, which is being redesigned separately.
+quotes ST, and the page is the ref. Today's (v1) STS3032 torque and speed numbers are not in this file: they stay in
+`crab/params.py`. The v2 servo's measured numbers are (`[leg_servo]`), and so are v2's pack and servo rail
+(`[battery_v2]`, `[regulator_v2]`, swapped in by `Data.for_design("v2")`).
 
 ## What is modelled
 
