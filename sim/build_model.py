@@ -32,7 +32,7 @@ from crab.params import ARM_IDS, JOINT_NAMES, LEG_IDS, PARAMS, SERVOS, servo_for
 from crab.shapes import Shell, superellipsoid, surface_y  # noqa: E402
 
 P = PARAMS
-OUT = ROOT / "sim" / "models" / P.model_file
+OUT = Path(sys.argv[sys.argv.index("--out") + 1]).resolve() if "--out" in sys.argv else ROOT / "sim" / "models" / P.model_file
 S = P.scale                                   # size relative to the 100 mm-shin original
 V2 = P.design == "v2"
 K = P.arm_scale                               # claw / jaw geometry relative to v1
@@ -711,6 +711,6 @@ if __name__ == "__main__":
     OUT.write_text(build(), encoding="utf-8")
     import mujoco
     m = mujoco.MjModel.from_xml_path(str(OUT))
-    print(f"wrote {OUT.relative_to(ROOT)}  |  bodies={m.nbody} joints={m.njnt} actuators={m.nu}  "
+    print(f"wrote {OUT.relative_to(ROOT) if OUT.is_relative_to(ROOT) else OUT}  |  bodies={m.nbody} joints={m.njnt} actuators={m.nu}  "
           f"total mass={sum(m.body_mass):.3f} kg  servos: "
           + ", ".join(f"{n} x{sum(servo_for(j).name == n for j in JOINT_NAMES)}" for n in USED))
