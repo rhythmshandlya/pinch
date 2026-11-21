@@ -3,7 +3,7 @@
     python hardware/wiring_diagram.py      -> hardware/wiring.svg
 
 Everything on it comes from configs/wiring_v2.toml (through crab/wiring.py): the power chain with each wire's gauge, length and the
-current it can see, the servo cables, the three I2C buses with their addresses and pins, the PWM pins, I2S, USB and the camera.
+current it can see, the servo cables, the three I2C buses with their addresses and pins, I2S, USB, the HDMI face panel and the camera.
 Edit the netlist, run `python -m crab.wiring` to check it, then run this again. Every board also shares GND; ground wires are
 left out of the drawing (each power wire is a loop, the netlist counts both conductors)."""
 
@@ -18,7 +18,7 @@ from crab.wiring import Electrical, Net, check  # noqa: E402
 OUT = Path(__file__).resolve().parent / "wiring.svg"
 W, H = 1500, 1120
 COL = {"batt": "#d62728", "7v": "#ff7f0e", "5v": "#9467bd", "3v3": "#8c564b", "sig": "#e6b800",
-       "i2c": "#1f77b4", "i2s": "#2ca02c", "gpio": "#7f7f7f", "usb": "#17becf", "csi": "#333333", "pwm": "#bcbd22"}
+       "i2c": "#1f77b4", "i2s": "#2ca02c", "gpio": "#7f7f7f", "usb": "#17becf", "csi": "#333333", "hdmi": "#e377c2"}
 
 net = Net()
 el = Electrical(net)
@@ -67,9 +67,9 @@ wire([ina["r"], sw["l"]], COL["batt"], f"{rows['ina_switch'][1]:.0f} mm", ly=-8)
 # ---- hub and the two regulators --------------------------------------------------------------------------------------
 hub = box(900, 260, 250, 110, "Servo hub", ["12 leg headers: 7.4 V from the pack",
                                             "6 arm headers: 5 V from regulator B (not joined)",
-                                            "bus signal pins joined; 2 x 1000 uF"], "#fff8e1")
+                                            "all 18 bus signal pins joined; 2 x 1000 uF"], "#fff8e1")
 rega = box(440, 260, 210, 70, "5 V regulator A", ["AP64500 module, 5 A", "computer, audio, sensors"], "#f3e5f5")
-regb = box(600, 400, 210, 70, "5 V regulator B", ["AP64500 module, 5 A", "the six arm servos"], "#fff3e0")
+regb = box(600, 400, 210, 70, "5 V regulator B", ["AP64500 module, 5 A", "six arm servos, torque-limited"], "#fff3e0")
 wire([(905, 130), (905, 195), (1025, 195), hub["t"]], COL["7v"], f"trunk {wl('trunk')}", at=0.5, lx=-30, ly=-8)
 wire([(905, 130), (905, 160), (545, 160), rega["t"]], COL["batt"], f"20 AWG {rows['sw_rega'][1]:.0f} mm", at=0.5, lx=-5, ly=-6)
 wire([(700, 160), (700, 400)], COL["batt"], f"20 AWG {rows['sw_regb'][1]:.0f} mm, up to {rows['sw_regb'][3]:.1f} A", at=0.5, lx=70, ly=-6)
@@ -82,7 +82,8 @@ for i, (name, ids, _k) in enumerate(legs):
     y = 40 + 74 * i
     b = box(1230, y, 240, 62, name, [ids + ": 3 x STS3215", "one 900 mm 24 AWG cable each"], "#fffde7")
     wire([hub["r"], (1190, 315), (1190, y + 31), b["l"]], COL["7v"])
-b = box(1230, 350, 240, 74, "Arms: 6 x GS-4308MG", ["500 mm 24 AWG cable each", "signal wires to the Radxa PWM pins"], "#fffde7")
+lim = float(el.d("arm_servo.torque_limit_permille")) / 10.0
+b = box(1230, 350, 240, 74, "Arms: 6 x STS3032 (bus)", ["IDs 13-18, 500 mm cable each", f"torque limit {lim:g} % (rail B 5 A)"], "#fffde7")
 wire([(1150, 345), (1190, 345), (1190, 387), b["l"]], COL["5v"])
 labels.append(f'<text x="1205" y="334" class="w" fill="{COL["7v"]}">7.4 V</text>')
 
@@ -90,11 +91,12 @@ labels.append(f'<text x="1205" y="334" class="w" fill="{COL["7v"]}">7.4 V</text>
 pi = box(440, 640, 300, 150, "Radxa ZERO 3W", ["5 V in on pins 2 + 4, GND 6 + 9 (two wires each)",
                                                "3.3 V out on pins 1 + 17 to the sensors",
                                                f"regulator A to Radxa: {wl('rega_radxa')}",
-                                               "USB-C host to the servo driver board", "CSI flex to the camera"], "#e8f5e9")
+                                               "USB-C host to the servo driver board", "CSI flex to the camera",
+                                               "micro-HDMI to the face panel"], "#e8f5e9")
 wire([(470, 330), (470, 640)], COL["5v"], "5 V", lx=-26, ly=40)
 drv = box(130, 640, 220, 70, "Servo driver board", ["Waveshare, USB to the 1 Mbaud bus", "signal + GND to the hub only"], "#e0f7fa")
 wire([(440, 690), (350, 690)], COL["usb"], "USB-C", lx=0, ly=-8)
-wire([(240, 640), (240, 560), (960, 560), (960, 370)], COL["sig"], "bus signal", at=0.4, lx=0, ly=-6)
+wire([(240, 640), (240, 560), (960, 560), (960, 370)], COL["sig"], "bus signal (18 servos)", at=0.4, lx=0, ly=-6)
 cam = box(130, 760, 220, 56, "Camera (front, low)", ["OV5647 160 deg, 22-pin flex"], "#f1f8e9")
 wire([(440, 760), (350, 788)], COL["csi"], "CSI", lx=-6, ly=-8)
 
@@ -109,14 +111,13 @@ for k, bus in enumerate(net.i2c):
 i2s = net.tree["i2s"]
 b = box(1230, 600, 240, 70, "Audio (I2S3 pins 12, 35, 38, 40)", ["amp + speaker out, 2 mics in", "mics: SEL to GND / 3.3 V"], "#e8f5e9")
 wire([(740, 740), (780, 740), (780, 720), (1215, 720), (1215, 635), b["l"]], COL["i2s"], "I2S", at=0.5, lx=0, ly=-8)
-pw = ", ".join(f"{p['pin']}" for p in sorted(net.pwm, key=lambda p: p["channel"]))
-b = box(1230, 700, 240, 70, "Arm PWM outputs", [f"pins {pw}", "channel 0-5 = arm servos"], "#f9fbe7")
-wire([(740, 770), (1000, 770), (1000, 760), b["l"]], COL["pwm"], "6 x PWM", at=0.5, lx=0, ly=-8)
+b = box(1230, 700, 240, 70, "Face: 6.25 in HDMI panel", ["720 x 1560 IPS in the hinged lid", f"5 V 2 W: {wl('rega_panel')}"], "#fce4ec")
+wire([(740, 780), (1000, 780), (1000, 760), b["l"]], COL["hdmi"], "micro-HDMI", at=0.5, lx=0, ly=-8)
 b = box(1230, 800, 240, 70, "Touch + dock", ["MPR121 on i2c3: 6 copper pads", "pogo pins -> pack charge lead"], "#f1f8e9")
 
 # ---- legend ---------------------------------------------------------------------------------------------------------------------
 lg = [("pack 6.4-8.4 V", COL["batt"]), ("servo rail", COL["7v"]), ("5 V", COL["5v"]), ("bus signal", COL["sig"]), ("USB", COL["usb"]),
-      ("I2C", COL["i2c"]), ("I2S", COL["i2s"]), ("PWM", COL["pwm"]), ("camera flex", COL["csi"])]
+      ("I2C", COL["i2c"]), ("I2S", COL["i2s"]), ("HDMI", COL["hdmi"]), ("camera flex", COL["csi"])]
 for i, (name, col) in enumerate(lg):
     x = 30 + 150 * i
     labels.append(f'<line x1="{x}" y1="{H - 56}" x2="{x + 26}" y2="{H - 56}" stroke="{col}" stroke-width="4"/>'

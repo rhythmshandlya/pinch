@@ -32,12 +32,13 @@ def test_every_pin_is_used_once_and_has_the_function_radxa_lists():
     rep = _fails(net)
     assert len(rep.pins_used) == len(set(rep.pins_used))
     assert net.pins[3] == ["GPIO1_A0", "UART3_RX_M0"]                   # Radxa's table: no I2C function on pins 3 and 5
-    assert {p["pin"] for p in net.pwm} == {7, 16, 18, 19, 21, 24}
-    bad = _edit(lambda t: t["pwm"][1].update(pin=16))                    # two PWM outputs on one pin
+    assert "pwm" not in net.tree                                          # the arm servos are bus servos: no PWM outputs
+    assert not {7, 16, 18, 19, 21, 24} & set(rep.pins_used)               # the six former PWM pins are free
+    bad = _edit(lambda t: t["i2c"][2]["devices"][1].update(reset_pin=11))   # two reset lines on one pin
     assert "pin" in _fails(bad).kinds()
     bad = _edit(lambda t: t["i2c"][1].update(sda=6))                     # a bus on a ground pin
     assert "pin" in _fails(bad).kinds()
-    bad = _edit(lambda t: t["pwm"][0].update(pin=11, function="PWM8_M0"))      # pin 11 has no PWM8
+    bad = _edit(lambda t: t["i2c"][2]["devices"][1].update(reset_pin=26))      # pin 26 is not connected
     assert "pin" in _fails(bad).kinds()
     bad = _edit(lambda t: t["i2c"][2]["devices"][0].update(reset_pin=13))   # a reset line on the XSHUT pin of another sensor
     assert "pin" in _fails(bad).kinds()
@@ -100,14 +101,45 @@ def test_ratings_wire_connector_switch_shunt_regulator_and_charge_path():
     d = Data()
     d.tree["connector"]["pogo"]["rating_a"]["value"] = 0.5
     assert any("charge path" in x for _, x in _fails(data=d).failures)
-    bad = _edit(lambda t: [next(e for e in t["edge"] if e["id"] == f"cable_{j}").update(from_="x") for j in ()])
-    t = copy.deepcopy(Net().tree)
-    for ld in t["load"]:
-        if ld["kind"] == "arm_servo":
-            ld["pwm"] = ld["pwm"]
+    assert rows["rega_panel"][3] > 0.4 and rows["rega_panel"][3] <= rows["rega_panel"][5]    # the HDMI panel's 5 V lead
     d = Data()
-    d.tree["load"]["arm_servo_stall_a"]["value"] = 1.2                                # 6 arm servos stalled: 7.2 A > 5 A
-    assert any(k == "rating" and "reg_b" in x for k, x in _fails(data=d).failures)
+    d.tree["arm_servo"]["stall_current_a"]["value"] = 3.0                             # a hungrier arm servo overloads rail B
+    assert any(k == "arm limit" for k, _ in _fails(data=d).failures)
+
+
+def test_the_hdmi_panel_replaces_the_oled_and_loads_regulator_a():
+    net = Net()
+    assert all(d["kind"] != "ssd1309" for b in net.i2c for d in b["devices"]) and "ssd1309" not in net.devices
+    assert not any(e["id"] == "v33_oled" for e in net.edges)
+    panel = next(x for x in net.loads if x["id"] == "panel")
+    assert panel["node"] == "PANEL5" and any(l["kind"] == "hdmi" for l in net.links)
+    rep = _fails(net)
+    reg_a = next(n for n in rep.notes if n.startswith("reg_a"))
+    assert float(reg_a.split()[3]) >= 1.3                                             # computer + audio + sensors + panel
+    bad = _edit(lambda t: t["edge"].__delitem__(next(i for i, e in enumerate(t["edge"]) if e["id"] == "rega_panel")))
+    assert "supply" in _fails(bad).kinds()                                            # the panel then hangs in the air
+
+
+def test_six_arm_servos_on_the_bus_and_rail_b_held_by_the_torque_limit():
+    net = Net()
+    arms = [ld for ld in net.loads if ld["kind"] == "arm_servo"]
+    assert [ld["bus_id"] for ld in arms] == list(range(13, 19)) and [SERVO_IDS[ld["joint"]] for ld in arms] == list(range(13, 19))
+    assert len([e for e in net.edges if e["id"].startswith("cable_")]) == 18          # one cable per servo
+    rep = _fails(net)
+    assert rep.ok and any("servo bus: 18 servos" in n for n in rep.notes) and any(n.startswith("rail B") for n in rep.notes)
+    d = Data()
+    assert float(d("arm_servo.stall_current_a")) * 6 > float(d("regulator_5v.current_limit_a"))   # unlimited: over the 5 A
+    d.tree["arm_servo"]["torque_limit_permille"]["value"] = 1000                      # no limit: refused
+    assert any(k == "arm limit" for k, _ in _fails(data=d).failures)
+    d = Data()
+    d.tree["arm_servo"]["torque_limit_permille"]["value"] = 0                         # a limit of zero is nonsense
+    assert any(k == "arm limit" for k, _ in _fails(data=d).failures)
+    bad = _edit(lambda t: next(x for x in t["load"] if x["id"] == "servo_L_claw").update(bus_id=3))   # clashes with a leg
+    assert "servo bus" in _fails(bad).kinds()
+    bad = _edit(lambda t: next(x for x in t["load"] if x["id"] == "servo_L_claw").pop("bus_id"))      # still a PWM servo
+    assert "servo bus" in _fails(bad).kinds()
+    bad = _edit(lambda t: t["rules"].update(servo_bus_baud=57600) or t["servo_bus"].update(baud=57600))   # 18 servos too slow
+    assert any(k == "servo bus" and "of the bus" in x for k, x in _fails(bad).failures)
 
 
 def test_servo_ids_and_the_bus_order_match_the_firmware():
@@ -147,7 +179,7 @@ def test_the_circuit_follows_ohms_law_down_the_wires():
     assert 0.12 < drop < 0.25, drop                          # about 0.9 A through 0.19 ohm of cable and two connectors
     # the regulators hold 5 V and carry what the netlist loads them with
     assert abs(c.rail["A"] - 5.0) < 0.1 and abs(c.rail["3V3"] - 3.3) < 1e-9
-    assert 0.5 < c.i_rail["A"] < 0.8 and 0.15 < c.i_rail["3V3"] < 0.25
+    assert 0.8 < c.i_rail["A"] < 1.1 and 0.15 < c.i_rail["3V3"] < 0.25      # the HDMI panel adds about 0.48 A to rail A
     # the INA219 sees the whole pack current, where the shunt is wired
     v, amps = c.measure()
     assert abs(amps - i) < 0.05 and abs(v - c.v_ina) < 0.03
@@ -248,4 +280,5 @@ def test_hardware_electronics_md_agrees_with_the_netlist():
         for d in bus["devices"]:
             if d["kind"] not in ("vl53l0x", "vl53l5cx"):          # those get 0x30-0x35 from the software, listed as a range
                 assert f"0x{d['addr']:02X}" in text, d
-    assert "wiring_v2.toml" in text and "PWM15_IR_M1" in text and "0x30-0x34" in text
+    assert "wiring_v2.toml" in text and "STS3032" in text and "HDMI" in text and "0x30-0x34" in text
+    assert "PWM15_IR_M1" not in text and "SSD1309" not in text         # no PWM arms, no OLED any more

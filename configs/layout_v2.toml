@@ -96,9 +96,9 @@ size_mm = [12.0, 23.0, 27.5]
 size_source = "estimate"
 size_ref = "crab/params.py"
 mass_g = 20.0
-mass_source = "estimate"
-mass_ref = "crab/params.py"
-why = "placeholder: the arm servo is a Feetech STS3032 (23 x 12 x 27.5 mm, 20 g, the bus servo with feedback; crab/params.py SERVOS, whose numbers came from the Feetech spec table). A parts decision may change it. Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
+mass_source = "datasheet"
+mass_ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor"
+why = "owner's parts decision 2026-11-21: the arm servo is a Feetech STS3032, 20 g (Evelta page opened 2026-11-21, 4.5 kg*cm, 4.8-6 V, bus ID 13-18 on the 5 V rail B). The box is the earlier 23 x 12 x 27.5 mm figure; Evelta lists 23.2 x 12.1 x 28.5 mm (1 mm taller: apply it when the model is next rebuilt, size stays an estimate until a servo is measured). Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
 pos_mm = [86.7, 40, -14.9]
 rpy_deg = [0, 0, 0]
 in_model = true
@@ -110,9 +110,9 @@ size_mm = [12.0, 23.0, 27.5]
 size_source = "estimate"
 size_ref = "crab/params.py"
 mass_g = 20.0
-mass_source = "estimate"
-mass_ref = "crab/params.py"
-why = "placeholder: the arm servo is a Feetech STS3032 (23 x 12 x 27.5 mm, 20 g, the bus servo with feedback; crab/params.py SERVOS, whose numbers came from the Feetech spec table). A parts decision may change it. Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
+mass_source = "datasheet"
+mass_ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor"
+why = "owner's parts decision 2026-11-21: the arm servo is a Feetech STS3032, 20 g (Evelta page opened 2026-11-21, 4.5 kg*cm, 4.8-6 V, bus ID 13-18 on the 5 V rail B). The box is the earlier 23 x 12 x 27.5 mm figure; Evelta lists 23.2 x 12.1 x 28.5 mm (1 mm taller: apply it when the model is next rebuilt, size stays an estimate until a servo is measured). Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
 pos_mm = [86.7, -40, -14.9]
 rpy_deg = [0, 0, 0]
 in_model = true
@@ -200,7 +200,7 @@ size_ref = "hardware/BOM.md"
 mass_g = 24.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
-why = "design choice: a cut piece of the BOM 8 x 12 cm prototype board with 12 leg + 6 arm 3-pin headers in three rows and the two 1000 uF capacitors lying across it; the BOM's 3 x 2 cm piece is too small for ten headers"
+why = "design choice (parts decision 2026-11-21): a perfboard servo hub about 55 x 36 mm, cut from the BOM 8 x 12 cm prototype board (a printed 2-layer board is the neater option, about INR 1,500, not counted): 18 three-pin headers (signal, V+, GND) in three rows of six at 2.54 mm, 12 leg headers on the pack rail and 6 arm headers on 5 V rail B, signal pins joined into one bus, and the two 1000 uF capacitors lying across it"
 pos_mm = [-22.0, 34.0, -23.0]
 connectors = [{name = "servo_cables", side = "+z", reach_mm = 10.0}, {name = "power_in", side = "-x", reach_mm = 8.0, width_mm = 12.0}]
 
@@ -404,7 +404,7 @@ size_ref = "hardware/BOM.md"
 mass_g = 300.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
-why = "estimate (owner, worst case): the Waveshare 6.25 inch 720x1560 colour IPS HDMI panel (active area 144.18 x 66.60 mm, 2.16:1). The module is modelled as about 158 x 76 x 8 mm (the maker's outline was not read: estimate) and 0.30 kg listed worst case; the hoped-for real mass is 0.15 kg (rebuild with CRAB_DISPLAY_G=150 to see it). Its micro-HDMI flat cable runs through the lid hinge (connector header, through_wall); no new pin use, and the old OLED's I2C address is free"
+why = "estimate (owner, worst case): the Waveshare 6.25 inch 720x1560 colour IPS HDMI panel (active area 144.18 x 66.60 mm, 2.16:1). The module is modelled as about 158 x 76 x 8 mm (the maker's outline was not read: estimate) and 0.30 kg listed worst case; the hoped-for real mass is 0.15 kg (rebuild with CRAB_DISPLAY_G=150 to see it). Its micro-HDMI flat cable runs through the lid hinge (connector header, through_wall) and its USB-C lead brings 5 V (2 W) from regulator A; no header pin is used and the old OLED's I2C address and 3.3 V entries are gone. The part id `oled` is the old 2.42 inch OLED's: kept because the model builder and the lid pose use it. A printed friction hinge (M3 bolt, wave washers, nylock nut) holds the lid. Bench-check the panel mass (at most 0.15 kg wanted) before the full build"
 pos_mm = [49.62, 0, 88.89]
 rpy_deg = [0, 69.95, 0]
 outside_ok = true

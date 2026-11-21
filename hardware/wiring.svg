@@ -26,7 +26,7 @@
 <path d="M740,715 L780,700 L780,751 L820,751" fill="none" stroke="#1f77b4" stroke-width="3" marker-end="url(#a)"/>
 <path d="M740,715 L780,700 L780,856 L820,856" fill="none" stroke="#1f77b4" stroke-width="3" marker-end="url(#a)"/>
 <path d="M740,740 L780,740 L780,720 L1215,720 L1215,635 L1230,635" fill="none" stroke="#2ca02c" stroke-width="3" marker-end="url(#a)"/>
-<path d="M740,770 L1000,770 L1000,760 L1230,735" fill="none" stroke="#bcbd22" stroke-width="3" marker-end="url(#a)"/>
+<path d="M740,780 L1000,780 L1000,760 L1230,735" fill="none" stroke="#e377c2" stroke-width="3" marker-end="url(#a)"/>
 <rect x="30" y="60" width="170" height="70" rx="8" fill="#fdecea" stroke="#333" stroke-width="1.6"/>
 <text x="115.0" y="80" class="t">2S Li-ion pack</text>
 <text x="115.0" y="98" class="s">2 x Samsung 25R, 2500 mAh</text>
@@ -51,7 +51,7 @@
 <text x="1025.0" y="280" class="t">Servo hub</text>
 <text x="1025.0" y="298" class="s">12 leg headers: 7.4 V from the pack</text>
 <text x="1025.0" y="313" class="s">6 arm headers: 5 V from regulator B (not joined)</text>
-<text x="1025.0" y="328" class="s">bus signal pins joined; 2 x 1000 uF</text>
+<text x="1025.0" y="328" class="s">all 18 bus signal pins joined; 2 x 1000 uF</text>
 <rect x="440" y="260" width="210" height="70" rx="8" fill="#f3e5f5" stroke="#333" stroke-width="1.6"/>
 <text x="545.0" y="280" class="t">5 V regulator A</text>
 <text x="545.0" y="298" class="s">AP64500 module, 5 A</text>
@@ -59,7 +59,7 @@
 <rect x="600" y="400" width="210" height="70" rx="8" fill="#fff3e0" stroke="#333" stroke-width="1.6"/>
 <text x="705.0" y="420" class="t">5 V regulator B</text>
 <text x="705.0" y="438" class="s">AP64500 module, 5 A</text>
-<text x="705.0" y="453" class="s">the six arm servos</text>
+<text x="705.0" y="453" class="s">six arm servos, torque-limited</text>
 <rect x="1230" y="40" width="240" height="62" rx="8" fill="#fffde7" stroke="#333" stroke-width="1.6"/>
 <text x="1350.0" y="60" class="t">Front-left leg</text>
 <text x="1350.0" y="78" class="s">IDs 1, 2, 3: 3 x STS3215</text>
@@ -77,9 +77,9 @@
 <text x="1350.0" y="300" class="s">IDs 10, 11, 12: 3 x STS3215</text>
 <text x="1350.0" y="315" class="s">one 900 mm 24 AWG cable each</text>
 <rect x="1230" y="350" width="240" height="74" rx="8" fill="#fffde7" stroke="#333" stroke-width="1.6"/>
-<text x="1350.0" y="370" class="t">Arms: 6 x GS-4308MG</text>
-<text x="1350.0" y="388" class="s">500 mm 24 AWG cable each</text>
-<text x="1350.0" y="403" class="s">signal wires to the Radxa PWM pins</text>
+<text x="1350.0" y="370" class="t">Arms: 6 x STS3032 (bus)</text>
+<text x="1350.0" y="388" class="s">IDs 13-18, 500 mm cable each</text>
+<text x="1350.0" y="403" class="s">torque limit 40 % (rail B 5 A)</text>
 <rect x="440" y="640" width="300" height="150" rx="8" fill="#e8f5e9" stroke="#333" stroke-width="1.6"/>
 <text x="590.0" y="660" class="t">Radxa ZERO 3W</text>
 <text x="590.0" y="678" class="s">5 V in on pins 2 + 4, GND 6 + 9 (two wires each)</text>
@@ -87,6 +87,7 @@
 <text x="590.0" y="708" class="s">regulator A to Radxa: 22 AWG 150 mm, up to 0.9 A</text>
 <text x="590.0" y="723" class="s">USB-C host to the servo driver board</text>
 <text x="590.0" y="738" class="s">CSI flex to the camera</text>
+<text x="590.0" y="753" class="s">micro-HDMI to the face panel</text>
 <rect x="130" y="640" width="220" height="70" rx="8" fill="#e0f7fa" stroke="#333" stroke-width="1.6"/>
 <text x="240.0" y="660" class="t">Servo driver board</text>
 <text x="240.0" y="678" class="s">Waveshare, USB to the 1 Mbaud bus</text>
@@ -96,7 +97,7 @@
 <text x="240.0" y="798" class="s">OV5647 160 deg, 22-pin flex</text>
 <rect x="820" y="600" width="380" height="92" rx="8" fill="#e3f2fd" stroke="#333" stroke-width="1.6"/>
 <text x="1010.0" y="620" class="t">i2c3: kernel i2c-gpio, pins 3 / 5</text>
-<text x="1010.0" y="638" class="s">ina 0x40, mpr121 0x5a, oled 0x3c</text>
+<text x="1010.0" y="638" class="s">ina 0x40, mpr121 0x5a</text>
 <text x="1010.0" y="653" class="s"></text>
 <text x="1010.0" y="668" class="s">shared, slow devices</text>
 <text x="1010.0" y="683" class="s">400 kHz</text>
@@ -116,32 +117,32 @@
 <text x="1350.0" y="620" class="t">Audio (I2S3 pins 12, 35, 38, 40)</text>
 <text x="1350.0" y="638" class="s">amp + speaker out, 2 mics in</text>
 <text x="1350.0" y="653" class="s">mics: SEL to GND / 3.3 V</text>
-<rect x="1230" y="700" width="240" height="70" rx="8" fill="#f9fbe7" stroke="#333" stroke-width="1.6"/>
-<text x="1350.0" y="720" class="t">Arm PWM outputs</text>
-<text x="1350.0" y="738" class="s">pins 16, 18, 21, 24, 7, 19</text>
-<text x="1350.0" y="753" class="s">channel 0-5 = arm servos</text>
+<rect x="1230" y="700" width="240" height="70" rx="8" fill="#fce4ec" stroke="#333" stroke-width="1.6"/>
+<text x="1350.0" y="720" class="t">Face: 6.25 in HDMI panel</text>
+<text x="1350.0" y="738" class="s">720 x 1560 IPS in the hinged lid</text>
+<text x="1350.0" y="753" class="s">5 V 2 W: 22 AWG 298 mm, up to 0.5 A</text>
 <rect x="1230" y="800" width="240" height="70" rx="8" fill="#f1f8e9" stroke="#333" stroke-width="1.6"/>
 <text x="1350.0" y="820" class="t">Touch + dock</text>
 <text x="1350.0" y="838" class="s">MPR121 on i2c3: 6 copper pads</text>
 <text x="1350.0" y="853" class="s">pogo pins -> pack charge lead</text>
 <text x="230" y="69" class="w" fill="#d62728">14 AWG 150 mm</text>
-<text x="410" y="87" class="w" fill="#d62728">156 mm</text>
-<text x="600" y="87" class="w" fill="#d62728">178 mm</text>
-<text x="810" y="87" class="w" fill="#d62728">108 mm</text>
-<text x="935" y="187" class="w" fill="#ff7f0e">trunk 14 AWG 139 mm, up to 15.0 A</text>
-<text x="720" y="154" class="w" fill="#d62728">20 AWG 105 mm</text>
-<text x="770" y="274" class="w" fill="#d62728">20 AWG 153 mm, up to 4.4 A</text>
-<text x="865" y="514" class="w" fill="#9467bd">20 AWG 104 mm</text>
+<text x="410" y="87" class="w" fill="#d62728">101 mm</text>
+<text x="600" y="87" class="w" fill="#d62728">172 mm</text>
+<text x="810" y="87" class="w" fill="#d62728">128 mm</text>
+<text x="935" y="187" class="w" fill="#ff7f0e">trunk 14 AWG 159 mm, up to 15.0 A</text>
+<text x="720" y="154" class="w" fill="#d62728">20 AWG 125 mm</text>
+<text x="770" y="274" class="w" fill="#d62728">20 AWG 168 mm, up to 2.6 A</text>
+<text x="865" y="514" class="w" fill="#9467bd">20 AWG 99 mm</text>
 <text x="1205" y="334" class="w" fill="#ff7f0e">7.4 V</text>
 <text x="444" y="525" class="w" fill="#9467bd">5 V</text>
 <text x="395" y="682" class="w" fill="#17becf">USB-C</text>
-<text x="600" y="554" class="w" fill="#e6b800">bus signal</text>
+<text x="600" y="554" class="w" fill="#e6b800">bus signal (18 servos)</text>
 <text x="389" y="766" class="w" fill="#333333">CSI</text>
 <text x="782" y="640" class="w" fill="#1f77b4">i2c3</text>
 <text x="782" y="745" class="w" fill="#1f77b4">i2c4</text>
 <text x="782" y="850" class="w" fill="#1f77b4">i2c5</text>
 <text x="998" y="712" class="w" fill="#2ca02c">I2S</text>
-<text x="1000" y="757" class="w" fill="#bcbd22">6 x PWM</text>
+<text x="1000" y="762" class="w" fill="#e377c2">micro-HDMI</text>
 <line x1="30" y1="1064" x2="56" y2="1064" stroke="#d62728" stroke-width="4"/><text x="62" y="1069" class="lg">pack 6.4-8.4 V</text>
 <line x1="180" y1="1064" x2="206" y2="1064" stroke="#ff7f0e" stroke-width="4"/><text x="212" y="1069" class="lg">servo rail</text>
 <line x1="330" y1="1064" x2="356" y2="1064" stroke="#9467bd" stroke-width="4"/><text x="362" y="1069" class="lg">5 V</text>
@@ -149,7 +150,7 @@
 <line x1="630" y1="1064" x2="656" y2="1064" stroke="#17becf" stroke-width="4"/><text x="662" y="1069" class="lg">USB</text>
 <line x1="780" y1="1064" x2="806" y2="1064" stroke="#1f77b4" stroke-width="4"/><text x="812" y="1069" class="lg">I2C</text>
 <line x1="930" y1="1064" x2="956" y2="1064" stroke="#2ca02c" stroke-width="4"/><text x="962" y="1069" class="lg">I2S</text>
-<line x1="1080" y1="1064" x2="1106" y2="1064" stroke="#bcbd22" stroke-width="4"/><text x="1112" y="1069" class="lg">PWM</text>
+<line x1="1080" y1="1064" x2="1106" y2="1064" stroke="#e377c2" stroke-width="4"/><text x="1112" y="1069" class="lg">HDMI</text>
 <line x1="1230" y1="1064" x2="1256" y2="1064" stroke="#333333" stroke-width="4"/><text x="1262" y="1069" class="lg">camera flex</text>
 <text x="30" y="1092" class="lg">Generated from configs/wiring_v2.toml; the netlist check passes (python -m crab.wiring). "up to" = the current a wire can carry at worst: sustained, capped by the fuse.</text>
 <text x="30" y="1110" class="lg">Every board also shares GND (black wires, not drawn). Check polarity with the multimeter before plugging anything in.</text>
