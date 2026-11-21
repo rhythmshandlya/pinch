@@ -16,6 +16,7 @@ cad/out/*.log
 models/faces/
 # the owner's PRD and the traceability matrix quoting it: private, kept locally
 docs/PRD.md
+docs/PLAN.md
 docs/TRACEABILITY.md
 media/
 
