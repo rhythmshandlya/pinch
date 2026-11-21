@@ -2,6 +2,7 @@
 
     python sim/benches/robustness.py                 # both walking and emotes, 40 episodes each, writes docs/ROBUSTNESS.md
     python sim/benches/robustness.py --quick         # 8 episodes each
+    python sim/benches/robustness.py --realism datasheet --jobs 4   # with the electronics of configs/electronics.toml
 
 Each episode draws a different robot and world (independently of training's randomisation):
   floor friction 0.35..1.2, every body's mass +-20%, each servo's strength (force limit) -30..+15%
@@ -17,6 +18,10 @@ Walking: 12 s of commands (forward, crab-walk left, turn, back, diagonal). Emote
 back to back, each a variant as the robot plays them (crab/emotes.py EmoteStyler: tempo, size, asymmetry, arm
 lag, mirror, body turn) under a random mood; PINCH_EMOTE_PLAIN=1 plays the plain keyframes instead.
 A fall = tipped over 45 deg or body down on the desk.
+--realism datasheet swaps the bench's own ad-hoc sensor noise (0.003 rad on joint angles, 0.02 rad/s on the gyro) for
+the models of crab/electronics.py: servo targets delayed by the bus and servo time, joint angles in encoder steps, the
+BNO055's output rate, lag, noise and bias. The same random numbers are drawn either way, so each seed is the same
+robot, world and shoves in both modes (the comparison is paired). Power is not part of this bench.
 """
 
 import argparse
@@ -104,15 +109,20 @@ class Sensors:
         self.bq = np.array([m.jnt_qposadr[m.joint(f"{n}_backlash").id] for n in pio.LEG_JOINT_NAMES])
         self.bv = np.array([m.jnt_dofadr[m.joint(f"{n}_backlash").id] for n in pio.LEG_JOINT_NAMES])
 
-    def read(self, d, rng):
+    def read(self, d, rng, elec=None):
         R = d.xmat[self.body].reshape(3, 3)
         q = d.qpos[self.qadr] + d.qpos[self.bq] + rng.normal(0, 0.003, 12)
         qd = d.qvel[self.vadr] + d.qvel[self.bv]
-        return d.qvel[3:6] + rng.normal(0, 0.02, 3), R.T @ np.array([0, 0, -1.0]), q, qd
+        gyro, grav = d.qvel[3:6] + rng.normal(0, 0.02, 3), R.T @ np.array([0, 0, -1.0])
+        if elec is not None:                      # the real parts instead of the ad-hoc noise (draws made anyway)
+            q = elec.encoder(d.qpos[self.qadr] + d.qpos[self.bq])
+            gyro, grav = elec.imu.read(d.time, d.qvel[3:6], grav)
+        return gyro, grav, q, qd
 
 
 def episode(args):
-    kind, ctrl, seed, hard, world = args
+    kind, ctrl, seed, hard, world, *more = args
+    realism = more[0] if more else "ideal"
     m, rng, latency = perturbed(seed, hard, world)
     catch = None
     if world == "stuck":                                     # [foot body, foot geom, when, how long, anchor]
@@ -124,6 +134,11 @@ def episode(args):
     mujoco.mj_forward(m, d)                                  # body orientation valid before the first read
     act = np.array([m.actuator(j).id for j in JOINT_NAMES])
     sens = Sensors(m)
+    elec = None
+    if realism == "datasheet":
+        from crab.electronics import Realism
+        from robot.servos import PWM_JOINTS
+        elec = Realism(seed=seed, pwm=[j in PWM_JOINTS for j in JOINT_NAMES], dt=m.opt.timestep, initial=d.ctrl[act])
     stand_h = float(m.key("stand").qpos[2])
     pol = None
     if ctrl == "policy":                         # the emote balance policy (or a candidate)
@@ -157,7 +172,7 @@ def episode(args):
     for k in range(int(T / pio.CTRL_DT)):
         if k > 0 and k % int(2.5 / pio.CTRL_DT) == 0:                    # a shove
             d.qvel[0:2] += rng.uniform(-0.12, 0.12, 2) * (1 if hard else 0.5)
-        gyro, grav, q, qd = sens.read(d, rng)
+        gyro, grav, q, qd = sens.read(d, rng, elec)
         if kind == "walk":
             cmd = next(c for t0, c in reversed(WALK_CMDS) if t >= t0)
             if ctrl == "residual":                 # as pinch/body.py Body._residual does it on the robot
@@ -194,8 +209,10 @@ def episode(args):
                 a = np.clip(pol(obs), -1, 1)
                 target = pio.emote_targets(np, ref, prev if latency else a)
                 prev, last = a, a
-        d.ctrl[act] = target
-        for _ in range(SUB):
+        d.ctrl[act] = target if elec is None else elec.delay.push(target)
+        for sub in range(SUB):
+            if elec is not None and sub:
+                d.ctrl[act] = elec.delay.push(target)
             if catch is not None:
                 b, g, t0, dur, anchor = catch
                 d.qfrc_applied[:] = 0
@@ -264,18 +281,21 @@ def main():
     ap.add_argument("--what", default="walk,emote")
     ap.add_argument("--world", default="desk", choices=["desk", "rough", "stuck", "terrain", "terrain_hard"])
     ap.add_argument("--json", default=None, help="also write the results here")
+    ap.add_argument("--realism", default="ideal", choices=["ideal", "datasheet"],
+                    help="datasheet: delays, encoder steps and the IMU of configs/electronics.toml")
+    ap.add_argument("--jobs", type=int, default=12, help="worker processes")
     a = ap.parse_args()
     n = 8 if a.quick else a.episodes
     jobs = []
     for kind in a.what.split(","):
-        jobs += [(kind, "scripted", 1000 + s, True, a.world) for s in range(n)]
+        jobs += [(kind, "scripted", 1000 + s, True, a.world, a.realism) for s in range(n)]
         ctrl, learned = (("residual", os.environ.get("PINCH_GAIT_POLICY", "gait")) if kind == "walk" else
                          ("policy", os.environ.get("PINCH_EMOTE_POLICY", "emote")))
         if (POLICY_DIR / f"{learned}.npz").exists():
-            jobs += [(kind, ctrl, 1000 + s, True, a.world) for s in range(n)]
+            jobs += [(kind, ctrl, 1000 + s, True, a.world, a.realism) for s in range(n)]
         else:
             print(f"no policies/{learned}.npz yet - skipping the trained {kind} policy")
-    rows = run_parallel(episode, jobs, 12)
+    rows = run_parallel(episode, jobs, a.jobs)
     save_json(a.json, rows)
     s = summary(rows)
     title = {"desk": "", "rough": ": rough desk", "stuck": ": a foot gets caught", "terrain": ": hurdles and ramps",
@@ -298,7 +318,10 @@ def main():
     if a.world != "desk":
         lines.insert(3, f"World: **{a.world}** - see the module docstring.")
     out = "ROBUSTNESS.md" if a.world == "desk" else f"ROBUSTNESS_{a.world}.md"
-    if os.environ.get("PINCH_GAIT_POLICY", "gait") == "gait" and "PINCH_EMOTE_POLICY" not in os.environ:
+    if a.realism != "ideal":
+        lines.insert(3, f"Electronics: **{a.realism}** (configs/electronics.toml) - see the module docstring.")
+        out = None                                   # the committed report is the ideal one
+    if out and os.environ.get("PINCH_GAIT_POLICY", "gait") == "gait" and "PINCH_EMOTE_POLICY" not in os.environ:
         (ROOT / "docs" / out).write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
     return exit_code(verdicts)

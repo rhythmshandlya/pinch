@@ -10,6 +10,8 @@ sensed as on the robot (the PWM arm servos report nothing: their angle is the la
 --true-arms gives the policy the true values) and handled like Body._right_self: once upright for 0.2 s they blend to the stand pose; success is still
 upright 2 s later. Reports the success rate, the time to upright (mean, 90th percentile) and how hard it drives
 the servos while getting up: the 95th percentile of the commanded joint speed (rad/s) and its peak (decision 85).
+--realism datasheet adds the electronics of configs/electronics.toml: servo targets arrive late (bus + servo delay),
+joint angles come in encoder steps, the IMU has the BNO055's rate, lag, noise and bias (crab/electronics.py).
 """
 
 import argparse
@@ -45,7 +47,8 @@ def _quat(roll, pitch, yaw):
 
 
 def episode(args):
-    ctrl, seed, policy, robot_sensing = args
+    ctrl, seed, policy, robot_sensing, *more = args
+    realism = more[0] if more else "ideal"
     rng = np.random.default_rng(seed)
     m = mujoco.MjModel.from_xml_path(str(MODEL))
     m.opt.timestep = DT
@@ -64,6 +67,10 @@ def episode(args):
     for _ in range(int(0.3 / DT)):                       # land on its back
         mujoco.mj_step(m, d)
     pol = NumpyPolicy.load(POLICY_DIR / f"{policy}.npz") if ctrl == "policy" else None
+    elec = None
+    if realism == "datasheet":
+        from crab.electronics import Realism
+        elec = Realism(seed=seed, pwm=[j in PWM_JOINTS for j in JOINT_NAMES], dt=DT, initial=d.ctrl)
     body = m.body("body").id
     sub = int(round(CTRL_DT / DT))
     last = np.zeros(len(JOINT_NAMES))
@@ -75,15 +82,24 @@ def episode(args):
             q, qd = d.qpos[qadr].copy(), d.qvel[vadr].copy()
             if robot_sensing:                            # as the firmware reads them: arms = last command, speed 0
                 q[PWM], qd[PWM] = d.ctrl[PWM], 0.0
-            obs = pio.righting_observation(np, R.T @ np.array([0.0, 0.0, -1.0]), d.qvel[3:6], q, qd, last)
+            grav, gyro = R.T @ np.array([0.0, 0.0, -1.0]), d.qvel[3:6]
+            if elec is not None:
+                q = elec.encoder(q)
+                gyro, grav = elec.imu.read(d.time, gyro, grav)
+            obs = pio.righting_observation(np, grav, gyro, q, qd, last)
             last = np.clip(pol(obs), -1, 1)
             d.ctrl[:] = pio.righting_targets(np, last, lo, hi)
         else:
             d.ctrl[:] = np.clip(righting.target(t), lo, hi)
         rates.append(np.abs(d.ctrl - prev) / CTRL_DT)      # commanded joint speed this tick, every joint
         prev = d.ctrl.copy()
+        goal = d.ctrl.copy()
         for _ in range(sub):
+            if elec is not None:
+                d.ctrl[:] = elec.delay.push(goal)
             mujoco.mj_step(m, d)
+        if elec is not None:
+            d.ctrl[:] = goal                                     # (the policy and the rate check read the command)
         t += CTRL_DT
         up = up + 1 if d.xmat[body][8] > 0.85 else 0
         if up >= int(0.2 / CTRL_DT):
@@ -109,11 +125,13 @@ def main():
     ap.add_argument("--true-arms", action="store_true",
                     help="give the policy the arm servos' true angles and speeds (the robot can't read them)")
     ap.add_argument("--json", default=None, help="also write the results here")
+    ap.add_argument("--realism", default="ideal", choices=["ideal", "datasheet"],
+                    help="datasheet: command delay, encoder steps and the IMU of configs/electronics.toml")
     a = ap.parse_args()
     ctrls = ["swing"] + (["policy"] if (POLICY_DIR / f"{a.policy}.npz").exists() else [])
     if "policy" not in ctrls:
         print(f"no policies/{a.policy}.npz - the swing only")
-    jobs = [(c, 5000 + s, a.policy, not a.true_arms) for c in ctrls for s in range(a.starts)]
+    jobs = [(c, 5000 + s, a.policy, not a.true_arms, a.realism) for c in ctrls for s in range(a.starts)]
     rows = run_parallel(episode, jobs, a.jobs, chunksize=4)
     save_json(a.json, rows)
     for c in ctrls:

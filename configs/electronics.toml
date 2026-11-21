@@ -1,0 +1,104 @@
+# Every electronic part of the robot, in one file (hardware/BOM.md, hardware/electronics.md).
+# The digital twin reads this when it runs with realism="datasheet" (crab/electronics.py, docs/dev/ELECTRONICS.md).
+#
+# Every number is an inline table: value, unit, source, ref (and `why` for estimates).
+#   source = "measured"  : someone measured this part (a public data set); ref is where.
+#   source = "datasheet" : printed in the maker's datasheet or product page; ref is the URL.
+#   source = "estimate"  : our own reasoning; `why` says how we got it. Replace when a real number exists.
+# Plain keys (count = 5, cells = 2, shunt_ohm) are design facts of our own build, not measurements.
+# Datasheet and measured values below were read on 2026-11-21 from the ref given (BNO055 datasheet rev 1.8,
+# INA219 datasheet SBOS448G, MPR121 datasheet, Feetech and Pololu product pages, the Rhoban BAM JSON files).
+# The ST VL53L0X datasheet itself could not be fetched that day: its numbers come from Pololu's product page
+# (which quotes ST) and carry that page as the ref.
+
+# ---- leg servos: Feetech STS3215 (the 7.4 V part the legs are moving to) ------------------------------------
+[leg_servo]
+encoder_steps_per_rev = {value = 4096, unit = "steps", source = "datasheet", ref = "https://www.feetechrc.com/en/2020-05-13_56655.html"}
+voltage_step_v = {value = 0.1, unit = "V", source = "datasheet", ref = "https://www.feetechrc.com/en/2020-05-13_56655.html"}
+current_feedback_step_a = {value = 0.0065, unit = "A", source = "datasheet", ref = "https://www.feetechrc.com/en/2020-05-13_56655.html"}
+# Rhoban BAM, bam/params/feetech_sts3215_7_4V/m6.json (the most complete of the six fitted models)
+command_delay_s = {value = 0.0049807526194816515, unit = "s", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+bus_baud = {value = 1000000, unit = "baud", source = "estimate", why = "the firmware opens the FE-URT-1 at 1 Mbaud (robot/backends.py RealBackend); the STS3215 default is 1 Mbaud, not read from a datasheet today", ref = "robot/backends.py"}
+sync_write_bytes_per_servo = {value = 7, unit = "bytes", source = "estimate", why = "id + 2-byte position + 2-byte time + 2-byte speed in one SYNC_WRITE row; from robot/feetech_bus.py, not checked against Feetech's protocol manual today", ref = "robot/feetech_bus.py"}
+bus_overhead_bytes = {value = 8, unit = "bytes", source = "estimate", why = "header, id, length, instruction, address, data length, checksum of one SYNC_WRITE packet", ref = "robot/feetech_bus.py"}
+idle_current_a = {value = 0.04, unit = "A", source = "estimate", why = "a holding servo with torque on draws a few tens of mA; no number published for the STS3215", ref = "hardware/electronics.md"}
+
+# ---- arm servos: GOTECK GS-4308MG, plain 50 Hz PWM, no feedback ---------------------------------------------
+[arm_servo]
+pwm_frame_s = {value = 0.02, unit = "s", source = "estimate", why = "our hardware PWM runs exact 50 Hz frames (robot/backends.py BoardPWM PERIOD_NS)", ref = "robot/backends.py"}
+command_delay_s = {value = 0.015, unit = "s", source = "estimate", why = "a new pulse width is picked up at the next frame (10 ms on average, 20 ms worst) plus about 5 ms for the servo's own electronics; matches crab/params.py GS4308 'up to 20 ms latency'", ref = "crab/params.py"}
+idle_current_a = {value = 0.015, unit = "A", source = "estimate", why = "a hobby servo's amplifier idles at about 10-20 mA", ref = "hardware/electronics.md"}
+
+# ---- IMU: Bosch BNO055 in IMU fusion mode (gyro + accelerometer, no magnetometer) ----------------------------
+[imu]
+fusion_rate_hz = {value = 100, unit = "Hz", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf"}
+gyro_noise_rms_dps = {value = 0.3, unit = "deg/s", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf"}
+gyro_bandwidth_hz = {value = 32, unit = "Hz", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf"}
+gyro_zero_rate_offset_dps = {value = 3.0, unit = "deg/s", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf"}
+accel_noise_density_ug = {value = 190, unit = "ug/sqrt(Hz)", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf"}
+accel_bandwidth_hz = {value = 62.5, unit = "Hz", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf"}
+accel_zero_g_offset_mg = {value = 80, unit = "mg", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf"}
+offset_left_after_calibration = {value = 0.25, unit = "fraction", source = "estimate", why = "fusion mode runs a background accelerometer and gyro calibration while standing still; we assume three quarters of the datasheet offset is removed, so the tilt bias is about 1 deg", ref = "hardware/electronics.md"}
+fusion_lag_s = {value = 0.03, unit = "s", source = "estimate", why = "the fusion filter smooths the gravity direction; a first-order lag of about 30 ms is typical and not published", ref = "hardware/electronics.md"}
+i2c_read_delay_s = {value = 0.004, unit = "s", source = "estimate", why = "a 12-byte read at 400 kHz I2C plus the Linux driver takes a few ms; it makes every sample that much older", ref = "robot/backends.py"}
+
+# ---- cliff beams: 5 x ST VL53L0X time-of-flight ---------------------------------------------------------------
+[distance]
+count = 5
+max_range_m = {value = 2.0, unit = "m", source = "datasheet", ref = "https://www.pololu.com/product/2490"}
+accuracy_best_frac = {value = 0.03, unit = "fraction of range", source = "datasheet", ref = "https://www.pololu.com/product/2490"}
+resolution_m = {value = 0.001, unit = "m", source = "datasheet", ref = "https://www.pololu.com/product/2490"}
+noise_sigma_frac = {value = 0.015, unit = "fraction of range", source = "estimate", why = "the page gives +-3 % as the best-case error; we take half of it as one standard deviation of the shot-to-shot noise", ref = "https://www.pololu.com/product/2490"}
+noise_sigma_floor_m = {value = 0.002, unit = "m", source = "estimate", why = "at a few cm the noise does not shrink below a couple of mm", ref = "https://www.pololu.com/product/2490"}
+rate_hz = {value = 30, unit = "Hz", source = "estimate", why = "the default 33 ms ranging budget of the ST driver; not read from the datasheet today (Pololu's table lists 50 Hz as the best case)", ref = "https://www.pololu.com/product/2490"}
+fov_deg = {value = 25, unit = "deg", source = "estimate", why = "Pololu's comparison table lists 25 deg for this part, but the table cells were misaligned when fetched; not confirmed (the twin's beams are single rays, so this is not used yet)", ref = "https://www.pololu.com/product/2490"}
+reliable_range_m = {value = 0.4, unit = "m", source = "estimate", why = "indoors with ambient light and a dark floor, readings get unreliable beyond a few tens of cm; ST's accuracy tables are for white targets in the dark", ref = "https://www.pololu.com/product/2490"}
+dropout_short = {value = 0.002, unit = "probability per reading", source = "estimate", why = "a very occasional invalid reading even on a good surface (phase failure)", ref = "https://www.pololu.com/product/2490"}
+dropout_at_max = {value = 0.5, unit = "probability per reading", source = "estimate", why = "chance of no answer at the end of the working range, rising linearly from reliable_range_m", ref = "https://www.pololu.com/product/2490"}
+
+# ---- battery monitor: TI INA219 with the 10 mOhm shunt (hardware/BOM.md) -----------------------------------
+[power_monitor]
+shunt_ohm = 0.01
+bus_voltage_step_v = {value = 0.004, unit = "V", source = "datasheet", ref = "https://www.ti.com/lit/ds/symlink/ina219.pdf"}
+shunt_voltage_step_v = {value = 0.00001, unit = "V", source = "datasheet", ref = "https://www.ti.com/lit/ds/symlink/ina219.pdf"}
+conversion_time_s = {value = 0.000532, unit = "s", source = "datasheet", ref = "https://www.ti.com/lit/ds/symlink/ina219.pdf"}
+gain_error_frac = {value = 0.005, unit = "fraction", source = "datasheet", ref = "https://www.ti.com/product/INA219"}
+shunt_noise_v = {value = 0.00002, unit = "V", source = "estimate", why = "about 2 LSB of shunt noise; the datasheet gives ADC noise only as a graph we did not digitise", ref = "https://www.ti.com/lit/ds/symlink/ina219.pdf"}
+
+# ---- touch: NXP MPR121 -------------------------------------------------------------------------------------
+[touch]
+adc_bits = {value = 10, unit = "bits", source = "datasheet", ref = "https://www.nxp.com/docs/en/data-sheet/MPR121.pdf"}
+electrodes = {value = 12, unit = "channels", source = "datasheet", ref = "https://www.nxp.com/docs/en/data-sheet/MPR121.pdf"}
+sample_interval_s = {value = 0.016, unit = "s", source = "estimate", why = "16 ms is the sample period the datasheet quotes its run current at (54 uA); the real period is set by registers we configure ourselves", ref = "https://www.nxp.com/docs/en/data-sheet/MPR121.pdf"}
+
+# ---- camera: OV5647 with a 160 degree lens -------------------------------------------------------------------
+[camera]
+fov_deg = {value = 160, unit = "deg", source = "estimate", why = "the listing says 160 deg (hardware/BOM.md); a fisheye's usable field is smaller and we have not measured it", ref = "hardware/BOM.md"}
+frame_rate_hz = {value = 30, unit = "Hz", source = "estimate", why = "a typical OV5647 video mode; the mode we will use is not chosen yet", ref = "hardware/BOM.md"}
+latency_s = {value = 0.1, unit = "s", source = "estimate", why = "exposure + CSI readout + ISP + the vision model: about 3 frames at 30 Hz", ref = "hardware/BOM.md"}
+
+# ---- microphones: 2 x I2S MEMS --------------------------------------------------------------------------------
+[microphones]
+count = 2
+spacing_m = {value = 0.07, unit = "m", source = "estimate", why = "they sit about 70 mm apart in the dome (hardware/electronics.md wiring table)", ref = "hardware/electronics.md"}
+sample_rate_hz = {value = 16000, unit = "Hz", source = "estimate", why = "common speech rate for I2S capture; not chosen yet", ref = "hardware/BOM.md"}
+
+# ---- battery: Bonka 2S 850 mAh 25C LiPo -----------------------------------------------------------------------
+[battery]
+cells = 2
+capacity_ah = {value = 0.85, unit = "Ah", source = "estimate", why = "the vendor listing in hardware/BOM.md says 850 mAh; not re-read today and a real pack delivers a little less", ref = "hardware/BOM.md"}
+usable_fraction = {value = 0.8, unit = "fraction", source = "estimate", why = "the same 80 % usable assumption as hardware/electronics.md; the monitor stops the robot at 6.4 V before the pack is flat", ref = "hardware/electronics.md"}
+internal_resistance_ohm = {value = 0.10, unit = "ohm", source = "estimate", why = "a small 2S 25C pack is typically 60-120 mOhm; no measurement yet (measure with the INA219 under load once it exists)", ref = "hardware/BOM.md"}
+resistance_rise_at_empty = {value = 2.0, unit = "times", source = "estimate", why = "LiPo resistance roughly doubles near empty", ref = "hardware/BOM.md"}
+# open-circuit volts per cell at state of charge 1.0, 0.9 ... 0.0
+ocv_per_cell_v = {value = [4.20, 4.07, 3.98, 3.90, 3.84, 3.79, 3.75, 3.71, 3.66, 3.57, 3.30], unit = "V", source = "estimate", why = "a typical LiPo rest-voltage curve; not measured on this pack", ref = "hardware/BOM.md"}
+
+# ---- regulators: 2 x 5 V 5 A buck (7Semi AP64500) ---------------------------------------------------------------
+[regulator]
+output_v = {value = 5.0, unit = "V", source = "estimate", why = "fixed 5 V buck (hardware/BOM.md)", ref = "hardware/BOM.md"}
+current_limit_a = {value = 5.0, unit = "A", source = "estimate", why = "the board is sold as 5 A (hardware/BOM.md); the chip's own limit was not read today", ref = "hardware/BOM.md"}
+efficiency = {value = 0.9, unit = "fraction", source = "estimate", why = "same 90 % as hardware/electronics.md", ref = "hardware/electronics.md"}
+dropout_v = {value = 0.5, unit = "V", source = "estimate", why = "a buck needs its input about half a volt above the output to hold regulation", ref = "hardware/BOM.md"}
+wiring_resistance_ohm = {value = 0.05, unit = "ohm", source = "estimate", why = "regulator output, 20 AWG wire, hub and 900 mm servo cables to the servo", ref = "hardware/electronics.md"}
+overload_droop_ohm = {value = 1.0, unit = "ohm", source = "estimate", why = "past the current limit the output folds back; we model it as a steep droop", ref = "hardware/BOM.md"}
+computer_load_w = {value = 4.0, unit = "W", source = "estimate", why = "Radxa ZERO 3W with Wi-Fi, camera and sensors, as assumed in hardware/electronics.md", ref = "hardware/electronics.md"}
