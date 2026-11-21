@@ -74,6 +74,7 @@ class Run:
         self.energy = 0.0                 # J, 12 leg servos
         self.min_h, self.max_tilt = 9.0, 0.0
         self.v, self.wz, self.cnt = np.zeros(2), 0.0, 0
+        self.traj = []                    # leg joint angles every 10 steps, to compare two servo models
 
     def motor_torque(self):
         f = self.d.actuator_force[self.act[LEGS]]
@@ -96,6 +97,8 @@ class Run:
         self.err2 += float(np.mean((d.qpos[self.qadr[LEGS]] - np.asarray(q)[LEGS]) ** 2))
         amps = (tau / KT) ** 2 * R + np.maximum(0.0, tau * w)           # copper loss + positive mechanical, W
         self.energy += (float(amps.sum()) + 12 * IDLE_A * SPEC.vin) * self.dt
+        if self.n % 10 == 0:
+            self.traj.append(d.qpos[self.qadr[LEGS]].copy())
         R3 = d.xmat[1].reshape(3, 3)
         self.min_h = min(self.min_h, float(d.xpos[1, 2]))
         self.max_tilt = max(self.max_tilt, float(np.degrees(np.arccos(np.clip(R3[2, 2], -1, 1)))))
@@ -110,7 +113,8 @@ class Run:
         out = dict(peak_ds=100 * self.peak.max() / DS_STALL, rms_rated=100 * rms.max() / RATED,
                    rms_rated_mean=100 * rms.mean() / RATED, peak_w=self.peak_w, track=float(np.sqrt(self.err2 / max(self.n, 1))),
                    power=self.energy / secs, tilt=self.max_tilt, min_h=self.min_h,
-                   worst=JOINT_NAMES[LEGS[int(np.argmax(self.peak))]], hot=JOINT_NAMES[LEGS[int(np.argmax(rms))]])
+                   worst=JOINT_NAMES[LEGS[int(np.argmax(self.peak))]], hot=JOINT_NAMES[LEGS[int(np.argmax(rms))]],
+                   traj=np.array(self.traj))
         if self.cnt:
             out["v"] = self.v / self.cnt
             out["wz"] = self.wz / self.cnt
@@ -180,15 +184,30 @@ def main():
     print(f"design v2: {MODEL.name}, mass {mass:.3f} kg, scale {_S:.3f}, trot period {GAITS['trot'].period:.3f} s "
           f"(x{PARAMS.gait_period_factor} slower), servo {SPEC.name}: datasheet stall {DS_STALL} N*m, rated {RATED} N*m, "
           f"firmware speed limit {VMAX:.2f} rad/s; gait speed cap {GAITS['trot'].max_step / (GAITS['trot'].duty * GAITS['trot'].period / 2) * 100:.1f} cm/s")
+    res = {}
     for kind in kinds:
         print(f"\n=== servo model: {kind} ===")
         s = stand(kind)
+        res[kind] = {"stand": s}
         print(f"stand 5 s: z {s['z']*100:.1f} cm, tilt {s['tilt']:.2f} deg, peak {s['peak_ds']:.1f}% of stall, "
               f"RMS {s['rms_rated']:.1f}% of rated @{s['hot']}, power {s['power']:.2f} W")
         for label, cmd in CASES:
             if a.cases and label not in a.cases.split(","):
                 continue
-            print(line(label, walk(kind, cmd, a.seconds)))
+            res[kind][label] = walk(kind, cmd, a.seconds)
+            print(line(label, res[kind][label]))
+    if len(kinds) == 2:
+        print("\n=== full BAM model minus first-order model, same gait, same command ===")
+        print(f"{'case':17s} {'speed':>8s} {'peak torque':>12s} {'RMS torque':>11s} {'mean RMS':>9s} {'tracking':>9s} "
+              f"{'power':>8s} {'joint angle RMS diff':>21s}")
+        for label in ["stand"] + [c for c, _ in CASES if c in res["bam"]]:
+            f, b = res["first_order"][label], res["bam"][label]
+            n = min(len(f["traj"]), len(b["traj"]))
+            dq = float(np.degrees(np.sqrt(np.mean((f["traj"][:n] - b["traj"][:n]) ** 2)))) if n else 0.0
+            sp = "" if "v" not in f else f"{100 * (np.linalg.norm(b['v']) / max(np.linalg.norm(f['v']), 1e-9) - 1):+7.1f}%"
+            print(f"{label:17s} {sp:>8s} {b['peak_ds'] - f['peak_ds']:+10.1f}pt {b['rms_rated'] - f['rms_rated']:+9.1f}pt "
+                  f"{b['rms_rated_mean'] - f['rms_rated_mean']:+7.1f}pt {np.degrees(b['track'] - f['track']):+7.2f}deg "
+                  f"{100 * (b['power'] / f['power'] - 1):+7.1f}% {dq:15.2f} deg")
 
 
 if __name__ == "__main__":

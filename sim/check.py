@@ -20,11 +20,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from crab.emotes import EMOTES, STAND  # noqa: E402
-from crab.params import JOINT_NAMES, JOINT_SPECS, LEG_IDS  # noqa: E402
+from crab.params import JOINT_NAMES, JOINT_SPECS, LEG_IDS, PARAMS  # noqa: E402
 from sim.latency import DelayLine  # noqa: E402
 from sim.servo_check import MAX_CMD, ServoMonitor  # noqa: E402
 
-MODEL = ROOT / "sim" / "models" / "crab.xml"
+MODEL = ROOT / "sim" / "models" / PARAMS.model_file          # crab.xml; CRAB_DESIGN=v2: crab_v2.xml
 IMG_DIR = ROOT / "docs" / "images"
 DELAY = max(s.command_delay for s in JOINT_SPECS)
 STAND_THERMAL_LIMIT = 70.0       # % of rated torque while standing still

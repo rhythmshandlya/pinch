@@ -16,3 +16,9 @@ modal
 # Robot runtime (Radxa ZERO 3W): numpy pyserial smbus2 (+ apt python3-opencv for the camera);
 #   see hardware/ASSEMBLY.md stage 1
 # Brain: Ollama (https://ollama.com) + `ollama pull gemma4:e4b` on the PC
+
+# OPTIONAL, design v2 only (CRAB_DESIGN=v2, docs/dev/V2_MODEL.md): Rhoban's measured servo model, the full-model level
+# of crab/servo_model.py (the first-order level needs nothing). BAM declares python <3.13 but runs on 3.13, and its
+# own dependencies (numpy, colorama) are already here, so install it by hand:
+#   pip install --no-deps --ignore-requires-python git+https://github.com/Rhoban/bam@b9e11118e17fe8ec803d430202f6fcf31d57901e
+# (commit b9e1111 of 2026-11-21, version 1.0.3, Apache-2.0; works with mujoco 4.0.1)

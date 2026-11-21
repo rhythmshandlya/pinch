@@ -50,6 +50,8 @@ def measured_parameters(data=None) -> dict:
 
 
 class _Drive:
+    kind = "none"
+
     def __init__(self, m, d, joints, data=None):
         self.m, self.d, self.joints = m, d, list(joints)
         self.data = data if isinstance(data, Data) else Data(data)
@@ -61,7 +63,6 @@ class _Drive:
         self.vadr = np.array([m.jnt_dofadr[m.joint(j).id] for j in self.legs])
         self.target = d.ctrl[self.act].copy()
         self.torque_on = True
-        self.kind = "none"
 
     def command(self, q):
         self.target[:] = q
