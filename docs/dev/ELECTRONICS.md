@@ -117,9 +117,9 @@ Every number below is in `configs/electronics.toml` with its unit and reference;
 | resolution_m | 0.001 | m | datasheet |
 | noise_sigma_frac | 0.015 | fraction of range | estimate |
 | noise_sigma_floor_m | 0.002 | m | estimate |
-| rate_hz | 30 | Hz | estimate |
-| fov_deg | 25 | deg | estimate |
-| reliable_range_m | 0.4 | m | estimate |
+| rate_hz | 30 | Hz | datasheet |
+| fov_deg | 25 | deg | datasheet |
+| reliable_range_m | 0.4 | m | datasheet |
 | dropout_short | 0.002 | probability per reading | estimate |
 | dropout_at_max | 0.5 | probability per reading | estimate |
 
@@ -301,10 +301,10 @@ boards (their mass is inside the printed body's 347 g), and the arms' reach agai
 
 | Part | Outline L x W x H (mm) | g | Position x, y, z (mm) | Tilt r, p, y (deg) | Size from | Mass from | Window / connector room |
 |---|---|---|---|---|---|---|---|
-| hip_fl | 45.2 x 24.7 x 35 | 55 | 35.2, 73.6, -5.2 | 0, 0, 0 | datasheet | estimate |  |
-| hip_fr | 45.2 x 24.7 x 35 | 55 | 35.2, -73.6, -5.2 | 0, 0, 0 | datasheet | estimate |  |
-| hip_rl | 45.2 x 24.7 x 35 | 55 | -35.2, 73.6, -5.2 | 0, 0, 0 | datasheet | estimate |  |
-| hip_rr | 45.2 x 24.7 x 35 | 55 | -35.2, -73.6, -5.2 | 0, 0, 0 | datasheet | estimate |  |
+| hip_fl | 45.2 x 24.7 x 35 | 55 | 35.2, 73.6, -5.2 | 0, 0, 0 | datasheet | datasheet |  |
+| hip_fr | 45.2 x 24.7 x 35 | 55 | 35.2, -73.6, -5.2 | 0, 0, 0 | datasheet | datasheet |  |
+| hip_rl | 45.2 x 24.7 x 35 | 55 | -35.2, 73.6, -5.2 | 0, 0, 0 | datasheet | datasheet |  |
+| hip_rr | 45.2 x 24.7 x 35 | 55 | -35.2, -73.6, -5.2 | 0, 0, 0 | datasheet | datasheet |  |
 | shoulder_l | 8.5 x 15.8 x 17.6 | 5.8 | 70.9, 28.5, 0.0 | 0, 0, 15 | estimate | estimate |  |
 | shoulder_r | 8.5 x 15.8 x 17.6 | 5.8 | 70.9, -28.5, 0.0 | 0, 0, -15 | estimate | estimate |  |
 | pack | 72 x 38.5 x 19.5 | 100 | -12.0, -36.0, -21.0 | 0, 0, 0 | estimate | estimate | leads +x 12 mm |
@@ -453,7 +453,7 @@ is 18.5 Wh; the earlier 1500 mAh figure in V2_MODEL.md was the sizing study's sm
 
 ## 5. What is still an estimate, and what only real hardware settles
 
-Estimates in this chapter (each flagged `estimate` with its reasoning in the files): 33 of 42 part outlines and most masses, the pack's resistance
+Estimates in this chapter (each flagged `estimate` with its reasoning in the files; see "Source audit" below for the count and the reason each one is still open): 33 of 42 part outlines and most masses, the pack's resistance
 and discharge curve, the BMS limit, every connector's rating and contact resistance, the wire ampacities, the fuse curve above 135 %, the
 regulator's dropout and light-load efficiency, the computer's power per activity, its brown-out voltage and boot time, the 3.3 V pin budget,
 the servo's idle current and sustained current, the IMU's fusion time constant, the 60 g harness.
@@ -463,6 +463,54 @@ equation, the firmware's PWM limit is a guess), the pack's true resistance and B
 minimum input, what the Radxa does at 4.5-4.8 V, whether a 15 A fuse in this holder survives the get-up, how much of the walking supply
 current is switching loss, the shunt's accuracy, whether `i2c-gpio` at 400 kHz is stable beside the BNO055 bus, clock stretching on the RK3566,
 and every outline in the placement table that is an estimate.
+
+## Source audit (2026-11-21): what each file claims, and why the rest is still an estimate
+
+Every `estimate` now starts its `why` with a tag, so the leftovers can be sorted: `needs bench:` (only a measurement on the real part or
+pack settles it), `design choice:` (we decided it, no datasheet can give it) or `unverified:` (a maker or seller figure that exists but whose
+page could not be opened, or a generic class rating).
+
+| File | measured | datasheet | estimate | needs bench | design choice | unverified |
+|---|---|---|---|---|---|---|
+| `configs/electronics.toml` before | 23 | 35 | 105 | - | - | - |
+| `configs/electronics.toml` now | 23 | 49 | 91 | 46 | 24 | 21 |
+| `configs/layout_v2.toml` before (size or mass fields) | 0 | 10 | 76 | - | - | - |
+| `configs/layout_v2.toml` now (size or mass fields) | 0 | 14 | 72 | 25 parts | 10 parts | 4 parts |
+
+(The layout file has one `why` per part for both its size and its mass, so its tags are counted per part; 39 parts still carry an estimate.)
+
+Upgraded to `datasheet` this pass, each opened and read:
+
+- VL53L0X (ST datasheet DocID029104 Rev 2, the Pololu-hosted copy because st.com did not answer): field of view 25 deg (sec 5.1), the 33 ms default
+  timing budget = 30 Hz (p.23 note 3), reliable range 0.4 m = Table 11, grey 17 % target, outdoor overcast, minimum.
+- VL53L5CX supply current 0.100 A (was 0.060 A; Pololu's carrier page quoting ST: typical 100 mA ranging, 150 mA peak).
+- MAX98357A quiescent current 2.75 mA at 5 V (was 2.4 mA, the 3.7 V figure; Maxim datasheet p.4).
+- I2S microphone supply current 1 mA = the MSM261S4030H0R maximum (DS-050 p.3: 750 uA nominal, 1000 uA max).
+- XT60 rated 30 A and 0.55 mOhm contact resistance (was 0.5; Amass spec sheet V1.2).
+- Wire ampacity from the Wikipedia AWG table, 75 C column: 14 AWG 20 A (was 32 A, an unsourced figure), 20 AWG 11 A, 22 AWG 7 A, 24 AWG 3.5 A,
+  26 AWG 2.2 A, 28 AWG 1.4 A (the last five were already these numbers).
+- The four hip servos' mass: 55 +- 1 g on DFRobot's ST3215 7.4 V page (Waveshare and Feetech print no weight).
+
+Read and found NOT to settle an estimate (so they stay estimates, with the reading in `why`):
+
+- VL53L0X ranging noise: Table 12 prints a standard deviation of 4 % (white, 120 cm) to 7 % (grey, 70 cm) of the distance, higher than our 1.5 %
+  at the far end; the cliff beams work at a few cm where the datasheet gives nothing. Bench: sigma at 3, 5 and 10 cm over our floor.
+- AP64500 (DS41979 Rev 5-2): Fig. 4 (12 V in, 5 V out, the chip's EVM inductor) reads about 0.86 at 50 mA and 0.2 A, 0.90 at 1 A, 0.91 at 5 A; the
+  7Semi module has its own inductor and our input is 7.4-8.4 V, so the module's curve stays an estimate. The chip's quiescent current is 25 uA
+  (the module's LED is most of our 4 mA), its peak current limit 9.2 A (the module is sold as 5 A), and it prints no dropout number.
+- Samsung INR18650-25R (Samsung SDI spec sheet, copy at akkuman.de, p.3 and p.6): 18.33 x 64.85 mm, 43.5 g typical (45 g max), AC impedance 12.93 mOhm
+  (<= 18), DC impedance 19.23 mOhm (10 A to 1 A); the only curves printed are loaded discharge curves from 1C to 25 A, not an open-circuit curve.
+  The pack's resistance includes a BMS and tabs nobody published, so it stays an estimate (the cells alone are 38 mOhm for two).
+- INA219 (SBOS448G): no noise figure is printed at all. Radxa ZERO 3W product brief: only a 5 V / 2 A supply, no consumption, no minimum input, no weight.
+- Mass and height are missing for most boards (Waveshare, Feetech, Adafruit print sizes without weight or thickness).
+
+Found but NOT applied (it would change `sim/models/crab_v2.xml`, which is outside this task's areas; the model must be rebuilt by its owner first):
+
+- The IMU board we buy (7Semi, Evelta page) is 21 x 27 x 4 mm, the layout box is Adafruit's 20 x 27 x 4 mm.
+- The I2S microphone we buy (DFRobot SEN0526) is 16 x 11 mm per its wiki, the layout box is the analogue board's 18 x 12.5 mm.
+- Pololu's genuine VL53L0X and VL53L5CX carriers are 13 x 18 mm; the clones we buy are bigger and unmeasured.
+
+Sources that refused or hung: robu.in and hubtronics.in (403), analog.com and st.com (no answer), Amazon (not tried).
 
 ## 6. The face
 
