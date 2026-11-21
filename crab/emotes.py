@@ -13,7 +13,7 @@ from fnmatch import fnmatch
 
 import numpy as np
 
-from .params import JOINT_NAMES
+from .params import DESIGN, JOINT_NAMES
 
 STAND_DICT = {
     "*_coxa": 0.0,
@@ -23,6 +23,10 @@ STAND_DICT = {
     "*_shoulder_pitch": 0.35,
     "*_claw": 0.10,
 }
+if DESIGN == "v2":
+    # style B: thighs up 35 deg from horizontal, shins 78 deg below horizontal (absolute: tibia = -78 - 35 = -113 deg),
+    # arms straight ahead (docs/dev/V2_MODEL.md)
+    STAND_DICT.update({"*_femur": 0.6109, "*_tibia": -1.9722, "*_shoulder_yaw": 0.0, "*_shoulder_pitch": 0.35})
 
 
 def pose(*overrides) -> np.ndarray:

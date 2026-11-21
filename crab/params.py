@@ -174,9 +174,10 @@ if DESIGN == "v2":
 # Which servo drives which joint: STS3032 bus servos in the legs (they carry the body), the tiny
 # GS-4308MG in the arms (light work). The env vars let the simulator try others. v2: STS3215 in the legs.
 _LEG_SERVO = "STS3215M6" if DESIGN == "v2" else "STS3032"
+_ARM_DEFAULT = "STS3032" if DESIGN == "v2" else "GS4308"       # v2: the STS3032 is a placeholder (parts decision pending)
 FEMUR_SERVO = os.environ.get("CRAB_FEMUR_SERVO", _LEG_SERVO)
 MICRO_SERVO = os.environ.get("CRAB_MICRO_SERVO", _LEG_SERVO)
-ARM_SERVO = os.environ.get("CRAB_ARM_SERVO", "GS4308")
+ARM_SERVO = os.environ.get("CRAB_ARM_SERVO", _ARM_DEFAULT)
 JOINT_SERVO = {"coxa": MICRO_SERVO, "femur": FEMUR_SERVO, "tibia": MICRO_SERVO,
                "shoulder_yaw": ARM_SERVO, "shoulder_pitch": ARM_SERVO, "claw": ARM_SERVO}
 
@@ -190,13 +191,16 @@ def servo_for(joint: str) -> ServoSpec:
 class Body:
     half_size: tuple = (0.040, 0.055, 0.022)   # carapace ellipsoid (sim primitive); v2: the chassis box
     mass: float = 0.20                          # 6 yaw servos, computer, battery, electronics, shell
-    # v2 only (the primitive body of sim/build_model.py: chassis box + dome, pack, electronics, 4 yaw servos)
-    chassis_pos: tuple = (0.0, 0.0, 0.0)
-    dome_half: tuple = (0.0, 0.0, 0.0)
-    dome_pos: tuple = (0.0, 0.0, 0.0)
+    # v2 only (the primitive body of sim/build_model.py: the pill shell, the face lid, pack, electronics, 4 hip servos)
+    shell_center: tuple = (0.0, 0.0, 0.0)      # m, body frame: the superellipsoid shell (crab/shapes.py)
+    shell_exp: tuple = (0.65, 0.6)             # vertical, horizontal exponents
     shell_mass: float = 0.0
+    shell_area: float = 0.0                    # m^2 (outer surface)
     battery_mass: float = 0.0
     electronics_mass: float = 0.0
+    lid_tilt: float = 0.35                     # rad back from vertical: the face lid (1.50 = folded flat)
+    lid_hinge: tuple = (0.0, 0.0, 0.0)         # m, body frame
+    lid_mass: float = 0.0                      # printed lid + bezel (the display module is the layout's `oled`)
 
 
 @dataclass(frozen=True)
@@ -205,6 +209,10 @@ class Leg:
     femur_len: float = 0.030           # short thigh: less load on the thigh servo, feet closer in
     tibia_len: float = 0.052           # the shin sets the ground clearance (and the gait scaling)
     foot_radius: float = 0.005
+    thigh_r: float = 0.0              # v2: radius of the printed thigh cover (visual and collision)
+    shin_r0: float = 0.0              # v2: shin cover radius at the knee ...
+    shin_r1: float = 0.0              # ... and at the foot ball
+    foot_mass: float = 0.0            # v2: the ball foot's own mass (inside tibia_mass)
     coxa_mass: float = field(default_factory=lambda: 0.004 + SERVOS[FEMUR_SERVO].mass)  # bracket + thigh servo
     femur_mass: float = 0.017         # thigh link + knee servo
     tibia_mass: float = 0.004
@@ -266,37 +274,55 @@ class CrabParams:
         return self.leg.tibia_len / 0.100
 
 
+PETG_KG_M3 = 1270.0                  # printed PETG (the layout's wall rule, configs/layout_v2.toml)
+WALL_M = 0.002                       # 2.0 mm printed wall
+RIBS = 1.2                           # ribs and bosses on top of the wall's own mass
+
+
+def printed_mass(area_m2: float) -> float:
+    """Mass of a printed PETG cover: outer surface x 2.0 mm wall x 1.27 g/cm3 x 1.2 for ribs and bosses (kg)."""
+    return area_m2 * WALL_M * PETG_KG_M3 * RIBS
+
+
 def _v2_params() -> CrabParams:
-    """The resized design (docs/research/SIZING_STS3215.md section 6, scripts in sim/sizing/): leg scale 1.6 of
-    today's 22 / 30 / 52 mm links, hips at +-35 x +-74 mm, a 135 x 180 mm chassis, the itemised mass budget
-    (12 leg servos 660 g, 6 arm servos 35 g, printed legs 349 g, printed body 335 g, electronics 90 g, 2S 1500 mAh
-    pack 81 g = 1.55 kg) plus arms 1.5x longer (printed arm parts 17 g: by area, the arms are thin shells)."""
-    sv = 0.055                                      # the STS3215
-    leg = Leg(coxa_len=0.0352, femur_len=0.048, tibia_len=0.0832, foot_radius=0.008,
-              coxa_mass=0.0213 + sv,                # printed link + the thigh servo (as v1)
-              femur_mass=0.0356 + sv,               # printed link + the knee servo
-              tibia_mass=0.0303)
-    arm = Arm(shoulder_offset=0.024, upper_len=0.045, finger_len=0.036, upper_mass=0.0150, jaw_mass=0.0022,
-              shoulder_mass=0.0085)
-    # The chassis is the one in configs/layout_v2.toml, where every electronic part has its place (the fit check
-    # raised the box by 4.2 mm: the hip servos stood through the lid). The printed body's 335 g was for the old
-    # 45.8 mm box: scaled by the box's surface area. The pack and electronics are now the parts of the layout.
+    """Design v2 in the owner's "style B, chubbier cartoon crab" (docs/dev/V2_MODEL.md): a superellipsoid pill shell
+    with a face lid on top, orange thighs arching up (femur 56 mm, 35 deg above horizontal), tapered shins (80 mm,
+    78 deg below horizontal) ending in dark 14 mm balls, STS3215 legs on Rhoban BAM's measured model, STS3032
+    arms (placeholder) on the front of the shell. Printed link masses come from the covers' areas (printed_mass)."""
+    from math import pi
+
     from .electronics import Layout
+    from .shapes import Shell, area, superellipsoid
+    sv = 0.055                                      # the STS3215
+    thigh_r, shin_r0, shin_r1, femur_len, tibia_len, foot_r = 0.019, 0.020, 0.014, 0.056, 0.080, 0.014
+    tv, tf = superellipsoid(femur_len / 2 + 0.010, thigh_r * 0.85, thigh_r, 0.6, 0.6, n=24)
+    sv_, sf_ = superellipsoid(tibia_len / 2, shin_r0, shin_r0 * 0.9, 0.7, 0.8, n=24,
+                              taper=lambda u: 1.0 - (1 - shin_r1 / shin_r0) * u)
+    foot_mass = 4 * pi * foot_r ** 2 * WALL_M * 1200.0                       # a 2 mm TPU shell, 1.2 g/cm3
+    leg = Leg(coxa_len=0.0352, femur_len=femur_len, tibia_len=tibia_len, foot_radius=foot_r,
+              thigh_r=thigh_r, shin_r0=shin_r0, shin_r1=shin_r1, foot_mass=foot_mass,
+              coxa_mass=0.0213 + sv,                                          # printed link + the thigh servo (as v1)
+              femur_mass=printed_mass(area(tv, tf)) + sv,                     # the thigh cover + the knee servo
+              tibia_mass=printed_mass(area(sv_, sf_)) + foot_mass)            # the shin cover + the ball
     lay = Layout()
     ch = lay.chassis
-    m = lambda key: tuple(v / 1000.0 for v in ch[key])          # noqa: E731
-    old_h = 0.0458
-    a = lambda hz: 2 * (0.1354 * 0.1794 + (0.1354 + 0.1794) * hz)  # noqa: E731
-    shell = 0.3354 * a(2 * ch["box_half_mm"][2] / 1000.0) / a(old_h)
+    mm = lambda v: tuple(x / 1000.0 for x in v)     # noqa: E731
+    area_m2 = Shell.from_chassis(ch).area_m2()
+    shell = printed_mass(area_m2)
     pack = lay["pack"].mass_g / 1000.0
     elec = sum(p.mass_g for p in lay.parts.values() if not p.in_model and p.name != "pack") / 1000.0
-    body = Body(half_size=m("box_half_mm"), mass=shell + pack + elec + 4 * sv, chassis_pos=m("box_center_mm"),
-                dome_half=m("dome_half_mm"), dome_pos=m("dome_center_mm"),
-                shell_mass=shell, battery_mass=pack, electronics_mass=elec)
+    body = Body(half_size=mm(ch["shell_half_mm"]), mass=shell + pack + elec + 4 * sv,
+                shell_center=mm(ch["shell_center_mm"]), shell_exp=tuple(ch["shell_exponents"]),
+                shell_mass=shell, shell_area=area_m2, battery_mass=pack, electronics_mass=elec,
+                lid_tilt=lay.lid_tilt, lid_hinge=mm(ch["lid_hinge_mm"]), lid_mass=lay["visor"].mass_g / 1000.0)
+    sh = lay["shoulder_l"]
+    # arms: the printed bones and palm only (12 g); the three STS3032 per arm are added by the model builder
+    arm = Arm(shoulder_offset=0.024, upper_len=0.045, finger_len=0.036, upper_mass=0.012, jaw_mass=0.003,
+              shoulder_mass=0.008, shoulder_yaw_range=(radians(-8), radians(20)), claw_range=(radians(0), radians(95)))
     return CrabParams(body=body, leg=leg, arm=arm,
-                      leg_mounts={"F": ((0.0352, 0.0736, 0.0), radians(64)),
-                                  "R": ((-0.0352, 0.0736, 0.0), radians(116))},
-                      arm_mount=((0.0709, 0.0285, 0.0), radians(15)),
+                      leg_mounts={"F": ((0.0352, 0.068, 0.0), radians(64)),
+                                  "R": ((-0.0352, 0.068, 0.0), radians(116))},
+                      arm_mount=(tuple(float(v) / 1000 for v in sh.pos), 0.0),
                       bus_voltage=7.4, design="v2", model_file="crab_v2.xml",
                       gait_period_factor=1.5, arm_scale=1.5)
 

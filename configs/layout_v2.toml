@@ -20,14 +20,21 @@ design = "v2"
 note = "Edit a position, then run `python sim/fit_check.py`; `python sim/build_model.py --design v2` rebuilds the model."
 
 [chassis]
-# crab/params.py v2 body (sizing study): printed chassis box + dome shell. tests/test_layout.py keeps these equal.
-box_center_mm = [6.9, 0.0, -9.7]
-box_half_mm = [67.7, 89.7, 25.0]
-dome_center_mm = [9.6, 0.0, 1.6]
-dome_half_mm = [73.6, 92.3, 19.0]
+# Design v2 style B (the owner's "chubbier cartoon crab"): ONE shell, a superellipsoid pill (crab/shapes.py), replaces the
+# old chassis box + dome. Inside: |x/a|^(2/eh) etc. as in crab/shapes.py. The body frame's hip plane is z = 0.
+shell_center_mm = [6.9, 0.0, 0.3]
+shell_half_mm = [84.0, 108.0, 52.0]
+shell_exponents = [0.65, 0.6]
 wall_mm = 2.0
 wall_source = "estimate"
 wall_why = "design choice: a 2 mm printed PETG shell: 4-5 perimeters of a 0.4 mm nozzle; the CAD does not exist yet"
+# The face lid: hinged at the top-front of the shell, standing 0.35 rad back from vertical (a friction hinge set by hand: in
+# the model the lid is part of the body; tilt 1.50 = folded flat, built with CRAB_LID_TILT=1.5). Panel 147 x 73 mm, 2:1.
+lid_hinge_mm = [58.98, 0.0, 48.66]
+lid_tilt_rad = 0.35
+lid_panel_mm = [153, 70]
+lid_bezel_mm = 6.0
+lid_thickness_mm = 10.0
 
 [rules]
 clearance_mm = 1.0
@@ -44,7 +51,7 @@ mass_g = 55.0
 mass_source = "datasheet"
 mass_ref = "https://www.dfrobot.com/product-2961.html"
 why = "size: Waveshare wiki (45.22 x 35 x 24.72 mm); mass: 55 +- 1 g printed on DFRobot's ST3215 7.4 V product page (Waveshare and Feetech print no weight)"
-pos_mm = [35.2, 73.6, -5.25]
+pos_mm = [35.2, 68, -5.25]
 in_model = true
 
 [part.hip_fr]
@@ -56,7 +63,7 @@ mass_g = 55.0
 mass_source = "datasheet"
 mass_ref = "https://www.dfrobot.com/product-2961.html"
 why = "size: Waveshare wiki (45.22 x 35 x 24.72 mm); mass: 55 +- 1 g printed on DFRobot's ST3215 7.4 V product page (Waveshare and Feetech print no weight)"
-pos_mm = [35.2, -73.6, -5.25]
+pos_mm = [35.2, -68, -5.25]
 in_model = true
 
 [part.hip_rl]
@@ -68,7 +75,7 @@ mass_g = 55.0
 mass_source = "datasheet"
 mass_ref = "https://www.dfrobot.com/product-2961.html"
 why = "size: Waveshare wiki (45.22 x 35 x 24.72 mm); mass: 55 +- 1 g printed on DFRobot's ST3215 7.4 V product page (Waveshare and Feetech print no weight)"
-pos_mm = [-35.2, 73.6, -5.25]
+pos_mm = [-35.2, 68, -5.25]
 in_model = true
 
 [part.hip_rr]
@@ -80,34 +87,34 @@ mass_g = 55.0
 mass_source = "datasheet"
 mass_ref = "https://www.dfrobot.com/product-2961.html"
 why = "size: Waveshare wiki (45.22 x 35 x 24.72 mm); mass: 55 +- 1 g printed on DFRobot's ST3215 7.4 V product page (Waveshare and Feetech print no weight)"
-pos_mm = [-35.2, -73.6, -5.25]
+pos_mm = [-35.2, -68, -5.25]
 in_model = true
 
 [part.shoulder_l]
 kind = "servo"
-size_mm = [8.5, 15.8, 17.6]
+size_mm = [12.0, 23.0, 27.5]
 size_source = "estimate"
 size_ref = "crab/params.py"
-mass_g = 5.8
+mass_g = 20.0
 mass_source = "estimate"
 mass_ref = "crab/params.py"
-why = "unverified: GOTECK GS-4308MG size and mass as written in crab/params.py from the seller listing (not re-fetched today); the arm servo at the shoulder yaw axis No maker datasheet for the GS-4308MG was found and the Evelta listing was not opened."
-pos_mm = [70.9, 28.5, 0.0]
-rpy_deg = [0, 0, 15]
+why = "placeholder: the arm servo is a Feetech STS3032 (23 x 12 x 27.5 mm, 20 g, the bus servo with feedback; crab/params.py SERVOS, whose numbers came from the Feetech spec table). A parts decision may change it. Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
+pos_mm = [86.7, 40, -14.9]
+rpy_deg = [0, 0, 0]
 in_model = true
 outside_ok = true
 
 [part.shoulder_r]
 kind = "servo"
-size_mm = [8.5, 15.8, 17.6]
+size_mm = [12.0, 23.0, 27.5]
 size_source = "estimate"
 size_ref = "crab/params.py"
-mass_g = 5.8
+mass_g = 20.0
 mass_source = "estimate"
 mass_ref = "crab/params.py"
-why = "unverified: GOTECK GS-4308MG size and mass as written in crab/params.py from the seller listing (not re-fetched today); the arm servo at the shoulder yaw axis No maker datasheet for the GS-4308MG was found and the Evelta listing was not opened."
-pos_mm = [70.9, -28.5, 0.0]
-rpy_deg = [0, 0, -15]
+why = "placeholder: the arm servo is a Feetech STS3032 (23 x 12 x 27.5 mm, 20 g, the bus servo with feedback; crab/params.py SERVOS, whose numbers came from the Feetech spec table). A parts decision may change it. Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
+pos_mm = [86.7, -40, -14.9]
+rpy_deg = [0, 0, 0]
 in_model = true
 outside_ok = true
 
@@ -120,7 +127,7 @@ mass_g = 100.0
 mass_source = "estimate"
 mass_ref = "https://www.18650batterystore.com/products/samsung-25r-18650"
 why = "needs bench: two Samsung INR18650-25R cells side by side (18.33 mm x 64.85 mm, 43.5 g typical each, max 45 g, Samsung SDI spec sheet p.3 (https://www.akkuman.de/shop/mediafiles/PDF/18650%20Lithium/samsung%20inr18650-25r%2036v%202550mah%208c%2020a.pdf); the first draft said 43.8 g from a reseller) plus the BMS board folded on one end, the nickel strips and the wrap: the BOM's prebuilt pack was not measured"
-pos_mm = [-12.0, -36.0, -21.0]
+pos_mm = [-12, -35, -28]
 connectors = [{name = "leads", side = "+x", reach_mm = 12.0, width_mm = 20.0}]
 
 [part.xt60]
@@ -132,7 +139,7 @@ mass_g = 12.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: a mated XT60 male + female pair is about 26 mm long, 8 x 16 mm in section (Amass XT60 drawing, remembered, not fetched) with the two 15 cm 14 AWG pigtails' share of the wire Amass spec sheet V1.2 (https://mrsdprojects.ri.cmu.edu/2025teamb/wp-content/uploads/sites/84/2025/05/xt60.pdf, p.2) draws the male at 20.5 x 8.1 x 15.5 mm; the mated-pair length is not printed."
-pos_mm = [40.0, -36.0, -21.0]
+pos_mm = [48, 4, -25]
 rpy_deg = [0, 0, 90]
 connectors = [{name = "to_pack", side = "-x", reach_mm = 8.0}, {name = "to_fuse", side = "+x", reach_mm = 8.0}]
 
@@ -145,7 +152,7 @@ mass_g = 14.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: the BOM's add-a-circuit holder with a 15 A ATC blade fuse (a blade is 19 x 5 x 18.5 mm, ISO 8820) and its short leads; the holder was not measured"
-pos_mm = [46.0, 50.0, -20.0]
+pos_mm = [46, 45.5, -20]
 connectors = [{name = "in", side = "-x", reach_mm = 8.0}, {name = "out", side = "+x", reach_mm = 8.0}]
 
 [part.ina]
@@ -182,7 +189,7 @@ mass_g = 5.5
 mass_source = "estimate"
 mass_ref = "https://hubtronics.in/ap64500-5v-5a-dc-dc-buck-converter"
 why = "needs bench: module 25 x 22 mm and 2 g per the Hubtronics listing (read 2026-11-21); the 10 x 20 mm input capacitor lies beside it (33 mm wide) and adds 3.5 g; the height is our estimate"
-pos_mm = [-2.0, 42.0, 0.0]
+pos_mm = [-2, 38, 0]
 connectors = [{name = "in", side = "-x", reach_mm = 8.0}, {name = "out", side = "+x", reach_mm = 8.0}]
 
 [part.hub]
@@ -254,7 +261,7 @@ size_ref = "https://www.adafruit.com/product/3006"
 mass_g = 1.2
 mass_source = "datasheet"
 mass_ref = "https://www.adafruit.com/product/3006"
-pos_mm = [-38.0, 42.0, 0.0]
+pos_mm = [-38, 40, 0]
 connectors = [{name = "speaker", side = "+x", reach_mm = 8.0}, {name = "i2s", side = "-x", reach_mm = 8.0}]
 
 [part.radxa_heatsink]
@@ -278,7 +285,7 @@ mass_g = 4.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: OV5647 fisheye board for the Pi Zero: about 25 x 24 mm (the Amazon listing in the BOM gives no size; Pi Zero camera boards are 25 x 24 mm) The Amazon listing was not opened."
-pos_mm = [61.8, 0.0, -19.5]
+pos_mm = [73.46, 0, -19.5]
 connectors = [{name = "flex", side = "-x", reach_mm = 10.0, width_mm = 14.0}]
 
 [part.camera_lens]
@@ -290,7 +297,7 @@ mass_g = 6.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: the 160 degree lens barrel: about 17 mm across and 12 mm long, flush with the front wall"
-pos_mm = [68.6, 0.0, -19.5]
+pos_mm = [80.26, 0, -19.5]
 on = "camera"
 wall_mounted = true
 window = {pos_mm = [6.0, 0.0, 0.0], dir = [1.0, 0.0, 0.0], cone_deg = 50.0, clear_mm = 300.0}
@@ -304,7 +311,7 @@ mass_g = 3.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: SmartElex VL53L5CX board: about 25 x 14 mm (the robu listing could not be opened); the window is the sensor Pololu's VL53L5CX carrier is 13 x 18 x 3 mm and 0.5 g (https://www.pololu.com/product/3417), smaller than this SmartElex board, whose robu page could not be opened (403)."
-pos_mm = [72.6, 0.0, 1.0]
+pos_mm = [87.88, 0, 1]
 wall_mounted = true
 window = {pos_mm = [2.0, 0.0, 0.0], dir = [1.0, 0.0, 0.0], cone_deg = 22.5, clear_mm = 400.0}
 connectors = [{name = "qwiic", side = "-x", reach_mm = 8.0, width_mm = 8.0}]
@@ -318,7 +325,7 @@ mass_g = 1.4
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
-pos_mm = [69.0, 25.8, -23.3]
+pos_mm = [51.91, 17.61, -45.24]
 rpy_deg = [130.76, -10.05, 101.44]
 wall_mounted = true
 window = {pos_mm = [-6.5, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
@@ -334,7 +341,7 @@ mass_g = 1.4
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
-pos_mm = [69.0, -25.8, -23.3]
+pos_mm = [51.91, -17.61, -45.24]
 rpy_deg = [-130.76, -10.05, -101.44]
 wall_mounted = true
 window = {pos_mm = [-6.5, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
@@ -350,7 +357,7 @@ mass_g = 1.4
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
-pos_mm = [-57.5, 0.0, -24.5]
+pos_mm = [-66.52, 0, -32.07]
 rpy_deg = [-130.01, 0.0, 90.0]
 wall_mounted = true
 window = {pos_mm = [0.0, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
@@ -366,7 +373,7 @@ mass_g = 1.4
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
-pos_mm = [0.0, 88.2, -24.7]
+pos_mm = [0, 97.22, -29.91]
 rpy_deg = [-120.0, 0.0, 0.0]
 wall_mounted = true
 window = {pos_mm = [0.0, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
@@ -382,7 +389,7 @@ mass_g = 1.4
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
-pos_mm = [0.0, -88.2, -24.7]
+pos_mm = [0, -97.22, -29.91]
 rpy_deg = [120.0, 0.0, 0.0]
 wall_mounted = true
 window = {pos_mm = [0.0, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
@@ -391,33 +398,34 @@ proud_mm = 3.5
 
 [part.oled]
 kind = "display"
-size_mm = [39.5, 61.5, 7.0]
+size_mm = [76.0, 158.0, 8.0]
 size_source = "estimate"
 size_ref = "hardware/BOM.md"
-mass_g = 19.0
+mass_g = 300.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
-why = "needs bench: 2.42 inch SSD1309 module (Teyleten, Amazon B09LND6QJ1): 61.5 x 39.5 mm and a 55 x 27.5 mm lit area are v1's numbers (cad/parts.py FACE_MODULE, FACE_ACTIVE), taken from the same screen; 7 mm thick with its board, glass and FPC and 19 g are our estimates (the listing gives neither). It sits in a visor set into the front of the body, leaning back 25 degrees like v1's (FACE_TILT); not scaled"
-pos_mm = [63.46, 0.0, 31.68]
-rpy_deg = [0, 65.0, 0]
+why = "estimate (owner, worst case): the Waveshare 6.25 inch 720x1560 colour IPS HDMI panel (active area 144.18 x 66.60 mm, 2.16:1). The module is modelled as about 158 x 76 x 8 mm (the maker's outline was not read: estimate) and 0.30 kg listed worst case; the hoped-for real mass is 0.15 kg (rebuild with CRAB_DISPLAY_G=150 to see it). Its micro-HDMI flat cable runs through the lid hinge (connector header, through_wall); no new pin use, and the old OLED's I2C address is free"
+pos_mm = [49.62, 0, 88.89]
+rpy_deg = [0, 69.95, 0]
 outside_ok = true
 face = true
-window = {pos_mm = [0.0, 0.0, 3.5], dir = [0.0, 0.0, 1.0], cone_deg = 35.0, clear_mm = 300.0, exposed = true, check_shell = true}
+window = {pos_mm = [0.0, 0.0, 4.0], dir = [0.0, 0.0, 1.0], cone_deg = 35.0, clear_mm = 300.0, exposed = true, check_shell = true}
 connectors = [{name = "header", side = "-z", reach_mm = 8.0, width_mm = 20.0, through_wall = true}]
 
 [part.visor]
 kind = "printed"
-size_mm = [45.0, 67.5, 1.7]
+size_mm = [82, 165, 10.0]
 size_source = "estimate"
 size_ref = "hardware/BOM.md"
-mass_g = 12.0
+mass_g = 61
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
-why = "design choice: the orange bezel in front of the glass: v1's 67.5 x 45 mm outline (cad/parts.py FACE_HOUSING), 1.7 mm of bezel ahead of the glass; the mass is the whole printed visor with its side walls, about 12 g of PETG"
-pos_mm = [67.41, 0.0, 33.52]
-rpy_deg = [0, 65.0, 0]
+why = "design choice: the face lid, a 165 x 82 mm printed lid wrapping the display module, with a 6 mm rounded dark bezel, 10 mm thick, hinged at the top-front of the shell; the lit area is the panel's 144.18 x 66.6 mm. Mass = the lid's outer surface (296 cm2, a boxy superellipsoid) minus the lit window (96 cm2) x 2.0 mm wall x 1.27 g/cm3 PETG x 1.2 for ribs and bosses = 61 g"
+pos_mm = [49.62, 0, 88.89]
+rpy_deg = [0, 69.95, 0]
 on = "oled"
 outside_ok = true
+encloses = "oled"
 
 [part.mic_l]
 kind = "microphone"
@@ -427,10 +435,12 @@ size_ref = "https://www.dfrobot.com/product-2357.html"
 mass_g = 1.5
 mass_source = "estimate"
 mass_ref = "https://www.dfrobot.com/product-2357.html"
-why = "needs bench: the box is DFRobot's analogue MEMS board, 18 x 12.5 mm (SEN0487 page, https://www.dfrobot.com/product-2357.html). The I2S board we buy (SEN0526) is 16 x 11 mm per its wiki (https://wiki.dfrobot.com/sen0526/), not applied because sim/models/crab_v2.xml embeds this box and must be rebuilt by the sim owner first; thickness and mass are not printed; sound port up through the dome"
-pos_mm = [-20.0, 35.0, 11.0]
+why = "needs bench: the box is DFRobot's analogue MEMS board, 18 x 12.5 mm (SEN0487 page, https://www.dfrobot.com/product-2357.html). The I2S board we buy (SEN0526) is 16 x 11 mm per its wiki (https://wiki.dfrobot.com/sen0526/); thickness and mass are not printed. Sound port up, glued under the top of the shell (style B has no dome)"
+pos_mm = [-19.91, 34.93, 47.7]
 window = {pos_mm = [0.0, 0.0, 1.5], dir = [0.0, 0.0, 1.0], cone_deg = 30.0, clear_mm = 60.0}
 connectors = [{name = "header", side = "-y", reach_mm = 6.0}]
+rpy_deg = [-2.86, -3.58, 0]
+wall_mounted = true
 
 [part.mic_r]
 kind = "microphone"
@@ -440,10 +450,12 @@ size_ref = "https://www.dfrobot.com/product-2357.html"
 mass_g = 1.5
 mass_source = "estimate"
 mass_ref = "https://www.dfrobot.com/product-2357.html"
-why = "needs bench: the box is DFRobot's analogue MEMS board, 18 x 12.5 mm (SEN0487 page, https://www.dfrobot.com/product-2357.html). The I2S board we buy (SEN0526) is 16 x 11 mm per its wiki (https://wiki.dfrobot.com/sen0526/), not applied because sim/models/crab_v2.xml embeds this box and must be rebuilt by the sim owner first; thickness and mass are not printed; sound port up through the dome"
-pos_mm = [-20.0, -35.0, 11.0]
+why = "needs bench: the box is DFRobot's analogue MEMS board, 18 x 12.5 mm (SEN0487 page, https://www.dfrobot.com/product-2357.html). The I2S board we buy (SEN0526) is 16 x 11 mm per its wiki (https://wiki.dfrobot.com/sen0526/); thickness and mass are not printed. Sound port up, glued under the top of the shell (style B has no dome)"
+pos_mm = [-19.91, -34.93, 47.7]
 window = {pos_mm = [0.0, 0.0, 1.5], dir = [0.0, 0.0, 1.0], cone_deg = 30.0, clear_mm = 60.0}
 connectors = [{name = "header", side = "+y", reach_mm = 6.0}]
+rpy_deg = [2.86, -3.58, 0]
+wall_mounted = true
 
 [part.speaker]
 kind = "speaker"
@@ -454,7 +466,7 @@ mass_g = 4.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: the BOM's 28 mm 8 ohm 0.5 W speaker (GSPK2805TN), about 5 mm thick; modelled as its square envelope"
-pos_mm = [-38.0, 42.0, 5.0]
+pos_mm = [-38, 40, 5]
 connectors = [{name = "leads", side = "+x", reach_mm = 6.0, width_mm = 8.0}]
 
 [part.switch]
@@ -466,7 +478,7 @@ mass_g = 12.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: ASW-15D 20 A rocker: the BOM says it is larger than the old 19.4 x 13.4 mm cut-out; 30 x 22 mm panel opening and 27 mm deep with its spade terminals is our estimate, to be measured when it arrives"
-pos_mm = [-47.3, 0.0, -3.0]
+pos_mm = [-63.08, 0, -3]
 wall_mounted = true
 connectors = [{name = "terminals", side = "+x", reach_mm = 12.0}]
 
@@ -491,7 +503,7 @@ mass_g = 0.8
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "unverified: P50-E2 spring test probe, about 16 mm long, a PAIR of them 4 mm apart (so each polarity has two pins in parallel) (the Robocraze listing in the BOM gives no drawing); two on the back wall, 40 mm apart"
-pos_mm = [-52.6, 20.0, 3.0]
+pos_mm = [-68.3, 20, 3]
 wall_mounted = true
 
 [part.pogo_r]
@@ -503,7 +515,7 @@ mass_g = 0.8
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "unverified: P50-E2 spring test probe, about 16 mm long, a PAIR of them 4 mm apart (so each polarity has two pins in parallel) (the Robocraze listing in the BOM gives no drawing); two on the back wall, 40 mm apart"
-pos_mm = [-52.6, -20.0, 3.0]
+pos_mm = [-68.3, -20, 3]
 wall_mounted = true
 
 [part.harness]
@@ -524,8 +536,9 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'head'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [4.0, 0.0, 17.76]
+pos_mm = [4, 0, 50.2]
 wall_mounted = true
+rpy_deg = [-0, -0.04, 0]
 
 [part.pad_back_left]
 kind = "pad"
@@ -536,8 +549,9 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'back_left'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [-40.0, 40.0, 12.75]
+pos_mm = [-45, 38, 45.37]
 wall_mounted = true
+rpy_deg = [-3.47, -16.87, 0]
 
 [part.pad_back_right]
 kind = "pad"
@@ -548,8 +562,9 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'back_right'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [-40.0, -40.0, 12.75]
+pos_mm = [-45, -38, 45.37]
 wall_mounted = true
+rpy_deg = [3.47, -16.87, 0]
 
 [part.pad_side_left]
 kind = "pad"
@@ -560,8 +575,9 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'side_left'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [0.0, 70.0, 12.75]
+pos_mm = [0, 105.9, 5]
 wall_mounted = true
+rpy_deg = [-89.13, -15.04, 0]
 
 [part.pad_side_right]
 kind = "pad"
@@ -572,8 +588,9 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'side_right'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [0.0, -70.0, 12.75]
+pos_mm = [0, -105.9, 5]
 wall_mounted = true
+rpy_deg = [89.13, -15.04, 0]
 
 [part.pad_face]
 kind = "pad"
@@ -584,5 +601,7 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'face'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [38.0, 0.0, 15.8]
+pos_mm = [46, 0, 48.54]
 wall_mounted = true
+rpy_deg = [-0, 8.41, 0]
+

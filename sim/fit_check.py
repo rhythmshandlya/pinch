@@ -4,7 +4,7 @@
     python sim/fit_check.py --top      # also writes docs/images/layout_v2_top.png (a top view; needs matplotlib)
 
 It fails on:
-  outside     a part (or its cable room) is not inside the chassis interior (walls and the dome's inner surface)
+  outside     a part (or its cable room) is not inside the shell's interior (the pill shrunk by the wall and a clearance)
   overlap     two parts touch or overlap (a part mounted `on` another one may touch it, never go through it)
   clearance   two parts are closer than rules.clearance_mm
   cable room  a connector has no free slab of reach_mm in front of it (a part, or the wall, is in the way)
@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from crab.electronics import Layout  # noqa: E402
+from crab.shapes import Shell  # noqa: E402
 
 # -- geometry ------------------------------------------------------------------------------------------------------
 
@@ -81,40 +82,28 @@ def ray_ellipsoid(o, d, c, h):
 
 
 class Interior:
-    """The inside of the chassis: the box and the dome, each shrunk by the wall (and by a margin)."""
+    """The inside of the body: the pill shell (crab/shapes.py Shell) shrunk by the wall and by a margin."""
 
     def __init__(self, ch):
-        self.bc = np.asarray(ch["box_center_mm"], float)
-        self.bh = np.asarray(ch["box_half_mm"], float)
-        self.dc = np.asarray(ch["dome_center_mm"], float)
-        self.dh = np.asarray(ch["dome_half_mm"], float)
-        self.wall = float(ch["wall_mm"])
+        self.shell = Shell.from_chassis(ch)
+        self.wall = self.shell.wall
 
     def inside(self, p, margin=0.0):
-        p = np.asarray(p, float)
-        m = self.wall + margin
-        if np.all(np.abs(p - self.bc) <= self.bh - m):
-            return True
-        q = (p - self.dc) / (self.dh - m)
-        return bool(q @ q <= 1.0)
+        return bool(self.shell.inside(p, margin))
 
     def depth(self, p):
-        """How far a point is below the outer surface (mm; negative outside). Union of box and dome."""
-        p = np.asarray(p, float)
-        db = float(np.min(self.bh - np.abs(p - self.bc)))
-        q = float(np.sqrt((((p - self.dc) / self.dh) ** 2).sum()))
-        dd = (1.0 - q) * float(self.dh.min()) if q <= 1.5 else -1e3
-        return max(db, dd)
+        """How far a point is below the outer surface (mm; negative outside)."""
+        return float(self.shell.depth(p))
 
     def box_inside(self, c, h, R, margin=0.0, n=4):
         """All of an oriented box (its corners and a grid of n points a side) is inside; returns the worst point."""
         g = np.linspace(-1, 1, n)
         pts = np.array([[a, b, d] for a in g for b in g for d in g]) * h
         w = np.asarray(c, float) + pts @ R.T
-        for p in w:
-            if not self.inside(p, margin):
-                return False, p
-        return True, None
+        f = self.shell.f(w, self.wall + margin)
+        if np.all(f <= 1.0):
+            return True, None
+        return False, w[int(np.argmax(f))]
 
 
 # -- the check -----------------------------------------------------------------------------------------------------
@@ -165,6 +154,8 @@ def check(layout=None, report=None):
                 continue                                    # both are servos the model builds itself
             fam = _family(L, a, b)
             g = obb_gap(a.pos, a.half, a.R, b.pos, b.half, b.R)
+            if a.d.get("encloses") == b.name or b.d.get("encloses") == a.name:
+                continue                                    # the face lid's plate encloses its display module
             if g < -1e-6:
                 rep.fail("overlap", f"{a.name} and {b.name} overlap by {-g:.1f} mm")
             elif g < (0.0 if fam else clr) - 1e-6:
@@ -215,12 +206,11 @@ def check(layout=None, report=None):
         for r in rays:
             r = r / np.linalg.norm(r)
             o = pos + 0.05 * r
-            if w.get("check_shell"):                      # a window above the dome: the shell must not hide it either
-                s_dome = ray_ellipsoid(o, r, inter.dc, inter.dh)
-                s_box = ray_box(o, r, inter.bc, inter.bh, np.eye(3))
-                for name, hit in (("the dome", s_dome), ("the chassis box", s_box)):
-                    if hit is not None and hit > 0.5:
-                        rep.fail("window", f"{label}: {name} is in the way of its view, {hit:.0f} mm out")
+            if w.get("check_shell"):                      # a window above the shell (the face lid): the shell must not hide it either
+                ts = np.linspace(2.0, 400.0, 400)
+                hit = inter.shell.f(o + ts[:, None] * r) <= 1.0
+                if hit.any():
+                    rep.fail("window", f"{label}: the shell is in the way of its view, {ts[int(np.argmax(hit))]:.0f} mm out")
             for q in parts:
                 if q is p or _family(L, p, q):
                     continue
@@ -242,7 +232,7 @@ def table(layout=None):
         rows.append(f"{n:22s} {sz:>17s} {p.mass_g:6.1f} {p.pos[0]:7.1f},{p.pos[1]:7.1f},{p.pos[2]:7.1f}  "
                     f"{str(tuple(round(a) for a in p.rpy)):>14s}  {p.d.get('size_source', '-')}/{p.d.get('mass_source')}")
     ch = L.chassis
-    rows.append(f"chassis box {2 * np.asarray(ch['box_half_mm'])} mm, dome {2 * np.asarray(ch['dome_half_mm'])} mm, "
+    rows.append(f"pill shell {2 * np.asarray(ch['shell_half_mm'])} mm, exponents {ch['shell_exponents']}, "
                 f"wall {ch['wall_mm']} mm; parts {L.total_mass_g():.0f} g")
     return "\n".join(rows)
 
@@ -254,7 +244,7 @@ def top_view(layout, out):
     from matplotlib.patches import Polygon, Rectangle
     fig, axs = plt.subplots(1, 2, figsize=(16, 7))
     ch = layout.chassis
-    bc, bh = np.asarray(ch["box_center_mm"]), np.asarray(ch["box_half_mm"])
+    bc, bh = np.asarray(ch["shell_center_mm"]), np.asarray(ch["shell_half_mm"])
     for ax, (ia, ib, title) in zip(axs, ((0, 1, "top (x right, y up)"), (0, 2, "side (x right, z up)"))):
         ax.add_patch(Rectangle((bc[ia] - bh[ia], bc[ib] - bh[ib]), 2 * bh[ia], 2 * bh[ib], fill=False, ec="k", lw=2))
         for n, p in layout.parts.items():
