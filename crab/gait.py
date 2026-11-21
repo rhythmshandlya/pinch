@@ -51,7 +51,7 @@ class GaitParams:
 from .params import PARAMS as _P  # noqa: E402
 
 _S = _P.scale                    # lengths scale with the robot
-_T = _S ** 0.5                   # periods scale with sqrt(size) (Froude): small crabs step faster
+_T = _S ** 0.5 * _P.gait_period_factor     # periods scale with sqrt(size) (Froude), x1.5 for v2 (the STS3215 rotor)
 
 
 def _scaled(g: "GaitParams") -> "GaitParams":

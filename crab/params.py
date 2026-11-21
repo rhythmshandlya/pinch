@@ -7,11 +7,21 @@ This is the hand-sized "pocket crab": 20 Feetech STS3032 micro serial-bus servos
 smallest legs that still walk, everything from parts in stock. The earlier ST3215 design is
 archived outside this repository. Every joint names its servo, so the simulator can
 try other servos (env vars CRAB_MICRO_SERVO / CRAB_FEMUR_SERVO, bus voltage CRAB_BUS_V).
+
+Two designs live here. CRAB_DESIGN=v1 (the default, nothing set) is the robot above. CRAB_DESIGN=v2 is the resized
+robot of docs/research/SIZING_STS3215.md: leg scale 1.6, about 1.57 kg, legs on the Feetech STS3215 at 7.4 V with
+Rhoban BAM's measured model (numbers in configs/electronics.toml), arms 1.5x longer (docs/dev/V2_MODEL.md). The
+design is read ONCE, here, when the module is first imported, so every import-time constant that is built from these
+parameters (crab/kinematics.py, crab/gait.py, the servo tables) agrees; to use the other design start a new process.
 """
 
 import os
 from dataclasses import dataclass, field
 from math import radians
+
+DESIGN = os.environ.get("CRAB_DESIGN", "v1")
+if DESIGN not in ("v1", "v2"):
+    raise ValueError(f"CRAB_DESIGN must be 'v1' or 'v2', not {DESIGN!r}")
 
 
 # ------------------------------------------------------------------ servos
@@ -133,10 +143,39 @@ SERVOS = {
                         size_mm=(45.2, 24.7, 35.0)),
 }
 
+
+
+def _measured_sts3215() -> ServoSpec:
+    """The v2 leg servo, every number read from configs/electronics.toml [leg_servo] (Rhoban BAM m6, measured at
+    7.4 V, firmware gain 32). This is the FIRST-ORDER form (what BAM's own bam/to_mujoco.py exports, and what the
+    position actuator in sim/models/crab_v2.xml uses); crab/servo_model.py runs the full model.
+      stall      = supply * kt / R                      (BAM: forcerange)
+      no-load    = supply / kt, so the back-EMF slope is stall / no-load = kt^2 / R
+      kp         = kt * supply * firmware_kp * error_gain * error_gain_ratio / R   (duty = gain * error, linear part)
+    The datasheet numbers (19.5 kg*cm stall, 6.5 kg*cm rated, 5.45 rad/s) are the maker's, for the checks."""
+    from .electronics import Data
+    d = Data()
+
+    def g(k):
+        return float(d("leg_servo." + k))
+    vin, kt, R = g("supply_v"), g("kt_nm_per_a"), g("resistance_ohm")
+    return ServoSpec("STS3215M6", "sts3215", "Rhoban BAM m6 (measured), configs/electronics.toml", vin,
+                     model_stall=vin * kt / R, model_noload=vin / kt, viscous=g("friction_viscous"),
+                     frictionloss=g("friction_base"), armature=g("armature_kgm2"),
+                     kp=kt * vin * g("firmware_kp") * g("error_gain") * g("error_gain_ratio") / R,
+                     kt_current=kt, datasheet_stall=1.91, datasheet_noload=5.45, rated_torque=0.637,
+                     max_cmd_speed=g("max_velocity_rad_s"), backlash_deg=0.5, command_delay=g("command_delay_s"),
+                     mass=0.055, size_mm=(45.2, 24.7, 35.0))
+
+
+if DESIGN == "v2":
+    SERVOS["STS3215M6"] = _measured_sts3215()
+
 # Which servo drives which joint: STS3032 bus servos in the legs (they carry the body), the tiny
-# GS-4308MG in the arms (light work). The env vars let the simulator try others.
-FEMUR_SERVO = os.environ.get("CRAB_FEMUR_SERVO", "STS3032")
-MICRO_SERVO = os.environ.get("CRAB_MICRO_SERVO", "STS3032")
+# GS-4308MG in the arms (light work). The env vars let the simulator try others. v2: STS3215 in the legs.
+_LEG_SERVO = "STS3215M6" if DESIGN == "v2" else "STS3032"
+FEMUR_SERVO = os.environ.get("CRAB_FEMUR_SERVO", _LEG_SERVO)
+MICRO_SERVO = os.environ.get("CRAB_MICRO_SERVO", _LEG_SERVO)
 ARM_SERVO = os.environ.get("CRAB_ARM_SERVO", "GS4308")
 JOINT_SERVO = {"coxa": MICRO_SERVO, "femur": FEMUR_SERVO, "tibia": MICRO_SERVO,
                "shoulder_yaw": ARM_SERVO, "shoulder_pitch": ARM_SERVO, "claw": ARM_SERVO}
@@ -149,8 +188,15 @@ def servo_for(joint: str) -> ServoSpec:
 # ------------------------------------------------------------------ body and limbs
 @dataclass(frozen=True)
 class Body:
-    half_size: tuple = (0.040, 0.055, 0.022)   # carapace ellipsoid (sim primitive)
+    half_size: tuple = (0.040, 0.055, 0.022)   # carapace ellipsoid (sim primitive); v2: the chassis box
     mass: float = 0.20                          # 6 yaw servos, computer, battery, electronics, shell
+    # v2 only (the primitive body of sim/build_model.py: chassis box + dome, pack, electronics, 4 yaw servos)
+    chassis_pos: tuple = (0.0, 0.0, 0.0)
+    dome_half: tuple = (0.0, 0.0, 0.0)
+    dome_pos: tuple = (0.0, 0.0, 0.0)
+    shell_mass: float = 0.0
+    battery_mass: float = 0.0
+    electronics_mass: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -183,6 +229,7 @@ class Arm:
     finger_len: float = 0.024         # claw hinge -> finger tips
     upper_mass: float = 0.014         # arm + palm + claw servo (primitive model only)
     jaw_mass: float = 0.0015
+    shoulder_mass: float = 0.002      # the yaw bracket (primitive model only; v2 adds the yaw servo's share)
     shoulder_yaw_range: tuple = (radians(0), radians(20))     # out: the front leg; in: the other claw (CAD)
     shoulder_pitch_range: tuple = (radians(-40), radians(72))  # higher, the claw meets the shell (CAD)
     claw_range: tuple = (radians(0), radians(55))
@@ -203,6 +250,10 @@ class CrabParams:
     battery_nominal: float = 7.6      # 2S LiPo, mid charge
     battery_warn: float = 6.8         # 3.4 V per cell
     battery_stop: float = 6.4         # 3.2 V per cell (under load)
+    design: str = "v1"
+    model_file: str = "crab.xml"      # sim/models/<this>: the twin's MuJoCo model of the design
+    gait_period_factor: float = 1.0   # the scripted gaits' periods are multiplied by this (v2: 1.5, sizing study)
+    arm_scale: float = 1.0            # claw and jaw geometry relative to v1 (sim/build_model.py jaw_geoms)
 
     @property
     def servo(self) -> ServoSpec:
@@ -215,7 +266,30 @@ class CrabParams:
         return self.leg.tibia_len / 0.100
 
 
-PARAMS = CrabParams()
+def _v2_params() -> CrabParams:
+    """The resized design (docs/research/SIZING_STS3215.md section 6, scripts in sim/sizing/): leg scale 1.6 of
+    today's 22 / 30 / 52 mm links, hips at +-35 x +-74 mm, a 135 x 180 mm chassis, the itemised mass budget
+    (12 leg servos 660 g, 6 arm servos 35 g, printed legs 349 g, printed body 335 g, electronics 90 g, 2S 1500 mAh
+    pack 81 g = 1.55 kg) plus arms 1.5x longer (printed arm parts 17 g: by area, the arms are thin shells)."""
+    sv = 0.055                                      # the STS3215
+    leg = Leg(coxa_len=0.0352, femur_len=0.048, tibia_len=0.0832, foot_radius=0.008,
+              coxa_mass=0.0213 + sv,                # printed link + the thigh servo (as v1)
+              femur_mass=0.0356 + sv,               # printed link + the knee servo
+              tibia_mass=0.0303)
+    arm = Arm(shoulder_offset=0.024, upper_len=0.045, finger_len=0.036, upper_mass=0.0150, jaw_mass=0.0022,
+              shoulder_mass=0.0085)
+    body = Body(half_size=(0.0677, 0.0897, 0.0229), mass=0.7260, chassis_pos=(0.0069, 0.0, -0.0118),
+                dome_half=(0.0736, 0.0923, 0.0190), dome_pos=(0.0096, 0.0, 0.0016),
+                shell_mass=0.3354, battery_mass=0.0810, electronics_mass=0.0900)
+    return CrabParams(body=body, leg=leg, arm=arm,
+                      leg_mounts={"F": ((0.0352, 0.0736, 0.0), radians(64)),
+                                  "R": ((-0.0352, 0.0736, 0.0), radians(116))},
+                      arm_mount=((0.0709, 0.0285, 0.0), radians(15)),
+                      bus_voltage=7.4, design="v2", model_file="crab_v2.xml",
+                      gait_period_factor=1.5, arm_scale=1.5)
+
+
+PARAMS = _v2_params() if DESIGN == "v2" else CrabParams()
 
 # Actuated joints in a fixed order: the action vector for sim, RL and real robot.
 LEG_IDS = ["FL", "FR", "RL", "RR"]
@@ -250,3 +324,5 @@ CLIFF_BEAMS = [
     ("side_left", -8.0, 55.0, -16.0, (0.0, 0.866, -0.5)),
     ("side_right", -8.0, -55.0, -16.0, (0.0, -0.866, -0.5)),
 ]
+if DESIGN == "v2":                  # the windows move out with the body (hips x1.6); the beam directions stay
+    CLIFF_BEAMS = [(n, 1.6 * x, 1.6 * y, 1.6 * z, d) for n, x, y, z, d in CLIFF_BEAMS]

@@ -58,14 +58,22 @@ class SimBackend:
     """MuJoCo stands in for the robot. `mount_offsets` = physical horn offsets (rad) per joint."""
 
     def __init__(self, mount_offsets=None, render=False, voltage=None, pwm_travel=1.0, model=None,
-                 realism="ideal", seed=0, soc=1.0):
+                 realism="ideal", seed=0, soc=1.0, servo_model="first_order"):
         """realism: "ideal" (exact sensors, no delay, constant power: the default) or "datasheet" (the electronics
         of configs/electronics.toml: command delay, encoder steps, IMU noise and lag, distance-beam noise and
         dropouts, a battery that drains and sags; crab/electronics.py). Seeded: same seed, same numbers.
-        soc: the pack's starting state of charge (datasheet realism only)."""
+        soc: the pack's starting state of charge (datasheet realism only).
+        servo_model (design v2 only, CRAB_DESIGN=v2): the leg servo, measured Rhoban BAM m6 numbers from
+        configs/electronics.toml: "first_order" (the position actuator in crab_v2.xml plus the firmware's target
+        slew limit) or "bam" (the full model, crab/servo_model.py; needs the optional `bam` package). Today's
+        design (v1) has no measured servo model and only takes "first_order", which changes nothing."""
         from crab.params import JOINT_SPECS, PARAMS
         if realism not in ("ideal", "datasheet"):
             raise ValueError(f"realism must be 'ideal' or 'datasheet', not {realism!r}")
+        if servo_model not in ("first_order", "bam"):
+            raise ValueError(f"servo_model must be 'first_order' or 'bam', not {servo_model!r}")
+        if servo_model == "bam" and PARAMS.design == "v1":
+            raise ValueError("the full BAM servo model exists for design v2 (CRAB_DESIGN=v2) only")
         voltage = PARAMS.bus_voltage if voltage is None else voltage
         self._flim = {j: s.force_limit for j, s in zip(JOINT_NAMES, JOINT_SPECS)}
         from pathlib import Path
@@ -73,10 +81,14 @@ class SimBackend:
         import mujoco
         self.mj = mujoco
         root = Path(__file__).resolve().parents[1]
-        self.m = model if model is not None else mujoco.MjModel.from_xml_path(str(root / "sim" / "models" / "crab.xml"))
+        self.m = model if model is not None else mujoco.MjModel.from_xml_path(str(root / "sim" / "models" / PARAMS.model_file))
         self.d = mujoco.MjData(self.m)
         mujoco.mj_resetDataKeyframe(self.m, self.d, self.m.key("stand").id)
         mujoco.mj_forward(self.m, self.d)          # body poses valid before the first step (IMU reads)
+        self.drive = None                          # design v2: the measured leg servo (crab/servo_model.py)
+        if PARAMS.design != "v1":
+            from crab.servo_model import make_drive
+            self.drive = make_drive(servo_model, self.m, self.d, JOINT_NAMES)
         self.mount ={j: 0.0 for j in JOINT_NAMES} if mount_offsets is None else dict(mount_offsets)
         self.sign = {j: default_sign(j) for j in JOINT_NAMES}
         self.qadr = {j: self.m.jnt_qposadr[self.m.joint(j).id] for j in JOINT_NAMES}
@@ -96,11 +108,13 @@ class SimBackend:
         self.battery = PARAMS.battery_nominal       # 2S pack voltage, as the INA219 would read it
         self.held = None          # joint vector: "a person holds the robot in this pose" (calibration rehearsal)
         self.realism, self.elec = realism, None
-        if realism == "datasheet":
-            from crab.electronics import Realism
+        if realism == "datasheet" or self.drive is not None:
             self._act_idx = np.array([self.act[j] for j in JOINT_NAMES])
             self._target = self.d.ctrl[self._act_idx].copy()          # what the servos have been told (undelayed)
-            self.elec = Realism(seed=seed, soc=soc, pwm=[j in self.no_feedback for j in JOINT_NAMES],
+        if realism == "datasheet":
+            from crab.electronics import Data, Realism
+            data = None if PARAMS.design == "v1" else Data().for_design(PARAMS.design)     # v2: its pack and rail
+            self.elec = Realism(data, seed=seed, soc=soc, pwm=[j in self.no_feedback for j in JOINT_NAMES],
                                 kt=[s.kt_current for s in JOINT_SPECS], dt=float(self.m.opt.timestep),
                                 initial=self._target)
             self._sync_power()
@@ -125,7 +139,7 @@ class SimBackend:
             j = self.by_id[sid]
             self.cmd[j] = s_rad
             v = (s_rad - self.mount[j]) * self.sign[j] * self.travel[j]
-            if self.elec is not None:
+            if self.elec is not None or self.drive is not None:
                 self._target[JOINT_NAMES.index(j)] = v          # reaches the joint after the delay (wait)
             else:
                 self.d.ctrl[self.act[j]] = v
@@ -155,6 +169,8 @@ class SimBackend:
 
     def torque(self, enable):
         self.torque_on = enable
+        if self.drive is not None:
+            self.drive.torque_on = enable
         if not enable:      # limp: let joints follow gravity (zero actuator stiffness)
             self.m.actuator_gainprm[:, 0] = 0
             self.m.actuator_biasprm[:, 1] = 0
@@ -169,16 +185,24 @@ class SimBackend:
             self.mj.mj_forward(self.m, self.d)
             return
         n = max(1, int(round(dt / self.m.opt.timestep)))
-        if self.elec is None:
+        if self.elec is None and self.drive is None:
             for _ in range(n):
                 self.mj.mj_step(self.m, self.d)
         else:
             for _ in range(n):
-                self.d.ctrl[self._act_idx] = self.elec.delay.push(self._target)
+                tgt = self._target if self.elec is None else self.elec.delay.push(self._target)
+                if self.drive is None:
+                    self.d.ctrl[self._act_idx] = tgt
+                else:
+                    self.drive.command(tgt)
+                    self.drive.step()
                 self.mj.mj_step(self.m, self.d)
-            amps = self.elec.servo_amps(self.d.actuator_force[self._act_idx], self.torque_on)
-            self.elec.power.step(n * self.m.opt.timestep, amps)
-            self._sync_power()
+            if self.elec is not None:
+                amps = self.elec.servo_amps(self.d.actuator_force[self._act_idx], self.torque_on)
+                self.elec.power.step(n * self.m.opt.timestep, amps)
+                self._sync_power()
+                if self.drive is not None:
+                    self.drive.set_supply(self.voltage)         # the full servo model's torque follows the supply
         if self.viewer is not None:
             self.viewer.sync()
             time.sleep(dt)

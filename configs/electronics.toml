@@ -23,6 +23,32 @@ sync_write_bytes_per_servo = {value = 7, unit = "bytes", source = "estimate", wh
 bus_overhead_bytes = {value = 8, unit = "bytes", source = "estimate", why = "header, id, length, instruction, address, data length, checksum of one SYNC_WRITE packet", ref = "robot/feetech_bus.py"}
 idle_current_a = {value = 0.04, unit = "A", source = "estimate", why = "a holding servo with torque on draws a few tens of mA; no number published for the STS3215", ref = "hardware/electronics.md"}
 
+# --- the measured motor model of the v2 design (docs/dev/V2_MODEL.md): Rhoban BAM m6, fitted at 7.4 V and firmware
+# gain 32 (read with gh api on 2026-11-21; copy in sim/sizing/bam_sts3215_m6.json). The gear version is inferred.
+model_name = {value = "m6", unit = "-", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+supply_v = {value = 7.4, unit = "V", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/feetech/actuator.py"}
+firmware_kp = {value = 32, unit = "-", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/feetech/actuator.py"}
+error_gain = {value = 0.166, unit = "duty per (kp*rad)", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/feetech/actuator.py", why = "BAM read this off an oscilloscope on real STS3215 servos (comment in actuator.py)"}
+max_pwm = {value = 0.97, unit = "fraction", source = "estimate", why = "BAM marks the 0.97 maximum duty as TODO (found with an oscilloscope, not fitted); 1.0 would be the other plausible value", ref = "https://github.com/Rhoban/bam/blob/main/bam/feetech/actuator.py"}
+kt_nm_per_a = {value = 1.2753202369175398, unit = "N*m/A", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+resistance_ohm = {value = 2.753421214375944, unit = "ohm", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+armature_kgm2 = {value = 0.021564290129722483, unit = "kg*m^2", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+error_gain_ratio = {value = 1.1616979929275297, unit = "ratio", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+max_velocity_rad_s = {value = 5.095754044445978, unit = "rad/s", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+friction_base = {value = 0.0533134815909817, unit = "N*m", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+friction_stribeck = {value = 4.257322248151969e-05, unit = "N*m", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+friction_viscous = {value = 0.028160537042911545, unit = "N*m*s/rad", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+load_friction_motor = {value = 0.044912012282132555, unit = "ratio", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+load_friction_external = {value = 0.24355483356616028, unit = "ratio", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+load_friction_motor_stribeck = {value = 0.00012448975632695385, unit = "ratio", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+load_friction_external_stribeck = {value = 0.1422905635963302, unit = "ratio", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+load_friction_motor_quad = {value = 0.007594943296670792, unit = "1/(N*m)", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+load_friction_external_quad = {value = 0.00340408727365082, unit = "1/(N*m)", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+dtheta_stribeck = {value = 0.371136775424206, unit = "rad/s", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+alpha = {value = 9.93094944677977, unit = "-", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json"}
+stall_torque_nm = {value = 3.427506733774023, unit = "N*m", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json", why = "supply_v * kt / R from the same file: the torque at standstill with the full supply; the maker's printed 19.5 kg*cm (1.91 N*m) is lower, see docs/dev/V2_MODEL.md"}
+no_load_speed_rad_s = {value = 5.802464185690227, unit = "rad/s", source = "measured", ref = "https://github.com/Rhoban/bam/blob/main/bam/params/feetech_sts3215_7_4V/m6.json", why = "supply_v / kt: where the back-EMF cancels the supply; the firmware limits the target to max_velocity long before"}
+
 # ---- arm servos: GOTECK GS-4308MG, plain 50 Hz PWM, no feedback ---------------------------------------------
 [arm_servo]
 pwm_frame_s = {value = 0.02, unit = "s", source = "estimate", why = "our hardware PWM runs exact 50 Hz frames (robot/backends.py BoardPWM PERIOD_NS)", ref = "robot/backends.py"}
@@ -101,4 +127,23 @@ efficiency = {value = 0.9, unit = "fraction", source = "estimate", why = "same 9
 dropout_v = {value = 0.5, unit = "V", source = "estimate", why = "a buck needs its input about half a volt above the output to hold regulation", ref = "hardware/BOM.md"}
 wiring_resistance_ohm = {value = 0.05, unit = "ohm", source = "estimate", why = "regulator output, 20 AWG wire, hub and 900 mm servo cables to the servo", ref = "hardware/electronics.md"}
 overload_droop_ohm = {value = 1.0, unit = "ohm", source = "estimate", why = "past the current limit the output folds back; we model it as a steep droop", ref = "hardware/BOM.md"}
+computer_load_w = {value = 4.0, unit = "W", source = "estimate", why = "Radxa ZERO 3W with Wi-Fi, camera and sensors, as assumed in hardware/electronics.md", ref = "hardware/electronics.md"}
+
+# ---- the v2 design's power: 2S 1500 mAh pack and a 7.4 V buck-boost servo rail (docs/research/SIZING_STS3215.md) ----
+# crab/electronics.py reads these in place of [battery] / [regulator] when CRAB_DESIGN=v2.
+[battery_v2]
+cells = 2
+capacity_ah = {value = 1.5, unit = "Ah", source = "estimate", why = "the 2S 1500 mAh pack the sizing study recommends (about 81 g); no pack chosen yet", ref = "docs/research/SIZING_STS3215.md"}
+usable_fraction = {value = 0.8, unit = "fraction", source = "estimate", why = "same 80 % usable assumption as the v1 pack", ref = "hardware/electronics.md"}
+internal_resistance_ohm = {value = 0.06, unit = "ohm", source = "estimate", why = "a larger 2S pack has lower resistance than the 850 mAh one (60-120 mOhm typical for small packs); not measured", ref = "docs/research/SIZING_STS3215.md"}
+resistance_rise_at_empty = {value = 2.0, unit = "times", source = "estimate", why = "LiPo resistance roughly doubles near empty", ref = "hardware/BOM.md"}
+ocv_per_cell_v = {value = [4.20, 4.07, 3.98, 3.90, 3.84, 3.79, 3.75, 3.71, 3.66, 3.57, 3.30], unit = "V", source = "estimate", why = "a typical LiPo rest-voltage curve; not measured on this pack", ref = "hardware/BOM.md"}
+
+[regulator_v2]
+output_v = {value = 7.4, unit = "V", source = "estimate", why = "our design choice: the supply voltage BAM fitted the STS3215 at (bam/feetech/actuator.py), so the measured model applies", ref = "docs/research/SIZING_STS3215.md"}
+current_limit_a = {value = 12.0, unit = "A", source = "estimate", why = "walking peaks are far below 12 servos x 2.99 A stall (the sizing study); a regulator for the walking peak plus fall margin is not chosen yet", ref = "docs/research/SIZING_STS3215.md"}
+efficiency = {value = 0.9, unit = "fraction", source = "estimate", why = "same 90 % as the 5 V buck; a buck-boost is typically a little lower", ref = "hardware/electronics.md"}
+dropout_v = {value = 0.0, unit = "V", source = "estimate", why = "a buck-boost holds 7.4 V from a pack that is above or below it; the 2S pack is 8.4 V full", ref = "docs/research/SIZING_STS3215.md"}
+wiring_resistance_ohm = {value = 0.05, unit = "ohm", source = "estimate", why = "same wiring as the 5 V rail", ref = "hardware/electronics.md"}
+overload_droop_ohm = {value = 1.0, unit = "ohm", source = "estimate", why = "past the current limit the output folds back; modelled as a steep droop", ref = "hardware/BOM.md"}
 computer_load_w = {value = 4.0, unit = "W", source = "estimate", why = "Radxa ZERO 3W with Wi-Fi, camera and sensors, as assumed in hardware/electronics.md", ref = "hardware/electronics.md"}
