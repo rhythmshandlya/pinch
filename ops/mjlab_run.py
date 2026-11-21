@@ -101,12 +101,12 @@ def main(argv=None):
     s.add_argument("--name")
     s.add_argument("--timeout-min", type=int, default=30, help="last-resort stop (this is the free laptop)")
     s.add_argument("--python", default=MJLAB_PYTHON)
-    s.add_argument("extra", nargs="*", help="more mjlab train flags")
     for name in ("status", "logs", "stop", "fetch"):
         q = sub.add_parser(name)
         q.add_argument("run")
         q.add_argument("--host", default="msi-1")
-    a = p.parse_args(argv)
+    a, extra = p.parse_known_args(argv)
+    a.extra = extra                       # any other flag goes to mjlab's train, e.g. --agent.num-steps-per-env 12
     if a.cmd == "start":
         return start(a)
     job = _existing(a)

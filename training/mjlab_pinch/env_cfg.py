@@ -174,9 +174,9 @@ def make_env_cfg(play: bool = False, actuators: str = "position") -> ManagerBase
     stand = {r".*_coxa": 0.05, r".*_femur": 0.08, r".*_tibia": 0.12}
     walk = {r".*_coxa": 0.30, r".*_femur": 0.40, r".*_tibia": 0.55}
     rewards = {
-        "track_linear_velocity": RewardTermCfg(func=vmdp.track_linear_velocity, weight=2.0,
-                                               params={"command_name": "twist", "std": 0.03}),
-        "track_angular_velocity": RewardTermCfg(func=vmdp.track_angular_velocity, weight=1.5,
+        "track_linear_velocity": RewardTermCfg(func=vmdp.track_linear_velocity, weight=3.0,
+                                               params={"command_name": "twist", "std": 0.04}),
+        "track_angular_velocity": RewardTermCfg(func=vmdp.track_angular_velocity, weight=2.0,
                                                 params={"command_name": "twist", "std": 0.3}),
         "upright": RewardTermCfg(func=vmdp.upright, weight=1.0, params={
             "std": math.sqrt(0.05), "asset_cfg": SceneEntityCfg("robot", body_names=(robot_spec.BODY,))}),
@@ -188,10 +188,10 @@ def make_env_cfg(play: bool = False, actuators: str = "position") -> ManagerBase
         "dof_pos_limits": RewardTermCfg(func=envs_mdp.joint_pos_limits, weight=-1.0,
                                         params={"asset_cfg": LEGS}),
         "action_rate_l2": RewardTermCfg(func=envs_mdp.action_rate_l2, weight=-0.05),
-        "air_time": RewardTermCfg(func=vmdp.feet_air_time, weight=1.0, params={
+        "air_time": RewardTermCfg(func=vmdp.feet_air_time, weight=3.0, params={
             "sensor_name": foot_contact.name, "threshold_min": 0.08, "threshold_max": 0.30,
             "command_name": "twist", "command_threshold": 0.01}),
-        "foot_clearance": RewardTermCfg(func=vmdp.feet_clearance, weight=-10.0, params={
+        "foot_clearance": RewardTermCfg(func=vmdp.feet_clearance, weight=-5.0, params={
             "target_height": 0.012, "height_sensor_name": foot_height.name, "command_name": "twist",
             "command_threshold": 0.01, "asset_cfg": SceneEntityCfg("robot", site_names=robot_spec.FOOT_SITES)}),
         "foot_swing_height": RewardTermCfg(func=vmdp.feet_swing_height, weight=-0.25, params={
@@ -232,11 +232,11 @@ def make_env_cfg(play: bool = False, actuators: str = "position") -> ManagerBase
 def make_rl_cfg() -> RslRlOnPolicyRunnerCfg:
     return RslRlOnPolicyRunnerCfg(
         actor=RslRlModelCfg(hidden_dims=(256, 128, 64), activation="elu", obs_normalization=True,
-                            distribution_cfg={"class_name": "GaussianDistribution", "init_std": 0.5,
+                            distribution_cfg={"class_name": "GaussianDistribution", "init_std": 0.6,
                                               "std_type": "scalar"}),
         critic=RslRlModelCfg(hidden_dims=(256, 128, 64), activation="elu", obs_normalization=True),
         algorithm=RslRlPpoAlgorithmCfg(value_loss_coef=1.0, use_clipped_value_loss=True, clip_param=0.2,
-                                       entropy_coef=0.005, num_learning_epochs=5, num_mini_batches=4,
+                                       entropy_coef=0.01, num_learning_epochs=5, num_mini_batches=4,
                                        learning_rate=1.0e-3, schedule="adaptive", gamma=0.99, lam=0.95,
                                        desired_kl=0.01, max_grad_norm=1.0),
-        experiment_name="pinch_velocity", save_interval=50, num_steps_per_env=24, max_iterations=1500)
+        experiment_name="pinch_velocity", save_interval=50, num_steps_per_env=12, max_iterations=1500)
