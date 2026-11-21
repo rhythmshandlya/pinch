@@ -49,6 +49,8 @@ USE_CAD = VIS_FILE.exists() and MP_FILE.exists() and "--primitive" not in sys.ar
 VIS = json.loads(VIS_FILE.read_text()) if USE_CAD else {}
 MP = json.loads(MP_FILE.read_text()) if USE_CAD else {}
 COL = json.loads(COL_FILE.read_text()) if (USE_CAD and COL_FILE.exists()) else None
+SCOOP = V2 and os.environ.get("CRAB_CLAW_SCOOP", "0") == "1"   # the scoop-floor claw (v2.1 candidate)
+SCOOP_W, SCOOP_T = 24.0, 1.6                                     # mm: the floor's width across the jaw gap, thickness
 V2_CAD_FILE = ROOT / "sim" / "models" / "v2_cad.json"
 USE_V2_CAD = V2 and V2_CAD_FILE.exists() and "--primitive" not in sys.argv
 V2C = json.loads(V2_CAD_FILE.read_text()) if USE_V2_CAD else {}
@@ -204,6 +206,7 @@ def arm_xml(arm_id: str) -> str:
                the blade above it, hanging below the palm (cad/parts.py jaw_side) -->
           <geom name="{arm_id}_pollex" type="box" pos="{f(*JAW['strip'][0])}" euler="0 {-JAW['pitch']:.4f} 0" size="{f(*JAW['strip'][1])}" mass="0.0008" material="claw"{PAD}/>
           <geom name="{arm_id}_pollex_blade" type="box" pos="{f(*JAW['blade'][0])}" size="{f(*JAW['blade'][1])}" mass="0.0006" material="claw"{PAD}/>
+          {f'<geom name="{arm_id}_scoop" type="box" pos="{f(*JAW["floor"][0])}" quat="{f(*JAW["floor"][2])}" size="{f(*JAW["floor"][1])}" mass="0.0005" material="pad"{PAD}/>' if "floor" in JAW else ""}
           <site name="{arm_id}_grip_site" pos="{f(*JAW['site'])}" euler="0 {-JAW['pitch']:.4f} 0" size="0.005" rgba="0 0 0 0"/>
           <body name="{arm_id}_dactyl" pos="{h:.4f} 0 0">
             {jnt(arm_id + "_claw", f"0 0 {s}", (V2C["claw_meet"], A.claw_range[1]) if USE_V2_CAD else A.claw_range)}
@@ -221,7 +224,9 @@ def jaw_geoms(s):
     STRIP_H, PAD_T, BLADE_T, D_DROP) - kept here as plain numbers so the model builds without the CAD.
     s = +1 left arm, -1 right (mirror). Returns {name: ((pos), (half sizes))} in metres, plus 'pitch'
     and the grip site."""
-    pitch = np.radians(19.2 if V2 else 20.0)     # v2: tilted so the strips meet the desk level at the arm's reach-down pitch (sweep 8 / 13.8 / 19.2 deg: 19.2 grips best)
+    # v2: the strips are tilted so they meet the desk level at the arm pitch that brings them there: 19.2 deg for the
+    # CAD layout (sweep 8 / 13.8 / 19.2), CRAB_JAW_TILT_DEG for a layout candidate (sim/situations.py solves it)
+    pitch = np.radians(float(os.environ.get("CRAB_JAW_TILT_DEG", "19.2")) if V2 else 20.0)
     # (v2: the whole claw is K = 1.5 times bigger; v1: K = 1.0, so every number below is unchanged)
     x0, x1, low0, strip_h, pad_t, blade_t = (K * v for v in (40.3, 55.5, -24.5, 10.0, 1.2, 2.4))
     x1 += JAW_EXTRA
@@ -258,8 +263,9 @@ def jaw_geoms(s):
     mid = s * (grip_w - 1.0) / 2                          # plane midway between the pads when parallel
     strip_c = np.array([centre[0], -s * (0.5 + hy), centre[1]])
     blade_c = np.array([43.3 * K, -s * (0.5 + pad_t + blade_t / 2), -8.25 * K])
-    d_strip = to_dactyl(strip_c * [1, -1, 1] + [0, 2 * mid, 0], ry)
-    d_blade = to_dactyl(blade_c * [1, -1, 1] + [0, 2 * mid, 0], np.eye(3))
+    lift = [0, 0, SCOOP_T + 0.4] if SCOOP else [0, 0, 0]      # the moving jaw rides just above the scoop floor
+    d_strip = to_dactyl(strip_c * [1, -1, 1] + [0, 2 * mid, 0] + lift, ry)
+    d_blade = to_dactyl(blade_c * [1, -1, 1] + [0, 2 * mid, 0] + lift, np.eye(3))
     out = {
         "pitch": float(pitch),
         "strip": (tuple(strip_c * m), (hx * m, hy * m, hz * m)),
@@ -274,6 +280,11 @@ def jaw_geoms(s):
     }
     if V2:
         out["pads"] = v2_pads(s, strip_c, ry, d_strip, hx, hy, hz, quat)
+    if SCOOP:   # a thin floor on the fixed jaw, level with the desk at the grip pitch: the moving jaw sweeps a pen or an
+        #         eraser onto it (a dustpan), so a flat thing is carried even when it is too low to squeeze
+        #         (docs/research/v2_1/arms: tips riding on the table, arXiv 2605.02135)
+        off = np.array([0.0, s * (hy + SCOOP_W / 2), -hz + SCOOP_T / 2])
+        out["floor"] = (tuple((strip_c + ry @ off) * m), (hx * m, SCOOP_W / 2 * m, SCOOP_T / 2 * m), quat(ry))
     if V2:      # tip hooks (a crab claw's curved tips): on the upper part of each pad so a ball or cube cannot roll or slip out
         #           forward, while a pen or an eraser lying low passes under them
         hook = (1.5, 4.0, 4.5)                                       # half sizes, mm

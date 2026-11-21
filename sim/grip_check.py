@@ -38,11 +38,12 @@ OBJECTS = {
     "box40x20": ("box", (0.020, 0.010, 0.010), 0.015),
 }
 ARM = "L"
+MODEL_PATH = os.environ.get("CRAB_MODEL_PATH") or str(ROOT / "sim" / "models" / PARAMS.model_file)   # or a candidate
 DESK_GAP = float(os.environ.get("GRIP_DESK_GAP", "0.002"))   # m: the jaw bottom this far above the desk when it closes (negative: pressing on it)
 
 
 def build(obj):
-    spec = mujoco.MjSpec.from_file(str(ROOT / "sim" / "models" / PARAMS.model_file))
+    spec = mujoco.MjSpec.from_file(MODEL_PATH)
     body = spec.body("body")
     for j in list(body.joints):                       # hold the body at its standing height
         spec.delete(j)
@@ -197,7 +198,7 @@ def main():
     a = ap.parse_args()
     if PARAMS.design != "v2":
         sys.exit("design v2 only")
-    m0 = mujoco.MjModel.from_xml_path(str(ROOT / "sim" / "models" / PARAMS.model_file))
+    m0 = mujoco.MjModel.from_xml_path(MODEL_PATH)
     stand_z = float(m0.key("stand").qpos[2])
     clips = []
     worst = 1.0
