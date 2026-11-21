@@ -117,12 +117,14 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
     out = Path(out_root or ROOT / "training" / "checkpoints") / run
     out.mkdir(parents=True, exist_ok=True)
     environment = make_env(env)
-    (out / "config.json").write_text(json.dumps(dict(cfg, preset=preset, env=env, randomize=randomize,
+    import os
+    design = os.environ.get("CRAB_DESIGN", "v1")                       # which robot was trained (crab/params.py)
+    (out / "config.json").write_text(json.dumps(dict(cfg, preset=preset, env=env, randomize=randomize, design=design,
                                                      action_scale=float(getattr(environment, "action_scale", 0.15)),
                                                      covers=list(getattr(environment, "covers", ["walk"]))),
                                                 indent=2))
     sha, dirty = git_state()
-    record = dict(run=run, env=env, skill=skill, preset=preset, config=cfg, randomize=randomize,
+    record = dict(run=run, env=env, skill=skill, preset=preset, design=design, config=cfg, randomize=randomize,
                   experiment=experiment, git_sha=sha, git_dirty=dirty, host=socket.gethostname(),
                   platform=platform.platform(), devices=[str(d) for d in jax.devices()],
                   started=datetime.now().astimezone().isoformat(timespec="seconds"), state="running", last=None)
@@ -199,7 +201,26 @@ def run_experiment(path, run=None, out_root=None, on_save=None, num_envs=None, t
                         seed=e.get("seed") if seed is None else seed)
 
 
+def apply_design(argv=None):
+    """An experiment may name a robot design (`design = "v2"` under [experiment]). The design must be chosen before
+    anything imports crab.params (it is read once per process), so this runs first and sets CRAB_DESIGN."""
+    import os
+    argv = sys.argv[1:] if argv is None else argv
+    if "--experiment" not in argv or argv.index("--experiment") + 1 >= len(argv):
+        return os.environ.get("CRAB_DESIGN", "v1")
+    design = load_experiment(argv[argv.index("--experiment") + 1])["experiment"].get("design")
+    if design is None:
+        return os.environ.get("CRAB_DESIGN", "v1")
+    if os.environ.get("CRAB_DESIGN", design) != design:
+        raise SystemExit(f"CRAB_DESIGN={os.environ['CRAB_DESIGN']} but the experiment says design = {design!r}")
+    if "crab.params" in sys.modules and sys.modules["crab.params"].DESIGN != design:
+        raise SystemExit(f"crab.params was already imported as {sys.modules['crab.params'].DESIGN}")
+    os.environ["CRAB_DESIGN"] = design
+    return design
+
+
 def main():
+    apply_design()
     from training.registry import ENVS
     ap = argparse.ArgumentParser(description="Train a policy: an experiment file, or an env and a preset.")
     ap.add_argument("--experiment", help="configs/experiments/<name>.toml (sets env, preset and overrides)")

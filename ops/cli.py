@@ -215,6 +215,8 @@ def cmd_eval(a):
     out_dir = ROOT / ".ops" / "eval" / a.name
     out_dir.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, **{f"PINCH_{ev['skill'].upper()}_POLICY": a.name})
+    if exp["experiment"].get("design"):              # benches judge the robot the policy was trained on
+        env["CRAB_DESIGN"] = exp["experiment"]["design"]
     code = 0
     for i, c in enumerate(ev["commands"]):
         argv = c.format(candidate=a.name).split()

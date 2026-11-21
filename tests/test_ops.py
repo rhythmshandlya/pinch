@@ -165,3 +165,25 @@ def test_training_python_is_found_from_a_task_worktree():
         assert gitutil.training_python((wt, main)) == str(exe)
         assert gitutil.training_python((wt,)) is None
     assert gitutil.main_checkout().is_dir()
+
+
+def test_an_experiment_chooses_its_robot_design_before_anything_loads_it():
+    """`design = "v2"` in an experiment sets CRAB_DESIGN for the trainer; a process already running the other
+    design refuses instead of training the wrong robot."""
+    import os
+    try:
+        from training import train
+    except ModuleNotFoundError:                       # the commit hook's bare Python has no numpy
+        return
+    import crab.params as cp
+    assert train.apply_design(["--experiment", "configs/experiments/gait-v2.toml"]) == os.environ.get("CRAB_DESIGN", "v1")
+    if cp.DESIGN == "v2":
+        assert train.apply_design(["--experiment", "configs/experiments/gait-v2-sts3215.toml"]) == "v2"
+        return
+    try:
+        train.apply_design(["--experiment", "configs/experiments/gait-v2-sts3215.toml"])
+    except SystemExit as e:
+        assert "v1" in str(e)
+    else:
+        raise AssertionError("a v1 process accepted a v2 experiment")
+    assert os.environ.get("CRAB_DESIGN", "v1") == "v1"

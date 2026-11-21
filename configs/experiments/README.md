@@ -10,6 +10,7 @@ env = "terrain_push"           # training/registry.py
 preset = "gait_v2"             # configs/train/presets.toml
 description = "one walker for hurdles, ramps and pushing"
 seed = 0                       # optional; `ops submit --seed N` overrides it. The run's run.json records it
+design = "v2"                  # optional robot design (crab/params.py CRAB_DESIGN); default v1. The trainer and `ops eval` set it
 
 [overrides]                    # any preset key
 num_timesteps = 150_000_000
