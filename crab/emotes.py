@@ -24,9 +24,13 @@ STAND_DICT = {
     "*_claw": 0.10,
 }
 if DESIGN == "v2":
-    # style B: thighs up 35 deg from horizontal, shins 78 deg below horizontal (absolute: tibia = -78 - 35 = -113 deg),
+    # style B: thighs up 35 deg from horizontal, shins 85 deg below horizontal (78 deg was the first spec: it misses the owner's RMS torque limit, docs/dev/V2_MODEL.md),
     # arms straight ahead (docs/dev/V2_MODEL.md)
-    STAND_DICT.update({"*_femur": 0.6109, "*_tibia": -1.9722, "*_shoulder_yaw": 0.0, "*_shoulder_pitch": 0.35})
+    import math as _m
+    import os as _os
+    _thigh, _shin = float(_os.environ.get("CRAB_THIGH_DEG", "35")), float(_os.environ.get("CRAB_SHIN_DEG", "85"))
+    STAND_DICT.update({"*_femur": _m.radians(_thigh), "*_tibia": -_m.radians(_shin + _thigh),
+                       "*_shoulder_yaw": 0.0, "*_shoulder_pitch": 0.35})
 
 
 def pose(*overrides) -> np.ndarray:

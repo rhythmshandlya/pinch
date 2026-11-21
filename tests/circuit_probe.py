@@ -20,8 +20,7 @@ from robot.servos import SERVO_IDS  # noqa: E402
 lay = Layout()
 out = {}
 out["beams"] = [[n, x, y, z, list(d)] for n, x, y, z, d in CLIFF_BEAMS]
-out["chassis"] = dict(half=list(PARAMS.body.half_size), pos=list(PARAMS.body.chassis_pos),
-                      dome_half=list(PARAMS.body.dome_half), dome_pos=list(PARAMS.body.dome_pos))
+out["chassis"] = dict(half=list(PARAMS.body.half_size), pos=list(PARAMS.body.shell_center), exp=list(PARAMS.body.shell_exp))
 m = mujoco.MjModel.from_xml_path(str(ROOT / "sim" / "models" / PARAMS.model_file))
 import re  # noqa: E402
 

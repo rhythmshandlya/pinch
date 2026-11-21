@@ -86,7 +86,7 @@ GAITS = {k: _scaled(v) for k, v in _GAITS_100MM.items()}
 if _P.design == "v2":
     # style B: sideways walking at the forward cap runs the thigh and knee past the owner's torque limits (R-03: 80 % of
     # stall peak, 70 % of rated RMS); a lower sideways stride cap keeps both (docs/dev/V2_MODEL.md has the numbers)
-    GAITS["trot"] = __import__("dataclasses").replace(GAITS["trot"], side_cap=float(__import__("os").environ.get("CRAB_SIDE_CAP", "0.6")))
+    GAITS["trot"] = __import__("dataclasses").replace(GAITS["trot"], side_cap=float(__import__("os").environ.get("CRAB_SIDE_CAP", "0.5")))
 # "climb": the crawl with feet lifted 20 mm (absolute, not scaled) - for getting over things it's caught on.
 # In the twin, walking forward, it crosses a fixed 5 mm cable, a pen, and 8 and 12 mm steps; the trot
 # crosses none of them forward (sideways the trot manages all but the 12 mm step). Decision 52.

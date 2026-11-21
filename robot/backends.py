@@ -221,8 +221,11 @@ class SimBackend:
         """The voltage a leg servo reports: its own terminals, in 0.1 V steps (circuit), or the shared bus voltage."""
         if self.circuit is None:
             return self.voltage
-        i = [ld["joint"] for ld in self.circuit.legs].index(j)
-        return float(np.round(self.circuit.v_servo[i] / 0.1) * 0.1)
+        joints = [ld["joint"] for ld in self.circuit.legs]
+        if j not in joints:                                 # v2 style B: an arm servo (STS3032 placeholder) sits on rail B
+            arms = [ld["joint"] for ld in self.circuit.arms]
+            return float(np.round(self.circuit.v_arm[arms.index(j)] / 0.1) * 0.1) if j in arms else float(self.voltage)
+        return float(np.round(self.circuit.v_servo[joints.index(j)] / 0.1) * 0.1)
 
     def read_imu(self):
         if self._imu_mount is not None:                     # v2, datasheet realism: the chip at its mount

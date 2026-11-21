@@ -438,7 +438,7 @@ def body_v2() -> str:
                        f'mass="{sv.mass:.5g}" material="servo"/>')
     for name in ("shoulder_l", "shoulder_r"):                  # the arm yaw servos (placeholder STS3032)
         p = lay[name]
-        out.append(f'<geom name="part_{name}" class="visual" type="box" size="{f(*(p.half / 1000.0))}" pos="{f(*(p.pos / 1000.0))}" '
+        out.append(f'<geom name="yaw_servo_{name}" class="visual" type="box" size="{f(*(p.half / 1000.0))}" pos="{f(*(p.pos / 1000.0))}" '
                    f'mass="{p.mass_g / 1000:.5g}" material="servo"/>')
     out += layout_geoms()
     # looks: the camera window (dark plate and a lens), the three small side vents a side

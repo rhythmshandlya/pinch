@@ -31,7 +31,7 @@ def superellipsoid(a, b, c, e_v=0.35, e_h=0.35, n=40, taper=None):
     for i in range(n - 1):
         for j in range(m):
             p, q, r, s = i * m + j, i * m + (j + 1) % m, (i + 1) * m + j, (i + 1) * m + (j + 1) % m
-            faces += [(p, r, q), (q, r, s)]
+            faces += [(p, q, r), (r, q, s)]
     return verts, np.array(faces, int)
 
 

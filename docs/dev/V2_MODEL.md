@@ -11,6 +11,76 @@ that rests on measurements instead of a guessed datasheet.
 > (chassis box 4.2 mm taller, **1.750 kg**), the servos run from the pack through the circuit model, and v2 has today's face visor and screen instead
 > of the stalk eyes. The check results further down were taken on the lighter, lumped model.
 
+> **Update (style B, "chubbier cartoon crab").** The owner chose a new look for the resized robot and it is now built into the model, not drawn on top of it:
+> a superellipsoid pill shell, a hinged face lid with a 6.25 inch colour screen, orange thigh covers, tapered shins, dark ball feet, arms on the front of the
+> shell with a gripper sized for 5-40 mm toys (flat things hold, balls do not yet). The section "Style B" below has the numbers; the older sections describe the model underneath (servos, circuit,
+> checks) and where they differ the style B numbers win. The check results further down were re-measured on style B.
+
+
+## Style B (the shape of the model)
+
+`sim/build_model.py --design v2` builds all of it from primitives and inline meshes (`crab/shapes.py` makes the superellipsoids); `configs/layout_v2.toml`
+is still the one place where parts live, now inside the shell.
+
+| | style B |
+|---|---|
+| Shell | superellipsoid "pill", half sizes 84 x 108 x 52 mm (x forward, y, z), exponents 0.65 vertical / 0.60 horizontal, centred at (6.9, 0, 0.3) mm of the hip plane; it is the body's convex collision mesh. Printed mass = outer surface 1042 cm2 x 2.0 mm wall x 1.27 g/cm3 PETG x 1.2 (ribs, bosses) = **318 g** |
+| Legs | coxa 35.2 mm, **femur 56 mm, tibia 80 mm**, dark **ball foot radius 14 mm** (collision); thigh cover radius 19 mm, shin cover tapering 20 to 14 mm (two collision capsules), masses from the covers' area by the same rule plus the servo in each link; hips at +-35.2 x **+-68** mm (73.6 before: the rear hip servos' corners stuck out of the pill) |
+| Stand pose | thighs 35 deg above horizontal, **shins 85 deg below horizontal** (the first spec, 78 deg, misses the torque limit, see the table); hip plane 6.0 cm above the floor, belly about 1 cm clear |
+| Arms | shoulders at the front of the shell at mid-height, (cx + 0.95 a, +-40, cz - 0.10 c) = (86.7, +-40, -14.9) mm, pointing forward, claws 39 mm clear of the floor standing; reach the desk when lowered (arm pitch about -8 deg puts the pad on the floor) |
+| Arm servos | Feetech STS3032 x 6 (23 x 12 x 27.5 mm, 20 g) as a **placeholder** on rail B; the yaw servo is fixed in the body, the pitch servo in the shoulder, the claw servo in the palm. Their PWM wiring entries are unchanged |
+| Claw | one fixed and one moving jaw, TPU pads 22 mm tall and about 35 mm long, a tip hook on the upper half of each pad, claw range 0-95 deg, pads parallel 4 mm apart when shut; stiff contact parameters on the pads (a 6 g toy is squashed flat by MuJoCo's default soft contact) |
+| Face lid | hinged at (58.98, 0, 48.66) mm, standing 0.35 rad back from vertical (a friction hinge set by hand, so fixed in the model; `CRAB_LID_TILT=1.5` builds it folded flat). Wraps the Waveshare 6.25 inch 720 x 1560 HDMI panel (active 144.18 x 66.6 mm, 2.16:1; the module is **modelled as 158 x 76 x 8 mm, an estimate, with a listed mass of 0.30 kg worst case**, 0.15 kg hoped for: `CRAB_DISPLAY_G=150`); printed lid about 165 x 82 x 10 mm, 61 g by the shell rule. The micro-HDMI flat cable runs through the hinge. The texture mapping of `sim/desk.py set_face` is unchanged (2:1 texture on a 2.16:1 area) |
+| Camera | low at the front, between the shoulders, below the lid (its window flush with the shell); the five cliff windows and the distance sensor sit on the shell surface (the front pair now looks out from the belly: their thresholds need retuning before the pet runs on v2) |
+
+Mass **2.135 kg** (1.985 kg with the 0.15 kg screen): 12 leg servos 660 g, 6 arm servos 120 g, shell 318 g, printed legs 318 g (covers, brackets, ball feet), lid 61 g, screen module 300 g, pack
+100 g, the other electronics 208 g, arm covers and jaws about 45 g. Centre of mass 1.9 cm ahead of the foot centre (0.30 kg screen; 1.7 cm with 0.15 kg), 1.4 cm above the hip
+plane (0.8 cm). Footprint with the arms at rest 32.1 cm long x 34.5 cm wide, 18.9 cm tall to the lid's top edge.
+
+Fit (`python sim/fit_check.py`): every part is inside the shell shrunk by the 2 mm wall and 1 mm clearance, nothing overlaps, every connector has its cable room, every
+window sees out. To make that true: the hip y moved in, the pack, fuse, XT60, regulator B, speaker and amplifier moved a little, the microphones are glued under the top of the
+shell (no dome any more), the pads lie on the inner surface, and the cliff beams, camera and distance sensor slid along their beams onto the shell.
+
+Gripper test (`pen`, a 5 mm rod, an eraser, a 30 mm and a 36 mm ball, a 40 mm cube, a 40 x 20 mm box; five offsets along and across the jaws; claw closed on the object, arm lifted 25 mm or more
+and shaken): pen, eraser, cube and box 6/6, rod 5/6, **balls 2/6**: a sphere rolls out of a wedge of flat pads even with the hooks. Balls need cupped pads; not done.
+
+## Torque limits (the owner's R-03) on style B
+
+Peak motor torque at most 80 % of the maker's stall (1.91 N*m) and the hottest joint's RMS at most 70 % of rated (0.637 N*m). With the owner's first stance (shins 78 deg) style B
+**misses**: standing already holds the thigh at 62 % of rated (full BAM model, 300 g screen), sideways walking at 5 cm/s reaches 83 %, at the old speed cap 96 % and 85 % of stall. The cheapest fixes,
+measured (full BAM model unless said, hottest joint RMS % of rated):
+
+| change | stand | sideways cap | forward cap |
+|---|---|---|---|
+| none (shins 78 deg, 300 g) | 62 | 78 (and 85 % of stall) | 58 |
+| sideways stride cap x0.8 / x0.65 (first-order servo, shins 78) | | 77 / 70 | 62 / 60 |
+| feet pulled in 28 mm (first-order servo, shins 78) | | 121 | 64 |
+| 0.15 kg screen (shins 78) | 55 | 71 | 55 |
+| **shins 85 deg, 300 g (adopted, with the sideways cap x0.5)** | **53** | **64** | **60** |
+| shins 90 deg | 47 | 79 | 65 |
+
+The adopted fix is the shin angle (85 deg: the foot sits 10 mm closer under the knee, so the thigh motor carries less of the weight) and a sideways stride cap of half the forward one
+(`GaitParams.side_cap`, v2 trot only; sideways about 4.2 cm/s, forward about 9.8 cm/s).
+
+## Check results (`python sim/v2_check.py`, 8 s per case, whole gait cycles, 5 ms command delay; style B, shins 85, sideways cap 0.5)
+
+Peak = % of the maker's stall; RMS = hottest joint, % of rated. Screen 0.30 kg (listed worst case) first, 0.15 kg in brackets.
+
+| case | speed | first order peak / RMS | full BAM peak / RMS |
+|---|---|---|---|
+| stand 5 s | | 17 / 49 (15 / 43) | 21 / 53 (18 / 47) |
+| forward 10 cm/s | 9.0 cm/s | 49 / 64 | 51 / 57 |
+| forward at the cap | 9.8 cm/s | 54 / 65 (55 / 62) | 56 / 60 (57 / 59) |
+| sideways at the cap | 4.2 cm/s | 50 / 69 (50 / 66) | 56 / 64 (55 / 62) |
+| turn 0.4 rad/s | 0.34 rad/s | 32 / 59 (28 / 54) | 41 / 47 (36 / 44) |
+
+Every gait peak is under 57 % of stall and every RMS under 70 %: R-03 holds with both servo models and both screen masses. Tilt stays under 5.3 deg, nothing falls. Joint speed at most 4.0 rad/s (78 % of the
+measured limit). Power 4-8 W.
+
+The 0.30 kg lid moves the centre of mass 0.2 cm forward and 0.6 cm up against 0.15 kg, and adds 8 % to the weight the legs carry: standing RMS +6 points (BAM, hottest thigh), walking 1-3 points, the sideways
+cap +2 points. **Getting up**: the joint ranges allow v1's righting swing (`crab/righting.py`), but run on style B's back it does not turn the robot over in 12 s at either mass (the lid and the high pill need their
+own search; not done).
+
 ## Select it
 
 ```powershell
@@ -103,7 +173,7 @@ follow the supply voltage.
   percentage below uses the *maker's* 1.91 N*m (and 0.637 N*m rated), the conservative figure, as the sizing study did.
 - No temperature, no current limit and no gear wear are modelled.
 
-## Check results (`python sim/v2_check.py`, 8 s per case, whole gait cycles measured, 5 ms command delay)
+## Check results of the first v2 (before style B; kept for the servo-model comparison)
 
 Standing 5 s: hip 7.6 cm, tilt 0.05 deg; worst joint (thigh) holds 9 % of the maker's stall and 23 % of rated
 (sizing study: 8 % and 23 %). `sim/check.py` (every emote, the v1 test) also passes on v2: no fall, no joint at its
