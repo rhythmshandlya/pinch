@@ -2,3 +2,5 @@
 *.service text eol=lf
 *.dts text eol=lf
 *.py text eol=lf
+*.step binary
+*.stp binary
