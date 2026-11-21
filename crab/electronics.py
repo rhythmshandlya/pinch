@@ -12,6 +12,7 @@ Part 2, the models, used by robot/backends.py SimBackend (the twin) and sim/benc
 Nothing here imports the rest of the project (crab/ is the lowest layer)."""
 
 import math
+import os
 import tomllib
 from pathlib import Path
 
@@ -400,6 +401,26 @@ class Layout:
         self.chassis = self.tree["chassis"]
         self.rules = self.tree["rules"]
         self.parts = {n: Part(n, d) for n, d in self.tree["part"].items()}
+        if "CRAB_DISPLAY_G" in os.environ:          # the face display's mass: 300 g listed worst case, 150 g hoped for
+            self.parts["oled"].mass_g = float(os.environ["CRAB_DISPLAY_G"])
+        self.lid_tilt = float(os.environ.get("CRAB_LID_TILT", self.chassis.get("lid_tilt_rad", 0.0)))
+        if "lid_hinge_mm" in self.chassis and abs(self.lid_tilt - float(self.chassis["lid_tilt_rad"])) > 1e-9:
+            self._pose_lid(self.lid_tilt)
+
+    def _pose_lid(self, tilt):
+        """Re-pose the parts of the face lid (the display module and the lid plate) for another tilt back from
+        vertical (0.35 rad standing up, 1.50 folded flat): same place on the lid, the lid turned about its hinge."""
+        ch = self.chassis
+        H = np.asarray(ch["lid_hinge_mm"], float)
+        n = np.array([math.cos(tilt), 0.0, math.sin(tilt)])
+        u = np.array([-math.sin(tilt), 0.0, math.cos(tilt)])
+        up = float(ch["lid_panel_mm"][1]) / 2 + float(ch["lid_bezel_mm"])          # hinge line to the lid's middle
+        pitch = 90.0 - math.degrees(tilt)
+        for name, depth in (("oled", 5.0), ("visor", 5.0)):
+            p = self.parts[name]
+            p.pos = H + u * up + n * depth
+            p.rpy = (0.0, pitch, 0.0)
+            p.R = _rot(p.rpy)
 
     def __getitem__(self, name):
         return self.parts[name]

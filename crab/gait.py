@@ -46,6 +46,7 @@ class GaitParams:
     stance_inset: float = 0.015       # m, feet pulled toward the body vs STAND (keeps reach margin)
     cmd_accel: tuple = (0.25, 0.25, 1.5)   # max change of (vx, vy, wz) per second
     blend_time: float = 0.5           # s to blend from STAND into the walking stance
+    side_cap: float = 1.0             # sideways stride cap relative to max_step (v2 trot: sideways walking heats the knees)
 
 
 from .params import PARAMS as _P  # noqa: E402
@@ -82,6 +83,10 @@ _GAITS_100MM = {
 }
 # The values above were tuned on the original 100 mm-shin robot; scale them to this one.
 GAITS = {k: _scaled(v) for k, v in _GAITS_100MM.items()}
+if _P.design == "v2":
+    # style B: sideways walking at the forward cap runs the thigh and knee past the owner's torque limits (R-03: 80 % of
+    # stall peak, 70 % of rated RMS); a lower sideways stride cap keeps both (docs/dev/V2_MODEL.md has the numbers)
+    GAITS["trot"] = __import__("dataclasses").replace(GAITS["trot"], side_cap=float(__import__("os").environ.get("CRAB_SIDE_CAP", "0.5")))
 # "climb": the crawl with feet lifted 20 mm (absolute, not scaled) - for getting over things it's caught on.
 # In the twin, walking forward, it crosses a fixed 5 mm cable, a pen, and 8 and 12 mm steps; the trot
 # crosses none of them forward (sideways the trot manages all but the 12 mm step). Decision 52.
@@ -151,7 +156,7 @@ class Gait:
         """Factor (<= 1) that shrinks cmd so every stride fits within max_step."""
         P = self.params
         vx, vy, wz = cmd
-        need = max(math.hypot(vx - wz * p[1], vy + wz * p[0]) for p in self._neutral_xy)
+        need = max(math.hypot(vx - wz * p[1], (vy + wz * p[0]) / P.side_cap) for p in self._neutral_xy)
         need *= P.duty * P.period / 2
         return 1.0 if need <= P.max_step else P.max_step / need
 

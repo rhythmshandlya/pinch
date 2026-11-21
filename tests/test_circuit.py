@@ -31,9 +31,9 @@ def test_the_model_is_built_from_the_layout():
     r = probe()
     assert abs(r["part_mass_in_model"] - r["part_mass_in_layout"]) < 1e-4, (r["part_mass_in_model"], r["part_mass_in_layout"])
     ch = Layout().chassis
-    assert np.allclose(np.array(r["chassis"]["half"]) * 1000, ch["box_half_mm"], atol=1e-6)
-    assert np.allclose(np.array(r["chassis"]["pos"]) * 1000, ch["box_center_mm"], atol=1e-6)
-    assert np.allclose(np.array(r["chassis"]["dome_half"]) * 1000, ch["dome_half_mm"], atol=1e-6)
+    assert np.allclose(np.array(r["chassis"]["half"]) * 1000, ch["shell_half_mm"], atol=1e-6)
+    assert np.allclose(np.array(r["chassis"]["pos"]) * 1000, ch["shell_center_mm"], atol=1e-6)
+    assert r["chassis"]["exp"] == ch["shell_exponents"]
     assert r["site_pos_ok"] and r["site_quat_dot"] > 0.999999                  # the IMU site is where the layout puts the chip
 
 
@@ -62,7 +62,8 @@ def test_standing_on_the_circuit_model_numbers():
     assert 0.8 < s["i_mean"] < 1.6 and s["v_servo_min"] > 7.8 and not s["fuse_blown"] and s["resets"] == 0
     assert abs(r["ina"][1] - r["i_pack"]) < 0.06                                 # the INA219 reads the shunt current
     assert abs(r["ina"][0] - 8.3) < 0.2
-    assert all(7.8 < v < 8.5 for v in r["v_servo_report"]) and len(r["v_servo_report"]) == 12
+    legs, arms = r["v_servo_report"][:12], r["v_servo_report"][12:]               # style B: the six arm servos (STS3032 placeholder) report too, from rail B
+    assert all(7.8 < v < 8.5 for v in legs) and len(legs) == 12 and len(arms) == 6 and all(4.5 < v < 5.5 for v in arms)
     assert r["grav"][2] < -0.99                                                  # the IMU, in body axes, feels gravity down
 
 

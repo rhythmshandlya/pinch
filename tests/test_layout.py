@@ -46,7 +46,7 @@ def test_the_check_catches_overlap_clearance_and_parts_outside():
     assert "outside" in _kinds(L)
     L = _layout()
     L.chassis = copy.deepcopy(L.chassis)
-    L.chassis["box_half_mm"] = [67.7, 89.7, 22.9]                       # the old, lower box: the hip servos stand through the lid
+    L.chassis["shell_half_mm"] = [84.0, 108.0, 38.0]                    # a flatter pill: the pack and the hip servos stand through it
     assert "outside" in _kinds(L)
 
 
@@ -75,22 +75,48 @@ def test_the_check_catches_blocked_windows_the_camera_a_beam_and_the_screen():
     assert any(k == "window" and "oled" in t for k, t in check(L).failures)
 
 
-def test_the_face_is_todays_visor_at_real_size():
+def test_the_face_is_the_lid_with_the_6_inch_screen():
     L = _layout()
     o, v = L.parts["oled"], L.parts["visor"]
-    assert sorted(o.size[:2]) == [39.5, 61.5]                           # cad/parts.py FACE_MODULE, not scaled
-    assert sorted(v.size[:2]) == [45.0, 67.5]                           # FACE_HOUSING
+    assert sorted(o.size[:2]) == [76.0, 158.0] and o.mass_g == 300.0          # the 6.25 inch HDMI panel module (estimate), worst case
+    assert o.d["size_source"] == "estimate" and "0.15 kg" in o.d["why"]
+    assert sorted(v.size[:2]) == [82.0, 165.0]                                 # the lid wraps the module: about 165 x 82 mm
     n = o.R @ np.array([0.0, 0.0, 1.0])
-    assert abs(np.degrees(np.arcsin(n[2])) - 25.0) < 1e-6               # FACE_TILT: the screen looks 25 degrees up
-    assert o.pos[0] > 55.0 and o.pos[0] < 75.0                          # on the front, not the roof
-    lower_edge = o.pos + (o.R @ np.array([o.half[0], 0.0, 0.0]))        # local x runs down the screen
-    shoulder_top = L.parts["shoulder_l"].pos[2] + L.parts["shoulder_l"].half[2]
-    assert shoulder_top < lower_edge[2] < shoulder_top + 6.0, (lower_edge, shoulder_top)    # just above the shoulder servos
+    ch = L.chassis
+    tilt = float(ch["lid_tilt_rad"])
+    assert abs(np.degrees(np.arcsin(n[2])) - np.degrees(tilt)) < 0.05          # the screen looks up by the lid's tilt back from vertical
+    hinge = np.asarray(ch["lid_hinge_mm"])
+    along = (o.pos - hinge) @ np.array([-np.sin(tilt), 0.0, np.cos(tilt)])
+    assert 35 < along < 50                                                     # the module's middle is above the hinge line
+    assert o.d["window"]["exposed"] and o.d["connectors"][0]["through_wall"]    # the HDMI flat cable goes through the hinge
+
+
+def test_the_lid_can_be_folded_flat():
+    import os
+    import subprocess
+    import sys
+    env = dict(os.environ, CRAB_LID_TILT="1.5")
+    code = ("import sys; sys.path.insert(0, '.'); from crab.electronics import Layout; import numpy as np; L = Layout(); "
+            "n = L['oled'].R @ np.array([0, 0, 1.0]); print(L.lid_tilt, float(n[2]))")
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, cwd=str(__import__("pathlib").Path(__file__).resolve().parents[1]))
+    tilt, nz = (float(x) for x in out.stdout.split())
+    assert tilt == 1.5 and nz > 0.99                                           # folded flat: the screen looks straight up
+
+
+def test_the_shell_is_a_pill_and_the_windows_are_on_it():
+    from crab.shapes import Shell
+    L = _layout()
+    sh = Shell.from_chassis(L.chassis)
+    assert sh.f(np.array([6.9, 0.0, 0.3])) < 0.01 and sh.f(np.array([6.9 + 84.0, 0.0, 0.3])) == 1.0
+    for name in ("tof_fl", "tof_fr", "tof_rear", "tof_left", "tof_right", "camera_lens", "tof8"):
+        pos, _ = L[name].window_pose()
+        assert -2.5 <= sh.depth(pos) <= 4.5, (name, sh.depth(pos))
+    assert 0.09 < sh.area_m2() < 0.12
 
 
 def test_masses_and_the_centre_of_mass_are_sane():
     L = _layout()
     electronics = L.total_mass_g(lambda p: not p.in_model)
-    assert 300 < electronics < 360, electronics
+    assert 600 < electronics < 700, electronics                                # with the 300 g screen module and the 61 g lid
     com = L.com_mm(lambda p: not p.in_model)
-    assert abs(com[0]) < 20 and abs(com[1]) < 8 and -25 < com[2] < 12, com
+    assert abs(com[0]) < 40 and abs(com[1]) < 8 and -25 < com[2] < 40, com

@@ -212,7 +212,7 @@ kind = "i2c-board"
 from_part = "oled"
 to_part = "radxa"
 connectors = []
-note = "the OLED's own pins, wired to i2c3 (pins 3 and 5) and 3.3 V"
+note = "STYLE B (face lid): the screen is now the 6.25 inch HDMI panel in the hinged lid; its micro-HDMI flat cable (and its USB power/touch lead, if used) runs through the lid hinge to the Radxa. The Radxa has no HDMI-in-lid cable data yet: this edge keeps the old OLED entry (its 3.3 V load and i2c address 0x3C are NOT removed yet: a data decision) so no pin changes; the I2C address is free once the entry goes. The six arm servos are STS3032 (placeholder, 5 V rail B) but their PWM wiring entries are unchanged"
 [[link]]
 id = "speaker"
 kind = "audio"
