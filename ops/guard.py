@@ -15,7 +15,7 @@ from ops import ROOT
 
 # local-only documents and machine-specific config (mirrors .gitignore; the guard catches `git add -f`)
 PRIVATE = ["docs/PRD.md", "docs/PLAN.md", "docs/CHARACTER.md", "docs/MOVES.md", "docs/HW_REQUIREMENTS.md",
-           "docs/phase1/*", "docs/TRACEABILITY.md", "docs/MORNING_REPORT.md", "docs/TODO.md", "docs/LIFE_PLAN.md",
+           "docs/phase1/*", "docs/phase2/*", "docs/TRACEABILITY.md", "docs/MORNING_REPORT.md", "docs/TODO.md", "docs/LIFE_PLAN.md",
            "docs/PET_MIND.md", "hardware/*_prices_raw*", "ops/hosts.local.toml", ".ops/*", "CLAUDE.local.md",
            "*.env", ".env*"]
 # Tailscale CGNAT addresses (100.64.0.0/10) other than the documentation placeholder
