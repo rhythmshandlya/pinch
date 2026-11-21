@@ -183,12 +183,12 @@ def make_env_cfg(play: bool = False, actuators: str = "position") -> ManagerBase
         "pose": RewardTermCfg(func=vmdp.variable_posture, weight=1.0, params={
             "asset_cfg": LEGS, "command_name": "twist", "std_standing": stand, "std_walking": walk,
             "std_running": walk, "walking_threshold": 0.01, "running_threshold": 100.0}),
-        "body_ang_vel": RewardTermCfg(func=vmdp.body_angular_velocity_penalty, weight=-0.3, params={
+        "body_ang_vel": RewardTermCfg(func=vmdp.body_angular_velocity_penalty, weight=-0.6, params={
             "asset_cfg": SceneEntityCfg("robot", body_names=(robot_spec.BODY,))}),
         "dof_pos_limits": RewardTermCfg(func=envs_mdp.joint_pos_limits, weight=-1.0,
                                         params={"asset_cfg": LEGS}),
         "action_rate_l2": RewardTermCfg(func=envs_mdp.action_rate_l2, weight=-0.05),
-        "air_time": RewardTermCfg(func=vmdp.feet_air_time, weight=3.0, params={
+        "air_time": RewardTermCfg(func=vmdp.feet_air_time, weight=1.5, params={
             "sensor_name": foot_contact.name, "threshold_min": 0.08, "threshold_max": 0.30,
             "command_name": "twist", "command_threshold": 0.01}),
         "foot_clearance": RewardTermCfg(func=vmdp.feet_clearance, weight=-5.0, params={
@@ -232,11 +232,11 @@ def make_env_cfg(play: bool = False, actuators: str = "position") -> ManagerBase
 def make_rl_cfg() -> RslRlOnPolicyRunnerCfg:
     return RslRlOnPolicyRunnerCfg(
         actor=RslRlModelCfg(hidden_dims=(256, 128, 64), activation="elu", obs_normalization=True,
-                            distribution_cfg={"class_name": "GaussianDistribution", "init_std": 0.6,
+                            distribution_cfg={"class_name": "GaussianDistribution", "init_std": 0.35,
                                               "std_type": "scalar"}),
         critic=RslRlModelCfg(hidden_dims=(256, 128, 64), activation="elu", obs_normalization=True),
         algorithm=RslRlPpoAlgorithmCfg(value_loss_coef=1.0, use_clipped_value_loss=True, clip_param=0.2,
-                                       entropy_coef=0.01, num_learning_epochs=5, num_mini_batches=4,
+                                       entropy_coef=0.003, num_learning_epochs=5, num_mini_batches=4,
                                        learning_rate=1.0e-3, schedule="adaptive", gamma=0.99, lam=0.95,
                                        desired_kl=0.01, max_grad_norm=1.0),
         experiment_name="pinch_velocity", save_interval=50, num_steps_per_env=12, max_iterations=1500)
