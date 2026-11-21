@@ -3,8 +3,11 @@
     python sim/build_model.py                 -> writes sim/models/crab.xml
     python sim/build_model.py --primitive     -> ignore CAD meshes, simple shapes only
     python sim/build_model.py --no-backlash
-    python sim/build_model.py --design v2     -> writes sim/models/crab_v2.xml: the resized STS3215 robot
-                                                 (primitives only, no CAD exists for it; docs/dev/V2_MODEL.md)
+    python sim/build_model.py --design v2     -> writes sim/models/crab_v2.xml: the STS3215 robot in style B, from its
+                                                 CAD when cad/v2/export.py has run (sim/models/v2_cad.json): the
+                                                 parts' meshes, masses and inertias, and boxes round each leg part
+                                                 for contact; the claw keeps its jaw and pad boxes (the CAD is built
+                                                 from them) and the body its shell. --primitive: the hand-built shapes
 
 The right side is a mirror of the left: y positions, yaw angles and z-axis hinge axes
 are negated, so a given joint command means the same motion on both sides.
@@ -46,6 +49,9 @@ USE_CAD = VIS_FILE.exists() and MP_FILE.exists() and "--primitive" not in sys.ar
 VIS = json.loads(VIS_FILE.read_text()) if USE_CAD else {}
 MP = json.loads(MP_FILE.read_text()) if USE_CAD else {}
 COL = json.loads(COL_FILE.read_text()) if (USE_CAD and COL_FILE.exists()) else None
+V2_CAD_FILE = ROOT / "sim" / "models" / "v2_cad.json"
+USE_V2_CAD = V2 and V2_CAD_FILE.exists() and "--primitive" not in sys.argv
+V2C = json.loads(V2_CAD_FILE.read_text()) if USE_V2_CAD else {}
 BACKLASH = "--no-backlash" not in sys.argv
 USED = sorted({servo_for(j).name for j in JOINT_NAMES})
 
@@ -77,12 +83,30 @@ def qpos_tree_order(q_joints) -> list:
 
 
 def cad(body: str) -> str:
+    if USE_V2_CAD:
+        return v2_cad(body)
     if not USE_CAD or body not in MP:
         return ""
     mp = MP[body]
     out = [f'<inertial pos="{fe(*mp["com"])}" mass="{mp["mass"]:.6f}" fullinertia="{fe(*mp["inertia"])}"/>']
     for v in VIS.get(body, []):
         out.append(f'<geom class="visual" type="mesh" mesh="{v["mesh"]}" material="{v["material"]}"/>')
+    return "\n        ".join(out)
+
+
+def v2_cad(body: str) -> str:
+    """The body's mass, centre of mass and inertia from the CAD, its meshes (looks) and the shapes round its parts
+    (contact; legs only)."""
+    b = V2C["bodies"][body]
+    out = [f'<inertial pos="{fe(*b["com"])}" mass="{b["mass"]:.6f}" fullinertia="{fe(*b["inertia"])}"/>']
+    out += [f'<geom class="visual" type="mesh" mesh="{v["mesh"]}" material="{v["material"]}"/>' for v in b["visuals"]]
+    for c in b["collision"]:
+        if c.get("type") == "capsule":
+            out.append(f'<geom name="{body}_{c["name"]}" type="capsule" fromto="{fe(*c["fromto"])}" size="{c["r"]:.5f}" '
+                       f'material="shell"/>')
+        else:
+            out.append(f'<geom name="{body}_{c["name"]}" type="box" pos="{fe(*c["pos"])}" size="{fe(*c["size"])}" '
+                       f'material="shell"/>')
     return "\n        ".join(out)
 
 
@@ -113,7 +137,7 @@ def leg_xml(leg_id: str) -> str:
         {servo_box(leg_id + "_coxa")}
         <geom type="capsule" fromto="0 0 0 {L.coxa_len} 0 0" size="{0.015*S:.4f}" mass="{L.coxa_mass}" material="shell"/>
         <body name="{leg_id}_femur_link" pos="{L.coxa_len} 0 0">
-          {jnt(leg_id + "_femur", "0 -1 0", L.femur_range)}
+          {jnt(leg_id + "_femur", "0 -1 0", L.femur_range_for(leg_id))}
           {cad(leg_id + "_femur_link")}
           <geom type="capsule" fromto="0 0 0 {L.femur_len} 0 0" size="{0.013*S:.4f}" mass="{L.femur_mass}" material="shell"/>
           <body name="{leg_id}_tibia_link" pos="{L.femur_len} 0 0">
@@ -138,7 +162,15 @@ def arm_xml(arm_id: str) -> str:
     JAW = jaw_geoms(s)
     yaw_servo = servo_box(arm_id + "_shoulder_yaw")
     sh_extra = up_extra = dac_extra = ""
-    if V2:      # style B: the yaw servo stands in the body (body_v2); this arm carries the pitch servo and the claw servo
+    pads_p = "".join(f'\n          <geom name="{arm_id}_pollex_pad{i}" type="box" pos="{f(*(v / 1000 for v in c))}" '
+                     f'quat="{f(*qq)}" size="{f(*(v / 1000 for v in hh))}" mass="0.00015" material="pad"{PAD}/>'
+                     for i, (c, hh, qq) in enumerate(JAW["pads"]["pollex"])) if V2 else ""
+    pads_d = "".join(f'\n            <geom name="{arm_id}_dactyl_pad{i}" type="box" pos="{f(*(v / 1000 for v in c))}" '
+                     f'quat="{f(*qq)}" size="{f(*(v / 1000 for v in hh))}" mass="0.00015" material="pad"{PAD}/>'
+                     for i, (c, hh, qq) in enumerate(JAW["pads"]["dactyl"])) if V2 else ""
+    if USE_V2_CAD:              # the CAD draws the arm (cad(): meshes and masses); the jaws and pads stay as contact
+        yaw_servo, sh_extra, up_extra, dac_extra = "", "", pads_p, pads_d
+    elif V2:    # style B: the yaw servo stands in the body (body_v2); this arm carries the pitch servo and the claw servo
         sv = servo_for(arm_id + "_shoulder_pitch")
         lh, wh, hh = (v / 2000 for v in sv.size_mm)                  # half length, width, height (shaft along the height)
         yaw_servo = ""
@@ -153,14 +185,10 @@ def arm_xml(arm_id: str) -> str:
                     f'<geom class="visual" type="cylinder" size="0.011 0.016" pos="{h:.4f} 0 0" material="servo"/>\n          '
                     f'<geom class="visual" type="mesh" mesh="v2_cover" pos="{f(JAW["strip"][0][0], JAW["strip"][0][1] - s * 0.007, JAW["strip"][0][2])}" '
                     f'euler="0 {-JAW["pitch"]:.4f} 0" material="claw"/>\n          '
-                    + "".join(f'\n          <geom name="{arm_id}_pollex_pad{i}" type="box" pos="{f(*(v / 1000 for v in c))}" '
-                              f'quat="{f(*qq)}" size="{f(*(v / 1000 for v in hh))}" mass="0.00015" material="pad"{PAD}/>'
-                              for i, (c, hh, qq) in enumerate(JAW["pads"]["pollex"])))
+                    + pads_p)
         dac_extra = ("\n            " + f'<geom class="visual" type="mesh" mesh="v2_cover" pos="{f(JAW["d_strip"][0][0], JAW["d_strip"][0][1] + s * 0.007, JAW["d_strip"][0][2])}" '
                      f'quat="{f(*JAW["d_strip"][2])}" material="claw"/>\n            '
-                     + "".join(f'\n            <geom name="{arm_id}_dactyl_pad{i}" type="box" pos="{f(*(v / 1000 for v in c))}" '
-                               f'quat="{f(*qq)}" size="{f(*(v / 1000 for v in hh))}" mass="0.00015" material="pad"{PAD}/>'
-                               for i, (c, hh, qq) in enumerate(JAW["pads"]["dactyl"])))
+                     + pads_d)
     return f"""
       <body name="{arm_id}_shoulder" pos="{f(x, s*y, z)}" euler="0 0 {s*yaw:.4f}">
         {jnt(arm_id + "_shoulder_yaw", f"0 0 {s}", A.shoulder_yaw_range)}
@@ -178,7 +206,7 @@ def arm_xml(arm_id: str) -> str:
           <geom name="{arm_id}_pollex_blade" type="box" pos="{f(*JAW['blade'][0])}" size="{f(*JAW['blade'][1])}" mass="0.0006" material="claw"{PAD}/>
           <site name="{arm_id}_grip_site" pos="{f(*JAW['site'])}" euler="0 {-JAW['pitch']:.4f} 0" size="0.005" rgba="0 0 0 0"/>
           <body name="{arm_id}_dactyl" pos="{h:.4f} 0 0">
-            {jnt(arm_id + "_claw", f"0 0 {s}", A.claw_range)}
+            {jnt(arm_id + "_claw", f"0 0 {s}", (V2C["claw_meet"], A.claw_range[1]) if USE_V2_CAD else A.claw_range)}
             {cad(arm_id + "_dactyl")}{dac_extra}
             <geom name="{arm_id}_dactyl_jaw" type="box" pos="{f(*JAW['d_strip'][0])}" quat="{f(*JAW['d_strip'][2])}" size="{f(*JAW['d_strip'][1])}" mass="{A.jaw_mass}" material="claw"{PAD}/>
             <geom name="{arm_id}_dactyl_blade" type="box" pos="{f(*JAW['d_blade'][0])}" quat="{f(*JAW['d_blade'][2])}" size="{f(*JAW['d_blade'][1])}" mass="0.0004" material="claw"{PAD}/>
@@ -351,6 +379,11 @@ def face_xml() -> str:
     n, u = np.array([np.cos(t), 0.0, np.sin(t)]), np.array([-np.sin(t), 0.0, np.cos(t)])
     pw, ph, bz = LID_PANEL[0] / 2000.0, LID_PANEL[1] / 2000.0, LID_BEZEL / 1000.0
     ctr = H + u * (ph + bz) + n * 0.005
+    if USE_V2_CAD:              # the CAD lid (cad/v2/lid.py) is drawn by cad("body"): only the lit area here
+        fc = V2C["face"]
+        lit = H + u * fc["up"] + n * fc["out"]
+        return (f'<geom name="face_screen" class="visual" type="box" size="{f(0.0008, fc["size"][0] / 2, fc["size"][1] / 2)}" '
+                f'pos="{f(*lit)}" quat="{f(*_quat_of(np.column_stack([n, [0.0, 1.0, 0.0], u])))}" material="face_mat" mass="0"/>')
     # the screen frame of sim/desk.py: x out of the screen, y across, z up the screen
     Rs = np.column_stack([n, [0.0, 1.0, 0.0], u])
     lit = ctr + n * 0.0055
@@ -410,7 +443,7 @@ def leg_xml_v2(leg_id: str) -> str:
         <geom class="visual" type="box" size="0.019 0.013 0.016" pos="0.012 0 0" material="servo"/>
         {cap(0.011, 0.015, (L.coxa_len, 0, 0), "shell")}
         <body name="{leg_id}_femur_link" pos="{L.coxa_len} 0 0">
-          {jnt(leg_id + "_femur", "0 -1 0", L.femur_range)}
+          {jnt(leg_id + "_femur", "0 -1 0", L.femur_range_for(leg_id))}
           <geom type="capsule" fromto="0 0 0 {FL} 0 0" size="{L.thigh_r:.4f}" mass="{L.femur_mass - st.mass:.5g}" material="shell"/>
           <geom class="visual" type="mesh" mesh="v2_thigh" pos="{FL / 2:.4f} 0 0.004" material="shell"/>
           {cap(0.017, 0.019, (0, 0, 0), "servo")}
@@ -423,6 +456,30 @@ def leg_xml_v2(leg_id: str) -> str:
             {cap(0.017, 0.019, (0, 0, 0), "servo")}
             <geom name="{leg_id}_foot" type="sphere" pos="{TL} 0 0" size="{L.foot_radius}" mass="{L.foot_mass:.5g}" material="tip" friction="1.1 0.02 0.001"/>
             <site name="{leg_id}_foot_site" pos="{TL} 0 0" size="{L.foot_radius*1.4:.4f}" rgba="0 0 0 0"/>
+          </body>
+        </body>
+      </body>"""
+
+
+def leg_xml_v2cad(leg_id: str) -> str:
+    """v2 leg from the CAD (cad/v2/legs.py): each link's inertial, meshes and contact shapes, and the rubber tip (the
+    same reach as tibia_len + foot_radius, so the stand height and the gaits' kinematics are unchanged)."""
+    s = 1 if leg_id[1] == "L" else -1
+    ft = V2C["foot"]
+    (x, y, z), yaw = P.leg_mounts[leg_id[0]]
+    L = P.leg
+    return f"""
+      <body name="{leg_id}_coxa_link" pos="{f(x, s*y, z)}" euler="0 0 {s*yaw:.4f}">
+        {jnt(leg_id + "_coxa", f"0 0 {-s}", L.coxa_range_for(leg_id))}
+        {cad(leg_id + "_coxa_link")}
+        <body name="{leg_id}_femur_link" pos="{L.coxa_len} 0 0">
+          {jnt(leg_id + "_femur", "0 -1 0", L.femur_range_for(leg_id))}
+          {cad(leg_id + "_femur_link")}
+          <body name="{leg_id}_tibia_link" pos="{L.femur_len} 0 0">
+            {jnt(leg_id + "_tibia", "0 -1 0", L.tibia_range)}
+            {cad(leg_id + "_tibia_link")}
+            <geom name="{leg_id}_foot" type="sphere" pos="{ft['x']:.4f} 0 0" size="{ft['r']:.4f}" material="tip" friction="1.1 0.02 0.001"/>
+            <site name="{leg_id}_foot_site" pos="{ft['x']:.4f} 0 0" size="{ft['r'] * 1.4:.4f}" rgba="0 0 0 0"/>
           </body>
         </body>
       </body>"""
@@ -502,6 +559,10 @@ def body_v2() -> str:
     lay = Layout()
     sh = Shell.from_chassis(lay.chassis)
     out = [f'<geom name="shell" type="mesh" mesh="v2_shell" mass="{B.shell_mass:.5g}" material="shell"/>']
+    if USE_V2_CAD:              # cad("body") draws the shell, lid, servos and electronics and carries their masses
+        out += [g.replace('material="pcb"', 'rgba="0 0 0 0"').replace('material="servo"', 'rgba="0 0 0 0"')
+                for g in layout_geoms()]
+        return "\n      ".join(out)
     for sx in (1, -1):
         for sy in (1, -1):
             out.append(f'<geom class="visual" type="box" size="{f(lh, wh, hh)}" pos="{f(sx * hx, sy * hy, -0.15 * 2 * hh)}" '
@@ -544,13 +605,19 @@ def build() -> str:
     fem, tib = STAND[JOINT_NAMES.index("FL_femur")], STAND[JOINT_NAMES.index("FL_tibia")]
     z0 = -(L.femur_len * np.sin(fem) + L.tibia_len * np.sin(fem + tib)) + L.foot_radius + 0.002
     cam_pos = tuple(np.array([0.42, -0.50, 0.30]) * S)
-    actuators = "\n".join(f'    <position name="{j}" joint="{j}" class="srv_{servo_for(j).name}" inheritrange="1"/>'
+    # v2 from its CAD: the claw's joint stops where the jaws meet, its servo can still be told to go to 0 (it squeezes)
+    rng = {j: (f'ctrlrange="{f(*P.arm.claw_range)}"' if USE_V2_CAD and j.endswith("_claw") else 'inheritrange="1"')
+           for j in JOINT_NAMES}
+    actuators = "\n".join(f'    <position name="{j}" joint="{j}" class="srv_{servo_for(j).name}" {rng[j]}/>'
                           for j in JOINT_NAMES)
     foot_sensors = "\n".join(f'    <touch name="{lg}_foot_touch" site="{lg}_foot_site"/>' for lg in LEG_IDS)
     meshes = "\n".join(f'    <mesh name="{v["mesh"]}" file="{v["file"]}" scale="0.001 0.001 0.001"/>'
                        for items in VIS.values() for v in items) if USE_CAD else ""
     if V2:
         meshes = v2_meshes()
+    if USE_V2_CAD:
+        meshes += "\n" + "\n".join(f'    <mesh name="{v["mesh"]}" file="{v["file"]}" scale="0.001 0.001 0.001"/>'
+                                    for b in V2C["bodies"].values() for v in b["visuals"])
     eye_cam = COL["eye_cam"] if COL else (0.95 * B.half_size[0], 0, 0.5 * B.half_size[2])
     imu_pose, eye_axes = 'pos="0 0 0"', "0 -1 0 0 0 1"
     if V2:                              # the IMU and the camera are where configs/layout_v2.toml mounts them
@@ -562,8 +629,8 @@ def build() -> str:
         right = np.cross(cdir, [0, 0, 1.0])
         right /= np.linalg.norm(right)
         eye_cam, eye_axes = tuple(cpos / 1000.0), f(*right, *np.cross(right, cdir))
-    prim_group = 3 if USE_CAD else 0
-    return f"""<!-- AUTO-GENERATED by sim/build_model.py from crab/params.py{' (design v2, primitives only)' if V2 else ''}{' + CAD (cad/build.py)' if USE_CAD else ''}. Do not edit by hand. -->
+    prim_group = 3 if (USE_CAD or USE_V2_CAD) else 0
+    return f"""<!-- AUTO-GENERATED by sim/build_model.py from crab/params.py{(' (design v2 from its CAD, cad/v2/export.py)' if USE_V2_CAD else ' (design v2, primitives only)') if V2 else ''}{' + CAD (cad/build.py)' if USE_CAD else ''}. Do not edit by hand. -->
 <mujoco model="robotic_crab{'_v2' if V2 else ''}">
   <compiler angle="radian" autolimits="true" meshdir="meshes"/>
   <option timestep="0.002" integrator="implicitfast"/>
@@ -616,7 +683,7 @@ def build() -> str:
       {carapace()}
       {eyes_xml()}
       {face_xml()}
-{"".join((leg_xml_v2 if V2 else leg_xml)(lg) for lg in LEG_IDS)}
+{"".join((leg_xml_v2cad if USE_V2_CAD else leg_xml_v2 if V2 else leg_xml)(lg) for lg in LEG_IDS)}
 {"".join(arm_xml(a) for a in ARM_IDS)}
     </body>
   </worldbody>

@@ -235,6 +235,7 @@ class Leg:
     coxa_range: tuple = (radians(-55), radians(49))           # rear legs: swung forward, the thigh meets the body (CAD)
     front_coxa_range: tuple = (radians(-55), radians(28))     # forward swing: front leg meets the arm (CAD)
     femur_range: tuple = (radians(-40), radians(86))          # lifted higher, the knee meets the shell (CAD)
+    front_femur_range: tuple = ()                             # v2: the front thighs stop below the face lid
     tibia_range: tuple = (radians(-133), radians(30))         # folded further, the foot hits the hip (CAD)
     # femur + tibia (the shin's angle from horizontal): folded back past -125 deg the shin's underside
     # meets the bottom corner of the hip link (CAD sweep, sideways crawl); 3 deg margin
@@ -242,6 +243,9 @@ class Leg:
 
     def coxa_range_for(self, leg_id: str) -> tuple:
         return self.front_coxa_range if leg_id[0] == "F" else self.coxa_range
+
+    def femur_range_for(self, leg_id: str) -> tuple:
+        return self.front_femur_range if leg_id[0] == "F" and self.front_femur_range else self.femur_range
 
 
 @dataclass(frozen=True)
@@ -319,7 +323,11 @@ def _v2_params() -> CrabParams:
               thigh_r=thigh_r, shin_r0=shin_r0, shin_r1=shin_r1, foot_mass=foot_mass,
               coxa_mass=0.0213 + sv,                                          # printed link + the thigh servo (as v1)
               femur_mass=printed_mass(area(tv, tf)) + sv,                     # the thigh cover + the knee servo
-              tibia_mass=printed_mass(area(sv_, sf_)) + foot_mass)            # the shin cover + the ball
+              tibia_mass=printed_mass(area(sv_, sf_)) + foot_mass,            # the shin cover + the ball
+              # the CAD's sweep check (cad/v2/sweep_check.py): swung far back (front legs) or forward (rear legs) the
+              # thigh servo meets the side distance sensor; lifted past 63 deg the front thigh meets the face lid
+              front_coxa_range=(-0.78, radians(28)), coxa_range=(radians(-55), 0.78),
+              front_femur_range=(radians(-40), 1.10))
     lay = Layout()
     ch = lay.chassis
     mm = lambda v: tuple(x / 1000.0 for x in v)     # noqa: E731

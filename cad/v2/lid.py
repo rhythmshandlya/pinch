@@ -22,11 +22,12 @@ from build123d import Align, Box, Cylinder, Location, Pos, Rot, fillet  # noqa: 
 
 from crab.params import PARAMS  # noqa: E402
 
-LID_W, LID_H, LID_T = 165.0, 82.0, 10.0          # across (y), up the lid (z), thickness (x)
+LID_W, LID_H, LID_T = 165.0, 86.0, 10.0          # across (y), up the lid (z), thickness (x)
 MOD_W, MOD_H, MOD_T = 158.0, 76.0, 8.0           # the display module (estimate)
 LIT_W, LIT_H = 144.18, 66.60                     # its lit area (maker)
 BEZEL_R = 6.0
 KNUCKLE_R, M3_CLEAR = 6.0, 3.4
+PANEL_Z = KNUCKLE_R + LID_H / 2 + 2.0             # the module's centre up the lid: its pocket clears the knuckles
 KNUCKLE_LID = ((-62.0, -40.0), (40.0, 62.0))     # lid knuckles along y (outer)
 KNUCKLE_SHELL = (-38.0, 38.0)                    # shell knuckle (inner), wave washers fill the 2 mm gaps
 CABLE_SLOT = (30.0, 6.0)                         # HDMI flat cable through the hinge (width, height), at y = 0
@@ -43,8 +44,8 @@ def lid_frame():
     body = Pos(LID_T / 2, 0, KNUCKLE_R + LID_H / 2) * Box(LID_T, LID_W, LID_H)
     body = fillet(body.edges().filter_by(lambda e: abs(e.tangent_at(0).X) > 0.9), 4.0)
     # module pocket from the back (x = 0 side), the lit window through the front, a 1.5 mm front ledge
-    pocket = Pos(MOD_T / 2 - 0.01, 0, KNUCKLE_R + LID_H / 2) * Box(MOD_T + 0.02, MOD_W + 0.6, MOD_H + 0.6)
-    window = Pos(LID_T - 1.0, 0, KNUCKLE_R + LID_H / 2) * Box(4.0, LIT_W + 1.0, LIT_H + 1.0)
+    pocket = Pos(MOD_T / 2 - 0.01, 0, PANEL_Z) * Box(MOD_T + 0.02, MOD_W + 0.6, MOD_H + 0.6)
+    window = Pos(LID_T - 1.0, 0, PANEL_Z) * Box(4.0, LIT_W + 1.0, LIT_H + 1.0)
     body = body - pocket - window
     for y0, y1 in KNUCKLE_LID:                   # hinge knuckles along the bottom edge
         k = Pos(LID_T / 2, (y0 + y1) / 2, KNUCKLE_R) * Rot(90, 0, 0) * Cylinder(KNUCKLE_R, y1 - y0)

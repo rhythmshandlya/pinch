@@ -47,7 +47,7 @@ def joint_limits():
     r = []
     for j in JOINT_NAMES:
         side, kind = j.split("_", 1)
-        r.append({"coxa": L.coxa_range_for(side), "femur": L.femur_range, "tibia": L.tibia_range,
+        r.append({"coxa": L.coxa_range_for(side), "femur": L.femur_range_for(side), "tibia": L.tibia_range,
                   "shoulder_yaw": A.shoulder_yaw_range, "shoulder_pitch": A.shoulder_pitch_range,
                   "claw": A.claw_range}[kind])
     r = np.array(r)

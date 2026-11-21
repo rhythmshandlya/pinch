@@ -52,7 +52,7 @@ def leg_ik(leg_id: str, p) -> tuple[np.ndarray, bool]:
     t = -np.arccos(np.clip(cos_t, -1, 1))
     f = np.arctan2(h, r) - np.arctan2(L.tibia_len * np.sin(t), L.femur_len + L.tibia_len * np.cos(t))
     q = np.array([c, f, t])
-    rng = np.array([L.coxa_range_for(leg_id), L.femur_range, L.tibia_range])
+    rng = np.array([L.coxa_range_for(leg_id), L.femur_range_for(leg_id), L.tibia_range])
     qc = np.clip(q, rng[:, 0], rng[:, 1])
     qc[2] = min(max(qc[2], L.shin_min - qc[1]), rng[2, 1])     # shin never folds back into the hip link
     return qc, ok and np.allclose(q, qc)
