@@ -22,6 +22,7 @@ bus_baud = {value = 1000000, unit = "baud", source = "estimate", why = "the firm
 sync_write_bytes_per_servo = {value = 7, unit = "bytes", source = "estimate", why = "id + 2-byte position + 2-byte time + 2-byte speed in one SYNC_WRITE row; from robot/feetech_bus.py, not checked against Feetech's protocol manual today", ref = "robot/feetech_bus.py"}
 bus_overhead_bytes = {value = 8, unit = "bytes", source = "estimate", why = "header, id, length, instruction, address, data length, checksum of one SYNC_WRITE packet", ref = "robot/feetech_bus.py"}
 idle_current_a = {value = 0.04, unit = "A", source = "estimate", why = "a holding servo with torque on draws a few tens of mA; no number published for the STS3215", ref = "hardware/electronics.md"}
+sustained_current_a = {value = 1.5, unit = "A", source = "estimate", why = "holding the maker's printed stall torque (19.5 kg*cm = 1.91 N*m) takes 1.91 / kt = 1.5 A; a longer hold overheats the servo and its overload protection ends it. Used for the wire and connector ratings", ref = "https://www.waveshare.com/wiki/ST3215_Servo"}
 
 # --- the measured motor model of the v2 design (docs/dev/V2_MODEL.md): Rhoban BAM m6, fitted at 7.4 V and firmware
 # gain 32 (read with gh api on 2026-11-21; copy in sim/sizing/bam_sts3215_m6.json). The gear version is inferred.
@@ -66,6 +67,7 @@ accel_bandwidth_hz = {value = 62.5, unit = "Hz", source = "datasheet", ref = "ht
 accel_zero_g_offset_mg = {value = 80, unit = "mg", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf"}
 offset_left_after_calibration = {value = 0.25, unit = "fraction", source = "estimate", why = "fusion mode runs a background accelerometer and gyro calibration while standing still; we assume three quarters of the datasheet offset is removed, so the tilt bias is about 1 deg", ref = "hardware/electronics.md"}
 fusion_lag_s = {value = 0.03, unit = "s", source = "estimate", why = "the fusion filter smooths the gravity direction; a first-order lag of about 30 ms is typical and not published", ref = "hardware/electronics.md"}
+fusion_accel_tau_s = {value = 0.5, unit = "s", source = "estimate", why = "how fast the fusion pulls its gravity direction toward the accelerometer (the rest of the time it follows the gyro); Bosch does not publish it. A larger value hides walking accelerations from the tilt, a smaller one lets them in; measure with a shake test", ref = "hardware/electronics.md"}
 i2c_read_delay_s = {value = 0.004, unit = "s", source = "estimate", why = "a 12-byte read at 400 kHz I2C plus the Linux driver takes a few ms; it makes every sample that much older", ref = "robot/backends.py"}
 
 # ---- cliff beams: 5 x ST VL53L0X time-of-flight ---------------------------------------------------------------
@@ -133,9 +135,11 @@ computer_load_w = {value = 4.0, unit = "W", source = "estimate", why = "Radxa ZE
 # crab/electronics.py reads these in place of [battery] / [regulator] when CRAB_DESIGN=v2.
 [battery_v2]
 cells = 2
-capacity_ah = {value = 1.5, unit = "Ah", source = "estimate", why = "the 2S 1500 mAh pack the sizing study recommends (about 81 g); no pack chosen yet", ref = "docs/research/SIZING_STS3215.md"}
+capacity_ah = {value = 2.5, unit = "Ah", source = "datasheet", ref = "https://www.18650batterystore.com/products/samsung-25r-18650", why = "the BOM pack is two Samsung INR18650-25R cells in series (2S1P), 2500 mAh each at a 0.2 C discharge; a real pack delivers a little less"}
 usable_fraction = {value = 0.8, unit = "fraction", source = "estimate", why = "same 80 % usable assumption as the v1 pack", ref = "hardware/electronics.md"}
-internal_resistance_ohm = {value = 0.06, unit = "ohm", source = "estimate", why = "a larger 2S pack has lower resistance than the 850 mAh one (60-120 mOhm typical for small packs); not measured", ref = "docs/research/SIZING_STS3215.md"}
+internal_resistance_ohm = {value = 0.06, unit = "ohm", source = "estimate", why = "two 25R cells: 13.2 mOhm AC at 1 kHz each (datasheet), about 1.7 times that at DC, so 45 mOhm for the pair, plus 15 mOhm for the BMS MOSFETs and tabs; measure with the INA219 under load", ref = "https://www.18650batterystore.com/products/samsung-25r-18650"}
+bms_trip_a = {value = 25.0, unit = "A", source = "estimate", why = "the listing gives 8C = 20 A for the cells and no BMS limit; a 2S BMS for 18650 packs usually cuts between 15 and 30 A (the 15 A fuse blows first either way)", ref = "hardware/BOM.md"}
+bms_trip_s = {value = 0.1, unit = "s", source = "estimate", why = "typical BMS short-circuit / over-current delay of 10-200 ms", ref = "hardware/BOM.md"}
 resistance_rise_at_empty = {value = 2.0, unit = "times", source = "estimate", why = "LiPo resistance roughly doubles near empty", ref = "hardware/BOM.md"}
 ocv_per_cell_v = {value = [4.20, 4.07, 3.98, 3.90, 3.84, 3.79, 3.75, 3.71, 3.66, 3.57, 3.30], unit = "V", source = "estimate", why = "a typical LiPo rest-voltage curve; not measured on this pack", ref = "hardware/BOM.md"}
 
@@ -147,3 +151,122 @@ dropout_v = {value = 0.0, unit = "V", source = "estimate", why = "a buck-boost h
 wiring_resistance_ohm = {value = 0.05, unit = "ohm", source = "estimate", why = "same wiring as the 5 V rail", ref = "hardware/electronics.md"}
 overload_droop_ohm = {value = 1.0, unit = "ohm", source = "estimate", why = "past the current limit the output folds back; modelled as a steep droop", ref = "hardware/BOM.md"}
 computer_load_w = {value = 4.0, unit = "W", source = "estimate", why = "Radxa ZERO 3W with Wi-Fi, camera and sensors, as assumed in hardware/electronics.md", ref = "hardware/electronics.md"}
+
+# ====================================================================================================================
+# The v2 circuit (crab/wiring.py solves it from configs/wiring_v2.toml every control tick; docs/dev/ELECTRONICS.md)
+# ====================================================================================================================
+
+# ---- the two 5 V regulators: 7Semi AP64500 module ----------------------------------------------------------------
+[regulator_5v]
+output_v = {value = 5.0, unit = "V", source = "datasheet", ref = "https://hubtronics.in/ap64500-5v-5a-dc-dc-buck-converter"}
+current_limit_a = {value = 5.0, unit = "A", source = "datasheet", ref = "https://hubtronics.in/ap64500-5v-5a-dc-dc-buck-converter", why = "5 A continuous per the listing"}
+module_min_input_v = {value = 7.0, unit = "V", source = "datasheet", ref = "https://hubtronics.in/ap64500-5v-5a-dc-dc-buck-converter", why = "the listing's 7-40 V input range; the chip itself starts at 3.8 V (next line), the module's 7 V is a board-level rating"}
+chip_min_input_v = {value = 3.8, unit = "V", source = "datasheet", ref = "https://www.diodes.com/part/AP64500"}
+dropout_v = {value = 0.6, unit = "V", source = "estimate", why = "a buck at 5 V out needs its input about 0.5-0.7 V higher (maximum duty cycle < 100 %); the AP64500 curve was not digitised", ref = "https://www.diodes.com/part/AP64500"}
+peak_efficiency = {value = 0.90, unit = "fraction", source = "datasheet", ref = "https://hubtronics.in/ap64500-5v-5a-dc-dc-buck-converter", why = "'up to 90 %' per the listing"}
+efficiency_points = {value = [[0.05, 0.70], [0.2, 0.82], [1.0, 0.90], [5.0, 0.89]], unit = "[A out, fraction]", source = "estimate", why = "a typical buck curve through the listing's 90 % peak; light-load efficiency is worse; not measured on this module", ref = "https://hubtronics.in/ap64500-5v-5a-dc-dc-buck-converter"}
+quiescent_a = {value = 0.004, unit = "A", source = "estimate", why = "module idle draw from the pack: the chip's own plus the power LED", ref = "https://www.diodes.com/part/AP64500"}
+overload_droop_ohm = {value = 1.0, unit = "ohm", source = "estimate", why = "past the current limit the output folds back; modelled as a steep droop", ref = "hardware/BOM.md"}
+hiccup_factor = {value = 1.3, unit = "x limit", source = "estimate", why = "the chip shuts down and retries when the load stays well above its limit", ref = "https://www.diodes.com/part/AP64500"}
+# design switch, not a measurement: true = the module stops below its 7 V rating (see docs/dev/ELECTRONICS.md)
+enforce_module_min = false
+
+# ---- the computer (Radxa ZERO 3W) ---------------------------------------------------------------------------------
+[computer]
+min_input_v = {value = 4.5, unit = "V", source = "estimate", why = "Radxa publishes no minimum; USB-style 5 V inputs are good to 4.75 V and the board's PMIC has a margin: 4.5 V is a conservative reset threshold; measure it", ref = "https://docs.radxa.com/en/zero/zero3"}
+hold_up_s = {value = 0.02, unit = "s", source = "estimate", why = "the board's own capacitors ride through a dip this long before it resets", ref = "https://docs.radxa.com/en/zero/zero3"}
+boot_s = {value = 30.0, unit = "s", source = "estimate", why = "kernel, services and the pinch app after a reset; Radxa OS boots in about 20 s", ref = "https://docs.radxa.com/en/zero/zero3"}
+power_idle_w = {value = 1.3, unit = "W", source = "estimate", why = "RK3566 idle with Wi-Fi associated, camera off; Radxa publishes no figure for the ZERO 3W", ref = "https://docs.radxa.com/en/zero/zero3"}
+power_camera_w = {value = 2.1, unit = "W", source = "estimate", why = "idle plus the OV5647 stream and the vision model on the CPU", ref = "https://docs.radxa.com/en/zero/zero3"}
+power_npu_w = {value = 3.4, unit = "W", source = "estimate", why = "camera plus the NPU and CPU busy (speech or a large vision model)", ref = "https://docs.radxa.com/en/zero/zero3"}
+rail_3v3_limit_a = {value = 0.5, unit = "A", source = "estimate", why = "Radxa publishes no limit for header pins 1 and 17; 0.5 A is the usual budget of a small SBC's 3.3 V pin", ref = "https://docs.radxa.com/en/zero/zero3/hardware-design/hardware-interface"}
+rail_3v3_efficiency = {value = 0.85, unit = "fraction", source = "estimate", why = "the board makes 3.3 V from its 5 V input with a buck / LDO mix", ref = "https://docs.radxa.com/en/zero/zero3"}
+
+# ---- current drawn by the small parts (at their own supply: 3.3 V unless said) -------------------------------------
+[load]
+bno055_a = {value = 0.0123, unit = "A", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf", why = "normal power mode, all sensors and fusion running"}
+ina219_a = {value = 0.001, unit = "A", source = "datasheet", ref = "https://www.ti.com/lit/ds/symlink/ina219.pdf", why = "quiescent supply current, 1 mA maximum"}
+mpr121_a = {value = 0.001, unit = "A", source = "estimate", why = "the chip runs on tens of uA; the breakout's power LED dominates", ref = "https://www.nxp.com/docs/en/data-sheet/MPR121.pdf"}
+oled_a = {value = 0.025, unit = "A", source = "estimate", why = "2.42 inch SSD1309 with a mostly dark face: 20-40 mA depending on lit pixels; no figure on the listing", ref = "hardware/BOM.md"}
+vl53l0x_a = {value = 0.020, unit = "A", source = "datasheet", ref = "https://www.pololu.com/product/2490", why = "about 20 mA typical during ranging, 40 mA peak"}
+vl53l5cx_a = {value = 0.060, unit = "A", source = "estimate", why = "8x8 ranging at 15 Hz draws tens of mA; the breakout page could not be opened", ref = "hardware/BOM.md"}
+mic_a = {value = 0.001, unit = "A", source = "estimate", why = "an I2S MEMS microphone takes about 1 mA", ref = "hardware/BOM.md"}
+amp_idle_a = {value = 0.0024, unit = "A", source = "estimate", why = "MAX98357A quiescent current at 5 V, remembered from its datasheet, not fetched", ref = "https://www.adafruit.com/product/3006"}
+amp_peak_w = {value = 0.625, unit = "W", source = "estimate", why = "the 0.5 W speaker driven flat out at 80 % amplifier efficiency (the mind only plays short tones)", ref = "hardware/BOM.md"}
+arm_servo_stall_a = {value = 0.8, unit = "A", source = "estimate", why = "GOTECK lists no current; a metal-gear micro servo stalls at 0.7-0.9 A at 5-6 V", ref = "crab/params.py"}
+pogo_charge_a = {value = 2.0, unit = "A", source = "estimate", why = "the dock charger module's 2 A output (BOM row robu 1794300, read 2026-11-21); the pack takes it through the BMS", ref = "hardware/BOM.md"}
+
+# ---- protection and switching ---------------------------------------------------------------------------------------
+[fuse]
+rating_a = {value = 15.0, unit = "A", source = "datasheet", ref = "https://www.manualsdir.com/manuals/292034/littelfuse-tac-series.html", why = "the BOM's 15 A 32 V ATC blade fuse (robu R260439)"}
+resistance_mohm = {value = 7.0, unit = "mOhm", source = "estimate", why = "about 5 mOhm for a cold 15 A blade plus 2 mOhm for the holder's contacts", ref = "hardware/BOM.md"}
+# time to open, seconds, at multiples of the rating: 110 % and 135 % are the datasheet limits of the TAC (ATO-type) series
+# (110 %: at least 360000 s; 135 %: 0.75 s to 1800 s, taken as their geometric mean 36.7 s); the 200 / 350 / 600 % points
+# are typical values of the ATO family remembered, not fetched.
+curve = {value = [[1.10, 360000.0], [1.35, 36.7], [2.0, 0.87], [3.5, 0.09], [6.0, 0.03]], unit = "[x rating, s]", source = "estimate", why = "datasheet limits at 110 % and 135 % (geometric mean of min and max); typical ATO values for the rest", ref = "https://www.manualsdir.com/manuals/292034/littelfuse-tac-series.html"}
+cooling_s = {value = 10.0, unit = "s", source = "estimate", why = "the element cools in seconds once the current drops below its rating", ref = "hardware/BOM.md"}
+
+[switch]
+rating_a = {value = 20.0, unit = "A", source = "estimate", why = "the BOM's ASW-15D 12 V 20 A rocker; the seller's figure, not measured", ref = "hardware/BOM.md"}
+contact_mohm = {value = 15.0, unit = "mOhm", source = "estimate", why = "rocker switches list 10-50 mOhm initial contact resistance; not listed for this one", ref = "hardware/BOM.md"}
+
+[shunt]
+ohm = {value = 0.002, unit = "ohm", source = "estimate", why = "the BOM says 0.005 ohm, but that burns 1.1 W at the fuse's 15 A in a 1 W 2512 resistor (crab/wiring.py rating check); 0.002 ohm burns 0.45 W and still gives the INA219 a 5 mA step (10 uV / 2 mOhm) and reads up to 160 A. The part is not bought yet (BOM: UNVERIFIED): a BOM change", ref = "hardware/BOM.md"}
+power_w = {value = 1.0, unit = "W", source = "estimate", why = "a 2512 chip resistor is sold as 1 W (BOM row 'current-sense resistor, 1 W')", ref = "hardware/BOM.md"}
+
+# ---- connectors (rating per contact, resistance per mated pair) -------------------------------------------------------
+[connector.xt60]
+rating_a = {value = 30.0, unit = "A", source = "estimate", why = "Amass XT60: 30 A continuous, remembered from the drawing, not fetched", ref = "hardware/BOM.md"}
+contact_mohm = {value = 0.5, unit = "mOhm", source = "estimate", why = "gold-plated bullet contacts, well under 1 mOhm", ref = "hardware/BOM.md"}
+[connector.kk5264]
+rating_a = {value = 3.0, unit = "A", source = "estimate", why = "the 2.54 mm 3-pin housing of the servo cables (Molex KK 254 / 5264 class) is rated about 3 A per contact; the STS3215 stalls at 2.7 A (Waveshare)", ref = "https://www.waveshare.com/wiki/ST3215_Servo"}
+contact_mohm = {value = 10.0, unit = "mOhm", source = "estimate", why = "a tin crimp contact mated: 5-20 mOhm", ref = "hardware/BOM.md"}
+[connector.header254]
+rating_a = {value = 3.0, unit = "A", source = "estimate", why = "a 2.54 mm pin header pin: about 3 A", ref = "hardware/BOM.md"}
+contact_mohm = {value = 10.0, unit = "mOhm", source = "estimate", why = "the pin and its housing in series, mated", ref = "hardware/BOM.md"}
+[connector.dupont]
+rating_a = {value = 1.0, unit = "A", source = "estimate", why = "female Dupont jumper crimps are good for about 1 A; the Radxa's 5 V input uses two pins in parallel", ref = "hardware/BOM.md"}
+contact_mohm = {value = 20.0, unit = "mOhm", source = "estimate", why = "jumper crimp on a header pin", ref = "hardware/BOM.md"}
+[connector.pogo]
+rating_a = {value = 1.0, unit = "A", source = "estimate", why = "the P50-E2 listing gives no rating (BOM: check before trusting it with 2 A); a 1.3 mm spring pin is good for about 1 A, so two pins carry each polarity", ref = "hardware/BOM.md"}
+contact_mohm = {value = 50.0, unit = "mOhm", source = "estimate", why = "a spring probe on a copper plate: tens of mOhm", ref = "hardware/BOM.md"}
+[connector.usbc]
+rating_a = {value = 3.0, unit = "A", source = "estimate", why = "a standard USB-C cable carries 3 A; the driver board draws a few mA from it", ref = "hardware/BOM.md"}
+contact_mohm = {value = 30.0, unit = "mOhm", source = "estimate", why = "USB-C cables are specified at up to 40 mOhm per contact path", ref = "hardware/BOM.md"}
+[connector.fpc22]
+rating_a = {value = 0.5, unit = "A", source = "estimate", why = "a 0.5 mm pitch flex carries about 0.5 A per contact; the camera takes 0.15 A", ref = "hardware/BOM.md"}
+contact_mohm = {value = 50.0, unit = "mOhm", source = "estimate", why = "a flex-cable contact in its latch connector", ref = "hardware/BOM.md"}
+[connector.jst]
+rating_a = {value = 2.0, unit = "A", source = "estimate", why = "JST-PH / SH class housings: 1-2 A", ref = "hardware/BOM.md"}
+contact_mohm = {value = 20.0, unit = "mOhm", source = "estimate", why = "a crimped contact mated with its housing", ref = "hardware/BOM.md"}
+
+[ratings]
+transient_factor = {value = 2.0, unit = "x", source = "estimate", why = "a connector or wire may carry its continuous rating times this for a stall of 2 s or less (the servo's overload protection cuts a longer one); wires and contacts heat over tens of seconds", ref = "hardware/BOM.md"}
+slack_factor = {value = 1.25, unit = "x", source = "estimate", why = "a wire is longer than the straight distance between its two parts: it bends around other parts", ref = "hardware/BOM.md"}
+service_loop_mm = {value = 40.0, unit = "mm", source = "estimate", why = "extra length at each wire for stripping, soldering and strain relief", ref = "hardware/BOM.md"}
+
+# ---- wire (copper, 20 C) -----------------------------------------------------------------------------------------------
+[awg.a14]
+gauge = 14
+ohm_per_m = {value = 0.008286, unit = "ohm/m", source = "datasheet", ref = "https://en.wikipedia.org/wiki/American_wire_gauge"}
+amps = {value = 32.0, unit = "A", source = "estimate", why = "chassis-wiring ampacity table remembered (bundled harness wire derates this); not fetched", ref = "hardware/BOM.md"}
+[awg.a20]
+gauge = 20
+ohm_per_m = {value = 0.03331, unit = "ohm/m", source = "datasheet", ref = "https://en.wikipedia.org/wiki/American_wire_gauge"}
+amps = {value = 11.0, unit = "A", source = "estimate", why = "chassis-wiring ampacity table remembered; not fetched", ref = "hardware/BOM.md"}
+[awg.a22]
+gauge = 22
+ohm_per_m = {value = 0.05296, unit = "ohm/m", source = "datasheet", ref = "https://en.wikipedia.org/wiki/American_wire_gauge"}
+amps = {value = 7.0, unit = "A", source = "estimate", why = "chassis-wiring ampacity table remembered; not fetched", ref = "hardware/BOM.md"}
+[awg.a24]
+gauge = 24
+ohm_per_m = {value = 0.08422, unit = "ohm/m", source = "datasheet", ref = "https://en.wikipedia.org/wiki/American_wire_gauge"}
+amps = {value = 3.5, unit = "A", source = "estimate", why = "chassis-wiring ampacity table remembered; not fetched", ref = "hardware/BOM.md"}
+[awg.a26]
+gauge = 26
+ohm_per_m = {value = 0.1339, unit = "ohm/m", source = "datasheet", ref = "https://en.wikipedia.org/wiki/American_wire_gauge"}
+amps = {value = 2.2, unit = "A", source = "estimate", why = "chassis-wiring ampacity table remembered; not fetched", ref = "hardware/BOM.md"}
+[awg.a28]
+gauge = 28
+ohm_per_m = {value = 0.2133, unit = "ohm/m", source = "datasheet", ref = "https://en.wikipedia.org/wiki/American_wire_gauge"}
+amps = {value = 1.4, unit = "A", source = "estimate", why = "chassis-wiring ampacity table remembered; not fetched", ref = "hardware/BOM.md"}

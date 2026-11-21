@@ -1,19 +1,29 @@
-"""Draw the crab's wiring diagram as an SVG (no extra libraries).
+"""Draw the v2 robot's wiring diagram as an SVG (no extra libraries), from the netlist.
 
     python hardware/wiring_diagram.py      -> hardware/wiring.svg
 
-Matches hardware/electronics.md. Every board also shares GND; ground wires are left out of the
-drawing to keep it readable (each power arrow carries its own black return wire).
-"""
+Everything on it comes from configs/wiring_v2.toml (through crab/wiring.py): the power chain with each wire's gauge, length and the
+current it can see, the servo cables, the three I2C buses with their addresses and pins, the PWM pins, I2S, USB and the camera.
+Edit the netlist, run `python -m crab.wiring` to check it, then run this again. Every board also shares GND; ground wires are
+left out of the drawing (each power wire is a loop, the netlist counts both conductors)."""
 
+import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from crab.wiring import Electrical, Net, check  # noqa: E402
+
 OUT = Path(__file__).resolve().parent / "wiring.svg"
-W, H = 1280, 900
+W, H = 1500, 1120
+COL = {"batt": "#d62728", "7v": "#ff7f0e", "5v": "#9467bd", "3v3": "#8c564b", "sig": "#e6b800",
+       "i2c": "#1f77b4", "i2s": "#2ca02c", "gpio": "#7f7f7f", "usb": "#17becf", "csi": "#333333", "pwm": "#bcbd22"}
 
-COL = {"batt": "#d62728", "6v": "#ff7f0e", "5v": "#9467bd", "3v3": "#8c564b", "sig": "#e6b800",
-       "i2c": "#1f77b4", "i2s": "#2ca02c", "gpio": "#7f7f7f", "usb": "#17becf", "csi": "#333333"}
-
+net = Net()
+el = Electrical(net)
+rep = check(net)
+rows = {r[0]: r for r in rep.edge_rows}
 parts, wires, labels = [], [], []
 
 
@@ -35,67 +45,86 @@ def wire(pts, color, label=None, at=0.5, dash=False, lx=0, ly=-6):
         labels.append(f'<text x="{(x0 + x1) / 2 + lx:.0f}" y="{(y0 + y1) / 2 + ly:.0f}" class="w" fill="{color}">{label}</text>')
 
 
-# ---------------------------------------------------------------- power chain (left)
-bat = box(30, 60, 170, 70, "2S LiPo 7.4 V", ["850 mAh, battery bay", "T-plug"], "#fdecea")
-fuse = box(30, 175, 170, 50, "5 A blade fuse", ["right after the battery"], "#fdecea")
-ina = box(30, 270, 170, 60, "INA219", ["battery monitor", "I2C 0x40"], "#fdecea")
-sw = box(30, 375, 170, 50, "Main switch", ["belly, 8 A rocker"], "#fdecea")
-reg6 = box(30, 480, 170, 60, "5 V regulator #1", ["5 A, servo power", "measure 4.9-5.2 V"], "#fff3e0")
-reg5 = box(30, 600, 170, 60, "5 V regulator #2", ["5 A, Radxa + audio", "measure 4.9-5.2 V"], "#f3e5f5")
-wire([bat["b"], fuse["t"]], COL["batt"], "7.4 V", lx=28)
-wire([fuse["b"], ina["t"]], COL["batt"])
-wire([ina["b"], sw["t"]], COL["batt"])
-wire([sw["b"], reg6["t"]], COL["batt"])
-wire([(115, 425), (15, 425), (15, 630), reg5["l"]], COL["batt"])
+def wl(edge_id):
+    """'14 AWG 156 mm, 15 A' for an edge of the netlist."""
+    e = next(x for x in net.edges if x["id"] == edge_id)
+    r = rows[edge_id]
+    awg = f"{e['awg']} AWG " if "awg" in e else ""
+    return f"{awg}{r[1]:.0f} mm, up to {r[3]:.1f} A" if "awg" in e else f"{r[3]:.0f} A max"
 
-# ---------------------------------------------------------------- servo bus (middle / right)
-hub = box(330, 250, 190, 110, "Servo hub", ["V+ from regulator #1", "bus signal from FE-URT-1",
-                                             "4 leg branches + 6 arm plugs"], "#fff8e1")
-urt = box(330, 470, 190, 60, "FE-URT-1", ["USB -> servo bus", "/dev/ttyUSB0, 1 Mbps"], "#e0f7fa")
-wire([reg6["r"], (265, 510), (265, 330), (330, 330)], COL["6v"], "5 V", at=0.3, lx=-24)
-wire([urt["t"], hub["b"]], COL["sig"], "signal", lx=30)
 
-limbs = [("Front-left leg", "IDs 1 coxa, 2 thigh, 3 knee"), ("Front-right leg", "IDs 4, 5, 6"),
-         ("Rear-left leg", "IDs 7, 8, 9"), ("Rear-right leg", "IDs 10, 11, 12"),
-         ("Left arm (PWM 0-2)", "swing, lift, claw: Radxa pins 16, 18, 21"),
-         ("Right arm (PWM 3-5)", "swing, lift, claw: Radxa pins 24, 7, 19")]
-for i, (name, ids) in enumerate(limbs):
-    y = 40 + 62 * i
-    b = box(640, y, 270, 50, name, [ids], "#fffde7")
-    wire([hub["r"], (580, 305), (580, y + 25), b["l"]], COL["6v"])
-labels.append('<text x="775" y="420" class="s">legs: STS3032 bus servos, daisy-chained inside each leg</text>')
-labels.append('<text x="775" y="437" class="s">arms: GS-4308MG, power from the hub, signal wire to the Radxa</text>')
+# ---- the power chain, left to right along the top ----------------------------------------------------------------------
+pack = box(30, 60, 170, 70, "2S Li-ion pack", ["2 x Samsung 25R, 2500 mAh", "BMS inside, 7.4 V (6.4-8.4)"], "#fdecea")
+xt = box(260, 60, 120, 70, "XT60", ["pack plug + robot", "socket"], "#fdecea")
+fuse = box(440, 60, 130, 70, "15 A fuse", ["ATC blade, in a holder", f"{el.d('fuse.resistance_mohm')} mOhm"], "#fdecea")
+ina = box(630, 60, 150, 70, "INA219 + shunt", [f"{float(el.d('shunt.ohm')) * 1000:g} mOhm, I2C 0x40", "reads the whole pack"], "#fdecea")
+sw = box(840, 60, 130, 70, "Main switch", ["20 A rocker", "back wall"], "#fdecea")
+wire([pack["r"], xt["l"]], COL["batt"], "14 AWG 150 mm", lx=0, ly=-26)
+wire([xt["r"], fuse["l"]], COL["batt"], f"{rows['xt60_fuse'][1]:.0f} mm", ly=-8)
+wire([fuse["r"], ina["l"]], COL["batt"], f"{rows['fuse_ina'][1]:.0f} mm", ly=-8)
+wire([ina["r"], sw["l"]], COL["batt"], f"{rows['ina_switch'][1]:.0f} mm", ly=-8)
 
-# ---------------------------------------------------------------- Radxa + sensors (bottom)
-pi = box(330, 640, 280, 120, "Radxa ZERO 3W", ["brain tray, under the dome",
-                                                "5 V in on pin 2 / GND pin 6",
-                                                "I2C pins 3/5, I2S pins 12/35/38/40",
-                                                "arm PWM pins 7, 16, 18, 19, 21, 24"], "#e8f5e9")
-wire([reg5["r"], (260, 630), (260, 680), (330, 680)], COL["5v"], "5 V", at=0.6, lx=-26)
-wire([(400, 640), (400, 530)], COL["usb"], "USB-C", lx=-36)
-wire([(560, 640), (560, 590), (610, 590), (610, 368), (640, 368)], COL["sig"], "arm PWM", at=0.4, lx=-34)
-wire([(440, 640), (440, 595), (230, 595), (230, 300), ina["r"]], COL["i2c"], "I2C", at=0.5, lx=-22, dash=True)
+# ---- hub and the two regulators --------------------------------------------------------------------------------------
+hub = box(900, 260, 250, 110, "Servo hub", ["12 leg headers: 7.4 V from the pack",
+                                            "6 arm headers: 5 V from regulator B (not joined)",
+                                            "bus signal pins joined; 2 x 1000 uF"], "#fff8e1")
+rega = box(440, 260, 210, 70, "5 V regulator A", ["AP64500 module, 5 A", "computer, audio, sensors"], "#f3e5f5")
+regb = box(600, 400, 210, 70, "5 V regulator B", ["AP64500 module, 5 A", "the six arm servos"], "#fff3e0")
+wire([(905, 130), (905, 195), (1025, 195), hub["t"]], COL["7v"], f"trunk {wl('trunk')}", at=0.5, lx=-30, ly=-8)
+wire([(905, 130), (905, 160), (545, 160), rega["t"]], COL["batt"], f"20 AWG {rows['sw_rega'][1]:.0f} mm", at=0.5, lx=-5, ly=-6)
+wire([(700, 160), (700, 400)], COL["batt"], f"20 AWG {rows['sw_regb'][1]:.0f} mm, up to {rows['sw_regb'][3]:.1f} A", at=0.5, lx=70, ly=-6)
+wire([(705, 470), (705, 520), (1025, 520), (1025, 370)], COL["5v"], f"20 AWG {rows['regb_hub5'][1]:.0f} mm", at=0.5, lx=0, ly=-6)
 
-sens = [("BNO055 IMU", "I2C 0x28, deck (foam tape)", COL["i2c"], "I2C"),
-        ("2 x VL53L0X", "I2C 0x29 -> re-addressed, XSHUT pins 11/13", COL["i2c"], "I2C + 2 GPIO"),
-        ("MAX98357A amp + speaker", "I2S out, 5 V", COL["i2s"], "I2S"),
-        ("I2S microphone", "I2S in, 3.3 V, SEL to GND", COL["i2s"], "I2S"),
-        ("2 x TTP223 touch", "head / back, pins 29 / 31", COL["gpio"], "GPIO"),
-        ("Camera (front face)", "22-pin CSI flex", COL["csi"], "CSI")]
-for i, (name, desc, col, wl) in enumerate(sens):
-    y = 440 + 64 * i
-    b = box(960, y, 290, 52, name, [desc], "#f1f8e9")
-    wire([pi["r"], (780, 700), (780, y + 26), b["l"]], col, wl, at=0.9, lx=-10)
+# ---- the servos -------------------------------------------------------------------------------------------------------------
+legs = [("Front-left leg", "IDs 1, 2, 3", "FL"), ("Front-right leg", "IDs 4, 5, 6", "FR"), ("Rear-left leg", "IDs 7, 8, 9", "RL"),
+        ("Rear-right leg", "IDs 10, 11, 12", "RR")]
+for i, (name, ids, _k) in enumerate(legs):
+    y = 40 + 74 * i
+    b = box(1230, y, 240, 62, name, [ids + ": 3 x STS3215", "one 900 mm 24 AWG cable each"], "#fffde7")
+    wire([hub["r"], (1190, 315), (1190, y + 31), b["l"]], COL["7v"])
+b = box(1230, 350, 240, 74, "Arms: 6 x GS-4308MG", ["500 mm 24 AWG cable each", "signal wires to the Radxa PWM pins"], "#fffde7")
+wire([(1150, 345), (1190, 345), (1190, 387), b["l"]], COL["5v"])
+labels.append(f'<text x="1205" y="334" class="w" fill="{COL["7v"]}">7.4 V</text>')
 
-# ---------------------------------------------------------------- legend
-lg = [("battery 7.4 V", COL["batt"]), ("servo 5 V", COL["6v"]), ("Radxa 5 V", COL["5v"]),
-      ("servo signal", COL["sig"]), ("USB", COL["usb"]), ("I2C", COL["i2c"]), ("I2S audio", COL["i2s"]),
-      ("GPIO", COL["gpio"]), ("camera flex", COL["csi"])]
+# ---- the Radxa and what hangs on it ---------------------------------------------------------------------------------------------
+pi = box(440, 640, 300, 150, "Radxa ZERO 3W", ["5 V in on pins 2 + 4, GND 6 + 9 (two wires each)",
+                                               "3.3 V out on pins 1 + 17 to the sensors",
+                                               f"regulator A to Radxa: {wl('rega_radxa')}",
+                                               "USB-C host to the servo driver board", "CSI flex to the camera"], "#e8f5e9")
+wire([(470, 330), (470, 640)], COL["5v"], "5 V", lx=-26, ly=40)
+drv = box(130, 640, 220, 70, "Servo driver board", ["Waveshare, USB to the 1 Mbaud bus", "signal + GND to the hub only"], "#e0f7fa")
+wire([(440, 690), (350, 690)], COL["usb"], "USB-C", lx=0, ly=-8)
+wire([(240, 640), (240, 560), (960, 560), (960, 370)], COL["sig"], "bus signal", at=0.4, lx=0, ly=-6)
+cam = box(130, 760, 220, 56, "Camera (front, low)", ["OV5647 160 deg, 22-pin flex"], "#f1f8e9")
+wire([(440, 760), (350, 788)], COL["csi"], "CSI", lx=-6, ly=-8)
+
+y0 = 600
+for k, bus in enumerate(net.i2c):
+    devs = ", ".join(f"{d['part']} {d['addr']:#04x}" for d in bus["devices"])
+    note = {"i2c3": "kernel i2c-gpio, pins 3 / 5", "i2c4": "hardware I2C4, pins 27 / 28", "i2c5": "hardware I2C5, pins 31 / 29"}[bus["name"]]
+    xs = [d for d in bus["devices"] if "reset_pin" in d]
+    extra = ("XSHUT/LPn pins " + ", ".join(str(d["reset_pin"]) for d in xs)) if xs else "its own bus (clock stretching)" if bus["name"] == "i2c4" else "shared, slow devices"
+    b = box(820, y0 + 105 * k, 380, 92, f"{bus['name']}: {note}", [devs[:64], devs[64:128], extra, f"{bus['speed_khz']} kHz"], "#e3f2fd")
+    wire([pi["r"], (780, 700), (780, y0 + 105 * k + 46), b["l"]], COL["i2c"], bus["name"], at=0.9, lx=-18, ly=-6)
+i2s = net.tree["i2s"]
+b = box(1230, 600, 240, 70, "Audio (I2S3 pins 12, 35, 38, 40)", ["amp + speaker out, 2 mics in", "mics: SEL to GND / 3.3 V"], "#e8f5e9")
+wire([(740, 740), (780, 740), (780, 720), (1215, 720), (1215, 635), b["l"]], COL["i2s"], "I2S", at=0.5, lx=0, ly=-8)
+pw = ", ".join(f"{p['pin']}" for p in sorted(net.pwm, key=lambda p: p["channel"]))
+b = box(1230, 700, 240, 70, "Arm PWM outputs", [f"pins {pw}", "channel 0-5 = arm servos"], "#f9fbe7")
+wire([(740, 770), (1000, 770), (1000, 760), b["l"]], COL["pwm"], "6 x PWM", at=0.5, lx=0, ly=-8)
+b = box(1230, 800, 240, 70, "Touch + dock", ["MPR121 on i2c3: 6 copper pads", "pogo pins -> pack charge lead"], "#f1f8e9")
+
+# ---- legend ---------------------------------------------------------------------------------------------------------------------
+lg = [("pack 6.4-8.4 V", COL["batt"]), ("servo rail", COL["7v"]), ("5 V", COL["5v"]), ("bus signal", COL["sig"]), ("USB", COL["usb"]),
+      ("I2C", COL["i2c"]), ("I2S", COL["i2s"]), ("PWM", COL["pwm"]), ("camera flex", COL["csi"])]
 for i, (name, col) in enumerate(lg):
-    x = 30 + 136 * (i % 9)
-    labels.append(f'<line x1="{x}" y1="{H - 40}" x2="{x + 26}" y2="{H - 40}" stroke="{col}" stroke-width="4"/>'
-                  f'<text x="{x + 32}" y="{H - 35}" class="lg">{name}</text>')
-labels.append(f'<text x="30" y="{H - 12}" class="lg">Every board also shares GND (black wires, not drawn). '
+    x = 30 + 150 * i
+    labels.append(f'<line x1="{x}" y1="{H - 56}" x2="{x + 26}" y2="{H - 56}" stroke="{col}" stroke-width="4"/>'
+                  f'<text x="{x + 32}" y="{H - 51}" class="lg">{name}</text>')
+state = "passes" if rep.ok else "FAILS"
+labels.append(f'<text x="30" y="{H - 28}" class="lg">Generated from configs/wiring_v2.toml; the netlist check {state} '
+              f'(python -m crab.wiring). "up to" = the current a wire can carry at worst: sustained, capped by the fuse.</text>')
+labels.append(f'<text x="30" y="{H - 10}" class="lg">Every board also shares GND (black wires, not drawn). '
               f'Check polarity with the multimeter before plugging anything in.</text>')
 
 svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" font-family="Segoe UI, Arial, sans-serif">
@@ -104,7 +133,7 @@ svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{
 <style>.t{{font-size:15px;font-weight:600;text-anchor:middle;fill:#222}} .s{{font-size:12px;text-anchor:middle;fill:#444}}
 .w{{font-size:12px;font-weight:600}} .lg{{font-size:12px;fill:#333}} .h{{font-size:20px;font-weight:700;fill:#222}}</style></defs>
 <rect width="{W}" height="{H}" fill="#fafafa"/>
-<text x="30" y="34" class="h">Robotic crab (hand-sized) - wiring</text>
+<text x="30" y="34" class="h">Pinch v2 - wiring (generated from the netlist)</text>
 {chr(10).join(wires)}
 {chr(10).join(parts)}
 {chr(10).join(labels)}

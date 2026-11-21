@@ -151,7 +151,7 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True,
                               objtype=mujoco.mjtObj.mjOBJ_SITE, objname=s.name)
         sen.cutoff = 1.2                                 # the VL53L0X reaches ~1.2 m (also: how high it is lifted)
         sen.intprm[0] = 1                                 # report the distance
-    if face:
+    if face and not any(t.name == "face_tex" for t in spec.textures):    # v2's model already has its own screen
         spec.add_texture(name="face_tex", type=mujoco.mjtTexture.mjTEXTURE_2D, builtin=mujoco.mjtBuiltin.mjBUILTIN_FLAT,
                          rgb1=[0.02, 0.02, 0.03], width=FACE_TEX[0], height=FACE_TEX[1])
         mat = spec.add_material(name="face_mat", emission=0.9, specular=0.3)

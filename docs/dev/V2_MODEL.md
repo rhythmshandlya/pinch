@@ -6,6 +6,11 @@ legs on the Feetech STS3215 at 7.4 V, whose motor Rhoban's BAM project has *meas
 in simulation so far: no CAD, no hardware. Its job is to let us test walking, torque, speed and power on a servo model
 that rests on measurements instead of a guessed datasheet.
 
+> **Update (electronics in the body).** The table below is the sizing study's robot (1.571 kg, lumped electronics, eyes on stalks). Since the
+> placement, wiring and circuit work (`docs/dev/ELECTRONICS.md`, "Design v2") `crab_v2.xml` holds every electronic part where it really sits
+> (chassis box 4.2 mm taller, **1.750 kg**), the servos run from the pack through the circuit model, and v2 has today's face visor and screen instead
+> of the stalk eyes. The check results further down were taken on the lighter, lumped model.
+
 ## Select it
 
 ```powershell

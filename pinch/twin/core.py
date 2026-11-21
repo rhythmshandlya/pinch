@@ -60,6 +60,8 @@ class TwinCore:
         self.mind.decision_log_path = decision_log
         if self.mind.routine.settings.get("utc_offset_h") is None:
             self.mind.routine.settings["utc_offset_h"] = TWIN_UTC_OFFSET_H
+        self._mind_args = dict(llm=llm, seed=seed, epoch=epoch, decision_log=decision_log)
+        self._restarts_seen = 0                           # brown-out restarts of the computer handled (circuit realism)
         self.face = Face(seed=seed)
         self.rng = np.random.default_rng(seed)
         self.senses = BodySense()
@@ -128,12 +130,29 @@ class TwinCore:
                 out["mocap"] = self.d.mocap_pos
         return out
 
+    def _computer_down(self):
+        """Design v2 with the circuit simulation: a brown-out resets the computer. While it boots nothing runs (the servos
+        keep their last goal); when it is back the mind starts again from its saved memory. False for every other twin."""
+        c = getattr(self.hw, "circuit", None)
+        if c is None:
+            return False
+        if c.restarts != self._restarts_seen:
+            self._restarts_seen = c.restarts
+            args = self._mind_args
+            self.mind = Mind(memory=self.mind.memory, llm=args["llm"], seed=args["seed"],
+                             clock=lambda: args["epoch"] + self.t)
+            self.mind.decision_log_path = args["decision_log"]
+            if self.mind.routine.settings.get("utc_offset_h") is None:
+                self.mind.routine.settings["utc_offset_h"] = TWIN_UTC_OFFSET_H
+        return not c.computer_up
+
     def step(self):
         if self.prop_paths:
             self._advance_props()
+        down = self._computer_down()
         if self.k % MIND_EVERY == 0 and not self.autonomous:
             self.perceive()
-        elif self.k % MIND_EVERY == 0:
+        elif self.k % MIND_EVERY == 0 and not down:
             self.perceive()
             if self.hw.elec is not None:                       # the battery monitor feeds the mind's hunger
                 self.mind.world.battery = self.hw.battery_fraction()

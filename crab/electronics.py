@@ -150,6 +150,43 @@ class Imu:
         return self.out[0].copy(), self.out[1].copy()
 
 
+class MountedImu(Imu):
+    """The BNO055 where configs/layout_v2.toml mounts it. It measures angular rate and specific force (gravity plus the
+    acceleration of the chip's own spot, lever arm included) in the chip's own axes; the fusion estimates the direction of
+    gravity by integrating the gyro and pulling slowly toward the accelerometer's direction (a complementary filter with time
+    constant imu.fusion_accel_tau_s, an estimate); the output is rotated into body axes (the chip's axis remap, `R`).
+    So walking accelerations leak into the tilt a little, as they do in the real chip, instead of the exact gravity vector
+    of `Imu`. read(t, gyro, accel) -> (gyro, unit vector toward the ground), body axes."""
+
+    def __init__(self, data, rng, R):
+        super().__init__(data, rng)
+        self.R = np.asarray(R, float)
+        self.tau_acc = float(data("imu.fusion_accel_tau_s"))
+        self.u = None
+
+    def read(self, t, gyro, accel):
+        idx = int(math.floor(t * self.rate + 1e-9))
+        if self.idx is not None and idx == self.idx:
+            return self.out[0].copy(), self.out[1].copy()
+        gyro, accel = np.asarray(gyro, float), np.asarray(accel, float)
+        n = float(np.linalg.norm(accel))
+        u_acc = -accel / n if n > 1e-6 else (self.u if self.u is not None else np.array([0.0, 0.0, -1.0]))
+        if self.idx is None:
+            self.gyro_s, self.u = gyro.copy(), u_acc.copy()
+        else:
+            dt = (idx - self.idx) / self.rate
+            self.gyro_s += (1 - math.exp(-dt / self.tau_gyro)) * (gyro - self.gyro_s)
+            w = self.gyro_s + self.gyro_bias
+            self.u = self.u - dt * np.cross(w, self.u)                         # a world-fixed vector turns against the body
+            self.u = self.u + (1 - math.exp(-dt / self.tau_acc)) * (u_acc - self.u)
+            self.u /= np.linalg.norm(self.u)
+        self.idx = idx
+        g = self.gyro_s + self.gyro_bias + self.rng.normal(0, self.gyro_sigma, 3)
+        v = self.u + self.grav_bias + self.rng.normal(0, self.grav_sigma, 3)
+        self.out = (self.R @ g, self.R @ (v / np.linalg.norm(v)))
+        return self.out[0].copy(), self.out[1].copy()
+
+
 class Distance:
     """The VL53L0X beams. read(name, range_m, t) -> metres, or -1 for "no answer" (nothing hit, out of reach or
     a dropped reading). Each beam keeps its own sample clock, so a beam read twice in 33 ms gives the same value."""
@@ -272,6 +309,7 @@ class Realism:
         self.imu = Imu(d, r_imu)
         self.distance = Distance(d, r_dist)
         self.power = Power(d, r_pow, soc)
+        self.circuit = None                                             # v2: crab/wiring.py Circuit, set by SimBackend
 
     def encoder(self, angle):
         """A leg servo's reported angle: the magnetic encoder's 4096 steps per turn."""
@@ -283,3 +321,121 @@ class Realism:
             return 0.0
         i = self.idle + (np.abs(forces) / self.kt if self.kt is not None else 0.0)
         return float(np.sum(i))
+
+
+# -- the placement of every part in the body (configs/layout_v2.toml, design v2) -----------------------------------
+
+LAYOUT_PATH = ROOT / "configs" / "layout_v2.toml"
+
+
+def _rot(rpy_deg):
+    """Rotation matrix of roll about x, pitch about y, yaw about z (degrees), applied as Rz @ Ry @ Rx."""
+    r, p, y = (math.radians(a) for a in rpy_deg)
+    cr, sr, cp, sp, cy, sy = math.cos(r), math.sin(r), math.cos(p), math.sin(p), math.cos(y), math.sin(y)
+    rx = np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]])
+    ry = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]])
+    rz = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]])
+    return rz @ ry @ rx
+
+
+class Part:
+    """One part of the placement file. Lengths in mm, mass in g, in the body frame (x front, y left, z up)."""
+
+    def __init__(self, name, d):
+        self.name, self.d = name, d
+        self.kind = d.get("kind", "")
+        self.size = np.asarray(d.get("size_mm", (0, 0, 0)), float)            # L, W, H along the part's x, y, z
+        self.mass_g = float(d["mass_g"])
+        self.pos = np.asarray(d.get("pos_mm", (0, 0, 0)), float)
+        self.rpy = tuple(d.get("rpy_deg", (0, 0, 0)))
+        self.R = _rot(self.rpy)
+        self.on = d.get("on")                       # the part this one is mounted on (touching is allowed)
+        self.mass_only = bool(d.get("mass_only", False))
+        self.in_model = bool(d.get("in_model", False))      # already built into the model by its own code (servos)
+        self.connectors = list(d.get("connectors", []))
+        self.window = d.get("window")
+
+    @property
+    def half(self):
+        return self.size / 2.0
+
+    def world(self, local):
+        """A point given in the part's own frame (mm from its centre) in the body frame."""
+        return self.pos + self.R @ np.asarray(local, float)
+
+    def corners(self):
+        s = np.array([[a, b, c] for a in (-1, 1) for b in (-1, 1) for c in (-1, 1)], float)
+        return self.pos + (s * self.half) @ self.R.T
+
+    def window_pose(self):
+        """(position, unit direction) of the sensor window / lens / glass in the body frame."""
+        w = self.window
+        return self.world(w["pos_mm"]), self.R @ (np.asarray(w["dir"], float) / np.linalg.norm(w["dir"]))
+
+    def connector_box(self, c):
+        """The cable room of one connector as (centre, half sizes, rotation) in the body frame: a slab on the named
+        face of the part, `reach_mm` deep, `width_mm` wide across the face (default the whole face)."""
+        axis = "xyz".index(c["side"][1])
+        sign = 1.0 if c["side"][0] == "+" else -1.0
+        half = self.half.copy()
+        centre = np.zeros(3)
+        centre[axis] = sign * (half[axis] + c["reach_mm"] / 2.0)
+        h = half.copy()
+        h[axis] = c["reach_mm"] / 2.0
+        if "width_mm" in c:
+            other = [i for i in range(3) if i != axis]
+            along = other[0] if c.get("across", "") != "z" else other[1]
+            h[along] = c["width_mm"] / 2.0
+            centre[along] = c.get("offset_mm", 0.0)
+        return self.world(centre), h, self.R
+
+
+class Layout:
+    """configs/layout_v2.toml: the chassis, every part's outline, mass and place, with where each number came from."""
+
+    def __init__(self, path=None):
+        self.path = Path(path) if path else LAYOUT_PATH
+        with open(self.path, "rb") as f:
+            self.tree = tomllib.load(f)
+        self.chassis = self.tree["chassis"]
+        self.rules = self.tree["rules"]
+        self.parts = {n: Part(n, d) for n, d in self.tree["part"].items()}
+
+    def __getitem__(self, name):
+        return self.parts[name]
+
+    def solid(self):
+        return [p for p in self.parts.values() if not p.mass_only]
+
+    def total_mass_g(self, only=None):
+        return sum(p.mass_g for p in self.parts.values() if only is None or only(p))
+
+    def com_mm(self, only=None):
+        ps = [p for p in self.parts.values() if only is None or only(p)]
+        m = sum(p.mass_g for p in ps)
+        return sum(p.mass_g * p.pos for p in ps) / m
+
+    def problems(self, root=ROOT):
+        """What is wrong with the file itself: sizes and masses without a source or a reference."""
+        bad = []
+        for n, p in self.parts.items():
+            d = p.d
+            for what in ("size", "mass"):
+                if what == "size" and p.mass_only:
+                    continue
+                s, ref = d.get(what + "_source"), d.get(what + "_ref")
+                if s not in SOURCES:
+                    bad.append(f"{n}: {what}_source must be one of {SOURCES}, not {s!r}")
+                if not isinstance(ref, str) or not ref:
+                    bad.append(f"{n}: no {what}_ref")
+                elif not ref.startswith("https://") and not (Path(root) / ref).exists():
+                    bad.append(f"{n}: {what}_ref {ref!r} is neither a URL nor a file in the repository")
+                if s == "estimate" and len(str(d.get("why", ""))) < 20:
+                    bad.append(f"{n}: an estimate needs a `why`")
+                if s in ("measured", "datasheet") and isinstance(ref, str) and not ref.startswith("https://"):
+                    bad.append(f"{n}: a {s} {what} must point at the URL it was read from")
+        return bad
+
+
+def load_layout(path=None):
+    return Layout(path)

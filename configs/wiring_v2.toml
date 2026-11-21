@@ -1,0 +1,971 @@
+# The wiring of the v2 robot: every power connection and every signal, as data (docs/dev/ELECTRONICS.md "Wiring").
+# Read and CHECKED by crab/wiring.py (`python -m crab.wiring` prints the result); the circuit simulation of the twin
+# solves its power part every control tick; hardware/wiring_diagram.py draws hardware/wiring.svg from it.
+#
+# Numbers about parts (wire resistance, connector ratings, the fuse's curve, regulator behaviour, small-part currents) live
+# in configs/electronics.toml with their source; this file is the TOPOLOGY: which part connects to which, with what wire.
+# Parts are the names in configs/layout_v2.toml. An edge's length is `"auto"` (the straight distance of its two parts in
+# the layout x rules slack + a service loop) or a number in mm (a bought cable).
+#
+# Power: PACK -> XT60 -> fuse -> shunt (INA219) -> switch -> {hub (7.4 V servo rail), regulator A, regulator B}.
+#   regulator A (5 V): Radxa, audio, and through the Radxa's own 3.3 V pins the sensors
+#   regulator B (5 V): the six arm servos, on their own hub headers (never joined to the 7.4 V leg headers)
+# Return (ground) conductors are the same wire as the supply ones: the resistance of an edge is a loop.
+
+[meta]
+design = "v2"
+radxa_source = "https://docs.radxa.com/en/zero/zero3/hardware-design/hardware-interface"
+radxa_note = "pin functions as printed in Radxa's 40-pin table (read 2026-11-21). The table lists NO I2C function on pins 3 and 5, only GPIO and UART3: that bus is the kernel's i2c-gpio driver (any two GPIOs), not a hardware I2C controller."
+
+[rules]
+i2c_max_utilisation = 0.6
+servo_bus_max_stub_mm = 1500
+servo_bus_baud = 1000000
+# 3-wire hobby / bus servo cables are bought: 900 mm for the 12 leg servos, 500 mm (a guess) for the arms
+
+[radxa.pin]
+"1" = ["+3.3V"]
+"2" = ["+5.0V"]
+"3" = ["GPIO1_A0", "UART3_RX_M0"]
+"4" = ["+5.0V"]
+"5" = ["GPIO1_A1", "UART3_TX_M0"]
+"6" = ["GND"]
+"7" = ["GPIO3_C4", "PWM14_M0"]
+"8" = ["GPIO0_D1", "UART2_TX_M0"]
+"9" = ["GND"]
+"10" = ["GPIO0_D0", "UART2_RX_M0"]
+"11" = ["GPIO3_A1"]
+"12" = ["GPIO3_A3", "I2S3_SCLK_M0"]
+"13" = ["GPIO3_A2", "I2S3_MCLK_M0"]
+"14" = ["GND"]
+"15" = ["GPIO3_B0"]
+"16" = ["GPIO3_B1", "UART4_RX_M1", "PWM8_M0"]
+"17" = ["+3.3V"]
+"18" = ["GPIO3_B2", "UART4_TX_M1", "PWM9_M0"]
+"19" = ["GPIO4_C3", "PWM15_IR_M1", "I2S3_SCLK_M1", "SPI3_MOSI_M1"]
+"20" = ["GND"]
+"21" = ["GPIO4_C5", "UART9_TX_M1", "PWM12_M1", "I2S3_SDO_M1", "SPI3_MISO_M1"]
+"22" = ["GPIO3_C1", "I2S1_SDO2_M2"]
+"23" = ["GPIO4_C2", "PWM14_M1", "I2S3_MCLK_M1", "SPI3_CLK_M1"]
+"24" = ["GPIO4_C6", "SPI3_CS0_M1", "PWM13_M1", "UART9_RX_M1", "I2S3_SDI_M1"]
+"25" = ["GND"]
+"26" = ["NC"]
+"27" = ["GPIO4_B2", "I2C4_SDA_M0", "I2S2_SDI_M1"]
+"28" = ["GPIO4_B3", "I2C4_SCL_M0", "I2S2_SDO_M1"]
+"29" = ["GPIO3_B3", "I2C5_SCL_M0"]
+"30" = ["GND"]
+"31" = ["GPIO3_B4", "I2C5_SDA_M0"]
+"32" = ["GPIO3_C2", "UART5_TX_M1", "I2S1_SDO3_M2"]
+"33" = ["GPIO3_C3", "UART5_RX_M1", "I2S1_SCLK_RX_M2"]
+"34" = ["GND"]
+"35" = ["GPIO3_A4", "I2S3_LRCK_M0"]
+"36" = ["GPIO3_A7"]
+"37" = ["GPIO1_A4", "I2S1_SCLK_RX_M0"]
+"38" = ["GPIO3_A6", "I2S3_SDI_M0"]
+"39" = ["GND"]
+"40" = ["GPIO3_A5", "I2S3_SDO_M0"]
+
+# ---- I2C devices: default and possible addresses (datasheets), whether the chip stretches the clock, traffic ----
+[device.bno055]
+addresses = [0x28, 0x29]
+stretches_clock = true
+bytes_per_s = 2000
+note = "Bosch BNO055: address 0x28 with COM3 low, 0x29 with COM3 high. It holds the clock line low for long (docs/research/audit/ext_runtime_power.md section 6): it gets a bus of its own."
+[device.ina219]
+addresses = [0x40, 0x41, 0x44, 0x45]
+bytes_per_s = 600
+note = "TI INA219: A0/A1 pins select 16 addresses 0x40-0x4F."
+[device.mpr121]
+addresses = [0x5A, 0x5B, 0x5C, 0x5D]
+bytes_per_s = 400
+note = "NXP MPR121: the ADDR pin selects 0x5A-0x5D."
+[device.ssd1309]
+addresses = [0x3C, 0x3D]
+bytes_per_s = 10500
+note = "SSD1309 OLED: 10 frames per second of 1024 bytes plus commands."
+[device.vl53l0x]
+addresses = [0x29]
+readdressable = true
+bytes_per_s = 600
+note = "ST VL53L0X: every one wakes at 0x29; hold the others in reset with XSHUT, give each its own address, release the next."
+[device.vl53l5cx]
+addresses = [0x29]
+readdressable = true
+bytes_per_s = 7500
+note = "ST VL53L5CX: wakes at 0x29 too; LPn low holds it in reset, and its address can be changed in software."
+
+# ---- the I2C buses -------------------------------------------------------------------------------------------------
+[[i2c]]
+name = "i2c3"
+controller = "i2c-gpio overlay (software, kernel driver)"
+sda = 3
+scl = 5
+speed_khz = 400
+devices = [
+  {part = "ina", kind = "ina219", addr = 0x40},
+  {part = "mpr121", kind = "mpr121", addr = 0x5A},
+  {part = "oled", kind = "ssd1309", addr = 0x3C},
+]
+[[i2c]]
+name = "i2c4"
+controller = "I2C4_M0"
+sda = 27
+scl = 28
+speed_khz = 400
+devices = [
+  {part = "imu", kind = "bno055", addr = 0x28},
+]
+[[i2c]]
+name = "i2c5"
+controller = "I2C5_M0"
+sda = 31
+scl = 29
+speed_khz = 400
+devices = [
+  {part = "tof_fl", kind = "vl53l0x", boot_addr = 0x29, addr = 0x30, reset_pin = 11},
+  {part = "tof_fr", kind = "vl53l0x", boot_addr = 0x29, addr = 0x31, reset_pin = 13},
+  {part = "tof_rear", kind = "vl53l0x", boot_addr = 0x29, addr = 0x32, reset_pin = 15},
+  {part = "tof_left", kind = "vl53l0x", boot_addr = 0x29, addr = 0x33, reset_pin = 22},
+  {part = "tof_right", kind = "vl53l0x", boot_addr = 0x29, addr = 0x34, reset_pin = 36},
+  {part = "tof8", kind = "vl53l5cx", boot_addr = 0x29, addr = 0x35, reset_pin = 32},
+]
+
+# ---- the six arm servos: hardware PWM, 50 Hz; `channel` = robot/servos.py PWM_CHANNEL ---------------------------------
+
+[[pwm]]
+channel = 0
+pin = 16
+function = "PWM8_M0"
+joint = "L_shoulder_yaw"
+part = "shoulder_l"
+
+[[pwm]]
+channel = 1
+pin = 18
+function = "PWM9_M0"
+joint = "L_shoulder_pitch"
+
+[[pwm]]
+channel = 2
+pin = 21
+function = "PWM12_M1"
+joint = "L_claw"
+
+[[pwm]]
+channel = 3
+pin = 24
+function = "PWM13_M1"
+joint = "R_shoulder_yaw"
+part = "shoulder_r"
+
+[[pwm]]
+channel = 4
+pin = 7
+function = "PWM14_M0"
+joint = "R_shoulder_pitch"
+
+[[pwm]]
+channel = 5
+pin = 19
+function = "PWM15_IR_M1"
+joint = "R_claw"
+
+# ---- I2S (one codec bus, I2S3_M0): speaker amplifier out, two microphones in (left / right by their SEL pin) -----------
+[i2s]
+bclk = 12
+lrck = 35
+data_out = 40
+data_in = 38
+out = [{part = "amp", pin = "DIN"}]
+in = [{part = "mic_l", select = "SEL to GND (left)"}, {part = "mic_r", select = "SEL to 3.3 V (right)"}]
+
+# ---- the servo bus: the Waveshare driver board turns USB into the one-wire half-duplex bus, 1 Mbaud. All twelve leg servos
+# hang on it in a star at the hub: each servo has its own 900 mm cable from its own hub header, the signal pins are joined
+# on the hub board. (A star, not a chain, because a chain would put three servos' current through one 3 A connector.)
+# The order of the headers is the servo ID: robot/servos.py SERVO_IDS.
+[servo_bus]
+driver = "driver"
+hub = "hub"
+topology = "star at the hub"
+baud = 1000000
+
+order = ["FL_coxa", "FL_femur", "FL_tibia", "FR_coxa", "FR_femur", "FR_tibia", "RL_coxa", "RL_femur", "RL_tibia", "RR_coxa", "RR_femur", "RR_tibia"]
+
+# ---- links that are not power wires -----------------------------------------------------------------------------
+[[link]]
+id = "usb"
+kind = "usb"
+from_part = "driver"
+to_part = "radxa"
+connectors = ["usbc", "usbc"]
+note = "short USB-C to USB-C data cable into the Radxa's USB host port; shows up as a serial port"
+[[link]]
+id = "camera"
+kind = "csi"
+from_part = "camera"
+to_part = "radxa"
+connectors = ["fpc22", "fpc22"]
+note = "22-pin 0.5 mm flex from the camera board to the Radxa's CSI connector"
+[[link]]
+id = "oled_flex"
+kind = "i2c-board"
+from_part = "oled"
+to_part = "radxa"
+connectors = []
+note = "the OLED's own pins, wired to i2c3 (pins 3 and 5) and 3.3 V"
+[[link]]
+id = "speaker"
+kind = "audio"
+from_part = "amp"
+to_part = "speaker"
+connectors = ["jst"]
+note = "the speaker's two leads to the amplifier's output terminals"
+
+[[link]]
+id = "electrode_head"
+kind = "electrode"
+from_part = "mpr121"
+to_part = "pad_head"
+connectors = []
+note = "28 AWG from MPR121 electrode input to the copper pad of zone head; the claw zones are wired through the arms"
+
+[[link]]
+id = "electrode_back_left"
+kind = "electrode"
+from_part = "mpr121"
+to_part = "pad_back_left"
+connectors = []
+note = "28 AWG from MPR121 electrode input to the copper pad of zone back_left; the claw zones are wired through the arms"
+
+[[link]]
+id = "electrode_back_right"
+kind = "electrode"
+from_part = "mpr121"
+to_part = "pad_back_right"
+connectors = []
+note = "28 AWG from MPR121 electrode input to the copper pad of zone back_right; the claw zones are wired through the arms"
+
+[[link]]
+id = "electrode_side_left"
+kind = "electrode"
+from_part = "mpr121"
+to_part = "pad_side_left"
+connectors = []
+note = "28 AWG from MPR121 electrode input to the copper pad of zone side_left; the claw zones are wired through the arms"
+
+[[link]]
+id = "electrode_side_right"
+kind = "electrode"
+from_part = "mpr121"
+to_part = "pad_side_right"
+connectors = []
+note = "28 AWG from MPR121 electrode input to the copper pad of zone side_right; the claw zones are wired through the arms"
+
+[[link]]
+id = "electrode_face"
+kind = "electrode"
+from_part = "mpr121"
+to_part = "pad_face"
+connectors = []
+note = "28 AWG from MPR121 electrode input to the copper pad of zone face; the claw zones are wired through the arms"
+
+[[link]]
+id = "dock_ntc"
+kind = "ntc"
+from_part = "dock_board"
+to_part = "pack"
+connectors = []
+note = "10 k NTC against the pack, read by the dock board"
+
+# ====================================================================================================================
+# POWER. Nodes are names; PACK is the root. `connectors` name entries of [connector.*] in electronics.toml, one mated
+# pair each. `parallel` = that many identical conductors / pins side by side (halves resistance, doubles rating).
+# ====================================================================================================================
+[[edge]]
+id = "pack_xt60"
+from = "PACK"
+to = "XT_A"
+awg = 14
+length_mm = 150
+connectors = ["xt60"]
+parts = ["pack", "xt60"]
+note = "the pack's 15 cm 14 AWG XT60 pigtail"
+[[edge]]
+id = "xt60_fuse"
+from = "XT_A"
+to = "FUSE_IN"
+awg = 14
+length_mm = "auto"
+connectors = []
+parts = ["xt60", "fuse"]
+note = "XT60 female pigtail to the fuse holder"
+[[edge]]
+id = "fuse"
+from = "FUSE_IN"
+to = "FUSE_OUT"
+element = "fuse"
+parts = ["fuse"]
+[[edge]]
+id = "fuse_ina"
+from = "FUSE_OUT"
+to = "SHUNT_IN"
+awg = 14
+length_mm = "auto"
+connectors = []
+parts = ["fuse", "ina"]
+[[edge]]
+id = "shunt"
+from = "SHUNT_IN"
+to = "SHUNT_OUT"
+element = "shunt"
+parts = ["ina"]
+note = "the 0.005 ohm shunt across the INA219's VIN+ / VIN-: the monitor reads the whole pack current"
+[[edge]]
+id = "ina_switch"
+from = "SHUNT_OUT"
+to = "SW_IN"
+awg = 14
+length_mm = "auto"
+connectors = []
+parts = ["ina", "switch"]
+[[edge]]
+id = "switch"
+from = "SW_IN"
+to = "SW_OUT"
+element = "switch"
+parts = ["switch"]
+[[edge]]
+id = "trunk"
+from = "SW_OUT"
+to = "HUB7"
+awg = 14
+length_mm = "auto"
+connectors = []
+parts = ["switch", "hub"]
+note = "the 14 AWG trunk to the servo hub's 7.4 V (6.4-8.4 V) rail"
+[[edge]]
+id = "sw_rega"
+from = "SW_OUT"
+to = "REGA_IN"
+awg = 20
+length_mm = "auto"
+connectors = []
+parts = ["switch", "reg_a"]
+[[edge]]
+id = "sw_regb"
+from = "SW_OUT"
+to = "REGB_IN"
+awg = 20
+length_mm = "auto"
+connectors = []
+parts = ["switch", "reg_b"]
+[[edge]]
+id = "rega_radxa"
+from = "RAIL_A"
+to = "RADXA5"
+awg = 22
+length_mm = "auto"
+connectors = ["dupont"]
+parallel = 2
+parts = ["reg_a", "radxa"]
+note = "regulator A to the Radxa's 5 V pins 2 and 4 and ground pins 6 and 9 (two wires each way)"
+[[edge]]
+id = "rega_amp"
+from = "RAIL_A"
+to = "AMP5"
+awg = 22
+length_mm = "auto"
+connectors = []
+parts = ["reg_a", "amp"]
+[[edge]]
+id = "regb_hub5"
+from = "RAIL_B"
+to = "HUB5"
+awg = 20
+length_mm = "auto"
+connectors = []
+parts = ["reg_b", "hub"]
+note = "regulator B to the arm-servo headers of the hub: a separate rail from the leg headers"
+
+[[edge]]
+id = "cable_FL_coxa"
+from = "HUB7"
+to = "S_FL_coxa"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_FL_femur"
+from = "HUB7"
+to = "S_FL_femur"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_FL_tibia"
+from = "HUB7"
+to = "S_FL_tibia"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_FR_coxa"
+from = "HUB7"
+to = "S_FR_coxa"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_FR_femur"
+from = "HUB7"
+to = "S_FR_femur"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_FR_tibia"
+from = "HUB7"
+to = "S_FR_tibia"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_RL_coxa"
+from = "HUB7"
+to = "S_RL_coxa"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_RL_femur"
+from = "HUB7"
+to = "S_RL_femur"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_RL_tibia"
+from = "HUB7"
+to = "S_RL_tibia"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_RR_coxa"
+from = "HUB7"
+to = "S_RR_coxa"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_RR_femur"
+from = "HUB7"
+to = "S_RR_femur"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_RR_tibia"
+from = "HUB7"
+to = "S_RR_tibia"
+awg = 24
+length_mm = 900
+connectors = ["header254", "kk5264"]
+parts = ["hub"]
+note = "the bought 900 mm 3-wire servo cable"
+
+[[edge]]
+id = "cable_L_shoulder_yaw"
+from = "HUB5"
+to = "A_L_shoulder_yaw"
+awg = 24
+length_mm = 500
+connectors = ["header254", "header254"]
+parts = ["hub"]
+note = "arm servo lead and extension, about 500 mm"
+
+[[edge]]
+id = "cable_L_shoulder_pitch"
+from = "HUB5"
+to = "A_L_shoulder_pitch"
+awg = 24
+length_mm = 500
+connectors = ["header254", "header254"]
+parts = ["hub"]
+note = "arm servo lead and extension, about 500 mm"
+
+[[edge]]
+id = "cable_L_claw"
+from = "HUB5"
+to = "A_L_claw"
+awg = 24
+length_mm = 500
+connectors = ["header254", "header254"]
+parts = ["hub"]
+note = "arm servo lead and extension, about 500 mm"
+
+[[edge]]
+id = "cable_R_shoulder_yaw"
+from = "HUB5"
+to = "A_R_shoulder_yaw"
+awg = 24
+length_mm = 500
+connectors = ["header254", "header254"]
+parts = ["hub"]
+note = "arm servo lead and extension, about 500 mm"
+
+[[edge]]
+id = "cable_R_shoulder_pitch"
+from = "HUB5"
+to = "A_R_shoulder_pitch"
+awg = 24
+length_mm = 500
+connectors = ["header254", "header254"]
+parts = ["hub"]
+note = "arm servo lead and extension, about 500 mm"
+
+[[edge]]
+id = "cable_R_claw"
+from = "HUB5"
+to = "A_R_claw"
+awg = 24
+length_mm = 500
+connectors = ["header254", "header254"]
+parts = ["hub"]
+note = "arm servo lead and extension, about 500 mm"
+
+[[edge]]
+id = "v33_bno055"
+from = "RAIL_3V3"
+to = "N_imu"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "imu"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+[[edge]]
+id = "v33_ina219"
+from = "RAIL_3V3"
+to = "N_ina"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "ina"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+[[edge]]
+id = "v33_mpr121"
+from = "RAIL_3V3"
+to = "N_mpr121"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "mpr121"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+[[edge]]
+id = "v33_oled"
+from = "RAIL_3V3"
+to = "N_oled"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "oled"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+[[edge]]
+id = "v33_tof_fl"
+from = "RAIL_3V3"
+to = "N_tof_fl"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "tof_fl"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+[[edge]]
+id = "v33_tof_fr"
+from = "RAIL_3V3"
+to = "N_tof_fr"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "tof_fr"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+[[edge]]
+id = "v33_tof_rear"
+from = "RAIL_3V3"
+to = "N_tof_rear"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "tof_rear"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+[[edge]]
+id = "v33_tof_left"
+from = "RAIL_3V3"
+to = "N_tof_left"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "tof_left"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+[[edge]]
+id = "v33_tof_right"
+from = "RAIL_3V3"
+to = "N_tof_right"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "tof_right"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+[[edge]]
+id = "v33_tof8"
+from = "RAIL_3V3"
+to = "N_tof8"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "tof8"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+[[edge]]
+id = "v33_mic_l"
+from = "RAIL_3V3"
+to = "N_mic_l"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "mic_l"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+[[edge]]
+id = "v33_mic_r"
+from = "RAIL_3V3"
+to = "N_mic_r"
+awg = 28
+length_mm = "auto"
+connectors = ["dupont"]
+parts = ["radxa", "mic_r"]
+note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
+
+# ---- the three converters ------------------------------------------------------------------------------------------
+[[converter]]
+id = "reg_a"
+part = "reg_a"
+model = "regulator_5v"
+in_node = "REGA_IN"
+out_node = "RAIL_A"
+[[converter]]
+id = "reg_b"
+part = "reg_b"
+model = "regulator_5v"
+in_node = "REGB_IN"
+out_node = "RAIL_B"
+[[converter]]
+id = "radxa_3v3"
+part = "radxa"
+model = "rail_3v3"
+in_node = "RADXA5"
+out_node = "RAIL_3V3"
+
+# ---- the loads -----------------------------------------------------------------------------------------------------
+[[load]]
+id = "radxa"
+part = "radxa"
+node = "RADXA5"
+kind = "computer"
+[[load]]
+id = "amp"
+part = "amp"
+node = "AMP5"
+kind = "amp"
+
+[[load]]
+id = "bno055"
+part = "imu"
+node = "N_imu"
+kind = "fixed"
+current = "load.bno055_a"
+
+[[load]]
+id = "ina219"
+part = "ina"
+node = "N_ina"
+kind = "fixed"
+current = "load.ina219_a"
+
+[[load]]
+id = "mpr121"
+part = "mpr121"
+node = "N_mpr121"
+kind = "fixed"
+current = "load.mpr121_a"
+
+[[load]]
+id = "oled"
+part = "oled"
+node = "N_oled"
+kind = "fixed"
+current = "load.oled_a"
+
+[[load]]
+id = "tof_fl"
+part = "tof_fl"
+node = "N_tof_fl"
+kind = "fixed"
+current = "load.vl53l0x_a"
+
+[[load]]
+id = "tof_fr"
+part = "tof_fr"
+node = "N_tof_fr"
+kind = "fixed"
+current = "load.vl53l0x_a"
+
+[[load]]
+id = "tof_rear"
+part = "tof_rear"
+node = "N_tof_rear"
+kind = "fixed"
+current = "load.vl53l0x_a"
+
+[[load]]
+id = "tof_left"
+part = "tof_left"
+node = "N_tof_left"
+kind = "fixed"
+current = "load.vl53l0x_a"
+
+[[load]]
+id = "tof_right"
+part = "tof_right"
+node = "N_tof_right"
+kind = "fixed"
+current = "load.vl53l0x_a"
+
+[[load]]
+id = "tof8"
+part = "tof8"
+node = "N_tof8"
+kind = "fixed"
+current = "load.vl53l5cx_a"
+
+[[load]]
+id = "mic_l"
+part = "mic_l"
+node = "N_mic_l"
+kind = "fixed"
+current = "load.mic_a"
+
+[[load]]
+id = "mic_r"
+part = "mic_r"
+node = "N_mic_r"
+kind = "fixed"
+current = "load.mic_a"
+
+[[load]]
+id = "servo_FL_coxa"
+node = "S_FL_coxa"
+kind = "leg_servo"
+joint = "FL_coxa"
+bus_id = 1
+part = "hip_fl"
+
+[[load]]
+id = "servo_FL_femur"
+node = "S_FL_femur"
+kind = "leg_servo"
+joint = "FL_femur"
+bus_id = 2
+
+[[load]]
+id = "servo_FL_tibia"
+node = "S_FL_tibia"
+kind = "leg_servo"
+joint = "FL_tibia"
+bus_id = 3
+
+[[load]]
+id = "servo_FR_coxa"
+node = "S_FR_coxa"
+kind = "leg_servo"
+joint = "FR_coxa"
+bus_id = 4
+part = "hip_fr"
+
+[[load]]
+id = "servo_FR_femur"
+node = "S_FR_femur"
+kind = "leg_servo"
+joint = "FR_femur"
+bus_id = 5
+
+[[load]]
+id = "servo_FR_tibia"
+node = "S_FR_tibia"
+kind = "leg_servo"
+joint = "FR_tibia"
+bus_id = 6
+
+[[load]]
+id = "servo_RL_coxa"
+node = "S_RL_coxa"
+kind = "leg_servo"
+joint = "RL_coxa"
+bus_id = 7
+part = "hip_rl"
+
+[[load]]
+id = "servo_RL_femur"
+node = "S_RL_femur"
+kind = "leg_servo"
+joint = "RL_femur"
+bus_id = 8
+
+[[load]]
+id = "servo_RL_tibia"
+node = "S_RL_tibia"
+kind = "leg_servo"
+joint = "RL_tibia"
+bus_id = 9
+
+[[load]]
+id = "servo_RR_coxa"
+node = "S_RR_coxa"
+kind = "leg_servo"
+joint = "RR_coxa"
+bus_id = 10
+part = "hip_rr"
+
+[[load]]
+id = "servo_RR_femur"
+node = "S_RR_femur"
+kind = "leg_servo"
+joint = "RR_femur"
+bus_id = 11
+
+[[load]]
+id = "servo_RR_tibia"
+node = "S_RR_tibia"
+kind = "leg_servo"
+joint = "RR_tibia"
+bus_id = 12
+
+[[load]]
+id = "servo_L_shoulder_yaw"
+node = "A_L_shoulder_yaw"
+kind = "arm_servo"
+joint = "L_shoulder_yaw"
+pwm = 0
+part = "shoulder_l"
+
+[[load]]
+id = "servo_L_shoulder_pitch"
+node = "A_L_shoulder_pitch"
+kind = "arm_servo"
+joint = "L_shoulder_pitch"
+pwm = 1
+
+[[load]]
+id = "servo_L_claw"
+node = "A_L_claw"
+kind = "arm_servo"
+joint = "L_claw"
+pwm = 2
+
+[[load]]
+id = "servo_R_shoulder_yaw"
+node = "A_R_shoulder_yaw"
+kind = "arm_servo"
+joint = "R_shoulder_yaw"
+pwm = 3
+part = "shoulder_r"
+
+[[load]]
+id = "servo_R_shoulder_pitch"
+node = "A_R_shoulder_pitch"
+kind = "arm_servo"
+joint = "R_shoulder_pitch"
+pwm = 4
+
+[[load]]
+id = "servo_R_claw"
+node = "A_R_claw"
+kind = "arm_servo"
+joint = "R_claw"
+pwm = 5
+
+# ---- the dock charging path (not part of the running circuit): pogo pins -> reverse guard + polyfuses -> the pack's
+# charge lead. Two pins in parallel per polarity. The current is the dock charger module's 2 A.
+[[charge_edge]]
+id = "pogo_l"
+from_part = "pogo_l"
+to_part = "dock_board"
+awg = 22
+length_mm = "auto"
+connectors = ["pogo"]
+parallel = 2
+current = "load.pogo_charge_a"
+[[charge_edge]]
+id = "pogo_r"
+from_part = "pogo_r"
+to_part = "dock_board"
+awg = 22
+length_mm = "auto"
+connectors = ["pogo"]
+parallel = 2
+current = "load.pogo_charge_a"
+[[charge_edge]]
+id = "dock_pack"
+from_part = "dock_board"
+to_part = "pack"
+awg = 22
+length_mm = "auto"
+connectors = []
+parallel = 1
+current = "load.pogo_charge_a"
+
+# ---- parts that need no wire of their own in this file ---------------------------------------------------------------
+[coverage]
+exempt = ["harness", "radxa_heatsink", "camera_lens", "visor"]
+exempt_why = "the harness is the wiring itself; the heatsink, the lens barrel and the visor are mounted on a part that is wired"

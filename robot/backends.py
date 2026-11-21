@@ -58,7 +58,8 @@ class SimBackend:
     """MuJoCo stands in for the robot. `mount_offsets` = physical horn offsets (rad) per joint."""
 
     def __init__(self, mount_offsets=None, render=False, voltage=None, pwm_travel=1.0, model=None,
-                 realism="ideal", seed=0, soc=1.0, servo_model="first_order"):
+                 realism="ideal", seed=0, soc=1.0, servo_model="first_order", power_model="circuit",
+                 enforce_module_min=None):
         """realism: "ideal" (exact sensors, no delay, constant power: the default) or "datasheet" (the electronics
         of configs/electronics.toml: command delay, encoder steps, IMU noise and lag, distance-beam noise and
         dropouts, a battery that drains and sags; crab/electronics.py). Seeded: same seed, same numbers.
@@ -66,10 +67,16 @@ class SimBackend:
         servo_model (design v2 only, CRAB_DESIGN=v2): the leg servo, measured Rhoban BAM m6 numbers from
         configs/electronics.toml: "first_order" (the position actuator in crab_v2.xml plus the firmware's target
         slew limit) or "bam" (the full model, crab/servo_model.py; needs the optional `bam` package). Today's
-        design (v1) has no measured servo model and only takes "first_order", which changes nothing."""
+        design (v1) has no measured servo model and only takes "first_order", which changes nothing.
+        power_model (design v2, datasheet realism): "circuit" (the default: the netlist of configs/wiring_v2.toml solved every
+        control tick, crab/wiring.py: wire drops, both regulators, the fuse, brown-out, the INA219 where it is wired, the
+        IMU at its mount) or "lumped" (the earlier battery + one regulator model, kept for comparison).
+        enforce_module_min: the regulator modules stop below their listed 7 V input (None: the data file's choice)."""
         from crab.params import JOINT_SPECS, PARAMS
         if realism not in ("ideal", "datasheet"):
             raise ValueError(f"realism must be 'ideal' or 'datasheet', not {realism!r}")
+        if power_model not in ("circuit", "lumped"):
+            raise ValueError(f"power_model must be 'circuit' or 'lumped', not {power_model!r}")
         if servo_model not in ("first_order", "bam"):
             raise ValueError(f"servo_model must be 'first_order' or 'bam', not {servo_model!r}")
         if servo_model == "bam" and PARAMS.design == "v1":
@@ -107,7 +114,7 @@ class SimBackend:
         self.voltage = voltage                       # servo bus (regulated 5 V)
         self.battery = PARAMS.battery_nominal       # 2S pack voltage, as the INA219 would read it
         self.held = None          # joint vector: "a person holds the robot in this pose" (calibration rehearsal)
-        self.realism, self.elec = realism, None
+        self.realism, self.elec, self.circuit, self._imu_mount = realism, None, None, None
         if realism == "datasheet" or self.drive is not None:
             self._act_idx = np.array([self.act[j] for j in JOINT_NAMES])
             self._target = self.d.ctrl[self._act_idx].copy()          # what the servos have been told (undelayed)
@@ -117,11 +124,54 @@ class SimBackend:
             self.elec = Realism(data, seed=seed, soc=soc, pwm=[j in self.no_feedback for j in JOINT_NAMES],
                                 kt=[s.kt_current for s in JOINT_SPECS], dt=float(self.m.opt.timestep),
                                 initial=self._target)
+            if PARAMS.design == "v2":
+                self._setup_mounts(data)
+                if power_model == "circuit":
+                    self._setup_circuit(data, seed, soc, enforce_module_min)
             self._sync_power()
         self.viewer = None
         if render:
             import mujoco.viewer
             self.viewer = mujoco.viewer.launch_passive(self.m, self.d)
+
+    # -- design v2: the circuit and the sensors at their mounts ---------------------------------------------------------
+    def _setup_mounts(self, data):
+        """The IMU where configs/layout_v2.toml mounts it: gyro and specific force are read from the MuJoCo sensors on its
+        site (lever arm included), fused by crab.electronics.MountedImu, turned into body axes."""
+        from crab.electronics import Layout, MountedImu
+        R = Layout()["imu"].R
+        self._imu_mount = R
+        self._gyro_adr = int(self.m.sensor_adr[self.m.sensor("imu_gyro").id])
+        self._acc_adr = int(self.m.sensor_adr[self.m.sensor("imu_accel").id])
+        self.elec.imu = MountedImu(data, self.elec.imu.rng, R)
+
+    def _setup_circuit(self, data, seed, soc, enforce):
+        from crab.wiring import Circuit
+        rng = np.random.default_rng(np.random.SeedSequence([int(seed), 0xC1C]))
+        self.circuit = Circuit(data=data, rng=rng, soc=soc, enforce_module_min=enforce)
+        self.elec.circuit = self.circuit
+        legs = [ld["joint"] for ld in self.circuit.legs]
+        arms = [ld["joint"] for ld in self.circuit.arms]
+        self._leg_act = np.array([self.act[j] for j in legs])
+        self._leg_vadr = np.array([self.vadr[j] for j in legs])
+        self._arm_act = np.array([self.act[j] for j in arms])
+        from crab.params import servo_for
+        self._kt_arm = np.array([servo_for(j).kt_current for j in arms])
+        self._kt, self._R = float(data("leg_servo.kt_nm_per_a")), float(data("leg_servo.resistance_ohm"))
+        self._v_leg = self.circuit.v_servo.copy()
+        self._dt = float(self.m.opt.timestep)
+        self._supply_to_drive()
+
+    def _supply_to_drive(self):
+        if self.drive is not None:
+            self.drive.set_supply(self._v_leg)
+
+    def set_activity(self, name):
+        """What the computer is doing, for its power draw: "idle", "camera" (the default) or "npu"."""
+        if self.circuit is not None:
+            if name not in self.circuit.pc:
+                raise ValueError(f"activity must be one of {sorted(self.circuit.pc)}")
+            self.circuit.activity = name
 
     def link_angle(self, j):          # true joint angle of the link (servo + gear play)
         q = self.d.qpos[self.qadr[j]]
@@ -135,6 +185,8 @@ class SimBackend:
         return self.sign[j] * self.link_angle(j) + self.mount[j]
 
     def write_positions(self, goals):
+        if self.circuit is not None and not self.circuit.computer_up:
+            return                                          # the computer is down (brown-out): nobody is talking to the servos
         for sid, s_rad in goals.items():
             j = self.by_id[sid]
             self.cmd[j] = s_rad
@@ -146,7 +198,10 @@ class SimBackend:
 
     def _sync_power(self):
         e = self.elec
-        self.voltage, self.battery = e.power.servo_voltage(), e.power.v_pack
+        if self.circuit is not None:
+            self.voltage, self.battery = self.circuit.servo_voltage(), self.circuit.v_pack
+        else:
+            self.voltage, self.battery = e.power.servo_voltage(), e.power.v_pack
 
     def read_state(self):
         out = {}
@@ -159,10 +214,21 @@ class SimBackend:
             out[sid] = ServoState(position=float(pos if self.elec is None else self.elec.encoder(pos)),
                                   speed=float(self.sign[j] * self.link_speed(j)),
                                   load=float(np.clip(self.sign[j] * f / self._flim[j], -1, 1)),
-                                  voltage=self.voltage, temperature=35.0)
+                                  voltage=self._servo_report(j), temperature=35.0)
         return out
 
+    def _servo_report(self, j):
+        """The voltage a leg servo reports: its own terminals, in 0.1 V steps (circuit), or the shared bus voltage."""
+        if self.circuit is None:
+            return self.voltage
+        i = [ld["joint"] for ld in self.circuit.legs].index(j)
+        return float(np.round(self.circuit.v_servo[i] / 0.1) * 0.1)
+
     def read_imu(self):
+        if self._imu_mount is not None:                     # v2, datasheet realism: the chip at its mount
+            sd = self.d.sensordata
+            return self.elec.imu.read(self.d.time, sd[self._gyro_adr:self._gyro_adr + 3],
+                                      sd[self._acc_adr:self._acc_adr + 3])
         R = self.d.xmat[1].reshape(3, 3)
         gyro, grav = self.d.qvel[3:6].copy(), R.T @ np.array([0, 0, -1.0])
         return (gyro, grav) if self.elec is None else self.elec.imu.read(self.d.time, gyro, grav)
@@ -185,6 +251,11 @@ class SimBackend:
             self.mj.mj_forward(self.m, self.d)
             return
         n = max(1, int(round(dt / self.m.opt.timestep)))
+        cir = self.circuit
+        if cir is not None:
+            acc_dd, acc_dw, acc_arm = np.zeros(len(self._leg_act)), np.zeros(len(self._leg_act)), np.zeros(len(self._arm_act))
+            bam = getattr(self.drive, "kind", "") == "bam"
+            stall = np.maximum(self._v_leg, 1e-3) * self._kt / self._R
         if self.elec is None and self.drive is None:
             for _ in range(n):
                 self.mj.mj_step(self.m, self.d)
@@ -197,7 +268,18 @@ class SimBackend:
                     self.drive.command(tgt)
                     self.drive.step()
                 self.mj.mj_step(self.m, self.d)
-            if self.elec is not None:
+                if cir is not None:                  # what each servo's motor model drew this step
+                    duty = self.drive.duty if bam else np.clip(self.d.actuator_force[self._leg_act] / stall, -1.0, 1.0)
+                    acc_dd += duty * duty
+                    acc_dw += duty * self.d.qvel[self._leg_vadr]
+                    acc_arm += np.abs(self.d.actuator_force[self._arm_act])
+            if cir is not None:
+                cir.step(n * self._dt, acc_dd / n / self._R, self._kt * acc_dw / n / self._R, acc_arm / n / self._kt_arm,
+                         self.torque_on)
+                self._v_leg = cir.v_servo.copy()
+                self._supply_to_drive()                 # each servo's torque follows the voltage at its own terminals
+                self._sync_power()
+            elif self.elec is not None:
                 amps = self.elec.servo_amps(self.d.actuator_force[self._act_idx], self.torque_on)
                 self.elec.power.step(n * self.m.opt.timestep, amps)
                 self._sync_power()
@@ -209,10 +291,14 @@ class SimBackend:
 
     def battery_voltage(self):
         """Pack volts as the INA219 reads them (datasheet realism: in its 4 mV steps, with its gain error)."""
+        if self.circuit is not None:
+            return self.circuit.measure()[0]
         return self.battery if self.elec is None else self.elec.power.measure()[0]
 
     def battery_current(self):
         """Amps drawn from the pack, as the INA219 reads them (None in ideal realism: nothing models it)."""
+        if self.circuit is not None:
+            return self.circuit.measure()[1]
         return None if self.elec is None else self.elec.power.measure()[1]
 
     def battery_fraction(self):
