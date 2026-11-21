@@ -221,7 +221,7 @@ def jaw_geoms(s):
     STRIP_H, PAD_T, BLADE_T, D_DROP) - kept here as plain numbers so the model builds without the CAD.
     s = +1 left arm, -1 right (mirror). Returns {name: ((pos), (half sizes))} in metres, plus 'pitch'
     and the grip site."""
-    pitch = np.radians(8.0 if V2 else 20.0)      # v2: the shoulder is low, the strip is level with the desk at an arm pitch of about -8 deg
+    pitch = np.radians(19.2 if V2 else 20.0)     # v2: tilted so the strips meet the desk level at the arm's reach-down pitch (sweep 8 / 13.8 / 19.2 deg: 19.2 grips best)
     # (v2: the whole claw is K = 1.5 times bigger; v1: K = 1.0, so every number below is unchanged)
     x0, x1, low0, strip_h, pad_t, blade_t = (K * v for v in (40.3, 55.5, -24.5, 10.0, 1.2, 2.4))
     x1 += JAW_EXTRA

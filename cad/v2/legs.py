@@ -158,6 +158,40 @@ def foot():
     return Pos(TIP_X, sum(PLATE_Y) / 2, 0) * Sphere(TIP_R) - tibia()
 
 
+def _bbox(solid, x_max=None):
+    """[x0, x1, half width, z0, z1] of the part of a solid at x <= x_max."""
+    if x_max is not None:
+        solid = solid & Pos(x_max - 500, 0, 0) * Box(1000, 1000, 1000)
+    bb = solid.bounding_box()
+    return [bb.min.X, bb.max.X, max(abs(bb.min.Y), abs(bb.max.Y)), bb.min.Z, bb.max.Z]
+
+
+@cache
+def coxa_envelope(x_max=75.0, steps=9):
+    """What swings with a hip (coxa) joint, as boxes for cad/v2/body.py's joint openings: (name, x0, x1, half width,
+    z0, z1) in the coxa frame (x out along the link from the hip axis, z = body z). The coxa bracket with the thigh
+    servo, and the thigh with its knee servo at `steps` angles over the widest thigh range (front and rear legs),
+    clipped at x_max (farther out is clear of the shell)."""
+    from math import degrees
+
+    from cad.v2.servos import sts3215_proxy
+    cx = coxa_link()
+    slab = lambda z0, z1: Pos(0, 0, (z0 + z1) / 2) * Box(1000, 1000, z1 - z0)     # noqa: E731
+    inner = Pos(-500 + LC - STS3215["half_w"] - WALL, 0, 0) * Box(1000, 1000, 1000)    # inside the thigh sleeve
+    out = [("coxa_top", *_bbox(cx & slab(HIP_HORN_Z - 0.1, 100) & inner, x_max)),  # the plate on the hip horn
+           ("coxa_bottom", *_bbox(cx & slab(-100, HIP_IDLER_Z + 0.1) & inner, x_max)),   # the plate under the idler
+           ("coxa_wall", *_bbox(cx & slab(HIP_IDLER_Z, HIP_HORN_Z) & Pos(0, 0, 0) * Box(2 * (LC - STS3215["half_w"] - WALL) - 0.2, 1000, 1000), x_max)),
+           ("thigh_servo", *_bbox(THIGH_SERVO * (sleeve() + sts3215_proxy()), x_max))]
+    lo = min(PARAMS.leg.femur_range[0], PARAMS.leg.femur_range_for("FL")[0])
+    hi = max(PARAMS.leg.femur_range[1], PARAMS.leg.femur_range_for("FL")[1])
+    thigh = femur_link() + KNEE_SERVO * sts3215_proxy()
+    for k in range(steps):
+        q = lo + (hi - lo) * k / (steps - 1)
+        posed = Location((LC, 0, 0), (0, degrees(-q), 0)) * thigh       # the thigh turns about -y
+        out.append((f"thigh{k}", *_bbox(posed, x_max)))
+    return tuple(out)
+
+
 if __name__ == "__main__":
     import time
     print("thigh servo axes (x, y, z) ->", axis_map(THIGH_SERVO))

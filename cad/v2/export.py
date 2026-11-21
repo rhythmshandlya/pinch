@@ -138,9 +138,7 @@ def face_pose():
 
 def export_meshes():
     MESH_DIR.mkdir(parents=True, exist_ok=True)
-    for f in MESH_DIR.glob("*.stl"):
-        f.unlink()
-    vis = {}
+    vis, written = {}, set()
     for body, items in A.groups().items():
         vis[body] = []
         for label, solid, _, mat in items:
@@ -148,20 +146,24 @@ def export_meshes():
             fn = MESH_DIR / f"{name}.stl"
             tol = 0.25 if mat == "servo" else 0.15
             export_stl(solid, str(fn), tolerance=tol, angular_tolerance=0.35)
+            written.add(fn.name)
             vis[body].append(dict(mesh=f"v2_{name}", file=f"v2/{name}.stl", material=MATERIAL[mat]))
-    return vis
+    return vis, written
 
 
 def main():
-    vis = export_meshes()
+    meet = claw_meet()                      # (reads the current model: before its meshes change)
+    vis, written = export_meshes()
     mp = mass_properties()
     col = collision_boxes()
-    meet = claw_meet()
     out = {"bodies": {b: dict(**mp[b], visuals=vis[b], collision=col.get(b, [])) for b in mp}, "face": face_pose(),
            "lid_h": lid.LID_H / 1000.0, "lid_w": lid.LID_W / 1000.0, "claw_meet": meet,
            "foot": dict(x=legs.TIP_X / 1000.0, r=legs.TIP_R / 1000.0)}
     print(f"the claw's jaws meet at {meet:.3f} rad")
     OUT.write_text(json.dumps(out, indent=1), encoding="utf-8")
+    for f in MESH_DIR.glob("*.stl"):         # meshes of parts that no longer exist
+        if f.name not in written:
+            f.unlink()
     total = sum(v["mass"] for v in mp.values())
     size = sum(f.stat().st_size for f in MESH_DIR.glob("*.stl")) / 1e6
     print(f"meshes -> {MESH_DIR.relative_to(ROOT)} ({sum(len(v) for v in vis.values())} files, {size:.1f} MB)")

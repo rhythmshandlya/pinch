@@ -325,9 +325,10 @@ def _v2_params() -> CrabParams:
               femur_mass=printed_mass(area(tv, tf)) + sv,                     # the thigh cover + the knee servo
               tibia_mass=printed_mass(area(sv_, sf_)) + foot_mass,            # the shin cover + the ball
               # the CAD's sweep check (cad/v2/sweep_check.py): swung far back (front legs) or forward (rear legs) the
-              # thigh servo meets the side distance sensor; lifted past 63 deg the front thigh meets the face lid
+              # thigh servo meets the side distance sensor; lifted past 63 deg the front thigh meets the face lid. Every
+              # thigh stops at 63 deg (walking and the moves use up to 57): the shell's leg openings are cut for it
               front_coxa_range=(-0.78, radians(28)), coxa_range=(radians(-55), 0.78),
-              front_femur_range=(radians(-40), 1.10))
+              femur_range=(radians(-40), 1.10))
     lay = Layout()
     ch = lay.chassis
     mm = lambda v: tuple(x / 1000.0 for x in v)     # noqa: E731
@@ -341,12 +342,12 @@ def _v2_params() -> CrabParams:
                 lid_tilt=lay.lid_tilt, lid_hinge=mm(ch["lid_hinge_mm"]), lid_mass=lay["visor"].mass_g / 1000.0)
     sh = lay["shoulder_l"]
     # arms: the printed bones and palm only (12 g); the three STS3032 per arm are added by the model builder
-    arm = Arm(shoulder_offset=0.024, upper_len=0.045, finger_len=0.036, upper_mass=0.012, jaw_mass=0.003,
+    arm = Arm(shoulder_offset=0.0427, upper_len=0.045, finger_len=0.036, upper_mass=0.012, jaw_mass=0.003,
               shoulder_mass=0.008, shoulder_yaw_range=(radians(-8), radians(20)), claw_range=(radians(0), radians(95)))
     return CrabParams(body=body, leg=leg, arm=arm,
                       leg_mounts={"F": ((0.0352, 0.068, 0.0), radians(64)),
                                   "R": ((-0.0352, 0.068, 0.0), radians(116))},
-                      arm_mount=(tuple(float(v) / 1000 for v in sh.pos), 0.0),
+                      arm_mount=(tuple(float(v) / 1000 for v in sh.d.get("joint_mm", sh.pos)), 0.0),
                       bus_voltage=7.4, design="v2", model_file="crab_v2.xml",
                       gait_period_factor=1.5, arm_scale=1.5)
 

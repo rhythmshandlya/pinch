@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 
 from build123d import Box, Location, Plane, Pos, mirror  # noqa: E402
 
-from cad.v2 import arms, legs, lid, servos, shell  # noqa: E402
+from cad.v2 import arms, legs, lid, servos  # noqa: E402
 from crab.params import ARM_IDS, LEG_IDS, PARAMS  # noqa: E402
 
 PETG, TPU = 1.27, 1.21          # g/cm3
@@ -78,9 +78,10 @@ def groups(proxy=False):
     """simulator body -> [(label, solid in the body frame (mm), mass kg, material)]. proxy=True puts simple solids of the
     STS3215's real sizes in place of its STEP (for the interference checks: booleans on the STEP fail)."""
     sts = servos.sts3215_proxy if proxy else servos.sts3215
+    from cad.v2 import body
     g = {"body": []}
-    sh = shell.shell_solid()
-    g["body"].append(("shell", sh, printed(sh, "shell"), "shell"))
+    for name, part in (("tray", body.tray()), ("cover", body.cover())):     # the printed shell halves, every mount in them
+        g["body"].append((name, part, printed(part, "shell"), "shell"))
     lf = lid.hinge_location() * lid.lid_frame()
     g["body"].append(("lid", lf, printed(lf, "lid"), "dark"))
     panel = lid.hinge_location() * Pos(lid.MOD_T / 2, 0, lid.PANEL_Z) * Box(lid.MOD_T, lid.MOD_W, lid.MOD_H)
@@ -90,7 +91,7 @@ def groups(proxy=False):
     for arm in ARM_IDS:
         g["body"].append((f"{arm}_yaw_servo", shoulder_servo_location(arm) * servos.sts3032(), 0.020, "servo"))
     for name, solid, mass in electronics():
-        g["body"].append((name, solid, mass, "pcb"))
+        g["body"].append((name, solid, mass, "dark" if name in ("camera_lens", "pack", "speaker") else "pcb"))
     for leg in LEG_IDS:
         right = leg[1] == "R"
         f = _mirror_y if right else (lambda s: s)
@@ -148,17 +149,13 @@ def render(path, size=(1500, 520)):
     k = 0
     for body, items in groups().items():
         for label, solid, _, mat in items:
-            if label == "shell":
-                continue                                   # shown cut away so the inside is visible
+            if label == "cover":
+                continue                                   # the cover is left off so the inside is visible
             fn = tmp / f"p{k}.stl"
             export_stl(poses[body] * solid, str(fn), tolerance=0.3, angular_tolerance=0.4)
             assets.append(f'<mesh name="p{k}" file="{fn.as_posix()}" scale="0.001 0.001 0.001"/>')
             geoms.append(f'<geom type="mesh" mesh="p{k}" rgba="{colors[mat]}"/>')
             k += 1
-    fn = tmp / "shell.stl"
-    export_stl(shell.shell_solid() - Pos(0, -150, 0) * Box(400, 300, 400), str(fn), tolerance=0.3, angular_tolerance=0.4)
-    assets.append(f'<mesh name="shell" file="{fn.as_posix()}" scale="0.001 0.001 0.001"/>')
-    geoms.append(f'<geom type="mesh" mesh="shell" rgba="{colors["shell"]}"/>')
     xml = (f'<mujoco><asset>{"".join(assets)}</asset><visual><global offwidth="{size[0]}" offheight="{size[1]}"/></visual>'
            f'<worldbody><light pos="0.2 -0.3 0.6" dir="-0.3 0.4 -1"/><light pos="-0.3 0.3 0.5" dir="0.4 -0.3 -1"/>'
            f'{"".join(geoms)}</worldbody></mujoco>')

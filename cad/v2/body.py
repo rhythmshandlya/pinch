@@ -32,6 +32,8 @@ from build123d import Align, Box, Cone, Cylinder, Location, Plane, Polyline, Pos
 
 from cad.servo import STS3032  # noqa: E402
 from cad.servo import case as servo_case  # noqa: E402
+from cad.v2 import arms as ARMS  # noqa: E402
+from cad.v2 import legs as LEGS_CAD  # noqa: E402
 from cad.v2 import lid as LID  # noqa: E402
 from cad.v2 import shell as SHELL  # noqa: E402
 from crab.electronics import Layout  # noqa: E402
@@ -43,11 +45,14 @@ MODEL_XML = ROOT / "sim" / "models" / "crab_v2.xml"
 
 # ---------------------------------------------------------------------------------------------------- design numbers
 WALL = SHELL.WALL
-SPLIT_Z = 28.0             # tray / cover parting plane: just above the shoulder servo cases (top z 27.55), so every
+# the arm yaw servo (upside down): its origin from the shoulder point (layout) and the limbs CAD (horn face height)
+SHOULDER_Z0 = float(Layout()["shoulder_l"].d["joint_mm"][2]) + ARMS.YAW_HORN_Z + STS3032.horn_face
+SPLIT_Z = SHOULDER_Z0 + STS3032.T / 2 + 0.5   # tray / cover parting plane: just above the shoulder servo cases, so every
 #                            servo, board and joint opening is in the tray and the cover is a lid with mics and pads
 LIP_H, LIP_T, LIP_GAP = 2.0, 1.2, 0.2      # the tray's lip rises 2 mm inside the cover's wall, 0.2 mm slip fit
 FIT = 0.3                  # clearance around bought parts (FDM +-0.2 mm, plus unknowns; cad/servo.py uses the same)
 CLEAR = 2.0                # clearance around every moving part at a joint opening
+SWEEP_STEP_DEG = 4.0       # joint openings: the moving parts' boxes stepped over the joint's range this often
 PETG_G_CM3 = 1.27
 
 M2_PILOT, M2_CLEAR = 1.7, 2.2              # self-tapping M2 into PETG / clearance (cad/servo.py)
@@ -70,22 +75,15 @@ STEP_CASE = (-22.7, 22.7, -12.4, 12.4, -17.7, 14.4)   # main case box (STEP fram
 STEP_BOTTOM_HOLES = ((4.2, 10.25), (4.2, -10.25), (-20.3, 10.25), (-20.3, -10.25))    # dia 1.5, in recesses
 HIP_KEEPOUT_R = 34.0       # coxa U-bracket swings within this radius ...
 HIP_PLATES = ((15.0, 18.0), (-27.6, -24.6))      # ... as a top plate on the horn and a bottom plate on the idler boss
-# Moving envelope of one coxa (local x along the link from the hip axis, z in the body frame): the two U-bracket
-# plates, and the web at the plates' ends carrying the thigh servo and the knee (crab_v2.xml: thigh servo box
-# 5.8..51 mm, knee disc r 19 mm). ESTIMATE until the limbs CAD's bracket lands: (name, x0, x1, half width, z0, z1).
-LEG_ENVELOPE = (("plate_top", -14.0, HIP_KEEPOUT_R, 14.0) + HIP_PLATES[0],
-                ("plate_bottom", -14.0, HIP_KEEPOUT_R, 14.0) + HIP_PLATES[1],
-                ("web_knee", 28.0, 51.2, 19.0, -27.6, 19.0))
+# Moving envelope of one coxa (local x along the link from the hip axis, z in the body frame), (name, x0, x1, half
+# width, z0, z1), from the limbs CAD (cad/v2/legs.py coxa_envelope): the coxa bracket with the thigh servo, and the thigh with the
+# knee servo at nine angles over its range.
+LEG_ENVELOPE = LEGS_CAD.coxa_envelope()
 
 # Shoulder (arm yaw) servos, STS3032 (cad/servo.py profile), interface from the limbs CAD: shaft vertical through the
-# shoulder point, mounted upside down (servo x -> body x, y -> -y, z -> -z), servo origin at body z +13.8, so the horn
-# face is at z -5.4 and the case spans z 0.05..27.55; ears at z 5.55..7.05 screwed from above.
-SHOULDER_Z0 = 13.8
-# Moving envelope of one arm about the yaw axis (shoulder local x forward): the bracket under the horn hanging to the
-# pitch axis (r 13 mm, crab_v2.xml L_shoulder cylinder), the pitch servo and its horn (crab_v2.xml L_upper).
-ARM_ENVELOPE = (("bracket", "cyl", 13.0, -28.7, -5.4),
-                ("pitch_servo", 12.5, 35.5, 13.75, -20.9, -8.9),
-                ("pitch_horn", 10.0, 38.0, 15.5, -28.9, -0.9))
+# shoulder point, mounted upside down (servo x -> body x, y -> -y, z -> -z), servo origin at SHOULDER_Z0 (the horn
+# face 19.2 mm below it), ears screwed from above. Moving envelope of one arm about the yaw axis, from the limbs CAD (cad/v2/arms.py arm_envelope): the bracket with the lift servo, the upper arm at seven lift angles.
+ARM_ENVELOPE = ARMS.arm_envelope(float(Layout()["shoulder_l"].d["joint_mm"][2]))
 
 # Wall-mounted sensor apertures: radius of the window at the sensor face (the cone grows from it)
 APERTURE_R = {"camera_lens": 8.5, "tof8": 4.0, "mic_l": 0.8, "mic_r": 0.8}
@@ -320,8 +318,7 @@ def envelope_at(key, q, grow=0.0):
 
 @cache
 def sweep(key, grow=0.0):
-    """Volume swept by a joint's moving envelope over its range (grown by `grow`): for each box, the annular sector
-    out to its corners' radius over the range (the corners sweep all of it) plus the box at both ends."""
+    """Volume swept by a joint's moving envelope over its range (grown by `grow`): each box stepped over the range."""
     j = joints()[key]
     a0, a1 = j["world"]
     cx, cy = j["pos"][:2]
@@ -332,13 +329,11 @@ def sweep(key, grow=0.0):
             continue
         _, x0, x1, hw, z0, z1 = e
         x0, x1, hw, z0, z1 = x0 - grow, x1 + grow, hw + grow, z0 - grow, z1 + grow
-        r1 = math.hypot(max(abs(x0), abs(x1)), hw)
-        r0 = max(x0, 0.0)
-        parts.append(_sector(cx, cy, r0, r1, a0, a1, z0, z1))
-        if x0 < 0:                                   # the part behind the axis sweeps a disc
-            parts.append(zcyl(cx, cy, math.hypot(x0, hw), z0, z1))
-        for t in (a0, a1):
-            parts.append(_env_box(cx, cy, t, x0, x1, hw, z0, z1))
+        # the box itself stepped over the range (a ring out to its far corner cut away far more shell than any pose
+        # reaches); the step leaves at most r (1 - cos(step / 2)) uncut between poses: 0.2 mm at r = 80, 4 deg
+        n = max(2, int(math.ceil(math.degrees(a1 - a0) / SWEEP_STEP_DEG)) + 1)
+        for k in range(n):
+            parts.append(_env_box(cx, cy, a0 + (a1 - a0) * k / (n - 1), x0, x1, hw, z0, z1))
     return fuse(parts)
 
 

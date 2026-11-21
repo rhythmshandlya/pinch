@@ -23,7 +23,7 @@ note = "Edit a position, then run `python sim/fit_check.py`; `python sim/build_m
 # Design v2 style B (the owner's "chubbier cartoon crab"): ONE shell, a superellipsoid pill (crab/shapes.py), replaces the
 # old chassis box + dome. Inside: |x/a|^(2/eh) etc. as in crab/shapes.py. The body frame's hip plane is z = 0.
 shell_center_mm = [6.9, 0.0, 0.3]
-shell_half_mm = [84.0, 108.0, 52.0]
+shell_half_mm = [84.0, 94.0, 52.0]   # 188 mm wide: the hips (y 68) sit at the shell edge so the legs swing outside it (was 216)
 shell_exponents = [0.65, 0.6]
 wall_mm = 2.0
 wall_source = "estimate"
@@ -53,6 +53,7 @@ mass_ref = "https://www.dfrobot.com/product-2961.html"
 why = "size: Waveshare wiki (45.22 x 35 x 24.72 mm); mass: 55 +- 1 g printed on DFRobot's ST3215 7.4 V product page (Waveshare and Feetech print no weight)"
 pos_mm = [35.2, 68, -5.25]
 in_model = true
+outside_ok = true   # 188 mm shell: the case end shows at the side opening (DIY: servos may show)
 
 [part.hip_fr]
 kind = "servo"
@@ -65,6 +66,7 @@ mass_ref = "https://www.dfrobot.com/product-2961.html"
 why = "size: Waveshare wiki (45.22 x 35 x 24.72 mm); mass: 55 +- 1 g printed on DFRobot's ST3215 7.4 V product page (Waveshare and Feetech print no weight)"
 pos_mm = [35.2, -68, -5.25]
 in_model = true
+outside_ok = true   # 188 mm shell: the case end shows at the side opening (DIY: servos may show)
 
 [part.hip_rl]
 kind = "servo"
@@ -77,6 +79,7 @@ mass_ref = "https://www.dfrobot.com/product-2961.html"
 why = "size: Waveshare wiki (45.22 x 35 x 24.72 mm); mass: 55 +- 1 g printed on DFRobot's ST3215 7.4 V product page (Waveshare and Feetech print no weight)"
 pos_mm = [-35.2, 68, -5.25]
 in_model = true
+outside_ok = true   # 188 mm shell: the case end shows at the side opening (DIY: servos may show)
 
 [part.hip_rr]
 kind = "servo"
@@ -89,6 +92,7 @@ mass_ref = "https://www.dfrobot.com/product-2961.html"
 why = "size: Waveshare wiki (45.22 x 35 x 24.72 mm); mass: 55 +- 1 g printed on DFRobot's ST3215 7.4 V product page (Waveshare and Feetech print no weight)"
 pos_mm = [-35.2, -68, -5.25]
 in_model = true
+outside_ok = true   # 188 mm shell: the case end shows at the side opening (DIY: servos may show)
 
 [part.shoulder_l]
 kind = "servo"
@@ -99,7 +103,8 @@ mass_g = 20.0
 mass_source = "datasheet"
 mass_ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor"
 why = "owner's parts decision 2026-11-21: the arm servo is a Feetech STS3032, 20 g (Evelta page opened 2026-11-21, 4.5 kg*cm, 4.8-6 V, bus ID 13-18 on the 5 V rail B). The box is the earlier 23 x 12 x 27.5 mm figure; Evelta lists 23.2 x 12.1 x 28.5 mm (1 mm taller: apply it when the model is next rebuilt, size stays an estimate until a servo is measured). Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
-pos_mm = [86.7, 40, -14.9]
+pos_mm = [62.21, 40, 21.7]   # the case (upside down above its horn); the joint is joint_mm
+joint_mm = [68.0, 40, -7.0]   # the yaw axis at the horn: 8 mm higher and 18.7 mm back (the shell front is too low for the case); the bracket is longer, same reach
 rpy_deg = [0, 0, 0]
 in_model = true
 outside_ok = true
@@ -113,7 +118,8 @@ mass_g = 20.0
 mass_source = "datasheet"
 mass_ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor"
 why = "owner's parts decision 2026-11-21: the arm servo is a Feetech STS3032, 20 g (Evelta page opened 2026-11-21, 4.5 kg*cm, 4.8-6 V, bus ID 13-18 on the 5 V rail B). The box is the earlier 23 x 12 x 27.5 mm figure; Evelta lists 23.2 x 12.1 x 28.5 mm (1 mm taller: apply it when the model is next rebuilt, size stays an estimate until a servo is measured). Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
-pos_mm = [86.7, -40, -14.9]
+pos_mm = [62.21, -40, 21.7]
+joint_mm = [68.0, -40, -7.0]
 rpy_deg = [0, 0, 0]
 in_model = true
 outside_ok = true
@@ -373,7 +379,7 @@ mass_g = 1.4
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
-pos_mm = [0, 97.22, -29.91]
+pos_mm = [0, 84.14, -29.91]
 rpy_deg = [-180.0, 60.0, -90.0]
 wall_mounted = true
 window = {pos_mm = [0.0, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
@@ -389,7 +395,7 @@ mass_g = 1.4
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
-pos_mm = [0, -97.22, -29.91]
+pos_mm = [0, -84.14, -29.91]
 rpy_deg = [-180.0, -60.0, -90.0]
 wall_mounted = true
 window = {pos_mm = [0.0, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
@@ -575,7 +581,7 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'side_left'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [0, 94.52, 34.0]
+pos_mm = [0, 81.84, 34.0]
 wall_mounted = true
 rpy_deg = [-40.15, -0.15, 0.12]
 
@@ -588,7 +594,7 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'side_right'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [0, -94.52, 34.0]
+pos_mm = [0, -81.84, 34.0]
 wall_mounted = true
 rpy_deg = [40.15, -0.15, -0.12]
 

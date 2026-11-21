@@ -21,7 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from crab.params import PARAMS  # noqa: E402
+from crab.params import PARAMS, servo_for  # noqa: E402
 from robot.feetech_bus import MODELS, FeetechBus  # noqa: E402
 from robot.servos import SERVO_IDS  # noqa: E402
 
@@ -34,7 +34,9 @@ SETTINGS = {           # register -> value
 VOLTAGE_LIMITS = {"sts3215": (65, 40), "scs0009": (65, 40)}
 
 
-def setup(bus: FeetechBus, target_id: int, current_id: int = 1, log=print):
+def setup(bus: FeetechBus, target_id: int, current_id: int = 1, log=print, torque_permille=None):
+    """... torque_permille: the arm servos' child-safety torque limit (configs/electronics.toml
+    arm_servo.torque_limit_permille), written to the EEPROM maximum (kept at power-up) and the live limit."""
     if not bus.ping(current_id):
         raise SystemExit(f"no servo answers at ID {current_id} - is exactly one servo connected and powered?")
     if current_id != target_id:
@@ -49,7 +51,12 @@ def setup(bus: FeetechBus, target_id: int, current_id: int = 1, log=print):
     vmax, vmin = VOLTAGE_LIMITS[bus.m.name]
     bus.write(sid, "max_voltage", vmax)
     bus.write(sid, "min_voltage", vmin)
+    if torque_permille is not None:
+        bus.write(sid, "max_torque", int(torque_permille))
     bus.write(sid, "lock", 1)
+    if torque_permille is not None:
+        bus.write(sid, "torque_limit", int(torque_permille))
+        log(f"torque limited to {torque_permille / 10:.0f} % (arm servo)")
     bus.write(sid, "torque_enable", 1)
     bus.write(sid, "goal_position", bus.m.centre)
     names = {v: k for k, v in SERVO_IDS.items()}
@@ -73,13 +80,17 @@ def main():
                          f"output {PWM_CHANNEL[joint]} of the PCA9685 board and use calibrate.py --trim-arms.")
     model = bus_models().get(a.id, MODELS[PARAMS.servo.bus_model])     # legs: STS3032 (STS protocol)
     print(f"servo ID {a.id}: {model.name} protocol")
+    tl = None
+    if joint and servo_for(joint).name == "STS3032T":                 # v2 arm servos: the 40 % torque limit
+        from crab.electronics import Data
+        tl = round(float(Data()("arm_servo.torque_limit_permille")))
     if a.rehearse:
         from robot.bus_emulator import EmulatedPort
         port = EmulatedPort(model, [a.current_id])
     else:
         import serial  # pip install pyserial
         port = serial.Serial(a.port, baudrate=1_000_000, timeout=0.05)
-    setup(FeetechBus(port, model), a.id, a.current_id)
+    setup(FeetechBus(port, model), a.id, a.current_id, torque_permille=tl)
 
 
 if __name__ == "__main__":

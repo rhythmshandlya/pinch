@@ -51,8 +51,8 @@ def test_v2_model_is_current_and_has_the_right_mass():
     r = probe()
     assert r["model_is_current"], "sim/models/crab_v2.xml is stale: python sim/build_model.py --design v2"
     assert r["nu"] == 18 and r["njnt"] == 1 + 2 * 18                          # root + 18 servo joints + 18 gear play
-    assert 2.05 < r["mass"] < 2.25, r["mass"]                                 # style B: 2.135 kg with the 300 g screen module (1.985 kg with 150 g)
-    assert 0.70 < r["leg_mass"] < 0.85                                        # 4 legs: 12 servos + printed covers + ball feet
+    assert 1.90 < r["mass"] < 2.20, r["mass"]                                 # from the CAD: 2.00 kg with the 300 g screen module
+    assert 0.62 < r["leg_mass"] < 0.80                                        # 4 legs from the CAD: 12 servos + brackets + crab shins (0.683 kg)
     assert r["min_inertia"] > 0.0
     assert 0.052 < r["stand_z"] < 0.068
 

@@ -147,6 +147,28 @@ def dactyl():
     return hub + arm + drop + jaw
 
 
+@cache
+def arm_envelope(z_shoulder, x_max=45.0, steps=7):
+    """What swings with a shoulder yaw joint, as boxes for cad/v2/body.py's openings: (name, x0, x1, half width, z0,
+    z1), x forward from the yaw axis, z in the body frame (the shoulder frame sits at body z = z_shoulder). The bracket
+    with the lift servo, and the upper arm with its claw servo at `steps` lift angles, clipped at x_max."""
+    from math import degrees
+
+    from cad.v2.servos import sts3032
+    lift = Location((LS, 0, 0), (90, 0, 0)) * sts3032()
+
+    def box(name, solid):
+        bb = (solid & Pos(x_max - 500, 0, 0) * Box(1000, 1000, 1000)).bounding_box()     # the part at x <= x_max
+        return (name, bb.min.X, bb.max.X, max(abs(bb.min.Y), abs(bb.max.Y)), bb.min.Z + z_shoulder, bb.max.Z + z_shoulder)
+    out = [box("bracket", shoulder_link() + lift)]
+    upper = upper_arm() + Pos(LU, 0, CLAW_Z) * sts3032()
+    lo, hi = PARAMS.arm.shoulder_pitch_range
+    for k in range(steps):
+        q = lo + (hi - lo) * k / (steps - 1)
+        out.append(box(f"upper{k}", Pos(LS, 0, 0) * Location((0, 0, 0), (0, degrees(-q), 0)) * upper))
+    return tuple(out)
+
+
 if __name__ == "__main__":
     import time
     for name, fn in (("shoulder_link", shoulder_link), ("upper_arm", upper_arm), ("dactyl", dactyl)):
