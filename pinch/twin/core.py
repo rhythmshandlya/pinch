@@ -33,12 +33,15 @@ from pinch.twin.common import (  # noqa: F401
 
 class TwinCore:
     def __init__(self, memory=None, llm=False, seed=0, start=None, render=False, policies=True, extras=(),
-                 epoch=SIM_EPOCH, decision_log=None, props=(), record_dir=None, record=None):
+                 epoch=SIM_EPOCH, decision_log=None, props=(), record_dir=None, record=None, realism="ideal", soc=1.0):
         """epoch: the wall-clock time the run starts at (what the mind's clock reads at t = 0).
         decision_log: a file to write every activity switch and its reason to (JSON lines).
         props: things Pinch doesn't know (names from sim.desk.PROPS), parked off the desk until shown.
         record_dir: record the session there (pinch/recorder.py; off by default, and it changes nothing);
-        record: options for the recorder (header=dict(scenario=...), state=False, live_every=60 ...)."""
+        record: options for the recorder (header=dict(scenario=...), state=False, live_every=60 ...).
+        realism: "ideal" (exact sensors, no delay: the default) or "datasheet" (the electronics of
+        configs/electronics.toml: command delay, encoder steps, IMU, distance beams, battery; docs/dev/ELECTRONICS.md).
+        soc: the battery's starting state of charge, 0..1 (datasheet realism)."""
         self.t = 0.0
         self.faults = {}                                  # injected failures (inject())
         self.desk = Desk()
@@ -47,7 +50,8 @@ class TwinCore:
         prop_extras = [dict(name=p, type=sh, size=sz, rgba=c, pos=list(PROP_PARK), mocap=True)
                        for p, (sh, sz, c) in self.props.items()]
         self.m = build_desk_model(self.desk, start=start or START, extras=tuple(extras) + tuple(prop_extras))
-        self.hw = SimBackend(model=self.m, render=render)
+        self.hw = SimBackend(model=self.m, render=render, realism=realism, seed=seed, soc=soc)
+        self.realism = realism
         self.d = self.hw.d
         self.crab = Crab(self.hw, calibration=Calibration())
         self.crab.start()                                  # ease into the stand pose (2 s)
@@ -131,6 +135,8 @@ class TwinCore:
             self.perceive()
         elif self.k % MIND_EVERY == 0:
             self.perceive()
+            if self.hw.elec is not None:                       # the battery monitor feeds the mind's hunger
+                self.mind.world.battery = self.hw.battery_fraction()
             motion, cancel = self.mind.tick(DT * MIND_EVERY, self.body.busy, self.body.ok)
             if cancel:
                 self.body.cancel()

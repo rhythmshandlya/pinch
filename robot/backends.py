@@ -57,8 +57,15 @@ class ServoState:
 class SimBackend:
     """MuJoCo stands in for the robot. `mount_offsets` = physical horn offsets (rad) per joint."""
 
-    def __init__(self, mount_offsets=None, render=False, voltage=None, pwm_travel=1.0, model=None):
+    def __init__(self, mount_offsets=None, render=False, voltage=None, pwm_travel=1.0, model=None,
+                 realism="ideal", seed=0, soc=1.0):
+        """realism: "ideal" (exact sensors, no delay, constant power: the default) or "datasheet" (the electronics
+        of configs/electronics.toml: command delay, encoder steps, IMU noise and lag, distance-beam noise and
+        dropouts, a battery that drains and sags; crab/electronics.py). Seeded: same seed, same numbers.
+        soc: the pack's starting state of charge (datasheet realism only)."""
         from crab.params import JOINT_SPECS, PARAMS
+        if realism not in ("ideal", "datasheet"):
+            raise ValueError(f"realism must be 'ideal' or 'datasheet', not {realism!r}")
         voltage = PARAMS.bus_voltage if voltage is None else voltage
         self._flim = {j: s.force_limit for j, s in zip(JOINT_NAMES, JOINT_SPECS)}
         from pathlib import Path
@@ -88,6 +95,15 @@ class SimBackend:
         self.voltage = voltage                       # servo bus (regulated 5 V)
         self.battery = PARAMS.battery_nominal       # 2S pack voltage, as the INA219 would read it
         self.held = None          # joint vector: "a person holds the robot in this pose" (calibration rehearsal)
+        self.realism, self.elec = realism, None
+        if realism == "datasheet":
+            from crab.electronics import Realism
+            self._act_idx = np.array([self.act[j] for j in JOINT_NAMES])
+            self._target = self.d.ctrl[self._act_idx].copy()          # what the servos have been told (undelayed)
+            self.elec = Realism(seed=seed, soc=soc, pwm=[j in self.no_feedback for j in JOINT_NAMES],
+                                kt=[s.kt_current for s in JOINT_SPECS], dt=float(self.m.opt.timestep),
+                                initial=self._target)
+            self._sync_power()
         self.viewer = None
         if render:
             import mujoco.viewer
@@ -108,7 +124,15 @@ class SimBackend:
         for sid, s_rad in goals.items():
             j = self.by_id[sid]
             self.cmd[j] = s_rad
-            self.d.ctrl[self.act[j]] = (s_rad - self.mount[j]) * self.sign[j] * self.travel[j]
+            v = (s_rad - self.mount[j]) * self.sign[j] * self.travel[j]
+            if self.elec is not None:
+                self._target[JOINT_NAMES.index(j)] = v          # reaches the joint after the delay (wait)
+            else:
+                self.d.ctrl[self.act[j]] = v
+
+    def _sync_power(self):
+        e = self.elec
+        self.voltage, self.battery = e.power.servo_voltage(), e.power.v_pack
 
     def read_state(self):
         out = {}
@@ -117,7 +141,8 @@ class SimBackend:
                 out[sid] = ServoState(self.cmd.get(j), 0.0, 0.0, self.voltage, 35.0, feedback=False)
                 continue
             f = self.d.actuator_force[self.act[j]]
-            out[sid] = ServoState(position=float(self._servo_angle(j)),
+            pos = self._servo_angle(j)
+            out[sid] = ServoState(position=float(pos if self.elec is None else self.elec.encoder(pos)),
                                   speed=float(self.sign[j] * self.link_speed(j)),
                                   load=float(np.clip(self.sign[j] * f / self._flim[j], -1, 1)),
                                   voltage=self.voltage, temperature=35.0)
@@ -125,7 +150,8 @@ class SimBackend:
 
     def read_imu(self):
         R = self.d.xmat[1].reshape(3, 3)
-        return self.d.qvel[3:6].copy(), R.T @ np.array([0, 0, -1.0])
+        gyro, grav = self.d.qvel[3:6].copy(), R.T @ np.array([0, 0, -1.0])
+        return (gyro, grav) if self.elec is None else self.elec.imu.read(self.d.time, gyro, grav)
 
     def torque(self, enable):
         self.torque_on = enable
@@ -142,14 +168,33 @@ class SimBackend:
             self.d.qvel[:] = 0
             self.mj.mj_forward(self.m, self.d)
             return
-        for _ in range(max(1, int(round(dt / self.m.opt.timestep)))):
-            self.mj.mj_step(self.m, self.d)
+        n = max(1, int(round(dt / self.m.opt.timestep)))
+        if self.elec is None:
+            for _ in range(n):
+                self.mj.mj_step(self.m, self.d)
+        else:
+            for _ in range(n):
+                self.d.ctrl[self._act_idx] = self.elec.delay.push(self._target)
+                self.mj.mj_step(self.m, self.d)
+            amps = self.elec.servo_amps(self.d.actuator_force[self._act_idx], self.torque_on)
+            self.elec.power.step(n * self.m.opt.timestep, amps)
+            self._sync_power()
         if self.viewer is not None:
             self.viewer.sync()
             time.sleep(dt)
 
     def battery_voltage(self):
-        return self.battery
+        """Pack volts as the INA219 reads them (datasheet realism: in its 4 mV steps, with its gain error)."""
+        return self.battery if self.elec is None else self.elec.power.measure()[0]
+
+    def battery_current(self):
+        """Amps drawn from the pack, as the INA219 reads them (None in ideal realism: nothing models it)."""
+        return None if self.elec is None else self.elec.power.measure()[1]
+
+    def battery_fraction(self):
+        """0..1 from the pack voltage, the way robot/hw_real.py does it (6.4 V empty, 8.4 V full)."""
+        v = self.battery_voltage()
+        return float(np.clip((v - 6.4) / (8.4 - 6.4), 0, 1))
 
     def close(self):
         if self.viewer is not None:
@@ -542,16 +587,16 @@ class SimPWM:
             self.sim.write_positions({self.sid[channel]: us_to_rad(us)})
 
 
-def emulated_bus_backend(mount_offsets=None, pwm_travel=1.0):
+def emulated_bus_backend(mount_offsets=None, pwm_travel=1.0, realism="ideal", seed=0):
     """Full software stack down to the bytes: driver -> emulated servos and emulated PWM chip
     -> MuJoCo physics."""
     from robot.bus_emulator import EmulatedPCA9685, EmulatedPort
     model = bus_models()
-    sim = SimBackend(mount_offsets=mount_offsets, pwm_travel=pwm_travel)
+    sim = SimBackend(mount_offsets=mount_offsets, pwm_travel=pwm_travel, realism=realism, seed=seed)
     port = EmulatedPort(model, list(model), physics=SimPhysics(sim))
     chip = EmulatedPCA9685(physics=SimPWM(sim))
     imu = type("SimIMU", (), {"read": lambda self: sim.read_imu()})()
-    batt = type("SimBattery", (), {"read": lambda self: sim.battery})()
+    batt = type("SimBattery", (), {"read": lambda self: sim.battery_voltage()})()
     be = BusBackend(port, model, imu=imu, clock=sim.wait, battery=batt,
                     pwm=PCA9685(smbus=chip) if PWM_JOINTS else None)
     be.sim, be.chip = sim, chip

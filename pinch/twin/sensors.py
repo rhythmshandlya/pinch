@@ -105,6 +105,8 @@ class TwinSensors:
         out = {}
         for name, *_ in self.cliff.beams:
             v = float(self.d.sensor(twin_sensor(name)).data[0])
+            if self.hw.elec is not None:                        # VL53L0X: noise, 1 mm steps, 30 Hz, dropouts
+                v = self.hw.elec.distance.read(name, v, self.d.time)
             out[name] = 9999 if v < 0 else v * 1000
         dead = self.faults.get("cliff_dead")
         if dead is not None:
