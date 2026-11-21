@@ -33,7 +33,9 @@ OUT = ROOT / "sim" / "models" / P.model_file
 S = P.scale                                   # size relative to the 100 mm-shin original
 V2 = P.design == "v2"
 K = P.arm_scale                               # claw / jaw geometry relative to v1
-JAW_EXTRA = 12.0 if V2 else 0.0               # mm: v2's jaws are longer, so a 40 mm toy still fits between them
+JAW_EXTRA = 24.0 if V2 else 0.0
+# v2 claw pads: TPU (friction 1.2) and a stiff contact that wins over a light toy's soft default (priority), or a 6 g ball is squashed flat
+PAD = ' priority="1" solref="0.004 1" friction="1.2 0.02 0.001"' if V2 else ""               # mm: v2's jaws are longer, so a 40 mm toy still fits between them
 # style B colours (the owner's reference: an orange cartoon crab with dark joints and dark ball feet)
 ORANGE, DARK, RUBBER = "0.93 0.40 0.14 1", "0.13 0.13 0.15 1", "0.22 0.22 0.24 1"
 
@@ -150,9 +152,13 @@ def arm_xml(arm_id: str) -> str:
                     f'mass="{sv.mass:.5g}" material="servo"/>\n          '
                     f'<geom class="visual" type="cylinder" size="0.011 0.016" pos="{h:.4f} 0 0" material="servo"/>\n          '
                     f'<geom class="visual" type="mesh" mesh="v2_cover" pos="{f(JAW["strip"][0][0], JAW["strip"][0][1] - s * 0.007, JAW["strip"][0][2])}" '
-                    f'euler="0 {-JAW["pitch"]:.4f} 0" material="claw"/>')
+                    f'euler="0 {-JAW["pitch"]:.4f} 0" material="claw"/>\n          '
+                    f'<geom name="{arm_id}_pollex_hook" type="box" pos="{f(*JAW["hook"][0])}" euler="0 {-JAW["pitch"]:.4f} 0" '
+                    f'size="{f(*JAW["hook"][1])}" mass="0.0002" material="claw"{PAD}/>')
         dac_extra = ("\n            " + f'<geom class="visual" type="mesh" mesh="v2_cover" pos="{f(JAW["d_strip"][0][0], JAW["d_strip"][0][1] + s * 0.007, JAW["d_strip"][0][2])}" '
-                     f'quat="{f(*JAW["d_strip"][2])}" material="claw"/>')
+                     f'quat="{f(*JAW["d_strip"][2])}" material="claw"/>\n            '
+                     f'<geom name="{arm_id}_dactyl_hook" type="box" pos="{f(*JAW["d_hook"][0])}" quat="{f(*JAW["d_hook"][2])}" '
+                     f'size="{f(*JAW["d_hook"][1])}" mass="0.0002" material="claw"{PAD}/>')
     return f"""
       <body name="{arm_id}_shoulder" pos="{f(x, s*y, z)}" euler="0 0 {s*yaw:.4f}">
         {jnt(arm_id + "_shoulder_yaw", f"0 0 {s}", A.shoulder_yaw_range)}
@@ -166,15 +172,15 @@ def arm_xml(arm_id: str) -> str:
           <geom name="{arm_id}_palm" type="ellipsoid" pos="{h - 0.004 * K:.4f} 0 {-0.004 * K:.4g}" size="{f(0.011 * K, 0.0065 * K, 0.009 * K)}" mass="{A.upper_mass * 0.7:.4f}" material="shell"/>
           <!-- fixed finger: the gripping strip (blade + TPU pad, level with the desk at the grip pitch) and
                the blade above it, hanging below the palm (cad/parts.py jaw_side) -->
-          <geom name="{arm_id}_pollex" type="box" pos="{f(*JAW['strip'][0])}" euler="0 {-JAW['pitch']:.4f} 0" size="{f(*JAW['strip'][1])}" mass="0.0008" material="claw"/>
-          <geom name="{arm_id}_pollex_blade" type="box" pos="{f(*JAW['blade'][0])}" size="{f(*JAW['blade'][1])}" mass="0.0006" material="claw"/>
+          <geom name="{arm_id}_pollex" type="box" pos="{f(*JAW['strip'][0])}" euler="0 {-JAW['pitch']:.4f} 0" size="{f(*JAW['strip'][1])}" mass="0.0008" material="claw"{PAD}/>
+          <geom name="{arm_id}_pollex_blade" type="box" pos="{f(*JAW['blade'][0])}" size="{f(*JAW['blade'][1])}" mass="0.0006" material="claw"{PAD}/>
           <site name="{arm_id}_grip_site" pos="{f(*JAW['site'])}" euler="0 {-JAW['pitch']:.4f} 0" size="0.005" rgba="0 0 0 0"/>
           <body name="{arm_id}_dactyl" pos="{h:.4f} 0 0">
             {jnt(arm_id + "_claw", f"0 0 {s}", A.claw_range)}
             {cad(arm_id + "_dactyl")}{dac_extra}
-            <geom name="{arm_id}_dactyl_jaw" type="box" pos="{f(*JAW['d_strip'][0])}" quat="{f(*JAW['d_strip'][2])}" size="{f(*JAW['d_strip'][1])}" mass="{A.jaw_mass}" material="claw"/>
-            <geom name="{arm_id}_dactyl_blade" type="box" pos="{f(*JAW['d_blade'][0])}" quat="{f(*JAW['d_blade'][2])}" size="{f(*JAW['d_blade'][1])}" mass="0.0004" material="claw"/>
-            <geom name="{arm_id}_dactyl_drop" type="box" pos="{f(*JAW['d_drop'][0])}" size="{f(*JAW['d_drop'][1])}" mass="0.0004" material="claw"/>
+            <geom name="{arm_id}_dactyl_jaw" type="box" pos="{f(*JAW['d_strip'][0])}" quat="{f(*JAW['d_strip'][2])}" size="{f(*JAW['d_strip'][1])}" mass="{A.jaw_mass}" material="claw"{PAD}/>
+            <geom name="{arm_id}_dactyl_blade" type="box" pos="{f(*JAW['d_blade'][0])}" quat="{f(*JAW['d_blade'][2])}" size="{f(*JAW['d_blade'][1])}" mass="0.0004" material="claw"{PAD}/>
+            <geom name="{arm_id}_dactyl_drop" type="box" pos="{f(*JAW['d_drop'][0])}" size="{f(*JAW['d_drop'][1])}" mass="0.0004" material="claw"{PAD}/>
           </body>
         </body>
       </body>"""
@@ -185,11 +191,15 @@ def jaw_geoms(s):
     STRIP_H, PAD_T, BLADE_T, D_DROP) - kept here as plain numbers so the model builds without the CAD.
     s = +1 left arm, -1 right (mirror). Returns {name: ((pos), (half sizes))} in metres, plus 'pitch'
     and the grip site."""
-    pitch = np.radians(20.0)
+    pitch = np.radians(8.0 if V2 else 20.0)      # v2: the shoulder is low, the strip is level with the desk at an arm pitch of about -8 deg
     # (v2: the whole claw is K = 1.5 times bigger; v1: K = 1.0, so every number below is unchanged)
     x0, x1, low0, strip_h, pad_t, blade_t = (K * v for v in (40.3, 55.5, -24.5, 10.0, 1.2, 2.4))
     x1 += JAW_EXTRA
+    if V2:
+        strip_h = 22.0                                   # taller pads: a 36 mm ball is held above its middle, not by the pad's edge
     grip_w, q_par = 9.0 * K, np.radians(19.0)            # jaws parallel GRIP_W apart at CLAW_PARALLEL
+    if V2:                                               # v2: parallel (4 mm apart) when the claw is shut, so a pen is held flat
+        grip_w, q_par = 4.0, 0.0
     lu, dd, dd_y = P.arm.upper_len * 1000, tuple(K * v for v in (11.5, 15.0)), tuple(K * v for v in (4.6, 8.4))
     c, sn = np.cos(pitch), np.sin(pitch)
     ry = np.array([[c, 0, -sn], [0, 1, 0], [sn, 0, c]])       # rotation about y by -pitch (strip along x)
@@ -232,6 +242,13 @@ def jaw_geoms(s):
         "d_drop": (((dd[0] + dd[1]) / 2 * m, s * (dd_y[0] + dd_y[1]) / 2 * m, 4.5 * K * m),
                    ((dd[1] - dd[0]) / 2 * m, (dd_y[1] - dd_y[0]) / 2 * m, 10.5 * K * m)),
     }
+    if V2:      # tip hooks (a crab claw's curved tips): on the upper part of each pad so a ball or cube cannot roll or slip out
+        #           forward, while a pen or an eraser lying low passes under them
+        hook = (1.5, 4.0, 4.5)                                       # half sizes, mm
+        off_f = np.array([hx - 1.5, s * (hy + hook[1]), hz - hook[2]])
+        off_d = np.array([hx - 1.5, -s * (hy + hook[1]), hz - hook[2]])
+        out["hook"] = (tuple((strip_c + ry @ off_f) * m), tuple(v * m for v in hook))
+        out["d_hook"] = (tuple((d_strip[0] + d_strip[1] @ off_d) * m), tuple(v * m for v in hook), quat(d_strip[1]))
     return out
 
 

@@ -246,22 +246,24 @@
           <geom class="visual" type="sphere" size="0.019" pos="0.0390 0 -0.006" material="shell"/>
           <geom class="visual" type="box" size="0.0115 0.006 0.01375" pos="0.0410 0 0.002" mass="0.02" material="servo"/>
           <geom class="visual" type="cylinder" size="0.011 0.016" pos="0.0450 0 0" material="servo"/>
-          <geom class="visual" type="mesh" mesh="v2_cover" pos="0.07544 -0.0102 -0.02379" euler="0 -0.3491 0" material="claw"/>
+          <geom class="visual" type="mesh" mesh="v2_cover" pos="0.08233 -0.0102 -0.02267" euler="0 -0.1396 0" material="claw"/>
+          <geom name="L_pollex_hook" type="box" pos="0.1032 0.0035 -0.01329" euler="0 -0.1396 0" size="0.0015 0.004 0.0045" mass="0.0002" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           <geom type="capsule" fromto="0 0 0 0.0300 0 0" size="0.0075" mass="0.0036" material="shell"/>
           <geom name="L_palm" type="ellipsoid" pos="0.0390 0 -0.006" size="0.0165 0.00975 0.0135" mass="0.0084" material="shell"/>
           <!-- fixed finger: the gripping strip (blade + TPU pad, level with the desk at the grip pitch) and
                the blade above it, hanging below the palm (cad/parts.py jaw_side) -->
-          <geom name="L_pollex" type="box" pos="0.07544 -0.0032 -0.02379" euler="0 -0.3491 0" size="0.01832 0.0027 0.007048" mass="0.0008" material="claw"/>
-          <geom name="L_pollex_blade" type="box" pos="0.06225 -0.0041 -0.0165" size="0.0072 0.0018 0.012" mass="0.0006" material="claw"/>
-          <site name="L_grip_site" pos="0.07605 0 -0.02548" euler="0 -0.3491 0" size="0.005" rgba="0 0 0 0"/>
+          <geom name="L_pollex" type="box" pos="0.08233 -0.0032 -0.02267" euler="0 -0.1396 0" size="0.02343 0.0027 0.01089" mass="0.0008" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="L_pollex_blade" type="box" pos="0.06225 -0.0041 -0.0165" size="0.0072 0.0018 0.012" mass="0.0006" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <site name="L_grip_site" pos="0.08312 0 -0.02826" euler="0 -0.1396 0" size="0.005" rgba="0 0 0 0"/>
           <body name="L_dactyl" pos="0.0450 0 0">
             <joint name="L_claw" class="srv_STS3032" axis="0 0 1" range="0 1.658"/>
         <joint name="L_claw_backlash" class="bl_STS3032" axis="0 0 1"/>
             
-            <geom class="visual" type="mesh" mesh="v2_cover" pos="0.03389 0.01193 -0.02379" quat="0.9713 -0.02866 -0.1713 -0.1625" material="claw"/>
-            <geom name="L_dactyl_jaw" type="box" pos="0.03389 0.004934 -0.02379" quat="0.9713 -0.02866 -0.1713 -0.1625" size="0.01832 0.0027 0.007048" mass="0.003" material="claw"/>
-            <geom name="L_dactyl_blade" type="box" pos="0.02427 0.009201 -0.01238" quat="0.9863 0 0 -0.165" size="0.0045 0.0018 0.008625" mass="0.0004" material="claw"/>
-            <geom name="L_dactyl_drop" type="box" pos="0.01988 0.00975 0.00675" size="0.002625 0.00285 0.01575" mass="0.0004" material="claw"/>
+            <geom class="visual" type="mesh" mesh="v2_cover" pos="0.03733 0.0132 -0.02267" quat="0.9976 0 -0.06976 0" material="claw"/>
+            <geom name="L_dactyl_hook" type="box" pos="0.05816 -0.0005 -0.01329" quat="0.9976 0 -0.06976 0" size="0.0015 0.004 0.0045" mass="0.0002" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_jaw" type="box" pos="0.03733 0.0062 -0.02267" quat="0.9976 0 -0.06976 0" size="0.02343 0.0027 0.01089" mass="0.003" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_blade" type="box" pos="0.01995 0.0071 -0.01238" quat="1 0 0 0" size="0.0045 0.0018 0.008625" mass="0.0004" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="L_dactyl_drop" type="box" pos="0.01988 0.00975 0.00675" size="0.002625 0.00285 0.01575" mass="0.0004" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           </body>
         </body>
       </body>
@@ -282,22 +284,24 @@
           <geom class="visual" type="sphere" size="0.019" pos="0.0390 0 -0.006" material="shell"/>
           <geom class="visual" type="box" size="0.0115 0.006 0.01375" pos="0.0410 0 0.002" mass="0.02" material="servo"/>
           <geom class="visual" type="cylinder" size="0.011 0.016" pos="0.0450 0 0" material="servo"/>
-          <geom class="visual" type="mesh" mesh="v2_cover" pos="0.07544 0.0102 -0.02379" euler="0 -0.3491 0" material="claw"/>
+          <geom class="visual" type="mesh" mesh="v2_cover" pos="0.08233 0.0102 -0.02267" euler="0 -0.1396 0" material="claw"/>
+          <geom name="R_pollex_hook" type="box" pos="0.1032 -0.0035 -0.01329" euler="0 -0.1396 0" size="0.0015 0.004 0.0045" mass="0.0002" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           <geom type="capsule" fromto="0 0 0 0.0300 0 0" size="0.0075" mass="0.0036" material="shell"/>
           <geom name="R_palm" type="ellipsoid" pos="0.0390 0 -0.006" size="0.0165 0.00975 0.0135" mass="0.0084" material="shell"/>
           <!-- fixed finger: the gripping strip (blade + TPU pad, level with the desk at the grip pitch) and
                the blade above it, hanging below the palm (cad/parts.py jaw_side) -->
-          <geom name="R_pollex" type="box" pos="0.07544 0.0032 -0.02379" euler="0 -0.3491 0" size="0.01832 0.0027 0.007048" mass="0.0008" material="claw"/>
-          <geom name="R_pollex_blade" type="box" pos="0.06225 0.0041 -0.0165" size="0.0072 0.0018 0.012" mass="0.0006" material="claw"/>
-          <site name="R_grip_site" pos="0.07605 0 -0.02548" euler="0 -0.3491 0" size="0.005" rgba="0 0 0 0"/>
+          <geom name="R_pollex" type="box" pos="0.08233 0.0032 -0.02267" euler="0 -0.1396 0" size="0.02343 0.0027 0.01089" mass="0.0008" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <geom name="R_pollex_blade" type="box" pos="0.06225 0.0041 -0.0165" size="0.0072 0.0018 0.012" mass="0.0006" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          <site name="R_grip_site" pos="0.08312 0 -0.02826" euler="0 -0.1396 0" size="0.005" rgba="0 0 0 0"/>
           <body name="R_dactyl" pos="0.0450 0 0">
             <joint name="R_claw" class="srv_STS3032" axis="0 0 -1" range="0 1.658"/>
         <joint name="R_claw_backlash" class="bl_STS3032" axis="0 0 -1"/>
             
-            <geom class="visual" type="mesh" mesh="v2_cover" pos="0.03389 -0.01193 -0.02379" quat="0.9713 0.02866 -0.1713 0.1625" material="claw"/>
-            <geom name="R_dactyl_jaw" type="box" pos="0.03389 -0.004934 -0.02379" quat="0.9713 0.02866 -0.1713 0.1625" size="0.01832 0.0027 0.007048" mass="0.003" material="claw"/>
-            <geom name="R_dactyl_blade" type="box" pos="0.02427 -0.009201 -0.01238" quat="0.9863 0 0 0.165" size="0.0045 0.0018 0.008625" mass="0.0004" material="claw"/>
-            <geom name="R_dactyl_drop" type="box" pos="0.01988 -0.00975 0.00675" size="0.002625 0.00285 0.01575" mass="0.0004" material="claw"/>
+            <geom class="visual" type="mesh" mesh="v2_cover" pos="0.03733 -0.0132 -0.02267" quat="0.9976 0 -0.06976 0" material="claw"/>
+            <geom name="R_dactyl_hook" type="box" pos="0.05816 0.0005 -0.01329" quat="0.9976 0 -0.06976 0" size="0.0015 0.004 0.0045" mass="0.0002" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_jaw" type="box" pos="0.03733 -0.0062 -0.02267" quat="0.9976 0 -0.06976 0" size="0.02343 0.0027 0.01089" mass="0.003" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_blade" type="box" pos="0.01995 -0.0071 -0.01238" quat="1 0 0 0" size="0.0045 0.0018 0.008625" mass="0.0004" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+            <geom name="R_dactyl_drop" type="box" pos="0.01988 -0.00975 0.00675" size="0.002625 0.00285 0.01575" mass="0.0004" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           </body>
         </body>
       </body>
