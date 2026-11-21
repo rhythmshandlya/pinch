@@ -177,3 +177,19 @@ STS3215 gear versions do not share one model. Buying C044 or C046 gives a good s
 Second: the robot grows to roughly 1.2 kg and 30 cm, which means a large CAD and electronics rework (ESTIMATE, not
 designed). Third: the C001 voltage rating (6-7.4 V on Evelta) is below a fully charged 2S pack (8.4 V), so the
 regulated 7.4 V rail is required, not optional.
+
+## 10. Stock re-checked (2026-11-21, evening, pages opened live)
+
+| Seller | Version | Price incl. GST | Stock |
+|---|---|---|---|
+| ThinkRobotics | Waveshare ST3215, 19.5 kg.cm at 7.4 V, SKU WVSH0593 (shop data: variant "19.5kg.cm@7.4V") | INR 2,399.99 | available (quantity not shown) |
+| ThinkRobotics | Waveshare ST3215, 30 kg.cm at 12 V, SKU WVSH0241 | INR 2,699.99 | available, "Low Stock" banner; wrong voltage for this design |
+| Evelta | STS3215-C001, 1/345 (the version the public BAM fit most likely describes) | INR 1,885 + GST | no stock shown (only "Add to Your List") |
+| Evelta | STS3215-C044, 1/191 | INR 1,885 + GST | 4 in stock; different gear, so the public model does not describe it |
+| Evelta | STS3215-C046, 1/147 | INR 1,885 + GST | no stock shown |
+| robu.in | Waveshare ST3215 19.5 kg.cm at 7.4 V, SKU R258500 | INR 2,159 | out of stock |
+
+The choice stands (decision 100): the in-stock 7.4 V Waveshare ST3215 matches the C001's speed and gear figures, so it
+is probably the fitted version; the servo bench (first order) confirms it before the other 12 are bought. Since
+section 9 was written the power design changed: the servos now run straight from the 2S pack (docs/research/BOM_CHANGE.md),
+so a full pack's 8.4 V on a 7.4 V servo is a bench test (one hour at 8.4 V) rather than a required regulator.
