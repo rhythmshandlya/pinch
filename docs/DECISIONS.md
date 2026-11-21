@@ -1273,3 +1273,41 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       build. Instead, the pick planner checks fit before grabbing (approach a pen along its length), pushes or
       rotates a thing into a pickable pose, or pushes it to the tray; the cap and ball stay push-only. The tongs
       study is the fallback if grabbing stays the bottleneck.
+
+99. **The project was audited against research and open-source practice; the setup defects it exposed are fixed.**
+    - **Why:** every result so far came from one simulator that has never been compared with anything real. The
+      audit's seven findings: the simulated servo is mostly guesses and training has no delay; the twin hands the
+      mind true positions; the world is one desk; the mind has no declared structure; the training tools moved
+      upstream; most comparisons used too few trials; the robot's software is not safe to leave running.
+    - **Evidence:** [research/PROJECT_AUDIT.md](research/PROJECT_AUDIT.md) and nine reports (97 papers and 86
+      repositories checked against the live sources).
+    - **Change:** CI renders through a virtual display and runs the robot's two self-tests (master had been red
+      since the recorder merge: a renderer probe aborted the test process on a machine with no display);
+      `python -m ops check` runs the robot self-tests; `sim/benches/stats.py` gives every success count its 95 %
+      range and says whether two results differ; the robustness bench exits non-zero on FAIL; a training seed per
+      experiment or `--seed`; the installer no longer copies a removed folder; local jobs from a task worktree find
+      the shared training environment.
+    - **Measured:** local `ops check`: guard, ruff, 102 tests, robot self-test 40/40, firmware test 44/44 (face
+      recognition skipped without its models). CI on Linux green on the pull request (two runs, 8 and 11 minutes).
+      A CPU smoke run from a task worktree: submit, train, fetch, export (difference from the trained network
+      3.6e-07), seed recorded.
+    - **Rejected:** SciPy as a bench dependency (not installed in CI or on the robot); rliable (archived).
+
+100. **Leg servo: the Feetech STS3215 (7.4 V) replaces the STS3032 as the working choice; hand size is a
+     preference, not a rule.**
+    - **Why:** the STS3032 has no published measured model, so every learned skill rests on guessed servo numbers
+      (decision 99, finding 1). The owner asked for parts whose measured data is public and said size is not a
+      hard limit: "we need a good robot, that is the hard rule".
+    - **Evidence:** [research/SERVO_CHOICE.md](research/SERVO_CHOICE.md). Rhoban/bam (629 stars, ICRA 2025,
+      arXiv 2410.08650) publishes fitted models `feetech_sts3215_7_4V` (m1-m6), usable in MuJoCo and mjlab; Open
+      Duck Mini (4.8k stars) walks on that servo and model. The Dynamixel XL330-M288 also has a model, but it was
+      fitted near 7.5 V (above its rated 6 V), has plastic gears and no Indian seller.
+    - **Change:** legs = 12 x STS3215 7.4 V. Consequences being worked out on branches: the robot grows (a sizing
+      study in simulation precedes any CAD), the servo rail and battery are redesigned, the parts list is rebuilt.
+      The six arm servos are unchanged for now.
+    - **Measured:** nothing yet on the new servo. Price for 14: INR 31,140 against INR 46,586 (Evelta, 2026-11-21).
+    - **Risk:** the version the published fit most likely describes (C001, 1/345 gear) is sold out in India today;
+      other gear versions are good servos without a public model. Command delay, gear play, voltage sag and
+      unit-to-unit spread still need a short check on real units.
+    - **Rejected:** staying with the STS3032 and measuring it ourselves first (possible, but training would wait
+      for a bench and the model would be ours alone to maintain); the XL330-M288 (reasons above).
