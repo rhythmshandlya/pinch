@@ -203,7 +203,7 @@ Results for this design (`sim/sizing/recommend.md`, m1 model, period x1.5):
 
 Better: standing margin (about 1.5x), measured model, metal gears, joint speed headroom (about 25 % against the
 limit). Worse: everything that scales with mass or size, plus walking torque margin (peak torque in the walk is
-about 2x today's fraction) and walking power (about 2.5x today's at 5 cm/s).
+about 1.5x today's fraction) and walking power (about 2.5x today's at 5 cm/s).
 
 ## 7. Risks
 
