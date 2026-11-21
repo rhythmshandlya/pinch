@@ -5,7 +5,8 @@ tau_motor = actuator force - back-EMF slope * speed (electromagnetic torque), pl
 servo's 6 mA idle draw. Back-driven phases are counted as draw (conservative).
 Prints average / peak current per scenario and battery runtime estimates.
 
-    python sim/power.py
+    python sim/power.py            # today's design (v1, the STS3032 legs) on the old lumped power model
+    python sim/power.py --v2       # the v2 robot on the circuit model of its netlist: sim/circuit_check.py
 """
 
 import sys
@@ -79,4 +80,7 @@ def main():
 
 
 if __name__ == "__main__":
+    if "--v2" in sys.argv:           # the design is read once at import, so v2 runs in its own process
+        import subprocess
+        sys.exit(subprocess.run([sys.executable, str(ROOT / "sim" / "circuit_check.py")]).returncode)
     main()

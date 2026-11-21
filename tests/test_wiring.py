@@ -234,3 +234,18 @@ def test_the_circuit_is_deterministic():
             c.step(0.01, a * (1 + 0.1 * np.sin(k)), b, arm)
         runs.append((c.i_pack, c.soc, c.measure(), tuple(c.v_servo)))
     assert runs[0] == runs[1]
+
+
+def test_hardware_electronics_md_agrees_with_the_netlist():
+    import re
+    from pathlib import Path
+    text = (Path(__file__).resolve().parents[1] / "hardware" / "electronics.md").read_text(encoding="utf-8")
+    rep = _fails()
+    for pin in rep.pins_used:
+        assert re.search(rf"\b{pin}\b", text), f"pin {pin} ({rep.pins_used[pin]}) is not in hardware/electronics.md"
+    net = Net()
+    for bus in net.i2c:
+        for d in bus["devices"]:
+            if d["kind"] not in ("vl53l0x", "vl53l5cx"):          # those get 0x30-0x35 from the software, listed as a range
+                assert f"0x{d['addr']:02X}" in text, d
+    assert "wiring_v2.toml" in text and "PWM15_IR_M1" in text and "0x30-0x34" in text
