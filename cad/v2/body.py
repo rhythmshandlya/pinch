@@ -689,6 +689,7 @@ def shoulder_seat(arm):
     pocket = abox(lo - FIT, hi + FIT)
     elo, ehi = shoulder_case_aabb(arm, ears=True)
     pocket = pocket + abox((elo[0] - FIT, elo[1] - FIT, ear_lo), (ehi[0] + FIT, ehi[1] + FIT, ear_lo + P.ear_t + 2 * FIT))
+    pocket = pocket + zcyl(p[0], p[1], P.boss_r + FIT, hi[2], hi[2] + P.boss_h + FIT)     # its boss, upside down: on top
     owner = f"shoulder_{arm.lower()}"
     return [Feature(f"{owner}_rear_post", owner, "tray", "add", rear - fuse(holes) - pocket),
             Feature(f"{owner}_chin", owner, "tray", "add", chin - fuse(holes) - pocket, clip=False),
@@ -866,49 +867,61 @@ def export():
     return OUT
 
 
-def _mesh(shape, tol=0.4):
+def _mesh(shape, tol=0.3):
     v, t = shape.tessellate(tol, 0.3)
     return np.array([(p.X, p.Y, p.Z) for p in v]), np.array(t, int)
 
 
 def render(path=RENDER):
-    """Tray and cover (lifted 40 mm) with the servos, in two views; flat-shaded matplotlib."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-    items = [(tray(), (0.95, 0.50, 0.15), 0.0), (cover(), (0.98, 0.62, 0.30), 45.0)]
-    items += [(hip_servo(leg), (0.15, 0.15, 0.17), 0.0) for leg in LEGS]
-    items += [(shoulder_servo(a), (0.15, 0.15, 0.17), 0.0) for a in ARMS]
-    meshes = []
-    for shape, rgb, dz in items:
-        v, t = _mesh(shape)
-        meshes.append((v + [0, 0, dz], t, np.array(rgb)))
-    light = np.array([0.3, -0.5, 0.8])
-    light /= np.linalg.norm(light)
-    fig = plt.figure(figsize=(16, 8), dpi=110)
-    for k, (elev, azim, title) in enumerate(((28, -55, "front-left, cover lifted 45 mm"),
-                                             (62, 150, "rear-right from above"))):
-        ax = fig.add_subplot(1, 2, k + 1, projection="3d")
-        for v, t, rgb in meshes:
-            tri = v[t]
-            n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
-            n /= np.linalg.norm(n, axis=1, keepdims=True) + 1e-12
-            shade = 0.35 + 0.65 * np.abs(n @ light)
-            pc = Poly3DCollection(tri, facecolors=np.clip(shade[:, None] * rgb, 0, 1), linewidths=0)
-            ax.add_collection3d(pc)
-        ax.set_xlim(-110, 110)
-        ax.set_ylim(-110, 110)
-        ax.set_zlim(-60, 110)
-        ax.set_box_aspect((220, 220, 170))
-        ax.view_init(elev=elev, azim=azim)
-        ax.set_axis_off()
-        ax.set_title(title)
-    fig.suptitle(f"Pinch v2 printable body: tray {mass_g(tray()):.0f} g + cover {mass_g(cover()):.0f} g PETG, "
-                 f"split at z = {SPLIT_Z:.0f} mm (cad/v2/body.py)")
+    """Three MuJoCo renders side by side: the tray with the servos (cover off), the cover from below, the closed body."""
+    import mujoco
+    from PIL import Image
+    orange, light_orange, dark = (0.95, 0.50, 0.15, 1), (0.98, 0.64, 0.32, 1), (0.13, 0.13, 0.15, 1)
+    servos = [hip_servo(leg) for leg in LEGS] + [shoulder_servo(a) for a in ARMS]
+    scenes = [
+        ("tray and servos, cover off", [(tray(), orange, 0)] + [(sv, dark, 0) for sv in servos], (10, 0, -15), 0.33, 125, -42),
+        ("cover from below", [(cover(), light_orange, 0)], (0, 0, 40), 0.31, 150, 40),
+        ("closed, front left", [(tray(), orange, 0), (cover(), light_orange, 0)] + [(sv, dark, 0) for sv in servos],
+         (10, 0, 0), 0.36, 145, -18),
+    ]
+    tiles = []
+    for title, items, lookat, dist, azim, elev in scenes:
+        spec = mujoco.MjSpec()
+        spec.visual.global_.offwidth, spec.visual.global_.offheight = 900, 700
+        spec.visual.headlight.ambient = [0.35, 0.35, 0.35]
+        spec.visual.headlight.diffuse = [0.55, 0.55, 0.55]
+        spec.add_texture(name="sky", type=mujoco.mjtTexture.mjTEXTURE_SKYBOX, builtin=mujoco.mjtBuiltin.mjBUILTIN_GRADIENT,
+                         rgb1=[1.0, 1.0, 1.0], rgb2=[0.82, 0.86, 0.92], width=256, height=256)
+        spec.worldbody.add_light(pos=[0.3, -0.4, 0.8], dir=[-0.3, 0.4, -0.8], diffuse=[0.5, 0.5, 0.5])
+        for k, (shape, rgba, dz) in enumerate(items):
+            v, t = _mesh(shape)
+            name = f"m{k}"
+            spec.add_mesh(name=name, uservert=((v + [0, 0, dz]) / 1000.0).ravel().tolist(), userface=t.ravel().tolist(),
+                          inertia=mujoco.mjtMeshInertia.mjMESH_INERTIA_SHELL)
+            spec.worldbody.add_geom(type=mujoco.mjtGeom.mjGEOM_MESH, meshname=name, rgba=rgba, contype=0, conaffinity=0)
+        model = spec.compile()
+        data = mujoco.MjData(model)
+        mujoco.mj_forward(model, data)
+        cam = mujoco.MjvCamera()
+        cam.lookat[:] = np.array(lookat) / 1000.0
+        cam.distance, cam.azimuth, cam.elevation = dist, azim, elev
+        with mujoco.Renderer(model, 700, 900) as r:
+            r.update_scene(data, camera=cam)
+            img = r.render()
+        tiles.append((title, Image.fromarray(img)))
+    from PIL import ImageDraw
+    W = sum(t.width for _, t in tiles)
+    out = Image.new("RGB", (W, 760), "white")
+    d = ImageDraw.Draw(out)
+    d.text((12, 8), f"Pinch v2 printable body (cad/v2/body.py): tray {mass_g(tray()):.0f} g + cover {mass_g(cover()):.0f} g "
+                    f"PETG, split at z = {SPLIT_Z:.0f} mm; servos dark (STS3215 STEP, STS3032 blocks)", fill="black")
+    x = 0
+    for title, t in tiles:
+        out.paste(t, (x, 50))
+        d.text((x + 12, 32), title, fill="black")
+        x += t.width
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, bbox_inches="tight")
-    plt.close(fig)
+    out.save(path)
     return path
 
 
