@@ -140,12 +140,12 @@
     <light pos="0.3 -0.3 1.5" dir="-0.2 0.2 -1" diffuse="0.7 0.7 0.7" castshadow="true"/>
     <geom name="floor" type="plane" size="0 0 0.05" material="floor" contype="0" conaffinity="1"/>
 
-    <body name="body" pos="0 0 0.0636" childclass="crab">
+    <body name="body" pos="0 0 0.0860" childclass="crab">
       <freejoint name="root"/>
       <camera name="track" mode="trackcom" pos="0.336 -0.4 0.24" xyaxes="0.7657 0.6432 -0 -0.2685 0.3197 0.9087"/>
       <camera name="eye_cam" pos="0.08626 0 -0.0195" xyaxes="0 -1 0 -0 0 1" fovy="102"/>
       <site name="imu" pos="-0.02 0 0.01" quat="1 0 0 0" size="0.0080" rgba="0 0 0 0"/>
-      <inertial pos="1.773126e-02 -1.462188e-03 2.175774e-02" mass="1.149318" fullinertia="5.792523e-03 4.925712e-03 4.140636e-03 -1.112255e-04 -1.007179e-03 -9.365399e-05"/>
+      <inertial pos="1.580132e-02 -1.514921e-03 2.263681e-02" mass="1.109621" fullinertia="5.663036e-03 4.708206e-03 3.886649e-03 -1.095584e-04 -1.061885e-03 -9.578212e-05"/>
         <geom class="visual" type="mesh" mesh="v2_body_tray" material="shell"/>
         <geom class="visual" type="mesh" mesh="v2_body_cover" material="shell"/>
         <geom class="visual" type="mesh" mesh="v2_body_lid" material="servo"/>
@@ -232,7 +232,7 @@
       <geom name="face_screen" class="visual" type="box" size="0.0008 0.07209 0.0333" pos="0.05136 0 0.1002" quat="0.9847 0 -0.1741 0" material="face_mat" mass="0"/>
 
       <body name="FL_coxa_link" pos="0.0352 0.068 0" euler="0 0 1.1170">
-        <joint name="FL_coxa" class="srv_STS3215M6" axis="0 0 -1" range="-0.78 0.4887"/>
+        <joint name="FL_coxa" class="srv_STS3215M6" axis="0 0 -1" range="-0.9599 0.4887"/>
         <joint name="FL_coxa_backlash" class="bl_STS3215M6" axis="0 0 -1"/>
         <inertial pos="3.282219e-02 -5.611698e-04 -1.043828e-02" mass="0.073484" fullinertia="2.319949e-05 2.527986e-05 1.648114e-05 9.805343e-08 1.007816e-06 1.363841e-07"/>
         <geom class="visual" type="mesh" mesh="v2_FL_coxa_link_coxa" material="printed"/>
@@ -240,7 +240,7 @@
         <geom name="FL_coxa_link_coxa" type="box" pos="1.855000e-02 -4.000000e-04 -9.225000e-03" size="3.155000e-02 1.700000e-02 2.722500e-02" material="shell"/>
         <geom name="FL_coxa_link_thigh_servo" type="box" pos="3.520000e-02 -4.000000e-04 -1.125000e-02" size="1.240000e-02 1.980000e-02 2.270000e-02" material="shell"/>
         <body name="FL_femur_link" pos="0.0352 0 0">
-          <joint name="FL_femur" class="srv_STS3215M6" axis="0 -1 0" range="-0.6981 1.1"/>
+          <joint name="FL_femur" class="srv_STS3215M6" axis="0 -1 0" range="-0.6981 1.501"/>
         <joint name="FL_femur_backlash" class="bl_STS3215M6" axis="0 -1 0"/>
           <inertial pos="5.154804e-02 -5.939581e-04 1.096592e-02" mass="0.074905" fullinertia="2.462263e-05 3.275123e-05 2.915403e-05 6.476939e-08 -8.639605e-07 -1.598260e-07"/>
         <geom class="visual" type="mesh" mesh="v2_FL_femur_link_femur" material="printed"/>
@@ -262,7 +262,7 @@
         </body>
       </body>
       <body name="FR_coxa_link" pos="0.0352 -0.068 0" euler="0 0 -1.1170">
-        <joint name="FR_coxa" class="srv_STS3215M6" axis="0 0 1" range="-0.78 0.4887"/>
+        <joint name="FR_coxa" class="srv_STS3215M6" axis="0 0 1" range="-0.9599 0.4887"/>
         <joint name="FR_coxa_backlash" class="bl_STS3215M6" axis="0 0 1"/>
         <inertial pos="3.282219e-02 5.611698e-04 -1.043828e-02" mass="0.073484" fullinertia="2.319949e-05 2.527986e-05 1.648114e-05 -9.805343e-08 1.007816e-06 -1.363841e-07"/>
         <geom class="visual" type="mesh" mesh="v2_FR_coxa_link_coxa" material="printed"/>
@@ -270,7 +270,7 @@
         <geom name="FR_coxa_link_coxa" type="box" pos="1.855000e-02 4.000000e-04 -9.225000e-03" size="3.155000e-02 1.700000e-02 2.722500e-02" material="shell"/>
         <geom name="FR_coxa_link_thigh_servo" type="box" pos="3.520000e-02 4.000000e-04 -1.125000e-02" size="1.240000e-02 1.980000e-02 2.270000e-02" material="shell"/>
         <body name="FR_femur_link" pos="0.0352 0 0">
-          <joint name="FR_femur" class="srv_STS3215M6" axis="0 -1 0" range="-0.6981 1.1"/>
+          <joint name="FR_femur" class="srv_STS3215M6" axis="0 -1 0" range="-0.6981 1.501"/>
         <joint name="FR_femur_backlash" class="bl_STS3215M6" axis="0 -1 0"/>
           <inertial pos="5.154804e-02 5.939581e-04 1.096592e-02" mass="0.074905" fullinertia="2.462263e-05 3.275123e-05 2.915403e-05 -6.476939e-08 -8.639605e-07 1.598260e-07"/>
         <geom class="visual" type="mesh" mesh="v2_FR_femur_link_femur" material="printed"/>
@@ -292,7 +292,7 @@
         </body>
       </body>
       <body name="RL_coxa_link" pos="-0.0352 0.068 0" euler="0 0 2.0246">
-        <joint name="RL_coxa" class="srv_STS3215M6" axis="0 0 -1" range="-0.9599 0.78"/>
+        <joint name="RL_coxa" class="srv_STS3215M6" axis="0 0 -1" range="-0.9599 0.8552"/>
         <joint name="RL_coxa_backlash" class="bl_STS3215M6" axis="0 0 -1"/>
         <inertial pos="3.282219e-02 -5.611698e-04 -1.043828e-02" mass="0.073484" fullinertia="2.319949e-05 2.527986e-05 1.648114e-05 9.805343e-08 1.007816e-06 1.363841e-07"/>
         <geom class="visual" type="mesh" mesh="v2_RL_coxa_link_coxa" material="printed"/>
@@ -300,7 +300,7 @@
         <geom name="RL_coxa_link_coxa" type="box" pos="1.855000e-02 -4.000000e-04 -9.225000e-03" size="3.155000e-02 1.700000e-02 2.722500e-02" material="shell"/>
         <geom name="RL_coxa_link_thigh_servo" type="box" pos="3.520000e-02 -4.000000e-04 -1.125000e-02" size="1.240000e-02 1.980000e-02 2.270000e-02" material="shell"/>
         <body name="RL_femur_link" pos="0.0352 0 0">
-          <joint name="RL_femur" class="srv_STS3215M6" axis="0 -1 0" range="-0.6981 1.1"/>
+          <joint name="RL_femur" class="srv_STS3215M6" axis="0 -1 0" range="-0.6981 1.501"/>
         <joint name="RL_femur_backlash" class="bl_STS3215M6" axis="0 -1 0"/>
           <inertial pos="5.154804e-02 -5.939581e-04 1.096592e-02" mass="0.074905" fullinertia="2.462263e-05 3.275123e-05 2.915403e-05 6.476939e-08 -8.639605e-07 -1.598260e-07"/>
         <geom class="visual" type="mesh" mesh="v2_RL_femur_link_femur" material="printed"/>
@@ -322,7 +322,7 @@
         </body>
       </body>
       <body name="RR_coxa_link" pos="-0.0352 -0.068 0" euler="0 0 -2.0246">
-        <joint name="RR_coxa" class="srv_STS3215M6" axis="0 0 1" range="-0.9599 0.78"/>
+        <joint name="RR_coxa" class="srv_STS3215M6" axis="0 0 1" range="-0.9599 0.8552"/>
         <joint name="RR_coxa_backlash" class="bl_STS3215M6" axis="0 0 1"/>
         <inertial pos="3.282219e-02 5.611698e-04 -1.043828e-02" mass="0.073484" fullinertia="2.319949e-05 2.527986e-05 1.648114e-05 -9.805343e-08 1.007816e-06 -1.363841e-07"/>
         <geom class="visual" type="mesh" mesh="v2_RR_coxa_link_coxa" material="printed"/>
@@ -330,7 +330,7 @@
         <geom name="RR_coxa_link_coxa" type="box" pos="1.855000e-02 4.000000e-04 -9.225000e-03" size="3.155000e-02 1.700000e-02 2.722500e-02" material="shell"/>
         <geom name="RR_coxa_link_thigh_servo" type="box" pos="3.520000e-02 4.000000e-04 -1.125000e-02" size="1.240000e-02 1.980000e-02 2.270000e-02" material="shell"/>
         <body name="RR_femur_link" pos="0.0352 0 0">
-          <joint name="RR_femur" class="srv_STS3215M6" axis="0 -1 0" range="-0.6981 1.1"/>
+          <joint name="RR_femur" class="srv_STS3215M6" axis="0 -1 0" range="-0.6981 1.501"/>
         <joint name="RR_femur_backlash" class="bl_STS3215M6" axis="0 -1 0"/>
           <inertial pos="5.154804e-02 5.939581e-04 1.096592e-02" mass="0.074905" fullinertia="2.462263e-05 3.275123e-05 2.915403e-05 -6.476939e-08 -8.639605e-07 1.598260e-07"/>
         <geom class="visual" type="mesh" mesh="v2_RR_femur_link_femur" material="printed"/>
@@ -352,8 +352,8 @@
         </body>
       </body>
 
-      <body name="L_shoulder" pos="0.068 0.04 -0.007" euler="0 0 0.0000">
-        <joint name="L_shoulder_yaw" class="srv_STS3032T" axis="0 0 1" range="-0.1396 0.3491"/>
+      <body name="L_shoulder" pos="0.056 0.04 0" euler="0 0 0.0000">
+        <joint name="L_shoulder_yaw" class="srv_STS3032T" axis="0 0 1" range="-1.047 1.396"/>
         <joint name="L_shoulder_yaw_backlash" class="bl_STS3032T" axis="0 0 1"/>
         <inertial pos="3.486268e-02 -2.691499e-03 1.414169e-03" mass="0.025722" fullinertia="2.688053e-06 4.480241e-06 5.996199e-06 4.950016e-07 5.144200e-07 -1.308080e-07"/>
         <geom class="visual" type="mesh" mesh="v2_L_shoulder_shoulder" material="printed"/>
@@ -363,7 +363,7 @@
         
         <geom type="sphere" size="0.0105" mass="0.008" material="shell"/>
         <body name="L_upper" pos="0.0427 0 0">
-          <joint name="L_shoulder_pitch" class="srv_STS3032T" axis="0 -1 0" range="-0.6981 1.257"/>
+          <joint name="L_shoulder_pitch" class="srv_STS3032T" axis="0 -1 0" range="-1.222 1.257"/>
         <joint name="L_shoulder_pitch_backlash" class="bl_STS3032T" axis="0 -1 0"/>
           <inertial pos="4.496503e-02 -8.200936e-04 -7.255718e-03" mass="0.042817" fullinertia="7.738411e-06 2.920015e-05 2.674380e-05 -3.901163e-08 5.703407e-06 -5.067213e-08"/>
         <geom class="visual" type="mesh" mesh="v2_L_upper_upper" material="printed"/>
@@ -384,6 +384,7 @@
                the blade above it, hanging below the palm (cad/parts.py jaw_side) -->
           <geom name="L_pollex" type="box" pos="0.08043 -0.0032 -0.01879" euler="0 -0.3351 0" size="0.02458 0.0027 0.01039" mass="0.0008" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           <geom name="L_pollex_blade" type="box" pos="0.06225 -0.0041 -0.0165" size="0.0072 0.0018 0.012" mass="0.0006" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          
           <site name="L_grip_site" pos="0.08212 0 -0.02364" euler="0 -0.3351 0" size="0.005" rgba="0 0 0 0"/>
           <body name="L_dactyl" pos="0.0450 0 0">
             <joint name="L_claw" class="srv_STS3032T" axis="0 0 1" range="0.06328 1.658"/>
@@ -406,8 +407,8 @@
           </body>
         </body>
       </body>
-      <body name="R_shoulder" pos="0.068 -0.04 -0.007" euler="0 0 -0.0000">
-        <joint name="R_shoulder_yaw" class="srv_STS3032T" axis="0 0 -1" range="-0.1396 0.3491"/>
+      <body name="R_shoulder" pos="0.056 -0.04 0" euler="0 0 -0.0000">
+        <joint name="R_shoulder_yaw" class="srv_STS3032T" axis="0 0 -1" range="-1.047 1.396"/>
         <joint name="R_shoulder_yaw_backlash" class="bl_STS3032T" axis="0 0 -1"/>
         <inertial pos="3.486268e-02 2.691499e-03 1.414169e-03" mass="0.025722" fullinertia="2.688053e-06 4.480241e-06 5.996199e-06 -4.950016e-07 5.144200e-07 1.308080e-07"/>
         <geom class="visual" type="mesh" mesh="v2_R_shoulder_shoulder" material="printed"/>
@@ -417,7 +418,7 @@
         
         <geom type="sphere" size="0.0105" mass="0.008" material="shell"/>
         <body name="R_upper" pos="0.0427 0 0">
-          <joint name="R_shoulder_pitch" class="srv_STS3032T" axis="0 -1 0" range="-0.6981 1.257"/>
+          <joint name="R_shoulder_pitch" class="srv_STS3032T" axis="0 -1 0" range="-1.222 1.257"/>
         <joint name="R_shoulder_pitch_backlash" class="bl_STS3032T" axis="0 -1 0"/>
           <inertial pos="4.496503e-02 8.200936e-04 -7.255718e-03" mass="0.042817" fullinertia="7.738411e-06 2.920015e-05 2.674380e-05 3.901163e-08 5.703407e-06 5.067213e-08"/>
         <geom class="visual" type="mesh" mesh="v2_R_upper_upper" material="printed"/>
@@ -438,6 +439,7 @@
                the blade above it, hanging below the palm (cad/parts.py jaw_side) -->
           <geom name="R_pollex" type="box" pos="0.08043 0.0032 -0.01879" euler="0 -0.3351 0" size="0.02458 0.0027 0.01039" mass="0.0008" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
           <geom name="R_pollex_blade" type="box" pos="0.06225 0.0041 -0.0165" size="0.0072 0.0018 0.012" mass="0.0006" material="claw" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
+          
           <site name="R_grip_site" pos="0.08212 0 -0.02364" euler="0 -0.3351 0" size="0.005" rgba="0 0 0 0"/>
           <body name="R_dactyl" pos="0.0450 0 0">
             <joint name="R_claw" class="srv_STS3032T" axis="0 0 -1" range="0.06328 1.658"/>
@@ -495,6 +497,6 @@
   </sensor>
 
   <keyframe>
-    <key name="stand" qpos="0 0 0.0636 1 0 0 0 0 0 0.6109 0 -2.094 0 0 0 0.6109 0 -2.094 0 0 0 0.6109 0 -2.094 0 0 0 0.6109 0 -2.094 0 0 0 0.35 0 0.1 0 0 0 0.35 0 0.1 0" ctrl="0 0.6109 -2.094 0 0.6109 -2.094 0 0.6109 -2.094 0 0.6109 -2.094 0 0.35 0.1 0 0.35 0.1"/>
+    <key name="stand" qpos="0 0 0.0860 1 0 0 0 0 0 0.1745 0 -1.658 0 0 0 0.1745 0 -1.658 0 0 0 0.1745 0 -1.658 0 0 0 0.1745 0 -1.658 0 0 0 0.35 0 0.1 0 0 0 0.35 0 0.1 0" ctrl="0 0.1745 -1.658 0 0.1745 -1.658 0 0.1745 -1.658 0 0.1745 -1.658 0 0.35 0.1 0 0.35 0.1"/>
   </keyframe>
 </mujoco>
