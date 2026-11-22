@@ -39,7 +39,7 @@ OBJECTS = {
 }
 ARM = "L"
 MODEL_PATH = os.environ.get("CRAB_MODEL_PATH") or str(ROOT / "sim" / "models" / PARAMS.model_file)   # or a candidate
-PLACE = os.environ.get("GRIP_PLACE", "deep")       # where the toy is put: "deep" in the claw's mouth, "tips", "centroid"
+PLACE = os.environ.get("GRIP_PLACE", "auto")       # where the toy is put: "deep" in the claw's mouth, "tips", "centroid"
 DESK_GAP = float(os.environ.get("GRIP_DESK_GAP", "0.002"))   # m: the jaw bottom this far above the desk when it closes (negative: pressing on it)
 
 
@@ -75,6 +75,12 @@ def joint_ids(m):
     q = {j: m.jnt_qposadr[m.joint(j).id] for j in JOINT_NAMES}
     a = {j: m.actuator(j).id for j in JOINT_NAMES}
     return q, a
+
+
+def toy_width(obj):
+    """The toy's width across the claw (m): its diameter, or a box's larger side across."""
+    kind, size, _ = OBJECTS[obj]
+    return 2 * (size[0] if kind != "box" else max(size[0], size[1]))
 
 
 def toy_rest_z(obj):
@@ -178,7 +184,11 @@ def place(m, d, tq, obj, quat):
 def trial(m, obj, rng, stand_z, frames=None, renderer=None, cam=None):
     d = mujoco.MjData(m)
     q, a = setup(m, d, obj, rng, stand_z)
-    op = m.jnt_range[m.joint(f"{ARM}_claw").id][1] * 0.75
+    kind, size, _ = OBJECTS[obj]                         # a wide or tall toy: open fully and centre it; a thin flat one: deep
+    across = 2 * (size[1] if kind == "box" else size[0])
+    tall = 2 * (size[2] if kind == "box" else size[0])
+    wide = across >= 0.024 or tall >= 0.018
+    op = m.jnt_range[m.joint(f"{ARM}_claw").id][1] * (1.0 if wide else 0.75)
     pitch, grip = target_for(m, d, q, a, obj, op)
     d.ctrl[a[f"{ARM}_shoulder_pitch"]] = pitch
     d.qpos[q[f"{ARM}_claw"]] = op
@@ -191,7 +201,7 @@ def trial(m, obj, rng, stand_z, frames=None, renderer=None, cam=None):
     if OBJECTS[obj][0] == "capsule":                     # a capsule's axis is its z: lay it down along the claw (x)
         qlay = np.array([np.cos(np.pi / 4), 0, np.sin(np.pi / 4), 0])
         qyaw = _qmul(qyaw, qlay)
-    if PLACE == "centroid":                                # midway between the two jaws' centres
+    if PLACE == "centroid" or (PLACE == "auto" and wide):  # midway between the two jaws' centres
         mid = (d.geom_xpos[m.geom(f"{ARM}_pollex").id] + d.geom_xpos[m.geom(f"{ARM}_dactyl_jaw").id]) / 2
         best = (float(mid[0]), float(mid[1]))
     else:
@@ -201,7 +211,6 @@ def trial(m, obj, rng, stand_z, frames=None, renderer=None, cam=None):
     d.qpos[tq + 3:tq + 7] = qyaw
     mujoco.mj_forward(m, d)
     dt = m.opt.timestep
-    site = m.site(f"{ARM}_grip_site").id
     if cam is not None:                                   # the camera looks at the toy from the front-left
         cam.lookat[:] = d.xpos[m.body("toy").id] + [0.0, 0.0, 0.02]
         cam.distance, cam.azimuth, cam.elevation = 0.26, 210, -18
@@ -222,8 +231,23 @@ def trial(m, obj, rng, stand_z, frames=None, renderer=None, cam=None):
     run(2.0, lambda t: d.ctrl.__setitem__(a[f"{ARM}_shoulder_yaw"], y0 + 0.15 * np.sin(2 * np.pi * 2 * t)))
     run(3.0, lambda t: d.ctrl.__setitem__(a[f"{ARM}_shoulder_yaw"], y0))
     toy = d.xpos[m.body("toy").id]
-    held = between_jaws(m, d, obj, site) and toy[2] > toy_rest_z(obj) + 0.010
+    held = gripped(m, d) and toy[2] > toy_rest_z(obj) + 0.010
     return bool(held)
+
+
+def gripped(m, d):
+    """The toy touches both jaws (any part of the fixed one and of the moving one) and nothing else holds it up."""
+    toy = m.geom("toy").id
+    sides = set()
+    for i in range(d.ncon):
+        c = d.contact[i]
+        if toy in (c.geom1, c.geom2):
+            name = m.geom(c.geom2 if c.geom1 == toy else c.geom1).name or ""
+            if name.startswith(f"{ARM}_pollex"):
+                sides.add("fixed")
+            elif name.startswith(f"{ARM}_dactyl"):
+                sides.add("moving")
+    return sides == {"fixed", "moving"}
 
 
 def between_jaws(m, d, obj, site, tol=0.015):
