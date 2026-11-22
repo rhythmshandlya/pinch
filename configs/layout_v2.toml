@@ -23,7 +23,7 @@ note = "Edit a position, then run `python sim/fit_check.py`; `python sim/build_m
 # Design v2 style B (the owner's "chubbier cartoon crab"): ONE shell, a superellipsoid pill (crab/shapes.py), replaces the
 # old chassis box + dome. Inside: |x/a|^(2/eh) etc. as in crab/shapes.py. The body frame's hip plane is z = 0.
 shell_center_mm = [6.9, 0.0, 0.3]
-shell_half_mm = [84.0, 94.0, 52.0]   # 188 mm wide: the hips (y 68) sit at the shell edge so the legs swing outside it (was 216)
+shell_half_mm = [84.0, 86.0, 52.0]   # 172 mm wide: the edge 18 mm from the hips (y 68), inside the leg brackets' swing (was 216, then 188)
 shell_exponents = [0.65, 0.6]
 wall_mm = 2.0
 wall_source = "estimate"
@@ -133,7 +133,7 @@ mass_g = 100.0
 mass_source = "estimate"
 mass_ref = "https://www.18650batterystore.com/products/samsung-25r-18650"
 why = "needs bench: two Samsung INR18650-25R cells side by side (18.33 mm x 64.85 mm, 43.5 g typical each, max 45 g, Samsung SDI spec sheet p.3 (https://www.akkuman.de/shop/mediafiles/PDF/18650%20Lithium/samsung%20inr18650-25r%2036v%202550mah%208c%2020a.pdf); the first draft said 43.8 g from a reseller) plus the BMS board folded on one end, the nickel strips and the wrap: the BOM's prebuilt pack was not measured"
-pos_mm = [-12, -35, -28]
+pos_mm = [-12, -35, -26]   # 172 mm shell: 2 mm up to stay inside the narrower floor
 connectors = [{name = "leads", side = "+x", reach_mm = 12.0, width_mm = 20.0}]
 
 [part.xt60]
@@ -379,7 +379,7 @@ mass_g = 1.4
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
-pos_mm = [0, 84.14, -29.91]
+pos_mm = [0, 76.66, -29.91]
 rpy_deg = [-180.0, 60.0, -90.0]
 wall_mounted = true
 window = {pos_mm = [0.0, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
@@ -395,7 +395,7 @@ mass_g = 1.4
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
-pos_mm = [0, -84.14, -29.91]
+pos_mm = [0, -76.66, -29.91]
 rpy_deg = [-180.0, -60.0, -90.0]
 wall_mounted = true
 window = {pos_mm = [0.0, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
@@ -533,6 +533,15 @@ why = "needs bench: wires, connectors, servo extension cables (ten 900 mm 3-wire
 pos_mm = [0.0, 0.0, -12.0]
 mass_only = true
 
+[part.fasteners]
+kind = "wiring"
+mass_g = 25.0
+mass_source = "estimate"
+mass_ref = "cad/v2/body.py, cad/v2/legs.py, cad/v2/arms.py"
+why = "estimate: about 80 M2 / M2.5 screws (0.2-0.4 g each: servo side holes, horn screws, board stand-offs, the six split bosses and the hatch), 6 brass heat-set inserts (0.3 g) and the M3 hinge bolt with its washers and nut (3 g); weigh a full set when bought. The harness above is replaced by the modelled cables (cad/v2/wiring.py) in the CAD model"
+pos_mm = [0.0, 0.0, -5.0]
+mass_only = true
+
 [part.pad_head]
 kind = "pad"
 size_mm = [14.0, 10.0, 0.2]
@@ -581,7 +590,7 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'side_left'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [0, 81.84, 34.0]
+pos_mm = [0, 74.6, 34.0]
 wall_mounted = true
 rpy_deg = [-40.15, -0.15, 0.12]
 
@@ -594,7 +603,7 @@ mass_g = 0.3
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "design choice: 10 x 14 mm of the BOM's 10 mm copper foil tape, stuck on the inside of the shell (touch zone 'side_right'; pinch/touch.py); the shell is not built yet so the spot is a design choice"
-pos_mm = [0, -81.84, 34.0]
+pos_mm = [0, -74.6, 34.0]
 wall_mounted = true
 rpy_deg = [40.15, -0.15, -0.12]
 

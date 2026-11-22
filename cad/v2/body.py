@@ -28,7 +28,7 @@ os.environ.setdefault("CRAB_DESIGN", "v2")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from build123d import Align, Box, Cone, Cylinder, Location, Plane, Polyline, Pos, extrude, import_step, make_face  # noqa: E402, I001
+from build123d import Align, Axis, Box, Cone, Cylinder, Location, Plane, Polyline, Pos, Solid, extrude, import_step, make_face, revolve  # noqa: E402, I001
 
 from cad.servo import STS3032  # noqa: E402
 from cad.servo import case as servo_case  # noqa: E402
@@ -304,7 +304,8 @@ def _env_box(cx, cy, t, x0, x1, hw, z0, z1, tilt=None):
     if tilt:
         deg, px, pz = tilt
         loc = loc * Location((px, 0, pz), (0, deg, 0))
-    return loc * abox((x0, -hw, z0), (x1, hw, z1))
+    y0, y1 = hw if isinstance(hw, tuple) else (-hw, hw)
+    return loc * abox((x0, y0, z0), (x1, y1, z1))
 
 
 def envelope_at(key, q, grow=0.0):
@@ -318,7 +319,7 @@ def envelope_at(key, q, grow=0.0):
             parts.append(zcyl(cx, cy, e[2] + grow, e[3] - grow, e[4] + grow))
         else:
             _, x0, x1, hw, z0, z1, *tilt = e
-            parts.append(_env_box(cx, cy, t, x0 - grow, x1 + grow, hw + grow, z0 - grow, z1 + grow, tilt or None))
+            parts.append(_env_box(cx, cy, t, x0 - grow, x1 + grow, _grow_y(hw, grow), z0 - grow, z1 + grow, tilt or None))
     return fuse(parts)
 
 
@@ -334,13 +335,69 @@ def sweep(key, grow=0.0):
             parts.append(zcyl(cx, cy, e[2] + grow, e[3] - grow, e[4] + grow))
             continue
         _, x0, x1, hw, z0, z1, *tilt = e
-        x0, x1, hw, z0, z1 = x0 - grow, x1 + grow, hw + grow, z0 - grow, z1 + grow
-        # the box itself stepped over the range (a ring out to its far corner cut away far more shell than any pose
-        # reaches); the step leaves at most r (1 - cos(step / 2)) uncut between poses: 0.2 mm at r = 80, 4 deg
-        n = max(2, int(math.ceil(math.degrees(a1 - a0) / SWEEP_STEP_DEG)) + 1)
-        for k in range(n):
-            parts.append(_env_box(cx, cy, a0 + (a1 - a0) * k / (n - 1), x0, x1, hw, z0, z1, tilt or None))
+        parts.append(_revolved(cx, cy, a0, a1, (x0 - grow, x1 + grow, _grow_y(hw, grow), z0 - grow, z1 + grow), tilt or None))
     return fuse(parts)
+
+
+def _grow_y(hw, grow):
+    """A box's sideways extent, symmetric (half width) or (y0, y1), grown by `grow`."""
+    return (hw[0] - grow, hw[1] + grow) if isinstance(hw, tuple) else hw + grow
+
+
+def _hull2d(pts):
+    """Convex hull of 2-D points (monotone chain), counter-clockwise."""
+    pts = sorted(set(pts))
+    if len(pts) < 3:
+        return pts
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lo, hi = [], []
+    for p in pts:
+        while len(lo) >= 2 and cross(lo[-2], lo[-1], p) <= 0:
+            lo.pop()
+        lo.append(p)
+    for p in reversed(pts):
+        while len(hi) >= 2 and cross(hi[-2], hi[-1], p) <= 0:
+            hi.pop()
+        hi.append(p)
+    return lo[:-1] + hi[:-1]
+
+
+def _revolved(cx, cy, a0, a1, box, tilt=None):
+    """The volume a box (in the joint's frame, optionally tilted about a pivot) sweeps as the joint turns from a0 to a1
+    about the vertical axis through (cx, cy): its outline in (radius, z) revolved over the turn plus the box's own
+    angular width. Exact up to the convex outline; one solid instead of a box per step."""
+    x0, x1, hw, z0, z1 = box
+    y0, y1 = hw if isinstance(hw, tuple) else (-hw, hw)
+    g = np.linspace(0.0, 1.0, 7)
+    P = np.array([(x0 + (x1 - x0) * u, y0 + (y1 - y0) * v, z0 + (z1 - z0) * w) for u in g for v in g for w in g
+                  if min(u, 1 - u) == 0 or min(v, 1 - v) == 0 or min(w, 1 - w) == 0])
+    if tilt:
+        deg, px, pz = tilt
+        c, s_ = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+        R = np.array([[c, 0.0, s_], [0.0, 1.0, 0.0], [-s_, 0.0, c]])
+        P = P @ R.T + np.array([px, 0.0, pz])
+    r, z, phi = np.hypot(P[:, 0], P[:, 1]), P[:, 2], np.arctan2(P[:, 1], P[:, 0])
+    outline = _hull2d([(round(float(a), 4), round(float(b), 4)) for a, b in zip(r, z)])
+    if phi.max() - phi.min() > math.pi or (a1 - a0) + (phi.max() - phi.min()) >= 2 * math.pi - 1e-3:
+        start, arc = 0.0, 2 * math.pi                            # it straddles the axis: a full ring
+    else:
+        start, arc = a0 + phi.min(), (a1 - a0) + (phi.max() - phi.min())
+    # a ruled loft through the outline every <= 10 deg (OpenCascade's booleans of a true revolve against the shell's
+    # spline surface fail silently for some poses); the outline is pushed out by the chord's sag so the loft covers
+    # the true sweep
+    n = max(2, int(math.ceil(math.degrees(arc) / 10.0)) + 1)
+    sag = 1.0 / math.cos(arc / (n - 1) / 2)
+    wires = []
+    for k in range(n):
+        t = start + arc * k / (n - 1)
+        c, s_ = math.cos(t), math.sin(t)
+        wires.append(Polyline(*[(a * sag * c, a * sag * s_, b) for a, b in outline], close=True))
+    if arc >= 2 * math.pi - 1e-6:                             # a full ring: revolve is fine there (no end faces)
+        face = make_face(Polyline(*[(a * sag, 0.0, b) for a, b in outline], close=True))
+        return Pos(cx, cy, 0) * revolve(face, Axis.Z, 360)
+    return Pos(cx, cy, 0) * Solid.make_loft(wires, ruled=True)
 
 
 def hip_keepouts(leg, grow=0.0):
@@ -555,18 +612,65 @@ def cradle(name):
     return feats
 
 
-def battery_cradle():
+HATCH_BAND, HATCH_GAP, HATCH_FRAME = 4.0, 0.25, 2.0     # rebate width round the opening, door clearance, frame thickness
+
+
+def _hatch_regions():
+    """The battery hatch under the pack: the through opening (small) and the rebate the door's rim sits in (large),
+    as boxes below the pack's underside, and the four screw positions in the rebate."""
     p = layout()["pack"]
     lo, hi = p.corners().min(0), p.corners().max(0)
+    top = lo[2] - 0.5
+    small = (lo[0] - 2.0, lo[1] - 2.0, hi[0] + 2.0, hi[1] + 2.0)
+    large = (small[0] - HATCH_BAND, small[1] - HATCH_BAND, small[2] + HATCH_BAND, small[3] + HATCH_BAND)
+    m = HATCH_BAND / 2
+    screws = [(small[0] - m, small[1] - m), (small[2] + m, small[1] - m), (small[0] - m, small[3] + m), (small[2] + m, small[3] + m)]
+    return small, large, top, screws
+
+
+def _region(r, top, grow=0.0):
+    return abox((r[0] - grow, r[1] - grow, -90.0), (r[2] + grow, r[3] + grow, top))
+
+
+def battery_cradle():
+    """The battery bay: walls round the pack to its top (a fire barrier between the Li-ion pack and the boards, and it
+    cannot shift in a fall), a strap slot over it, and a hatch in the floor so the pack comes out from below without
+    opening the shell: a rebated opening with a 2 mm frame inside for four M2 screws; the door (battery_door) carries
+    the pack's support rails."""
+    p = layout()["pack"]
+    lo, hi = p.corners().min(0), p.corners().max(0)
+    small, large, top, screws = _hatch_regions()
+    # the walls stand on the solid rim round the hatch opening (2 mm round the pack: a 1 mm foam pad each side)
     walls = []
-    for y0, y1 in ((lo[1] - FIT - 2.0, lo[1] - FIT), (hi[1] + FIT, hi[1] + FIT + 2.0)):
-        walls.append(abox((lo[0] + 4.0, y0, -60.0), (hi[0] - 4.0, y1, (lo[2] + hi[2]) / 2)))
-    for x0, x1 in ((lo[0] - FIT - 2.0, lo[0] - FIT), (hi[0] + FIT, hi[0] + FIT + 2.0)):
-        walls.append(abox((x0, p.pos[1] - 10.0, -60.0), (x1, p.pos[1] + 10.0, lo[2] + 8.0)))
-    for yc in (p.pos[1] - 12.0, p.pos[1] + 12.0):
-        walls.append(abox((lo[0] + 4.0, yc - 1.5, -60.0), (hi[0] - 4.0, yc + 1.5, lo[2])))
-    strap = abox((p.pos[0] - 11.0, lo[1] - 6.0, lo[2] - 3.5), (p.pos[0] + 11.0, hi[1] + 6.0, lo[2] - 0.5))
-    return [Feature("pack_cradle", "pack", "tray", "add", fuse(walls) - strap)]
+    for y0, y1 in ((small[1] - 2.0, small[1]), (small[3], small[3] + 2.0)):
+        walls.append(abox((small[0] - 2.0, y0, -60.0), (small[2] + 2.0, y1, hi[2] + 1.0)))
+    for x0, x1 in ((small[0] - 2.0, small[0]), (small[2], small[2] + 2.0)):
+        walls.append(abox((x0, small[1] - 2.0, -60.0), (x1, small[3] + 2.0, hi[2] + 1.0)))
+    wire = abox((small[2] - 0.1, p.pos[1] - 6.0, hi[2] - 9.0), (small[2] + 2.1, p.pos[1] + 6.0, hi[2] + 1.1))  # the lead out
+    strap = abox((p.pos[0] - 11.0, lo[1] - 6.0, hi[2] - 6.0), (p.pos[0] + 11.0, hi[1] + 6.0, hi[2] - 3.0))
+    frame = (_inset(WALL) - _inset(WALL + HATCH_FRAME)) & _region(large, top, 1.0) - _region(small, top)
+    holes = fuse([zcyl(x, y, M2_PILOT / 2, -90.0, top) for x, y in screws])
+    rebate = (outer() - _inset(WALL / 2)) & _region(large, top)
+    opening = _region(small, top)
+    return [Feature("pack_bay", "pack", "tray", "add", fuse(walls) - wire - strap),
+            Feature("pack_hatch_frame", "pack", "tray", "add", frame - holes),
+            Feature("pack_hatch_rebate", "pack", "tray", "cut", rebate),
+            Feature("pack_hatch_opening", "pack", "tray", "cut", opening)]
+
+
+@cache
+def battery_door():
+    """The hatch door under the battery: the shell's skin over the opening, its outer half spread over the rebate, two
+    rails the pack rests on, four M2 clearance holes. Printed separately (body frame, as fitted)."""
+    p = layout()["pack"]
+    lo, hi = p.corners().min(0), p.corners().max(0)
+    small, large, top, screws = _hatch_regions()
+    g = -HATCH_GAP
+    skin = ((outer() - _inset(WALL)) & _region(small, top, g)) + ((outer() - _inset(WALL / 2)) & _region(large, top, g))
+    rails = fuse([abox((lo[0] + 4.0, yc - 1.5, -90.0), (hi[0] - 4.0, yc + 1.5, top)) for yc in (p.pos[1] - 12.0, p.pos[1] + 12.0)])
+    rails = rails & _inset(WALL / 2)
+    holes = fuse([zcyl(x, y, M2_CLEAR / 2, -90.0, top) for x, y in screws])
+    return skin + rails - holes
 
 
 def speaker_mount():

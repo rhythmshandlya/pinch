@@ -23,6 +23,8 @@ def posed_parts():
     out = []
     for body, items in groups(proxy=True).items():
         for label, solid, _, _ in items:
+            if label.startswith("wires_"):
+                continue                                   # cables pass over and beside parts by design
             out.append((f"{body}:{label}", poses[body] * solid))
     return out
 

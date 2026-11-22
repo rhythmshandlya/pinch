@@ -323,9 +323,11 @@ def _v2_params() -> CrabParams:
               thigh_r=thigh_r, shin_r0=shin_r0, shin_r1=shin_r1, foot_mass=foot_mass,
               coxa_mass=0.0213 + sv,                                          # printed link + the thigh servo (as v1)
               femur_mass=printed_mass(area(tv, tf)) + sv,                     # the thigh cover + the knee servo
-              tibia_mass=printed_mass(area(sv_, sf_)) + foot_mass)            # the shin cover + the ball
-    # the legs keep their full ranges (owner, 2026-11-22: the CAD round's caps restricted the movements): the layout
-    # makes room for them (docs/phase2 v2.1); arm swing range from CRAB_ARM_YAW_DEG when a candidate sets it
+              tibia_mass=printed_mass(area(sv_, sf_)) + foot_mass,            # the shin cover + the ball
+              femur_range=(radians(-40), radians(70)))
+    # the legs keep their full ranges (owner, 2026-11-22: the CAD round's caps restricted the movements), except the
+    # thigh's lift: past 70 deg the upright knee servo swings in over the shell's top (CAD: 10 cm3 of the cover in the
+    # way at 86 deg, 0.6 at 70); walking and every move use up to 62 deg. Arm swing from CRAB_ARM_YAW_DEG if a candidate sets it
     lay = Layout()
     ch = lay.chassis
     mm = lambda v: tuple(x / 1000.0 for x in v)     # noqa: E731
@@ -340,7 +342,7 @@ def _v2_params() -> CrabParams:
     sh = lay["shoulder_l"]
     # arms: the printed bones and palm only (12 g); the three STS3032 per arm are added by the model builder
     arm = Arm(shoulder_offset=0.0427, upper_len=0.045, finger_len=0.036, upper_mass=0.012, jaw_mass=0.003,
-              shoulder_mass=0.008, shoulder_yaw_range=tuple(radians(float(v)) for v in os.environ.get("CRAB_ARM_YAW_DEG", "-60,80").split(",")),
+              shoulder_mass=0.008, shoulder_yaw_range=tuple(radians(float(v)) for v in os.environ.get("CRAB_ARM_YAW_DEG", "-25,80").split(",")),
               claw_range=(radians(0), radians(95)),
               shoulder_pitch_range=tuple(radians(float(v)) for v in os.environ.get("CRAB_ARM_PITCH_DEG", "-70,72").split(",")))
     return CrabParams(body=body, leg=leg, arm=arm,

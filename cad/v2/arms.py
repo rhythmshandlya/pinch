@@ -29,6 +29,7 @@ import numpy as np  # noqa: E402
 from build123d import Align, Box, Cylinder, Location, Plane, Pos  # noqa: E402
 
 from cad.servo import STS3032 as SP  # noqa: E402
+from cad.v2.finish import RBox  # noqa: E402
 from crab.params import PARAMS  # noqa: E402
 
 LS, LU = PARAMS.arm.shoulder_offset * 1000, PARAMS.arm.upper_len * 1000      # 24, 45
@@ -41,6 +42,11 @@ YAW_UP = True
 YAW_HORN_Z = -9.5 if YAW_UP else 9.5    # shoulder frame: the yaw servo's horn face
 YAW_SIGN = 1 if YAW_UP else -1          # +1: servo z -> body +z (horn up); -1: upside down
 CLAW_Z = -6.0              # upper frame: the claw servo's origin (horn face at CLAW_Z + 19.2)
+# the claw servo, its palm and the moving jaw's hub are tilted back about the hinge by this much (the simulator's claw
+# hinge axis: sim/build_model.py CLAW_AXIS_TILT), so the moving jaw sweeps flat along the desk when it picks
+CLAW_TILT = float(os.environ.get("CRAB_CLAW_AXIS_TILT_DEG", "41"))
+TILT_UPPER = Location((LU, 0, 0), (0, -CLAW_TILT, 0)) * Location((-LU, 0, 0))   # about the hinge, upper frame
+TILT_DACTYL = Location((0, 0, 0), (0, -CLAW_TILT, 0))                           # about the hinge, dactyl frame
 CASE = dict(x0=SP.x_rear, x1=SP.x_out, hw=SP.W / 2, z0=-SP.T / 2, z1=SP.T / 2)   # servo frame, mm
 
 
@@ -82,13 +88,13 @@ def shoulder_link():
     ear_y = -(SP.ear_z0 + SP.ear_t)                                                  # the ears' outer face (-8.25)
     fx0, fx1 = case_x0 - SP.ear_len - 2.0, case_x1 + SP.ear_len + 2.0
     fz0, fz1 = (YAW_HORN_Z, SP.W / 2 + 4.0) if YAW_UP else (-SP.W / 2 - 4.0, YAW_HORN_Z)
-    frame = Pos((fx0 + fx1) / 2, ear_y - WALL / 2, (fz0 + fz1) / 2) * Box(fx1 - fx0, WALL, fz1 - fz0)
+    frame = Pos((fx0 + fx1) / 2, ear_y - WALL / 2, (fz0 + fz1) / 2) * RBox(fx1 - fx0, WALL, fz1 - fz0)
     frame -= Pos((case_x0 + case_x1) / 2, ear_y - WALL / 2, 0) * Box(case_x1 - case_x0 + 0.6, WALL + 1, SP.W + 0.6)
     for hx in SP.ear_holes_x:
         for hy in SP.ear_holes_y:
             frame -= Pos(LS + hx, ear_y - WALL / 2, hy) * Location((0, 0, 0), (90, 0, 0)) * Cylinder(1.1, WALL + 1)
     y0, y1 = ear_y - WALL, HUB_R                                   # stops short of the lift servo's horn (y < -13.75)
-    top = Pos((fx1 - HUB_R) / 2, (y0 + y1) / 2, YAW_HORN_Z + YAW_SIGN * PLATE / 2) * Box(fx1 + HUB_R, y1 - y0, PLATE)
+    top = Pos((fx1 - HUB_R) / 2, (y0 + y1) / 2, YAW_HORN_Z + YAW_SIGN * PLATE / 2) * RBox(fx1 + HUB_R, y1 - y0, PLATE)
     return plate + frame + top
 
 
@@ -106,13 +112,13 @@ def upper_arm():
     # the palm: a sleeve round the claw servo (vertical, horn up, case along +x so the output end is at the hinge)
     cx0, cx1 = LU + CASE["x0"] - WALL, LU + CASE["x1"] + WALL
     cz0, cz1 = CLAW_Z + CASE["z0"] - WALL, CLAW_Z + SP.ear_z0
-    palm = Pos((cx0 + cx1) / 2, 0, (cz0 + cz1) / 2) * Box(cx1 - cx0, SP.W + 2 * WALL, cz1 - cz0)
+    palm = Pos((cx0 + cx1) / 2, 0, (cz0 + cz1) / 2) * RBox(cx1 - cx0, SP.W + 2 * WALL, cz1 - cz0, r=4.0)   # rounded
     palm -= Pos(LU + (CASE["x0"] + CASE["x1"]) / 2, 0, (cz0 + WALL + cz1) / 2 + 1) * Box(SP.L + 0.4, SP.W + 0.4, cz1 - cz0)
     strap_len = cx0 + 1
-    straps = (Pos(strap_len / 2, horn_y - PLATE / 2, 0) * Box(strap_len, PLATE, 2 * HUB_R)
-              + Pos(strap_len / 2, boss_y + PLATE / 2, 0) * Box(strap_len, PLATE, 2 * HUB_R))
+    straps = (Pos(strap_len / 2, horn_y - PLATE / 2, 0) * RBox(strap_len, PLATE, 2 * HUB_R)
+              + Pos(strap_len / 2, boss_y + PLATE / 2, 0) * RBox(strap_len, PLATE, 2 * HUB_R))
     bx0, bx1 = cx0 - 2.0, LU + CASE["x0"] - 0.3                       # behind the claw servo's case
-    bridge = Pos((bx0 + bx1) / 2, (horn_y + boss_y) / 2, 0) * Box(bx1 - bx0, boss_y - horn_y + 2 * PLATE, 2 * HUB_R)
+    bridge = Pos((bx0 + bx1) / 2, (horn_y + boss_y) / 2, 0) * RBox(bx1 - bx0, boss_y - horn_y + 2 * PLATE, 2 * HUB_R)
     ear_x0 = LU + CASE["x0"] - SP.ear_len - 0.3                       # the claw servo's rear ear rests on the palm rim
     bridge -= Pos((ear_x0 + bx1 + 1) / 2, 0, cz1 - 0.25 + 6) * Box(bx1 + 1 - ear_x0, SP.ear_w + 0.6, 12.0)
     palm -= Pos(LU, 0, cz0 - 1) * Cylinder(SP.boss_r + 0.5, 2 * WALL + 2)   # the idler boss through the palm floor
@@ -124,9 +130,16 @@ def upper_arm():
         pollex += _box(c, h, q)
     # a beam from the palm's front to the pollex's root
     root = np.array(J["strip"][0]) * m
-    beam_x0, beam_x1 = cx1 - 1, root[0] - np.array(J["strip"][1])[0] * m + 1
-    beam = Pos((beam_x0 + beam_x1) / 2, root[1], root[2] + 4) * Box(beam_x1 - beam_x0, 5.4, 14.0)
-    return horn + boss + straps + bridge + palm + pollex + beam
+    hx, hz = np.array(J["strip"][1])[[0, 2]] * m
+    rear = root[0] - hx * np.cos(J["pitch"]) - hz * abs(np.sin(J["pitch"]))   # the tilted strip's rearmost x
+    beam_x0, beam_x1 = min(cx1 - 1, rear + 1), max(cx1 - 1, rear + 1) + 3.0
+    beam = Pos((beam_x0 + beam_x1) / 2, root[1], root[2] + 4) * RBox(beam_x1 - beam_x0, 5.4, 14.0)
+    # a neck from the bridge to the tilted palm, with the tilted claw servo's room cut out
+    from cad.v2.servos import sts3032
+    servo_room = TILT_UPPER * Pos(LU, 0, CLAW_Z) * Pos(0, 0, 0) * sts3032()
+    neck = Pos((bx0 + LU) / 2, 0, -4.0) * RBox(LU - bx0, SP.W + 2 * WALL, 22.0)
+    neck = neck - servo_room - TILT_UPPER * Pos(LU, 0, CLAW_Z) * Box(SP.L + 1.0, SP.W + 1.0, SP.T + 1.0)
+    return horn + boss + straps + bridge + TILT_UPPER * palm + neck + pollex + beam
 
 
 def _quat_y(a):
@@ -145,11 +158,22 @@ def dactyl():
     jaw = _box(strip_c, strip_h, strip_q) + _box(np.array(J["d_blade"][0]) * m, np.array(J["d_blade"][1]) * m, J["d_blade"][2])
     for c, h, q in J["pads"]["dactyl"]:
         jaw += _box(c, h, q)
-    x_drop = strip_c[0] - strip_h[0] + 3.0                     # the drop rises from the jaw strip's back end
-    arm = Pos(x_drop / 2 + 2, strip_c[1] / 2, hub_z + PLATE / 2) * Box(x_drop + 4, abs(strip_c[1]) + 2 * 4, PLATE)
-    top_of_strip = strip_c[2] + strip_h[2]
-    drop = Pos(x_drop, strip_c[1], (top_of_strip + hub_z + PLATE) / 2) * Box(6.0, 5.4, hub_z + PLATE - top_of_strip + 2)
-    return hub + arm + drop + jaw
+    # the drop rises from the (tilted) jaw strip's back top corner to the web under the hub
+    w, qx, qy, qz = strip_q
+    R = np.array([[1 - 2 * (qy * qy + qz * qz), 2 * (qx * qy - qz * w), 2 * (qx * qz + qy * w)],
+                  [2 * (qx * qy + qz * w), 1 - 2 * (qx * qx + qz * qz), 2 * (qy * qz - qx * w)],
+                  [2 * (qx * qz - qy * w), 2 * (qy * qz + qx * w), 1 - 2 * (qx * qx + qy * qy)]])
+    corner = strip_c + R @ np.array([-strip_h[0] + 4.0, 0.0, strip_h[2] - 1.0])
+    x_drop, top_of_strip = float(corner[0]), float(corner[2])
+    z_top = (TILT_DACTYL * Location((0, 0, hub_z + PLATE / 2))).position.Z + 3.5
+    drop = Pos(x_drop, strip_c[1], (top_of_strip + z_top) / 2) * RBox(6.0, 5.4, z_top - top_of_strip)
+    # the hub turns with the tilted claw servo's horn; a web joins it to the drop down to the jaw
+    hub = TILT_DACTYL * hub
+    hc = TILT_DACTYL * Location((0, 0, hub_z + PLATE / 2))
+    hx, hzc = hc.position.X, hc.position.Z
+    y0, y1 = min(0.0, strip_c[1]) - 4.0, max(0.0, strip_c[1]) + 4.0
+    web = Pos((hx + x_drop + 3.0) / 2, (y0 + y1) / 2, hzc + 2.0) * RBox(x_drop + 3.0 - hx, y1 - y0, PLATE + 3.0)
+    return hub + web + drop + jaw
 
 
 @cache
@@ -165,7 +189,11 @@ def arm_envelope(z_shoulder, x_max=45.0, steps=7):
     def box(name, solid):
         bb = (solid & Pos(x_max - 500, 0, 0) * Box(1000, 1000, 1000)).bounding_box()     # the part at x <= x_max
         return (name, bb.min.X, bb.max.X, max(abs(bb.min.Y), abs(bb.max.Y)), bb.min.Z + z_shoulder, bb.max.Z + z_shoulder)
-    out = [box("bracket", shoulder_link() + lift)]
+    # the bracket in two: its horn disc round the yaw axis (a small ring) and the part reaching out to the lift servo
+    # (one box straddling the axis would sweep a full ring through the shell's front)
+    whole = shoulder_link() + lift
+    out = [box("bracket_hub", whole & Pos(0, 0, 0) * Box(2 * HUB_R + 0.2, 2 * HUB_R + 0.2, 200)),
+           box("bracket_arm", whole & Pos(HUB_R + 100, 0, 0) * Box(200, 200, 200))]
     upper = upper_arm() + Pos(LU, 0, CLAW_Z) * sts3032()
     lo, hi = PARAMS.arm.shoulder_pitch_range
     for k in range(steps):

@@ -241,7 +241,8 @@ def finger_gaps(key):
     j = B.joints()[key]
     elems = [e for e in (B.LEG_ENVELOPE if key in B.LEGS else B.ARM_ENVELOPE) if e[1] != "cyl"]
     g = B.CLEAR
-    face = max(math.hypot(e[2] + g, e[3] + g) - (e[2] + g) + g for e in elems)
+    hw = lambda h: max(abs(h[0]), abs(h[1])) if isinstance(h, tuple) else h      # noqa: E731 (a (y0, y1) extent)
+    face = max(math.hypot(e[2] + g, hw(e[3]) + g) - (e[2] + g) + g for e in elems)
     span = j["world"][1] - j["world"][0]
     if key not in B.LEGS:
         return g, face, None                         # the arm's bracket is round: no slot opens ahead of it

@@ -32,6 +32,7 @@ from cad.v2 import legs, lid  # noqa: E402
 MESH_DIR = ROOT / "sim" / "models" / "meshes" / "v2"
 OUT = ROOT / "sim" / "models" / "v2_cad.json"
 MATERIAL = {"shell": "shell", "printed": "printed", "servo": "servo", "pcb": "pcb", "dark": "servo", "screen": "servo",
+            "wire_power": "wire_power", "wire_servo": "wire_servo", "wire_signal": "wire_signal",
             "tip": "tip"}
 
 
@@ -53,7 +54,13 @@ def extra_masses():
     from crab.electronics import Layout
     lay = Layout()
     out = {"panel": lay["oled"].mass_g / 1000.0}
-    point = [(p.name, p.mass_g / 1000.0, np.array(p.pos) / 1000.0) for p in lay.parts.values() if p.mass_only]
+    # the harness allowance is replaced by the modelled cables (cad/v2/wiring.py); servo cable beyond the body sits on
+    # the links it runs along
+    point = {"body": [(p.name, p.mass_g / 1000.0, np.array(p.pos) / 1000.0) for p in lay.parts.values()
+                      if p.mass_only and p.name != "harness"]}
+    from cad.v2 import wiring
+    for body, items in wiring.rest_masses().items():
+        point.setdefault(body, []).extend(("cable_rest", m, np.array(c) / 1000.0) for m, c in items)
     return out, point
 
 
@@ -68,17 +75,22 @@ def combine(comps):
     return M, com, I
 
 
+PART_MASSES = []          # (simulator body, part, kg): every mass in the model, for the weight report
+
+
 def mass_properties():
     on_solid, points = extra_masses()
     out = {}
+    PART_MASSES.clear()
     for body, items in A.groups(proxy=True).items():
         comps = []
         for label, solid, mass, _ in items:
             mass = mass + on_solid.get(label, 0.0)
             if mass > 0:
                 comps.append((mass, *inertia_about_com(solid, mass)))
-        if body == "body":
-            comps += [(m, np.zeros((3, 3)), c) for _, m, c in points]
+                PART_MASSES.append((body, label, float(mass)))
+        PART_MASSES.extend((body, name, float(m)) for name, m, _ in points.get(body, []))
+        comps += [(m, np.zeros((3, 3)), c) for _, m, c in points.get(body, [])]
         M, com, I = combine(comps)
         out[body] = dict(mass=float(M), com=com.tolist(), inertia=[I[0, 0], I[1, 1], I[2, 2], I[0, 1], I[0, 2], I[1, 2]])
     return out
@@ -158,7 +170,7 @@ def main():
     col = collision_boxes()
     out = {"bodies": {b: dict(**mp[b], visuals=vis[b], collision=col.get(b, [])) for b in mp}, "face": face_pose(),
            "lid_h": lid.LID_H / 1000.0, "lid_w": lid.LID_W / 1000.0, "claw_meet": meet,
-           "foot": dict(x=legs.TIP_X / 1000.0, r=legs.TIP_R / 1000.0)}
+           "foot": dict(x=legs.TIP_X / 1000.0, r=legs.TIP_R / 1000.0), "parts": PART_MASSES}
     print(f"the claw's jaws meet at {meet:.3f} rad")
     OUT.write_text(json.dumps(out, indent=1), encoding="utf-8")
     for f in MESH_DIR.glob("*.stl"):         # meshes of parts that no longer exist

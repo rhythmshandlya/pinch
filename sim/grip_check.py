@@ -39,6 +39,7 @@ OBJECTS = {
 }
 ARM = "L"
 MODEL_PATH = os.environ.get("CRAB_MODEL_PATH") or str(ROOT / "sim" / "models" / PARAMS.model_file)   # or a candidate
+PLACE = os.environ.get("GRIP_PLACE", "deep")       # where the toy is put: "deep" in the claw's mouth, "tips", "centroid"
 DESK_GAP = float(os.environ.get("GRIP_DESK_GAP", "0.002"))   # m: the jaw bottom this far above the desk when it closes (negative: pressing on it)
 
 
@@ -81,14 +82,32 @@ def toy_rest_z(obj):
     return size[0] if kind in ("capsule", "sphere") else size[2]
 
 
+def pick_pose():
+    """The legs while picking: the stand, or crouched by GRIP_CROUCH m (a crab lowers its body to pick things up; the
+    walking clearance is only needed while walking). Returns (18-joint pose, how much lower the body is, m)."""
+    from crab.emotes import crouch, pose
+    from crab.kinematics import leg_fk
+    want = float(os.environ.get("GRIP_CROUCH", "0"))
+    if want <= 0:
+        return STAND, 0.0
+    idx = [JOINT_NAMES.index("FL_" + k) for k in ("coxa", "femur", "tibia")]
+    z0 = -leg_fk("FL", STAND[idx])[2]
+    for a in np.linspace(0.0, 1.2, 241):                 # the crouch (thighs up, shins stay upright) that lowers it
+        p = pose(crouch(a))
+        if -leg_fk("FL", p[idx])[2] <= z0 - want:
+            return p, z0 + leg_fk("FL", p[idx])[2]
+    return pose(crouch(1.2)), z0 + leg_fk("FL", pose(crouch(1.2))[idx])[2]
+
+
 def setup(m, d, obj, rng, stand_z):
     q, a = joint_ids(m)
     mujoco.mj_resetData(m, d)
     base = m.body("body").id
-    m.body_pos[base][2] = stand_z
+    legs, drop = pick_pose()
+    m.body_pos[base][2] = stand_z - drop
     for i, j in enumerate(JOINT_NAMES):
-        d.qpos[q[j]] = STAND[i]
-        d.ctrl[a[j]] = STAND[i]
+        d.qpos[q[j]] = legs[i]
+        d.ctrl[a[j]] = legs[i]
     return q, a
 
 
@@ -121,6 +140,41 @@ def target_for(m, d, q, a, obj, opening):
     return pick, d.site_xpos[site].copy()
 
 
+def place(m, d, tq, obj, quat):
+    """The desk spot (x, y) deepest in the claw's mouth: among the spots where the open claw clears the toy by 1.5 mm
+    and the shut moving jaw would pass through it (so closing grips it), the one nearest the claw's hinge (a deep
+    grasp; out at the tips a toy slips forward). 2 mm grid; the roomiest spot if none clears 1.5 mm."""
+    toy = m.geom("toy").id
+    claw = [g for g in range(m.ngeom) if (m.geom(g).name or "").startswith((f"{ARM}_pollex", f"{ARM}_dactyl", f"{ARM}_palm"))]
+    moving = [g for g in claw if (m.geom(g).name or "").startswith(f"{ARM}_dactyl")]
+    qc = m.jnt_qposadr[m.joint(f"{ARM}_claw").id]
+    open_q, shut_q = d.qpos[qc], m.jnt_range[m.joint(f"{ARM}_claw").id][0]
+    jaw = d.geom_xpos[m.geom(f"{ARM}_pollex").id]
+    hinge = d.xpos[m.body(f"{ARM}_dactyl").id][:2].copy()
+    best, room, deep = (float(jaw[0]), float(jaw[1])), -1.0, None
+    d.qpos[tq + 3:tq + 7] = quat
+    for x in np.arange(jaw[0] - 0.05, jaw[0] + 0.07, 0.002):
+        for y in np.arange(jaw[1] - 0.05, jaw[1] + 0.05, 0.002):
+            d.qpos[tq:tq + 3] = [x, y, toy_rest_z(obj) + 0.0005]
+            d.qpos[qc] = open_q
+            mujoco.mj_kinematics(m, d)
+            gap = min(mujoco.mj_geomDistance(m, d, toy, g, 0.05, None) for g in claw)
+            if gap <= 0.0005:
+                continue
+            d.qpos[qc] = shut_q
+            mujoco.mj_kinematics(m, d)
+            if min(mujoco.mj_geomDistance(m, d, toy, g, 0.05, None) for g in moving) >= -0.001:
+                continue
+            r = float(np.hypot(x - hinge[0], y - hinge[1]))
+            key = -r if PLACE == "tips" else r                        # "tips": the flat pads under the ball cup
+            if gap >= 0.0015 and (deep is None or key < deep[0]):
+                deep = (key, (float(x), float(y)))
+            if gap > room:
+                best, room = (float(x), float(y)), gap
+    d.qpos[qc] = open_q
+    return deep[1] if deep else best
+
+
 def trial(m, obj, rng, stand_z, frames=None, renderer=None, cam=None):
     d = mujoco.MjData(m)
     q, a = setup(m, d, obj, rng, stand_z)
@@ -130,31 +184,27 @@ def trial(m, obj, rng, stand_z, frames=None, renderer=None, cam=None):
     d.qpos[q[f"{ARM}_claw"]] = op
     d.ctrl[a[f"{ARM}_claw"]] = op
     tq = m.jnt_qposadr[m.joint("toy_free").id]
-    # midway between the open jaws (the grip point is between the CLOSED jaws, inside the fixed one when open)
-    mid = (d.geom_xpos[m.geom(f"{ARM}_pollex").id] + d.geom_xpos[m.geom(f"{ARM}_dactyl_jaw").id]) / 2
-    off = rng.uniform(-0.004, 0.004, 2)
+    # the toy goes where the open claw has the most room round it (searched over the desk under the claw), then the
+    # usual imperfect placement: +-4 mm and +-20 deg
     yaw = rng.uniform(-np.radians(20), np.radians(20))
-    d.qpos[tq:tq + 3] = [mid[0] + off[0], mid[1] + off[1], toy_rest_z(obj) + 0.0005]
     qyaw = np.array([np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)])
     if OBJECTS[obj][0] == "capsule":                     # a capsule's axis is its z: lay it down along the claw (x)
         qlay = np.array([np.cos(np.pi / 4), 0, np.sin(np.pi / 4), 0])
         qyaw = _qmul(qyaw, qlay)
+    if PLACE == "centroid":                                # midway between the two jaws' centres
+        mid = (d.geom_xpos[m.geom(f"{ARM}_pollex").id] + d.geom_xpos[m.geom(f"{ARM}_dactyl_jaw").id]) / 2
+        best = (float(mid[0]), float(mid[1]))
+    else:
+        best = place(m, d, tq, obj, qyaw)
+    off = rng.uniform(-0.004, 0.004, 2)
+    d.qpos[tq:tq + 3] = [best[0] + off[0], best[1] + off[1], toy_rest_z(obj) + 0.0005]
     d.qpos[tq + 3:tq + 7] = qyaw
     mujoco.mj_forward(m, d)
-    # a long toy lying along the claw would start inside the palm: slide it forward out of the claw's mouth until it
-    # touches nothing (a pen is picked up near one end)
-    toy, fwd = m.geom("toy").id, d.xmat[m.body(f"{ARM}_upper").id].reshape(3, 3)[:, 0].copy()
-    fwd[2] = 0.0
-    fwd /= np.linalg.norm(fwd)
-    for _ in range(30 if OBJECTS[obj][0] == "capsule" else 0):
-        if not any(toy in (d.contact[i].geom1, d.contact[i].geom2) and d.contact[i].dist < -0.0005
-                   and 0 not in (m.geom_bodyid[d.contact[i].geom1], m.geom_bodyid[d.contact[i].geom2])
-                   for i in range(d.ncon)):
-            break
-        d.qpos[tq:tq + 2] += fwd[:2] * 0.004
-        mujoco.mj_forward(m, d)
     dt = m.opt.timestep
     site = m.site(f"{ARM}_grip_site").id
+    if cam is not None:                                   # the camera looks at the toy from the front-left
+        cam.lookat[:] = d.xpos[m.body("toy").id] + [0.0, 0.0, 0.02]
+        cam.distance, cam.azimuth, cam.elevation = 0.26, 210, -18
     every = int(round(1 / 25 / dt))
 
     def run(secs, fn):

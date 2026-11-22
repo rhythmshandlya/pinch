@@ -95,7 +95,7 @@ def sweep(poser, joint, steps):
         moving, still = [], []
         for body, items in g.items():
             for label, solid, _, _ in items:
-                if label == "shell":
+                if label in ("shell", "tray", "cover") or label.startswith("wires_"):
                     continue
                 s = P[body] * solid
                 (moving if body in sub else still).append((f"{body}:{label}", s, s.bounding_box()))

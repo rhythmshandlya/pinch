@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT))
 
 from build123d import Align, Box, Cylinder, Location, Pos, Rot, Sphere  # noqa: E402
 
+from cad.v2.finish import RBox  # noqa: E402
 from cad.v2.servos import STS3215  # noqa: E402
 from crab.params import PARAMS  # noqa: E402
 
@@ -75,7 +76,7 @@ def sleeve():
     s = STS3215
     x0, x1 = s["x_min"] - WALL, s["x_max"] + WALL
     z0, z1 = s["case_bottom"], s["case_top"]
-    outer = Pos((x0 + x1) / 2, 0, (z0 + z1) / 2) * Box(x1 - x0, 2 * (s["half_w"] + WALL), z1 - z0)
+    outer = Pos((x0 + x1) / 2, 0, (z0 + z1) / 2) * RBox(x1 - x0, 2 * (s["half_w"] + WALL), z1 - z0, r=4.5)   # a rounded housing
     inner = Pos((s["x_min"] + s["x_max"]) / 2, 0, (z0 + z1) / 2) * Box(
         s["x_max"] - s["x_min"] + 0.4, 2 * s["half_w"] + 0.4, z1 - z0 + 2)
     t = outer - inner
@@ -104,9 +105,9 @@ def coxa_link():
     bot -= _plate_holes(HIP_IDLER_Z - PLATE)
     w0 = 18.5                                                   # the hip servo's case corner swings at 16.9 mm
     th_x0 = LC - STS3215["half_w"] - WALL                       # the thigh sleeve's inner side (coxa x)
-    arm_top = Pos(th_x0 / 2, 0, HIP_HORN_Z + PLATE / 2) * Box(th_x0, 26.0, PLATE)
-    arm_bot = Pos((w0 + WALL) / 2, 0, HIP_IDLER_Z - PLATE / 2) * Box(w0 + WALL, 26.0, PLATE)
-    wall = Pos(w0 + WALL / 2, 0, (HIP_IDLER_Z + HIP_HORN_Z) / 2) * Box(WALL, 26.0, HIP_HORN_Z - HIP_IDLER_Z + 2 * PLATE)
+    arm_top = Pos(th_x0 / 2, 0, HIP_HORN_Z + PLATE / 2) * RBox(th_x0, 26.0, PLATE)
+    arm_bot = Pos((w0 + WALL) / 2, 0, HIP_IDLER_Z - PLATE / 2) * RBox(w0 + WALL, 26.0, PLATE)
+    wall = Pos(w0 + WALL / 2, 0, (HIP_IDLER_Z + HIP_HORN_Z) / 2) * RBox(WALL, 26.0, HIP_HORN_Z - HIP_IDLER_Z + 2 * PLATE)
     return top + bot + arm_top + arm_bot + wall + THIGH_SERVO * sleeve()
 
 
@@ -118,9 +119,9 @@ def femur_link():
     y_h, y_i = -(HORN_FACE + PLATE / 2), -(IDLER_FACE - PLATE / 2)
     x0, x1 = LF - STS3215["half_w"] - WALL, LF - STS3215["half_w"] - 0.4    # the sleeve's back wall (femur x)
     z0, z1 = STRAP_Z
-    straps = (Pos(x1 / 2, y_h, (z0 + z1) / 2) * Box(x1, PLATE, z1 - z0)
-              + Pos(x1 / 2, y_i, (z0 + z1) / 2) * Box(x1, PLATE, z1 - z0))
-    web = Pos((x0 + x1) / 2, (y_h + y_i) / 2, (z0 + z1) / 2) * Box(x1 - x0, y_i - y_h + PLATE, z1 - z0)
+    straps = (Pos(x1 / 2, y_h, (z0 + z1) / 2) * RBox(x1, PLATE, z1 - z0)
+              + Pos(x1 / 2, y_i, (z0 + z1) / 2) * RBox(x1, PLATE, z1 - z0))
+    web = Pos((x0 + x1) / 2, (y_h + y_i) / 2, (z0 + z1) / 2) * RBox(x1 - x0, y_i - y_h + PLATE, z1 - z0)
     return plates + straps + web + KNEE_SERVO * sleeve()
 
 
@@ -147,8 +148,8 @@ def tibia():
     plates = HUB_FRAME * hub_plate(PLATE, +1) + HUB_FRAME * hub_plate(PLATE, -1)
     y_h, y_i = PLATE_Y
     yoke_x = YOKE_X
-    arms = (Pos(yoke_x / 2, y_h, 0) * Box(yoke_x, PLATE, 2 * HUB_R) + Pos(yoke_x / 2, y_i, 0) * Box(yoke_x, PLATE, 2 * HUB_R))
-    yoke = Pos(yoke_x, (y_h + y_i) / 2, 0) * Box(6.0, y_i - y_h + PLATE, 2 * HUB_R)
+    arms = (Pos(yoke_x / 2, y_h, 0) * RBox(yoke_x, PLATE, 2 * HUB_R) + Pos(yoke_x / 2, y_i, 0) * RBox(yoke_x, PLATE, 2 * HUB_R))
+    yoke = Pos(yoke_x, (y_h + y_i) / 2, 0) * RBox(6.0, y_i - y_h + PLATE, 2 * HUB_R)
     return plates + arms + yoke + _shin()
 
 
@@ -185,13 +186,19 @@ def coxa_envelope(x_max=75.0, steps=9):
     lo = min(PARAMS.leg.femur_range[0], PARAMS.leg.femur_range_for("FL")[0])
     hi = max(PARAMS.leg.femur_range[1], PARAMS.leg.femur_range_for("FL")[1])
     # the thigh as two boxes in its own frame (the plates and straps; the knee servo standing up), tilted to each angle
+    # the thigh as its real pieces (a hub disc and a strap on each side, the web, the knee housing): one box over all of
+    # them would sweep the empty space between the side plates over the shell
     knee = _bbox(KNEE_SERVO * (sleeve() + sts3215_proxy()))
-    straps = _bbox(femur_link() & Pos(knee[0] - 500, 0, 0) * Box(1000, 1000, 1000))
+    (y_h, y_i), t = PLATE_Y, PLATE / 2 + 0.2
+    x0w, x1w = LF - STS3215["half_w"] - WALL, LF - STS3215["half_w"] - 0.4
+    z0s, z1s = STRAP_Z
+    pieces = [("hub_h", -HUB_R, HUB_R, (y_h - t, y_h + t), -HUB_R, HUB_R), ("hub_i", -HUB_R, HUB_R, (y_i - t, y_i + t), -HUB_R, HUB_R),
+              ("strap_h", 0.0, x1w, (y_h - t, y_h + t), z0s, z1s), ("strap_i", 0.0, x1w, (y_i - t, y_i + t), z0s, z1s),
+              ("web", x0w, x1w, (y_h - t, y_i + t), z0s, z1s), ("knee", *knee)]
     for k in range(steps):
         q = lo + (hi - lo) * k / (steps - 1)
         tilt = (degrees(-q), LC, 0.0)                                    # the thigh turns about -y at the thigh axis
-        out.append((f"thigh{k}", *straps, *tilt))
-        out.append((f"knee{k}", *knee, *tilt))
+        out += [(f"{n}{k}", *box, *tilt) for n, *box in pieces]
     return tuple(out)
 
 

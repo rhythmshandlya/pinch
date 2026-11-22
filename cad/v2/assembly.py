@@ -81,8 +81,8 @@ def groups(proxy=False):
     sts = servos.sts3215_proxy if proxy else servos.sts3215
     from cad.v2 import body
     g = {"body": []}
-    for name, part in (("tray", body.tray()), ("cover", body.cover())):     # the printed shell halves, every mount in them
-        g["body"].append((name, part, printed(part, "shell"), "shell"))
+    for name, part in (("tray", body.tray()), ("cover", body.cover()), ("battery_door", body.battery_door())):
+        g["body"].append((name, part, printed(part, "shell"), "shell"))        # the printed shell, mounts, the hatch door
     lf = lid.hinge_location() * lid.lid_frame()
     g["body"].append(("lid", lf, printed(lf, "lid"), "dark"))
     panel = lid.hinge_location() * Pos(lid.MOD_T / 2, 0, lid.PANEL_Z) * Box(lid.MOD_T, lid.MOD_W, lid.MOD_H)
@@ -93,6 +93,13 @@ def groups(proxy=False):
         g["body"].append((f"{arm}_yaw_servo", shoulder_servo_location(arm) * servos.sts3032(), 0.020, "servo"))
     for name, solid, mass in electronics():
         g["body"].append((name, solid, mass, "dark" if name in ("camera_lens", "pack", "speaker") else "pcb"))
+    from build123d import Compound
+
+    from cad.v2 import wiring
+    for kind in ("power", "servo", "signal"):                 # every cable inside the body (cad/v2/wiring.py)
+        items = [(s, m) for _, k, s, m in wiring.solids() if k == kind]
+        g["body"].append((f"wires_{kind}", Compound(children=[s for s, _ in items]), sum(m for _, m in items),
+                          f"wire_{kind}"))
     for leg in LEG_IDS:
         right = leg[1] == "R"
         f = _mirror_y if right else (lambda s: s)
@@ -109,7 +116,7 @@ def groups(proxy=False):
         f = _mirror_y if arm == "R" else (lambda s: s)
         s1, u, d = arms.shoulder_link(), arms.upper_arm(), arms.dactyl()
         lift = Location((arms.LS, 0, 0), (90, 0, 0)) * servos.sts3032()
-        claw = Pos(arms.LU, 0, arms.CLAW_Z) * servos.sts3032()
+        claw = arms.TILT_UPPER * Pos(arms.LU, 0, arms.CLAW_Z) * servos.sts3032()
         g[f"{arm}_shoulder"] = [("shoulder", f(s1), printed(s1, "shoulder"), "printed"),
                                 ("lift_servo", f(lift), 0.020, "servo")]
         g[f"{arm}_upper"] = [("upper", f(u), printed(u, "upper"), "printed"), ("claw_servo", f(claw), 0.020, "servo")]

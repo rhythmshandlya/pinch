@@ -50,6 +50,20 @@ VIS = json.loads(VIS_FILE.read_text()) if USE_CAD else {}
 MP = json.loads(MP_FILE.read_text()) if USE_CAD else {}
 COL = json.loads(COL_FILE.read_text()) if (USE_CAD and COL_FILE.exists()) else None
 SCOOP = V2 and os.environ.get("CRAB_CLAW_SCOOP", "0") == "1"   # the scoop-floor claw (v2.1 candidate)
+# the tips-first claw (v2.1): the arm reaches the desk steeply, so the jaws run straight along the arm and pick with
+# their tips (docs/research/v2_1/arms/notes.md); the grip point is near the tips
+TIPS = V2 and os.environ.get("CRAB_CLAW_TIPS", "0") == "1"
+# the claw's hinge tilted back by the arm's picking angle, so at that angle it stands vertical and the moving jaw sweeps
+# flat along the desk: both tips stay on it (a hinge square to the arm lifts one tip off: research notes, section 2)
+CLAW_AXIS_TILT = float(os.environ.get("CRAB_CLAW_AXIS_TILT_DEG", "41")) if V2 else 0.0
+
+
+def claw_axis(s):
+    """The claw hinge's axis in the upper arm's frame: vertical when the arm is pitched down by CLAW_AXIS_TILT."""
+    if not CLAW_AXIS_TILT:
+        return f"0 0 {s}"                         # (the model files stay byte-identical without a tilt)
+    t = np.radians(CLAW_AXIS_TILT)
+    return f"{-s * np.sin(t):.6f} 0 {s * np.cos(t):.6f}"
 SCOOP_W, SCOOP_T = 24.0, 1.6                                     # mm: the floor's width across the jaw gap, thickness
 V2_CAD_FILE = ROOT / "sim" / "models" / "v2_cad.json"
 USE_V2_CAD = V2 and V2_CAD_FILE.exists() and "--primitive" not in sys.argv
@@ -209,7 +223,7 @@ def arm_xml(arm_id: str) -> str:
           {f'<geom name="{arm_id}_scoop" type="box" pos="{f(*JAW["floor"][0])}" quat="{f(*JAW["floor"][2])}" size="{f(*JAW["floor"][1])}" mass="0.0005" material="pad"{PAD}/>' if "floor" in JAW else ""}
           <site name="{arm_id}_grip_site" pos="{f(*JAW['site'])}" euler="0 {-JAW['pitch']:.4f} 0" size="0.005" rgba="0 0 0 0"/>
           <body name="{arm_id}_dactyl" pos="{h:.4f} 0 0">
-            {jnt(arm_id + "_claw", f"0 0 {s}", (V2C["claw_meet"], A.claw_range[1]) if USE_V2_CAD else A.claw_range)}
+            {jnt(arm_id + "_claw", claw_axis(s), (V2C["claw_meet"], A.claw_range[1]) if USE_V2_CAD else A.claw_range)}
             {cad(arm_id + "_dactyl")}{dac_extra}
             <geom name="{arm_id}_dactyl_jaw" type="box" pos="{f(*JAW['d_strip'][0])}" quat="{f(*JAW['d_strip'][2])}" size="{f(*JAW['d_strip'][1])}" mass="{A.jaw_mass}" material="claw"{PAD}/>
             <geom name="{arm_id}_dactyl_blade" type="box" pos="{f(*JAW['d_blade'][0])}" quat="{f(*JAW['d_blade'][2])}" size="{f(*JAW['d_blade'][1])}" mass="0.0004" material="claw"{PAD}/>
@@ -226,7 +240,9 @@ def jaw_geoms(s):
     and the grip site."""
     # v2: the strips are tilted so they meet the desk level at the arm pitch that brings them there: 19.2 deg for the
     # CAD layout (sweep 8 / 13.8 / 19.2), CRAB_JAW_TILT_DEG for a layout candidate (sim/situations.py solves it)
-    pitch = np.radians(float(os.environ.get("CRAB_JAW_TILT_DEG", "19.2")) if V2 else 20.0)
+    # v2.1 (claw bench 2026-11-22): it picks from a 30 mm crouch with the jaws tilted 41 deg (level at the desk) and the
+    # hinge tilted the same (both tips stay on the desk): cube, balls, box and pen >= 94 %
+    pitch = np.radians(float(os.environ.get("CRAB_JAW_TILT_DEG", "0" if TIPS else "41")) if V2 else 20.0)
     # (v2: the whole claw is K = 1.5 times bigger; v1: K = 1.0, so every number below is unchanged)
     x0, x1, low0, strip_h, pad_t, blade_t = (K * v for v in (40.3, 55.5, -24.5, 10.0, 1.2, 2.4))
     x1 += JAW_EXTRA
@@ -272,7 +288,8 @@ def jaw_geoms(s):
         "blade": ((41.5 * K * m, -s * (0.5 + pad_t + blade_t / 2) * m, -11.0 * K * m),
                   (4.8 * K * m, blade_t / 2 * m, 8.0 * K * m)),
         # pen-sized things are held with their axis 3.5 mm above the strip's lower edge, mid-strip
-        "site": ((xm - 3.5 * K * sn) * m, 0.0, (low(xm) + 3.5 * K * c) * m),
+        "site": (((x1 - 10.0) - 3.5 * K * sn) * m, 0.0, (low(x1 - 10.0) + 3.5 * K * c) * m) if TIPS else
+                ((xm - 3.5 * K * sn) * m, 0.0, (low(xm) + 3.5 * K * c) * m),
         "d_strip": (tuple(d_strip[0] * m), (hx * m, hy * m, hz * m), quat(d_strip[1])),
         "d_blade": (tuple(d_blade[0] * m), (3.0 * K * m, blade_t / 2 * m, 5.75 * K * m), quat(d_blade[1])),
         "d_drop": (((dd[0] + dd[1]) / 2 * m, s * (dd_y[0] + dd_y[1]) / 2 * m, 4.5 * K * m),
@@ -677,6 +694,9 @@ def build() -> str:
     <material name="printed" rgba="0.92 0.40 0.22 1" specular="0.25" shininess="0.3"/>
     <material name="horn" rgba="0.75 0.76 0.78 1" specular="0.6" shininess="0.8"/>
     <material name="pcb" rgba="0.10 0.45 0.25 1"/>
+    <material name="wire_power" rgba="0.80 0.12 0.10 1"/>
+    <material name="wire_servo" rgba="0.15 0.15 0.15 1"/>
+    <material name="wire_signal" rgba="0.20 0.35 0.75 1"/>
 {FACE_ASSET}
 {meshes}
   </asset>
