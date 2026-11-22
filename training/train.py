@@ -130,6 +130,9 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
                   started=datetime.now().astimezone().isoformat(timespec="seconds"), state="running", last=None)
     _write_record(out, record)
 
+    restore = warm_start(experiment, environment)
+    record["init_from"] = (experiment or {}).get("init_from") if restore is not None else None
+    _write_record(out, record)
     print(f"devices: {jax.devices()}  |  env {env}  |  run -> {out}", flush=True)
     t0 = time.time()
     log = open(out / "progress.jsonl", "a")
@@ -174,6 +177,7 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
             seed=cfg["seed"],
             progress_fn=progress,
             policy_params_fn=save,
+            **({"restore_params": restore} if restore is not None else {}),
             **{k: cfg[k] for k in PPO_KEYS},
         )
         save(cfg["num_timesteps"], make_policy, params)
@@ -190,6 +194,32 @@ def run_training(preset="smoke", env="gait", timesteps=None, run=None, randomize
             on_save()
     print(f"done in {time.time() - t0:.0f}s -> {out / 'params.pkl'}", flush=True)
     return out
+
+
+def warm_start(experiment, environment):
+    """An experiment may start from an earlier policy (`init_from = "<params.pkl>"` under [experiment]; ~ expands, a
+    relative path is from the repo root), so past training is not thrown away: PPO continues from its normaliser,
+    policy and value weights. Used only when its observation and action sizes match the environment; otherwise the
+    run starts from scratch and says so."""
+    import os
+    import pickle
+    path = (experiment or {}).get("init_from")
+    if not path:
+        return None
+    p = Path(os.path.expanduser(path))
+    p = p if p.is_absolute() else ROOT / p
+    if not p.exists():
+        print(f"warm start: {p} not found, training from scratch", flush=True)
+        return None
+    params = pickle.loads(p.read_bytes())
+    obs = np.shape(params[0].mean)[-1] if hasattr(params[0], "mean") else None
+    want = environment.observation_size
+    want = want if isinstance(want, int) else None
+    if obs is not None and want is not None and obs != want:
+        print(f"warm start: {p.name} has {obs} observations, this env {want}: training from scratch", flush=True)
+        return None
+    print(f"warm start from {p}", flush=True)
+    return params
 
 
 def run_experiment(path, run=None, out_root=None, on_save=None, num_envs=None, timesteps=None, seed=None):

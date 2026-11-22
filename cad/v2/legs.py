@@ -184,11 +184,14 @@ def coxa_envelope(x_max=75.0, steps=9):
            ("thigh_servo", *_bbox(THIGH_SERVO * (sleeve() + sts3215_proxy()), x_max))]
     lo = min(PARAMS.leg.femur_range[0], PARAMS.leg.femur_range_for("FL")[0])
     hi = max(PARAMS.leg.femur_range[1], PARAMS.leg.femur_range_for("FL")[1])
-    thigh = femur_link() + KNEE_SERVO * sts3215_proxy()
+    # the thigh as two boxes in its own frame (the plates and straps; the knee servo standing up), tilted to each angle
+    knee = _bbox(KNEE_SERVO * (sleeve() + sts3215_proxy()))
+    straps = _bbox(femur_link() & Pos(knee[0] - 500, 0, 0) * Box(1000, 1000, 1000))
     for k in range(steps):
         q = lo + (hi - lo) * k / (steps - 1)
-        posed = Location((LC, 0, 0), (0, degrees(-q), 0)) * thigh       # the thigh turns about -y
-        out.append((f"thigh{k}", *_bbox(posed, x_max)))
+        tilt = (degrees(-q), LC, 0.0)                                    # the thigh turns about -y at the thigh axis
+        out.append((f"thigh{k}", *straps, *tilt))
+        out.append((f"knee{k}", *knee, *tilt))
     return tuple(out)
 
 

@@ -1,0 +1,21 @@
+[experiment]
+name = "righting-v21"
+env = "righting"
+preset = "righting"
+design = "v2"
+init_from = "/mnt/c/Users/armaa/pinch-init/righting-v1.pkl"   # warm start: the adopted get-up policy (100 % on design v2 before)
+description = "quick check of design v2.1 (design sweep winner): get up from any orientation within 2 s on this body (R-07)"
+
+[overrides]
+num_timesteps = 40_000_000     # as the adopted righting-v1
+
+[compute]
+min_vram_gb = 6
+small_gpu_num_envs = 2048
+timeout_min = 1440
+gpu = "A10G"
+cloud_ok = false               # free GPUs only (msi-1); paid compute needs the owner's yes
+
+[eval]
+skill = "righting"
+commands = ["sim/benches/righting.py --policy {candidate} --starts 200"]

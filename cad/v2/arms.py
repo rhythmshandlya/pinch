@@ -35,7 +35,11 @@ LS, LU = PARAMS.arm.shoulder_offset * 1000, PARAMS.arm.upper_len * 1000      # 2
 PLATE, WALL = 3.0, 2.5
 HUB_R = 11.0
 HORN_PCD, HORN_HOLE = SP.horn_pcd_r, 2.2
-YAW_HORN_Z = 9.5           # shoulder frame: the upside-down yaw servo's horn face (body z = -5.4)
+# the arm yaw servo stands horn up, its case hanging below the arm (design sweep 2026-11-22: upside down, its case
+# pokes through the shell top once the arm axis is above 44 % of the shell); YAW_UP = False is the old upside-down one
+YAW_UP = True
+YAW_HORN_Z = -9.5 if YAW_UP else 9.5    # shoulder frame: the yaw servo's horn face
+YAW_SIGN = 1 if YAW_UP else -1          # +1: servo z -> body +z (horn up); -1: upside down
 CLAW_Z = -6.0              # upper frame: the claw servo's origin (horn face at CLAW_Z + 19.2)
 CASE = dict(x0=SP.x_rear, x1=SP.x_out, hw=SP.W / 2, z0=-SP.T / 2, z1=SP.T / 2)   # servo frame, mm
 
@@ -71,19 +75,20 @@ def _horn_plate(z0, t=PLATE, r=HUB_R):
 def shoulder_link():
     """Bracket under the yaw servo's horn: a plate on the horn, and a frame hanging from it that the lift servo's ears
     screw onto (the case passes through the frame's window). Shoulder frame."""
-    plate = Location((0, 0, YAW_HORN_Z), (180, 0, 0)) * _horn_plate(0.0)          # under the upside-down horn
+    plate = (Pos(0, 0, YAW_HORN_Z) * _horn_plate(0.0) if YAW_UP                     # on the horn, below the arm
+             else Location((0, 0, YAW_HORN_Z), (180, 0, 0)) * _horn_plate(0.0))      # under the upside-down horn
     # the lift servo: shaft (24, 0, 0) along -y, case along +x: servo x -> +x, servo y -> +z, servo z -> -y
     case_x0, case_x1 = LS + CASE["x0"], LS + CASE["x1"]
     ear_y = -(SP.ear_z0 + SP.ear_t)                                                  # the ears' outer face (-8.25)
     fx0, fx1 = case_x0 - SP.ear_len - 2.0, case_x1 + SP.ear_len + 2.0
-    fz0, fz1 = -SP.W / 2 - 4.0, YAW_HORN_Z
+    fz0, fz1 = (YAW_HORN_Z, SP.W / 2 + 4.0) if YAW_UP else (-SP.W / 2 - 4.0, YAW_HORN_Z)
     frame = Pos((fx0 + fx1) / 2, ear_y - WALL / 2, (fz0 + fz1) / 2) * Box(fx1 - fx0, WALL, fz1 - fz0)
     frame -= Pos((case_x0 + case_x1) / 2, ear_y - WALL / 2, 0) * Box(case_x1 - case_x0 + 0.6, WALL + 1, SP.W + 0.6)
     for hx in SP.ear_holes_x:
         for hy in SP.ear_holes_y:
             frame -= Pos(LS + hx, ear_y - WALL / 2, hy) * Location((0, 0, 0), (90, 0, 0)) * Cylinder(1.1, WALL + 1)
     y0, y1 = ear_y - WALL, HUB_R                                   # stops short of the lift servo's horn (y < -13.75)
-    top = Pos((fx1 - HUB_R) / 2, (y0 + y1) / 2, YAW_HORN_Z - PLATE / 2) * Box(fx1 + HUB_R, y1 - y0, PLATE)
+    top = Pos((fx1 - HUB_R) / 2, (y0 + y1) / 2, YAW_HORN_Z + YAW_SIGN * PLATE / 2) * Box(fx1 + HUB_R, y1 - y0, PLATE)
     return plate + frame + top
 
 

@@ -1,0 +1,21 @@
+[experiment]
+name = "terrain-v21"
+env = "terrain_hard"
+preset = "gait_v2"
+design = "v2"
+init_from = "/mnt/c/Users/armaa/pinch-init/terrain-hard-v1.pkl"   # warm start: the terrain_hard walker trained earlier (used if its sizes match)
+description = "quick check of design v2.1 (design sweep winner): can a learned walker cross bars to 15 mm and ramps to 21 deg on this body (R-04)"
+
+[compute]
+min_vram_gb = 6
+small_gpu_num_envs = 2048
+timeout_min = 1440
+gpu = "A10G"
+cloud_ok = false               # free GPUs only (msi-1); paid compute needs the owner's yes
+
+[eval]
+skill = "gait"
+commands = [
+  "sim/benches/hurdles.py --policy {candidate}",
+  "sim/benches/robustness.py --what walk --world terrain --episodes 40",
+]

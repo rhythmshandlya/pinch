@@ -28,7 +28,7 @@ if DESIGN == "v2":
     # arms straight ahead (docs/dev/V2_MODEL.md)
     import math as _m
     import os as _os
-    _thigh, _shin = float(_os.environ.get("CRAB_THIGH_DEG", "10")), float(_os.environ.get("CRAB_SHIN_DEG", "85"))   # v2.1 (owner locked 2026-11-22): thighs 10 deg up, belly 30 mm off the floor
+    _thigh, _shin = float(_os.environ.get("CRAB_THIGH_DEG", "5")), float(_os.environ.get("CRAB_SHIN_DEG", "85"))   # v2.1 (owner, 2026-11-22, design sweep): thighs 5 deg up, belly 35 mm off the floor
     STAND_DICT.update({"*_femur": _m.radians(_thigh), "*_tibia": -_m.radians(_shin + _thigh),
                        "*_shoulder_yaw": 0.0, "*_shoulder_pitch": 0.35})
 

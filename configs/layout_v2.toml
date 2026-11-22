@@ -103,8 +103,8 @@ mass_g = 20.0
 mass_source = "datasheet"
 mass_ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor"
 why = "owner's parts decision 2026-11-21: the arm servo is a Feetech STS3032, 20 g (Evelta page opened 2026-11-21, 4.5 kg*cm, 4.8-6 V, bus ID 13-18 on the 5 V rail B). The box is the earlier 23 x 12 x 27.5 mm figure; Evelta lists 23.2 x 12.1 x 28.5 mm (1 mm taller: apply it when the model is next rebuilt, size stays an estimate until a servo is measured). Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
-pos_mm = [50.21, 40, 28.7]   # the case (upside down above its horn); the joint is joint_mm
-joint_mm = [56.0, 40, 0.0]   # v2.1 (owner locked 2026-11-22): the yaw axis at mid-shell; the bracket carries the arm out through the front
+pos_mm = [50.21, 40, -16.7]   # the case (horn up, hanging below the arm); the joint is joint_mm
+joint_mm = [56.0, 40, 12.0]   # v2.1 (owner, 2026-11-22, design sweep): the yaw axis 61 % up the shell, the servo horn up below it
 rpy_deg = [0, 0, 0]
 in_model = true
 outside_ok = true
@@ -118,8 +118,8 @@ mass_g = 20.0
 mass_source = "datasheet"
 mass_ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor"
 why = "owner's parts decision 2026-11-21: the arm servo is a Feetech STS3032, 20 g (Evelta page opened 2026-11-21, 4.5 kg*cm, 4.8-6 V, bus ID 13-18 on the 5 V rail B). The box is the earlier 23 x 12 x 27.5 mm figure; Evelta lists 23.2 x 12.1 x 28.5 mm (1 mm taller: apply it when the model is next rebuilt, size stays an estimate until a servo is measured). Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
-pos_mm = [50.21, -40, 28.7]
-joint_mm = [56.0, -40, 0.0]
+pos_mm = [50.21, -40, -16.7]
+joint_mm = [56.0, -40, 12.0]
 rpy_deg = [0, 0, 0]
 in_model = true
 outside_ok = true
@@ -158,7 +158,7 @@ mass_g = 14.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: the BOM's add-a-circuit holder with a 15 A ATC blade fuse (a blade is 19 x 5 x 18.5 mm, ISO 8820) and its short leads; the holder was not measured"
-pos_mm = [46, 45.5, -20]
+pos_mm = [34, 44, 12]   # v2.1: up and back, clear of the horn-up arm yaw servo and the arm bracket above it
 connectors = [{name = "in", side = "-x", reach_mm = 8.0}, {name = "out", side = "+x", reach_mm = 8.0}]
 
 [part.ina]

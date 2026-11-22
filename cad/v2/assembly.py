@@ -50,10 +50,11 @@ def hip_servo_location(leg):
 
 
 def shoulder_servo_location(arm):
-    """The shoulder yaw servo in the BODY frame: upside down, horn face at body z = -5.4, case along +x."""
+    """The shoulder yaw servo in the BODY frame: horn up (or upside down, arms.YAW_UP), case along +x."""
     (x, y, z), _ = PARAMS.arm_mount
     side = 1 if arm == "L" else -1
-    return Location((x * 1000, side * y * 1000, z * 1000 + arms.YAW_HORN_Z + 19.2), (180, 0, 0))
+    return Location((x * 1000, side * y * 1000, z * 1000 + arms.YAW_HORN_Z - arms.YAW_SIGN * 19.2),
+                    (0, 0, 0) if arms.YAW_UP else (180, 0, 0))
 
 
 @cache

@@ -32,7 +32,7 @@ from build123d import Align, Box, Cone, Cylinder, Location, Plane, Polyline, Pos
 
 from cad.servo import STS3032  # noqa: E402
 from cad.servo import case as servo_case  # noqa: E402
-from cad.v2 import arms as ARMS  # noqa: E402
+from cad.v2 import arms as ARMS_CAD  # noqa: E402
 from cad.v2 import legs as LEGS_CAD  # noqa: E402
 from cad.v2 import lid as LID  # noqa: E402
 from cad.v2 import shell as SHELL  # noqa: E402
@@ -46,8 +46,8 @@ MODEL_XML = ROOT / "sim" / "models" / "crab_v2.xml"
 # ---------------------------------------------------------------------------------------------------- design numbers
 WALL = SHELL.WALL
 # the arm yaw servo (upside down): its origin from the shoulder point (layout) and the limbs CAD (horn face height)
-SHOULDER_Z0 = float(Layout()["shoulder_l"].d["joint_mm"][2]) + ARMS.YAW_HORN_Z + STS3032.horn_face
-SPLIT_Z = SHOULDER_Z0 + STS3032.T / 2 + 0.5   # tray / cover parting plane: just above the shoulder servo cases, so every
+SHOULDER_Z0 = float(Layout()["shoulder_l"].d["joint_mm"][2]) + ARMS_CAD.YAW_HORN_Z - ARMS_CAD.YAW_SIGN * STS3032.horn_face
+SPLIT_Z = max(28.0, SHOULDER_Z0 + STS3032.T / 2 + 0.5)   # tray / cover parting plane: above the shoulder servo cases, so every
 #                            servo, board and joint opening is in the tray and the cover is a lid with mics and pads
 LIP_H, LIP_T, LIP_GAP = 2.0, 1.2, 0.2      # the tray's lip rises 2 mm inside the cover's wall, 0.2 mm slip fit
 FIT = 0.3                  # clearance around bought parts (FDM +-0.2 mm, plus unknowns; cad/servo.py uses the same)
@@ -83,7 +83,7 @@ LEG_ENVELOPE = LEGS_CAD.coxa_envelope()
 # Shoulder (arm yaw) servos, STS3032 (cad/servo.py profile), interface from the limbs CAD: shaft vertical through the
 # shoulder point, mounted upside down (servo x -> body x, y -> -y, z -> -z), servo origin at SHOULDER_Z0 (the horn
 # face 19.2 mm below it), ears screwed from above. Moving envelope of one arm about the yaw axis, from the limbs CAD (cad/v2/arms.py arm_envelope): the bracket with the lift servo, the upper arm at seven lift angles.
-ARM_ENVELOPE = ARMS.arm_envelope(float(Layout()["shoulder_l"].d["joint_mm"][2]))
+ARM_ENVELOPE = ARMS_CAD.arm_envelope(float(Layout()["shoulder_l"].d["joint_mm"][2]))
 
 # Wall-mounted sensor apertures: radius of the window at the sensor face (the cone grows from it)
 APERTURE_R = {"camera_lens": 8.5, "tof8": 4.0, "mic_l": 0.8, "mic_r": 0.8}
@@ -271,7 +271,7 @@ def hip_case_aabb(leg):
 
 def shoulder_location(arm):
     p = joints()[arm]["pos"]
-    return Location((p[0], p[1], SHOULDER_Z0), (180.0, 0, 0))
+    return Location((p[0], p[1], SHOULDER_Z0), (0, 0, 0) if ARMS_CAD.YAW_UP else (180.0, 0, 0))
 
 
 @cache
@@ -297,8 +297,14 @@ def _sector(cx, cy, r0, r1, a0, a1, z0, z1, step_deg=2.0):
     return extrude(face, amount=z1 - z0)
 
 
-def _env_box(cx, cy, t, x0, x1, hw, z0, z1):
-    return Location((cx, cy, 0), (0, 0, math.degrees(t))) * abox((x0, -hw, z0), (x1, hw, z1))
+def _env_box(cx, cy, t, x0, x1, hw, z0, z1, tilt=None):
+    """A moving part's box at joint yaw t. tilt = (deg about y, pivot x, pivot z): the box is in a link frame tilted
+    about the pivot (a thigh at one of its angles), so it follows the part instead of a box square to the hip."""
+    loc = Location((cx, cy, 0), (0, 0, math.degrees(t)))
+    if tilt:
+        deg, px, pz = tilt
+        loc = loc * Location((px, 0, pz), (0, deg, 0))
+    return loc * abox((x0, -hw, z0), (x1, hw, z1))
 
 
 def envelope_at(key, q, grow=0.0):
@@ -311,8 +317,8 @@ def envelope_at(key, q, grow=0.0):
         if e[1] == "cyl":
             parts.append(zcyl(cx, cy, e[2] + grow, e[3] - grow, e[4] + grow))
         else:
-            _, x0, x1, hw, z0, z1 = e
-            parts.append(_env_box(cx, cy, t, x0 - grow, x1 + grow, hw + grow, z0 - grow, z1 + grow))
+            _, x0, x1, hw, z0, z1, *tilt = e
+            parts.append(_env_box(cx, cy, t, x0 - grow, x1 + grow, hw + grow, z0 - grow, z1 + grow, tilt or None))
     return fuse(parts)
 
 
@@ -327,13 +333,13 @@ def sweep(key, grow=0.0):
         if e[1] == "cyl":
             parts.append(zcyl(cx, cy, e[2] + grow, e[3] - grow, e[4] + grow))
             continue
-        _, x0, x1, hw, z0, z1 = e
+        _, x0, x1, hw, z0, z1, *tilt = e
         x0, x1, hw, z0, z1 = x0 - grow, x1 + grow, hw + grow, z0 - grow, z1 + grow
         # the box itself stepped over the range (a ring out to its far corner cut away far more shell than any pose
         # reaches); the step leaves at most r (1 - cos(step / 2)) uncut between poses: 0.2 mm at r = 80, 4 deg
         n = max(2, int(math.ceil(math.degrees(a1 - a0) / SWEEP_STEP_DEG)) + 1)
         for k in range(n):
-            parts.append(_env_box(cx, cy, a0 + (a1 - a0) * k / (n - 1), x0, x1, hw, z0, z1))
+            parts.append(_env_box(cx, cy, a0 + (a1 - a0) * k / (n - 1), x0, x1, hw, z0, z1, tilt or None))
     return fuse(parts)
 
 
@@ -672,10 +678,10 @@ def shoulder_seat(arm):
     """The upside-down STS3032: a post under the rear ear (2 x M2 from above) inside the shell, a chin pad under the
     front ear outside the shell's front, and the pocket where the case passes through the front wall."""
     P, p = STS3032, joints()[arm]["pos"]
-    ear_lo = SHOULDER_Z0 - P.ear_z0 - P.ear_t
+    ear_lo = SHOULDER_Z0 + P.ear_z0 if ARMS_CAD.YAW_UP else SHOULDER_Z0 - P.ear_z0 - P.ear_t     # the ears' underside
     rear = abox((p[0] + P.x_rear - P.ear_len - 1.0, p[1] - P.half_w - 1.0, -60.0),
                 (p[0] + P.x_rear + 1.0, p[1] + P.half_w + 1.0, ear_lo))
-    chin = abox((p[0] + 0.0, p[1] - P.half_w - 1.0, -1.5), (p[0] + P.x_out + P.ear_len + 1.0, p[1] + P.half_w + 1.0, ear_lo))
+    chin = abox((p[0] + 0.0, p[1] - P.half_w - 1.0, ear_lo - 6.0), (p[0] + P.x_out + P.ear_len + 1.0, p[1] + P.half_w + 1.0, ear_lo))
     holes = []
     for ex in P.ear_holes_x:                       # servo x -> body x, servo y -> body -y
         for ey in P.ear_holes_y:
@@ -684,7 +690,8 @@ def shoulder_seat(arm):
     pocket = abox(lo - FIT, hi + FIT)
     elo, ehi = shoulder_case_aabb(arm, ears=True)
     pocket = pocket + abox((elo[0] - FIT, elo[1] - FIT, ear_lo), (ehi[0] + FIT, ehi[1] + FIT, ear_lo + P.ear_t + 2 * FIT))
-    pocket = pocket + zcyl(p[0], p[1], P.boss_r + FIT, hi[2], hi[2] + P.boss_h + FIT)     # its boss, upside down: on top
+    boss_z = (lo[2] - P.boss_h - FIT, lo[2]) if ARMS_CAD.YAW_UP else (hi[2], hi[2] + P.boss_h + FIT)   # the idler boss
+    pocket = pocket + zcyl(p[0], p[1], P.boss_r + FIT, *boss_z)
     owner = f"shoulder_{arm.lower()}"
     return [Feature(f"{owner}_rear_post", owner, "tray", "add", rear - fuse(holes) - pocket),
             Feature(f"{owner}_chin", owner, "tray", "add", chin - fuse(holes) - pocket, clip=False),
