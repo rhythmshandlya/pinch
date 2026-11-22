@@ -27,6 +27,30 @@ RANDOMIZE_FRICTIONLOSS = False   # the servo's dry friction spread is covered by
 COLLIDERS = set()        # names of the last loaded model's own contact shapes (its non-visual geoms), for righting_env
 
 
+def _boxes_to_capsules(spec):
+    """The CAD's contact boxes on the legs become capsules along their longest side (radius: the mean of the other
+    two half sizes): a box on the floor makes up to 4 contacts and 16 friction rows, a capsule 2; with five boxes a leg
+    the solver's matrices grew 4x and msi-1 crawled (2048 x 690 x 42)."""
+    import numpy as np
+    for g in spec.geoms:
+        if g.type != mujoco.mjtGeom.mjGEOM_BOX or not g.name:
+            continue
+        if not any(k in g.name for k in ("_coxa_link_", "_femur_link_", "_tibia_link_")):
+            continue
+        h = np.array(g.size[:3], float)
+        ax = int(np.argmax(h))
+        r = float(np.mean(np.delete(h, ax)))
+        half = max(float(h[ax]) - r, 1e-4)
+        rot = {0: [0.7071068, 0.0, 0.7071068, 0.0], 1: [0.7071068, -0.7071068, 0.0, 0.0], 2: [1.0, 0.0, 0.0, 0.0]}[ax]
+        q0 = np.array(g.quat, float)
+        w1, x1, y1, z1 = q0
+        w2, x2, y2, z2 = rot
+        g.quat = [w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2, w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+                  w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2, w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2]
+        g.type = mujoco.mjtGeom.mjGEOM_CAPSULE
+        g.size = [r, half, 0.0]
+
+
 def load_training_model(sim_dt: float) -> mujoco.MjModel:
     spec = mujoco.MjSpec.from_file(str(MODEL))
     for s in list(spec.sensors):                 # touch sensors etc. not needed
@@ -44,8 +68,10 @@ def load_training_model(sim_dt: float) -> mujoco.MjModel:
         spec.body("body").add_geom(name="shell_proxy", type=mujoco.mjtGeom.mjGEOM_ELLIPSOID,
                                    size=[v / 1000.0 for v in ch["shell_half_mm"]],
                                    pos=[v / 1000.0 for v in ch["shell_center_mm"]], mass=0.0, contype=1, conaffinity=0)
+    _boxes_to_capsules(spec)
     COLLIDERS.clear()
-    COLLIDERS.update(g.name for g in spec.geoms if g.name and (g.contype or g.conaffinity) and "_pad" not in g.name)
+    COLLIDERS.update(g.name for g in spec.geoms if g.name and (g.contype or g.conaffinity)
+                     and not any(k in g.name for k in ("_pad", "_blade", "_drop")))
     m = spec.compile()
     m.opt.timestep = sim_dt
     m.opt.iterations = 4
