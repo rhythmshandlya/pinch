@@ -1,5 +1,6 @@
 """Choosing what to do: utility scores, the state layer (timeouts, resume), stepping through the activity, and the decision log."""
 
+from pinch.mind.behaviour import category, overrides_uninterruptible
 from pinch.mind.common import (  # noqa: F401
     LIBRARY,
     MOOD_REPLY,
@@ -24,6 +25,7 @@ class Selection:
         rec = dict(t=round(self.t, 2), clock=round(self.world.clock(), 2),
                    prev=self.activity.name if self.activity else None, to=name, reason=reason,
                    state=[self.state, nxt.state],
+                   priority=[category(self.activity.name) if self.activity else None, category(name)],
                    top=[[k, round(v, 3)] for k, v in top],
                    noticed=[[s.kind, s.target, round(s.strength, 2)] for s in self.situations[:5]],
                    feeling=self.affect.feeling(), valence=round(self.affect.valence, 3),
@@ -76,7 +78,7 @@ class Selection:
         elapsed = self.t - self.started
         urgent = scores[best] >= 1.5 and scores[best] > scores.get(cur.name, 0) + 0.1
         better = scores[best] > scores.get(cur.name, 0) + 0.15 and elapsed > cur.min_s
-        if (cur.interruptible and (urgent or better)) or (not cur.interruptible and urgent and best in ("startle", "right_self")):
+        if (cur.interruptible and (urgent or better)) or (not cur.interruptible and urgent and overrides_uninterruptible(best)):
             if urgent and cur.name != best:
                 self._suspend(cur.name)                          # (it may come back to it afterwards)
             self._start(best, ("urgent" if urgent else "clearly better") + f" than {cur.name}"
