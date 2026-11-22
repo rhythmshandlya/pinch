@@ -3,7 +3,9 @@
 version = "4.1"
 
 [breath]
-period_s = 3.5           # one breath
+period_s = 3.5           # one breath (at liveliness 0.6 about 3.5 * (1.3 - 0.6 * 0.6) = 3.3 s)
+calm_factor = 1.3        # period = period_s * (calm_factor - excited_drop * liveliness): calm 4.2 s, excited 2.6 s
+excited_drop = 0.6
 legs_rad = 0.015         # the body's rise and fall (thighs)
 claws_rad = 0.025        # the claws open and close a little with it, slightly behind
 claws_lag_rad = 0.8      # phase lag of the claws (rad of the breath)

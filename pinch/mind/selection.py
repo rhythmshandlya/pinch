@@ -133,6 +133,7 @@ class Selection:
                 "sound": name if name and self.t - self.sound_set_t <= 1.0 else "ambient"}
 
     face_set_t = sound_set_t = -1e9
+    _motion_kind = None
 
     RESUME_DEPTH = 3                     # interruptions remembered at once (explore -> investigate -> guard_edge)
 
@@ -169,6 +170,8 @@ class Selection:
                 return None
             self.waiting_motion = False
             self.last_step_ok = body_ok
+            if self._motion_kind in ("goto", "push", "pick", "drop"):
+                self.react_to_outcome(body_ok, self._motion_kind)
         if self.t < self.wait_until or self.t < self.praise_until:
             return None
         for _ in range(20):                          # run instant steps until a motion step (or the end)
@@ -220,5 +223,6 @@ class Selection:
                 if kind in ("goto", "push", "pick", "drop"):
                     self.gaze = (0.0, 0.3)
                 self.waiting_motion = True
+                self._motion_kind = kind
                 return step
         return None

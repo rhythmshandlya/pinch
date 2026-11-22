@@ -30,6 +30,7 @@ class Stimulus:
     xy: tuple = None            # where on the desk, if known
     key: str = ""               # identity for habituation ("voice:left", "touch:head", "person:sam")
     salience0: float = 0.0
+    t0: float = None            # when it was first noticed (t moves on while a moving thing is tracked)
 
 
 @dataclass
@@ -51,7 +52,7 @@ class Attention:
         fam = self._familiar(key, t)
         self.familiarity[key] = (fam + 1.0, t)
         sal = BASE.get(kind, 0.4) * min(1.0, max(0.0, strength)) / (1.0 + 0.6 * fam)
-        s = Stimulus(kind, t, strength, direction, xy, key, sal)
+        s = Stimulus(kind, t, strength, direction, xy, key, sal, t)
         self.stimuli = [x for x in self.stimuli if x.key != key] + [s]
         return sal
 

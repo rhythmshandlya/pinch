@@ -47,10 +47,14 @@ class IdleLife:
         """Joint offsets (18) for this tick."""
         lv = max(0.05, min(1.0, self.liveliness)) * (0.5 if self.quiet_s > 300 else 1.0)
         q = np.zeros(len(JOINT_NAMES))
-        b = BR["legs_rad"] * math.sin(2 * math.pi * t / self.period_breath)          # breathing
+        # breathing follows the feeling: about 14 breaths a minute calm, 23 excited (research: idle from state);
+        # the phase is integrated, so a change of pace never jumps
+        period = self.period_breath * (BR["calm_factor"] - BR["excited_drop"] * lv)
+        self.breath_phase = getattr(self, "breath_phase", 0.0) + 2 * math.pi * dt / period
+        b = BR["legs_rad"] * math.sin(self.breath_phase)
         for lg in LEGS:
             q[J[f"{lg}_femur"]] += b
-        cb = BR["claws_rad"] * math.sin(2 * math.pi * t / self.period_breath + BR["claws_lag_rad"])   # the claws too
+        cb = BR["claws_rad"] * math.sin(self.breath_phase + BR["claws_lag_rad"])   # the claws breathe too, a little behind
         for side in "LR":
             q[J[f"{side}_claw"]] += cb
             q[J[f"{side}_shoulder_pitch"]] += BR["shoulders_share"] * cb

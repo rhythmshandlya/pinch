@@ -171,6 +171,32 @@ class MindCore:
         return (float(np.clip(-ang / 0.8, -1, 1)), 0.2)
 
     gaze_target_xy = None
+    ORIENT_S, ORIENT_SALIENCE = 1.2, 0.25           # a fresh stimulus holds the eyes this long (research: orienting)
+    _outcome_until, _outcome_face = -1e9, None
+
+    def _orienting(self):
+        """The eyes' answer to a new stimulus (docs/research/v2_1/aliveness: contingent reaction, eyes before body):
+        a sound, a touch or a thing that just appeared, noticed in the last ORIENT_S, pulls the eyes to it, over
+        whatever an activity aimed them at. None when nothing fresh is there."""
+        fresh = [s for s in self.attention.stimuli if s.t0 is not None and self.t - s.t0 <= self.ORIENT_S
+                 and s.salience0 >= self.ORIENT_SALIENCE and (s.xy is not None or s.direction is not None)]
+        if not fresh:
+            return None
+        from pinch.attention import direction_of
+        s = max(fresh, key=lambda x: x.t0)
+        d = direction_of(s.xy, self.world.pose) if s.xy is not None else s.direction
+        return (float(max(-1.0, min(1.0, -d / 0.8))), 0.2)
+
+    def react_to_outcome(self, ok, kind):
+        """A goal-directed motion just ended: a brief face that fits how it went (research: reacting to outcomes
+        raised perceived competence 3.86 -> 4.72, Takayama et al. 2011), unless the activity shows its own."""
+        face = ("happy" if kind in ("pick", "drop", "push") else "content") if ok else "surprised"
+        self._outcome_face = (face, self.face_expr)
+        self._outcome_until = self.t + 1.0
+        self.face_expr = face
+        self.face_set_t = self.t
+        if not ok and not self.affect.quiet:
+            self.sounds.append("uh_oh")
 
     def outputs(self):
         """Face expression (the feeling unless an activity set one recently), gaze, sounds to play. Gaze: where
@@ -178,6 +204,14 @@ class MindCore:
         place on the desk is re-aimed from the current pose every tick, so the eyes stay on it while it walks."""
         from pinch.attention import direction_of
         s, self.sounds = self.sounds, []
+        if self.t > self._outcome_until and self._outcome_face is not None:   # a brief outcome face is over
+            if self.face_expr == self._outcome_face[0]:
+                self.face_expr = self._outcome_face[1]
+            self._outcome_face = None
+        new = self._orienting()
+        if new is not None:                                  # something just happened: the eyes go to it first
+            self.gaze = new
+            return self.face_expr, self.gaze, s
         if self.t - self.gaze_set_t <= 3.0:
             if self.gaze_target_xy is not None:
                 self.gaze = self._gaze_to(self.gaze_target_xy)

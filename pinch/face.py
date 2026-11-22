@@ -95,7 +95,11 @@ class Face:
             self.expression = expression
             self.target = EXPRESSIONS[expression]
         if gaze is not None:
-            self.gaze_target = np.clip(np.asarray(gaze, float), -1, 1)
+            new = np.clip(np.asarray(gaze, float), -1, 1)
+            if np.abs(new - self.gaze_target).max() > 0.3:     # somewhere new to look: the eyes jump there now
+                self.gaze = new.copy()                         # (a saccade, not a drift)
+                self.next_saccade = max(self.next_saccade, self.t + 0.35)
+            self.gaze_target = new
 
     def blink(self):
         self.blink_t = 0.0
