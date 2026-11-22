@@ -123,7 +123,8 @@ class TwinCore:
         q = self.d.qpos
         R = self.d.xmat[1].reshape(3, 3)
         out = dict(pose=self.pose(), z=float(q[2]), up=float(R[2, 2]),
-                   q_meas=[q[a] + (q[b] if b is not None else 0.0) for a, b in self._qadr])
+                   q_meas=[q[a] + (q[b] if b is not None else 0.0) for a, b in self._qadr],
+                   eye=float(self.face.gaze[0]), blink=bool(self.face.blink_t >= 0))                 # the face's eyes: saccades and blinks (ambient life)
         if self.recorder.state:
             out["qpos"] = q
             if self.m.nmocap:

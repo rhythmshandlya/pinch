@@ -60,6 +60,8 @@ class BodyCore:
         self.pose_sigma_fn = None               # () -> how far off pose_fn() may be (m); widens the edge margin
         self.cliff_trimmed = 0                  # walking commands the cliff ring trimmed
         self.claim = None                       # the running step's claim on the body parts (arbiter.Claim)
+        self.ambient_amp = 0.0
+        self._src, self._seam, self._seam_k, self._seam_n = None, None, 0, 1     # handover blend (tick)
 
     def trace(self, what, **kw):
         self.log.append((round(self.t, 2), what, kw))
@@ -96,6 +98,14 @@ class BodyCore:
             self.task.close()
         self.task, self.busy, self.ok, self.claim = None, False, False, None
 
+    def _use_claw(self, side):
+        """A step that turns out to need one claw only (a pick, a drop) gives the other one back: ambient life moves it."""
+        if self.claim is None:
+            return
+        from dataclasses import replace
+        free = "claw_R" if side == "left" else "claw_L"
+        self.claim = replace(self.claim, parts=self.claim.parts - {free}, ambient_ok=self.claim.ambient_ok | {free})
+
     def owners(self):
         """{body part: arbiter.Claim or None} right now."""
         return arbitrate([self.claim] if self.claim is not None else [])[0]
@@ -123,15 +133,46 @@ class BodyCore:
                 q = self.hold
         else:
             q = self.hold
+        self.ambient_amp = 0.0                             # the largest ambient offset this tick (rad): aliveness
         if self.breath:                                    # alive always, on the parts no one is using (life.py)
             mask = self._ambient_mask()
             if mask.any():
-                q = q + self.life.offsets(self.t, DT) * mask
+                off = self.life.offsets(self.t, DT) * mask
+                self.ambient_amp = float(np.abs(off).max())
+                q = q + off
         if self.held:
             obj, side = self.held
             q = arm_pose(q, side, pitch=max(q[J[f"{'L' if side == 'left' else 'R'}_shoulder_pitch"]], CARRY_PITCH)
                          if self.task is None else None, claw=0.0)
+        q = self._handover(q)
         self.crab.tick(q)
+        return q
+
+    HANDOVER_S, REFLEX_HANDOVER_S = 0.24, 0.08
+    SNAP_RAD = 0.12                     # a handover gap above this is faded out (the servos follow ~0.16 rad a tick)
+
+    def _handover(self, q):
+        """When what drives the joints changes (a step starts, ends or is cut short), fade out the gap between the
+        last target and the new one instead of jumping (a cancelled pick used to snap to the standing pose in one
+        tick: 0.46 rad, more than a servo follows). A safety reflex fades faster."""
+        src = id(self.task) if self.task is not None else None
+        if src != self._src:
+            self._src = src
+            last = getattr(self.crab, "q_cmd", None)
+            if last is not None and len(last) == len(q):
+                gap = np.asarray(last, float) - q
+                if np.abs(gap).max() > self.SNAP_RAD:      # only a real snap: a step handing over smoothly is left alone
+                    reflex = self.claim is not None and self.claim.layer == "reflex"
+                    self._seam = gap
+                    self._seam_k = 0
+                    self._seam_n = max(1, int((self.REFLEX_HANDOVER_S if reflex else self.HANDOVER_S) / DT))
+        if self._seam is not None:
+            self._seam_k += 1
+            w = 1.0 - self._seam_k / self._seam_n
+            if w <= 0:
+                self._seam = None
+            else:
+                q = q + self._seam * (w * w * (3 - 2 * w))
         return q
 
     # -- basic motions -------------------------------------------------------------------

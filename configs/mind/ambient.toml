@@ -1,0 +1,29 @@
+# Ambient life (phase 4): the small motion that keeps Pinch alive on every body part no one is using.
+# Read by pinch/body/life.py (body) and pinch/face.py (eyes); its version is recorded in every session.
+version = "4.1"
+
+[breath]
+period_s = 3.5           # one breath
+legs_rad = 0.015         # the body's rise and fall (thighs)
+claws_rad = 0.025        # the claws open and close a little with it, slightly behind
+claws_lag_rad = 0.8      # phase lag of the claws (rad of the breath)
+shoulders_share = 0.4    # the shoulders follow the claws by this share
+
+[sway]
+period_s = 9.0           # slow weight shift left <-> right
+legs_rad = 0.012
+
+[fidget]                 # micro-actions now and then (a claw flex, a shoulder twitch, a leg resettling, a still moment)
+mean_gap_s = 8.0         # mean gap at liveliness 0.6 (livelier: more often)
+min_gap_s = 1.5
+claw_rad = 0.15
+shoulder_rad = 0.12
+leg_femur_rad = 0.03
+leg_tibia_rad = 0.02
+duration_s = [0.5, 1.2]
+
+[eyes]
+blink_gap_s = [2.0, 6.0]        # sometimes a double blink
+double_blink = 0.25
+saccade_gap_s = [0.35, 1.4]     # fixations of a fraction of a second (docs/research/v2_1/observer/notes.md)
+saccade_sd = 0.08               # size of an eye dart around the target (eye range -1..1)

@@ -108,7 +108,7 @@ class Face:
         if self.t > self.next_saccade:
             jitter = self.rng.normal(0, 0.08, 2)
             self.gaze = np.clip(self.gaze_target + jitter, -1, 1)
-            self.next_saccade = self.t + self.rng.uniform(0.4, 2.2)
+            self.next_saccade = self.t + self.rng.uniform(0.35, 1.4)   # fixations of a fraction of a second (phase 4 research)
         else:
             self.gaze += (self.gaze_target - self.gaze) * (1 - np.exp(-dt / 0.15)) * 0.3
         # blinking: every 2-6 s, sometimes twice

@@ -16,7 +16,7 @@ turn_to = { claims = ["legs"], ambient = ["claw_L", "claw_R"] }
 detour = { claims = ["legs"], ambient = ["claw_L", "claw_R"] }
 climb = { claims = ["legs"], ambient = ["claw_L", "claw_R"] }
 settle = { claims = ["legs"], ambient = ["claw_L", "claw_R"] }
-pose = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+pose = { claims = ["legs", "claw_L", "claw_R"], ambient = ["legs", "claw_L", "claw_R"] }   # a held pose breathes
 emote = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
 mood = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
 push = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }

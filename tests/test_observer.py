@@ -291,3 +291,33 @@ def test_recorded_pet_life_has_few_findings():
     assert len(warns) <= 6, "; ".join(f"{f.kind}: {f.evidence}" for f in warns)
     for k in KNOWN_PROBLEMS:                          # (fixed? then take it off the list)
         assert k in {f.kind for f in findings}, f"'{k}' is no longer found here: fixed? remove it from KNOWN_PROBLEMS"
+
+
+def test_it_catches_a_still_pinch():
+    s = _calm()
+    n = len(s["samples"]["t"])
+    s["samples"]["ambient"] = np.zeros(n)                     # no ambient life at all, the eyes fixed
+    s["samples"]["eye"] = np.zeros(n)
+    assert "aliveness" in _kinds(s)
+    s["samples"]["ambient"] = np.full(n, 0.01)                # breathing all the time: alive
+    assert "aliveness" not in _kinds(s)
+
+
+def test_ambient_life_is_visible_almost_all_awake_time():
+    """Phase 4 exit check: ten minutes of pet life (a hello, strokes, praise, a dance) with ambient life - breathing,
+    claw breathing, flexes, the eyes' darts and blinks - in at least 95 % of the awake seconds, never still for more
+    than 3 s. Full-body emotes own every part (they move on purpose), so they are the seconds it may miss."""
+    from pinch.observer import aliveness
+    with tempfile.TemporaryDirectory() as tmp:
+        sim = PinchSim(memory=Memory(path=None), seed=11, record_dir=Path(tmp) / "life", record=dict(state=False))
+        for t_at, what in ((4.0, "hi pinch, I'm Sam"), (30.0, None), (50.0, "good crab"), (120.0, "dance!"), (300.0, None)):
+            sim.run(t_at - sim.t)
+            sim.say(what) if what else sim.touch("stroke")
+        sim.run(600.0 - sim.t)
+        sim.stop_recording()
+        sm = load_session(Path(tmp) / "life")["samples"]
+    share, gap, n = aliveness(sm)
+    assert n > 500 and share >= 0.95 and gap <= 3.0, f"alive {100 * share:.1f} % of {n} s, longest still gap {gap:.0f} s"
+    body = dict(sm, eye=np.zeros(len(sm["t"])), blink=np.zeros(len(sm["t"]), bool))
+    b_share, _, _ = aliveness(body)
+    assert b_share >= 0.65, f"the body alone is alive {100 * b_share:.1f} % of the time"

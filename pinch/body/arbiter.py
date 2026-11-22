@@ -24,7 +24,7 @@ def config():
         c = tomllib.load(f)
     for kind, s in c["steps"].items():
         bad = (set(s["claims"]) | set(s["ambient"])) - set(c["channels"])
-        if bad or set(s["claims"]) & set(s["ambient"]):
+        if bad:
             raise ValueError(f"{PATH.name} [{kind}]: unknown or doubly listed parts {sorted(bad) or s}")
     return c
 

@@ -46,6 +46,10 @@ class IdleLife:
         b = 0.015 * math.sin(2 * math.pi * t / self.period_breath)          # breathing (unchanged)
         for lg in LEGS:
             q[J[f"{lg}_femur"]] += b
+        cb = 0.025 * math.sin(2 * math.pi * t / self.period_breath + 0.8)    # the claws breathe too, a little behind
+        for side in "LR":
+            q[J[f"{side}_claw"]] += cb
+            q[J[f"{side}_shoulder_pitch"]] += 0.4 * cb
         s = 0.012 * lv * math.sin(2 * math.pi * t / 9.0 + self.sway_phase)    # weight shift, left <-> right
         for lg in ("FL", "RL"):
             q[J[f"{lg}_femur"]] += s

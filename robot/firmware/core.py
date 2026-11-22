@@ -332,7 +332,8 @@ class FirmwareCore:
 
     def _rec_sample(self):
         g = self._grav
-        return dict(pose=self.loc.pose(), up=float(-g[2]) if g is not None else float("nan"))
+        return dict(pose=self.loc.pose(), up=float(-g[2]) if g is not None else float("nan"),
+                    eye=float(self.face.gaze[0]), blink=bool(self.face.blink_t >= 0))
 
     def _cpu_temp(self):
         return self.hw.cpu_temp() if hasattr(self.hw, "cpu_temp") else None

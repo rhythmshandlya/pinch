@@ -141,7 +141,13 @@ def run_header(root=ROOT, **config):
         vers["mujoco"] = mujoco.__version__
     except ImportError:
         pass
-    return dict(schema=SCHEMA, git=dict(commit=_git("rev-parse", "HEAD"), branch=_git("rev-parse", "--abbrev-ref", "HEAD"),
+    behaviour = {}
+    for f in sorted((root / "configs" / "mind").glob("*.toml")):      # the behaviour settings (phase 4)
+        text = f.read_bytes()
+        ver = next((ln.split("=", 1)[1].strip().strip('"') for ln in text.decode("utf-8").splitlines()
+                    if ln.startswith("version")), None)
+        behaviour[f.name] = dict(version=ver, sha256=hashlib.sha256(text).hexdigest()[:16])
+    return dict(schema=SCHEMA, behaviour=behaviour, git=dict(commit=_git("rev-parse", "HEAD"), branch=_git("rev-parse", "--abbrev-ref", "HEAD"),
                                         dirty=bool(_git("status", "--porcelain", "--untracked-files=no"))),
                 policies=pol, versions=vers, platform=platform.system(), created=time.strftime("%Y-%m-%dT%H:%M:%S"),
                 config=_plain(config))
@@ -209,6 +215,7 @@ class SessionRecorder:
             self._poll_mind(t, mind)
         self._smooth(np.asarray(q_req, float), np.asarray(q_cmd, float), body.status if body.task is not None else "")
         self._poll_body(t, body)                           # (it files the body's trace under the right step)
+        self._poll_owners(t, mind, body)
         if k % self.sample_every == 0:
             self._sample(t, mind, body, q_cmd, sample_fn() if sample_fn else {})
         if self.live_every and t >= self._next_live:
@@ -272,6 +279,20 @@ class SessionRecorder:
     @staticmethod
     def _act(mind):
         return mind.activity.name if mind.activity is not None else None
+
+    def _poll_owners(self, t, mind, body):
+        """Who owns each body part (pinch/body/arbiter.py; the mind's eyes, face and sound), when it changes."""
+        own = {}
+        if hasattr(body, "owners"):
+            own.update({p: (f"{c.owner}/{c.layer}" if c is not None else "ambient") for p, c in body.owners().items()
+                        if p in ("legs", "claw_L", "claw_R")})
+        if mind is not None and hasattr(mind, "channel_owners"):
+            own.update(mind.channel_owners())
+        if own != self._owners:
+            self._owners = own
+            self.event(t, "owners", **own)
+
+    _owners = None
 
     def _poll_body(self, t, body):
         task = body.task
@@ -376,12 +397,14 @@ class SessionRecorder:
                    jerk_rms=math.sqrt(w["jerk"] / max(1, w["n"])), max_jump=w["jump"], clamped=w["clamped"],
                    jump_joint=w["jump_joint"], jump_status=w["jump_status"],
                    busy=bool(body.busy), status=body.status if body.busy else "", cmd_v=float(np.hypot(*body.cmd_vel[:2])),
-                   cmd_w=float(body.cmd_vel[2]))
+                   cmd_w=float(body.cmd_vel[2]), ambient=float(getattr(body, "ambient_amp", 0.0)))
         self._win = self._new_window()
         pose = x.get("pose")
         if pose is not None:
             row["x"], row["y"], row["yaw"] = (float(v) for v in pose)
         row["z"] = float(x.get("z", np.nan))
+        if "eye" in x:                                     # the face's eyes (saccades, blinks): ambient life
+            row["eye"], row["blink"] = float(x["eye"]), bool(x.get("blink", False))
         row["up"] = float(x.get("up", np.nan))
         if x.get("q_meas") is not None:
             row["q_meas"] = np.asarray(x["q_meas"], np.float32)
