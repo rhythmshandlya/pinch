@@ -54,11 +54,11 @@ def test_v2_model_is_current_and_has_the_right_mass():
     assert 1.90 < r["mass"] < 2.20, r["mass"]                                 # from the CAD: 2.00 kg with the 300 g screen module
     assert 0.62 < r["leg_mass"] < 0.80                                        # 4 legs from the CAD: 12 servos + brackets + crab shins (0.683 kg)
     assert r["min_inertia"] > 0.0
-    assert 0.052 < r["stand_z"] < 0.068
+    assert 0.080 < r["stand_z"] < 0.095   # v2.1: thighs 5 deg up, belly 35 mm
 
 
 def _stands_and_walks(res):
-    assert res["stand_up"] > 0.999 and res["stand_xy"] < 0.01 and 0.050 < res["stand_z"] < 0.068
+    assert res["stand_up"] > 0.999 and res["stand_xy"] < 0.01 and 0.078 < res["stand_z"] < 0.095
     fwd, side = res["forward"], res["sideways"]
     assert fwd["v_body"][0] > 0.04 and abs(fwd["v_body"][1]) < 0.15 * fwd["v_body"][0] + 0.002, fwd
     assert side["v_body"][1] > 0.04 and abs(side["v_body"][0]) < 0.15 * side["v_body"][1] + 0.002, side

@@ -103,9 +103,9 @@ mass_g = 20.0
 mass_source = "datasheet"
 mass_ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor"
 why = "owner's parts decision 2026-11-21: the arm servo is a Feetech STS3032, 20 g (Evelta page opened 2026-11-21, 4.5 kg*cm, 4.8-6 V, bus ID 13-18 on the 5 V rail B). The box is the earlier 23 x 12 x 27.5 mm figure; Evelta lists 23.2 x 12.1 x 28.5 mm (1 mm taller: apply it when the model is next rebuilt, size stays an estimate until a servo is measured). Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
-pos_mm = [50.21, 40, -16.7]   # the case (horn up, hanging below the arm); the joint is joint_mm
+pos_mm = [61.79, 40, -16.7]   # the case (horn up, hanging below the arm, running forward); the joint is joint_mm
 joint_mm = [56.0, 40, 12.0]   # v2.1 (owner, 2026-11-22, design sweep): the yaw axis 61 % up the shell, the servo horn up below it
-rpy_deg = [0, 0, 0]
+rpy_deg = [0, 0, 90]   # the case runs along body x, as the CAD seats it (its 23 mm length on the box y axis)
 in_model = true
 outside_ok = true
 
@@ -118,9 +118,9 @@ mass_g = 20.0
 mass_source = "datasheet"
 mass_ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor"
 why = "owner's parts decision 2026-11-21: the arm servo is a Feetech STS3032, 20 g (Evelta page opened 2026-11-21, 4.5 kg*cm, 4.8-6 V, bus ID 13-18 on the 5 V rail B). The box is the earlier 23 x 12 x 27.5 mm figure; Evelta lists 23.2 x 12.1 x 28.5 mm (1 mm taller: apply it when the model is next rebuilt, size stays an estimate until a servo is measured). Yaw servo at the front section of the pill, shaft vertical, at mid-height: (cx + 0.95 a, +-40, cz - 0.10 c) of the shell"
-pos_mm = [50.21, -40, -16.7]
+pos_mm = [61.79, -40, -16.7]
 joint_mm = [56.0, -40, 12.0]
-rpy_deg = [0, 0, 0]
+rpy_deg = [0, 0, 90]
 in_model = true
 outside_ok = true
 

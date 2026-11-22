@@ -239,7 +239,8 @@ def finger_gaps(key):
              corners cut bulges beyond the flat face by hypot(x1, w) - x1)
       slot   the slot left ahead of the link at a range end: the arc its innermost face travels, plus CLEAR"""
     j = B.joints()[key]
-    elems = [e for e in (B.LEG_ENVELOPE if key in B.LEGS else B.ARM_ENVELOPE) if e[1] != "cyl"]
+    elems = [e for e in (B.LEG_ENVELOPE if key in B.LEGS else B.ARM_ENVELOPE) if e[1] != "cyl"
+             and not e[0].startswith(("hub", "coxa_top", "coxa_bottom", "bracket_hub"))]   # these turn about their own axis
     g = B.CLEAR
     hw = lambda h: max(abs(h[0]), abs(h[1])) if isinstance(h, tuple) else h      # noqa: E731 (a (y0, y1) extent)
     face = max(math.hypot(e[2] + g, hw(e[3]) + g) - (e[2] + g) + g for e in elems)

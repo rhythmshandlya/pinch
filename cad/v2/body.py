@@ -47,6 +47,7 @@ MODEL_XML = ROOT / "sim" / "models" / "crab_v2.xml"
 WALL = SHELL.WALL
 # the arm yaw servo (upside down): its origin from the shoulder point (layout) and the limbs CAD (horn face height)
 SHOULDER_Z0 = float(Layout()["shoulder_l"].d["joint_mm"][2]) + ARMS_CAD.YAW_HORN_Z - ARMS_CAD.YAW_SIGN * STS3032.horn_face
+SHOULDER_SX = -1 if ARMS_CAD.YAW_UP else 1          # horn up, the arm yaw servo's case runs forward from its shaft
 SPLIT_Z = max(28.0, SHOULDER_Z0 + STS3032.T / 2 + 0.5)   # tray / cover parting plane: above the shoulder servo cases, so every
 #                            servo, board and joint opening is in the tray and the cover is a lid with mics and pads
 LIP_H, LIP_T, LIP_GAP = 2.0, 1.2, 0.2      # the tray's lip rises 2 mm inside the cover's wall, 0.2 mm slip fit
@@ -271,7 +272,7 @@ def hip_case_aabb(leg):
 
 def shoulder_location(arm):
     p = joints()[arm]["pos"]
-    return Location((p[0], p[1], SHOULDER_Z0), (0, 0, 0) if ARMS_CAD.YAW_UP else (180.0, 0, 0))
+    return Location((p[0], p[1], SHOULDER_Z0), (0, 0, 180.0) if ARMS_CAD.YAW_UP else (180.0, 0, 0))
 
 
 @cache
@@ -282,8 +283,9 @@ def shoulder_servo(arm):
 def shoulder_case_aabb(arm, ears=False):
     p, P = joints()[arm]["pos"], STS3032
     ext = P.ear_len if ears else 0.0
-    return (np.array([p[0] + P.x_rear - ext, p[1] - P.half_w, SHOULDER_Z0 - P.face]),
-            np.array([p[0] + P.x_out + ext, p[1] + P.half_w, SHOULDER_Z0 + P.face]))
+    xa, xb = sorted((p[0] + SHOULDER_SX * (P.x_rear - ext), p[0] + SHOULDER_SX * (P.x_out + ext)))
+    return (np.array([xa, p[1] - P.half_w, SHOULDER_Z0 - P.face]),
+            np.array([xb, p[1] + P.half_w, SHOULDER_Z0 + P.face]))
 
 
 # ---------------------------------------------------------------------------------------------------- joint sweeps
@@ -783,13 +785,17 @@ def shoulder_seat(arm):
     front ear outside the shell's front, and the pocket where the case passes through the front wall."""
     P, p = STS3032, joints()[arm]["pos"]
     ear_lo = SHOULDER_Z0 + P.ear_z0 if ARMS_CAD.YAW_UP else SHOULDER_Z0 - P.ear_z0 - P.ear_t     # the ears' underside
-    rear = abox((p[0] + P.x_rear - P.ear_len - 1.0, p[1] - P.half_w - 1.0, -60.0),
-                (p[0] + P.x_rear + 1.0, p[1] + P.half_w + 1.0, ear_lo))
-    chin = abox((p[0] + 0.0, p[1] - P.half_w - 1.0, ear_lo - 6.0), (p[0] + P.x_out + P.ear_len + 1.0, p[1] + P.half_w + 1.0, ear_lo))
+    sx = SHOULDER_SX                                   # horn up, the case runs forward: servo x -> body -x
+
+    def xs(a, b):
+        return sorted((p[0] + sx * a, p[0] + sx * b))
+    (r0, r1), (c0, c1) = xs(P.x_rear - P.ear_len - 1.0, P.x_rear + 1.0), xs(0.0, P.x_out + P.ear_len + 1.0)
+    rear = abox((r0, p[1] - P.half_w - 1.0, -60.0), (r1, p[1] + P.half_w + 1.0, ear_lo))
+    chin = abox((c0, p[1] - P.half_w - 1.0, ear_lo - 6.0), (c1, p[1] + P.half_w + 1.0, ear_lo))
     holes = []
-    for ex in P.ear_holes_x:                       # servo x -> body x, servo y -> body -y
+    for ex in P.ear_holes_x:                       # servo x -> body sx * x, servo y -> body -y
         for ey in P.ear_holes_y:
-            holes.append(zcyl(p[0] + ex, p[1] - ey, M2_PILOT / 2, ear_lo - 8.0, ear_lo + 0.1))
+            holes.append(zcyl(p[0] + sx * ex, p[1] - ey, M2_PILOT / 2, ear_lo - 8.0, ear_lo + 0.1))
     lo, hi = shoulder_case_aabb(arm)
     pocket = abox(lo - FIT, hi + FIT)
     elo, ehi = shoulder_case_aabb(arm, ears=True)
@@ -839,11 +845,51 @@ def lid_knuckle():
 
 
 def joint_openings():
+    """A leg's opening is one smooth cove round its hip (cove): it contains everything the leg sweeps and reads as a
+    designed arch, not a union of every pose; an arm's opening follows its sweep."""
     feats = []
     for key in LEGS + ARMS:
         half = "tray"
-        feats.append(Feature(f"opening_{key}", key, half, "cut", sweep(key, CLEAR)))
+        feats.append(Feature(f"opening_{key}", key, half, "cut", cove(key, CLEAR) if key in LEGS else sweep(key, CLEAR)))
     return feats
+
+
+def _points(e, grow=0.0):
+    """Sample points of one envelope box (joint frame, tilted), as in _revolved."""
+    _, x0, x1, hw, z0, z1, *tilt = e
+    hw = _grow_y(hw, grow)
+    x0, x1, z0, z1 = x0 - grow, x1 + grow, z0 - grow, z1 + grow
+    y0, y1 = hw if isinstance(hw, tuple) else (-hw, hw)
+    g = np.linspace(0.0, 1.0, 7)
+    P = np.array([(x0 + (x1 - x0) * u, y0 + (y1 - y0) * v, z0 + (z1 - z0) * w) for u in g for v in g for w in g
+                  if min(u, 1 - u) == 0 or min(v, 1 - v) == 0 or min(w, 1 - w) == 0])
+    if tilt:
+        deg, px, pz = tilt
+        c, s_ = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+        P = P @ np.array([[c, 0.0, s_], [0.0, 1.0, 0.0], [-s_, 0.0, c]]).T + np.array([px, 0.0, pz])
+    return P
+
+
+@cache
+def cove(key, grow=0.0):
+    """One smooth opening round a leg's hip: the outline (radius, height) of everything the leg sweeps that reaches
+    beyond the hip's servo zone, revolved over the leg's whole turn plus the parts' own angular width."""
+    j = joints()[key]
+    a0, a1 = j["world"]
+    cx, cy = j["pos"][:2]
+    pts = np.vstack([_points(e, grow) for e in LEG_ENVELOPE if not e[0].startswith(("coxa_top", "coxa_bottom"))])
+    r, z, phi = np.hypot(pts[:, 0], pts[:, 1]), pts[:, 2], np.arctan2(pts[:, 1], pts[:, 0])
+    outline = _hull2d([(round(float(a), 3), round(float(b), 3)) for a, b in zip(r, z)])
+    start, arc = a0 + phi.min(), (a1 - a0) + (phi.max() - phi.min())
+    n = max(2, int(math.ceil(math.degrees(arc) / 6.0)) + 1)
+    sag = 1.0 / math.cos(arc / (n - 1) / 2)
+    wires = []
+    for k in range(n):
+        t = start + arc * k / (n - 1)
+        wires.append(Polyline(*[(a * sag * math.cos(t), a * sag * math.sin(t), b) for a, b in outline], close=True))
+    plates = fuse([_revolved(cx, cy, a0, a1, (e[1] - grow, e[2] + grow, _grow_y(e[3], grow), e[4] - grow, e[5] + grow))
+                   for e in LEG_ENVELOPE if e[0].startswith(("coxa_top", "coxa_bottom"))])
+    return Pos(cx, cy, 0) * Solid.make_loft(wires, ruled=True) + plates
 
 
 @cache

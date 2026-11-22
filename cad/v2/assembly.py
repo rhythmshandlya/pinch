@@ -54,7 +54,7 @@ def shoulder_servo_location(arm):
     (x, y, z), _ = PARAMS.arm_mount
     side = 1 if arm == "L" else -1
     return Location((x * 1000, side * y * 1000, z * 1000 + arms.YAW_HORN_Z - arms.YAW_SIGN * 19.2),
-                    (0, 0, 0) if arms.YAW_UP else (180, 0, 0))
+                    (0, 0, 180) if arms.YAW_UP else (180, 0, 0))   # horn up: its case runs forward
 
 
 @cache
