@@ -343,7 +343,7 @@ def _v2_params() -> CrabParams:
     # arms: the printed bones and palm only (12 g); the three STS3032 per arm are added by the model builder
     arm = Arm(shoulder_offset=0.0427, upper_len=0.045, finger_len=0.036, upper_mass=0.012, jaw_mass=0.003,
               shoulder_mass=0.008, shoulder_yaw_range=tuple(radians(float(v)) for v in os.environ.get("CRAB_ARM_YAW_DEG", "-25,80").split(",")),
-              claw_range=(radians(0), radians(95)),
+              claw_range=(radians(0), radians(74)),         # v2.1: wider, the moving jaw's web meets the palm (CAD)
               shoulder_pitch_range=tuple(radians(float(v)) for v in os.environ.get("CRAB_ARM_PITCH_DEG", "-70,72").split(",")))
     return CrabParams(body=body, leg=leg, arm=arm,
                       leg_mounts={"F": ((0.0352, 0.068, 0.0), radians(64)),

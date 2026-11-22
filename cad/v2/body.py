@@ -844,13 +844,40 @@ def lid_knuckle():
             Feature("hdmi_slot", "oled", "cover", "cut", slot)]
 
 
+WAIST_Y, WAIST_T = 56.5, 2.0        # the leg bays' inner walls: inner face |y| = 56.5 mm, 2 mm thick
+
+
+def waist_walls():
+    """The inner wall of each leg bay: the shell's flank is open where the leg roots swing (the hanging thigh servo
+    sweeps a band about 50 mm tall along it), so a wall inside closes the body behind the legs; the hip servos stand
+    through it in pockets, the hip brackets' plates pass in notches, the servo leads pass through a slot by each hip."""
+    feats = []
+    for side in (1, -1):
+        y0, y1 = sorted((side * WAIST_Y, side * (WAIST_Y + WAIST_T)))
+        wall = abox((-90.0, y0, -70.0), (90.0, y1, SPLIT_Z + LIP_H)) & _inset(WALL - 0.5)
+        for leg in LEGS:
+            if (joints()[leg]["pos"][1] > 0) != (side > 0):
+                continue
+            lo, hi = hip_case_aabb(leg)
+            wall = wall - abox(lo - FIT, hi + FIT)
+            for k in hip_keepouts(leg, CLEAR):
+                wall = wall - k
+            p = joints()[leg]["pos"]
+            wall = wall - abox((p[0] - 9.0, y0 - 1.0, -12.0), (p[0] + 9.0, y1 + 1.0, -4.0))     # servo leads
+        feats.append(Feature(f"waist_{'left' if side > 0 else 'right'}", "", "tray", "add", wall))
+    return feats
+
+
 def joint_openings():
     """A leg's opening is one smooth cove round its hip (cove): it contains everything the leg sweeps and reads as a
     designed arch, not a union of every pose; an arm's opening follows its sweep."""
     feats = []
     for key in LEGS + ARMS:
         half = "tray"
-        feats.append(Feature(f"opening_{key}", key, half, "cut", cove(key, CLEAR) if key in LEGS else sweep(key, CLEAR)))
+        cut = sweep(key, CLEAR)
+        # the clean cove in the tray, only the true notches in the cover
+        cut = (cove(key, CLEAR) & below(SPLIT_Z + LIP_H)) + (cut & above(SPLIT_Z))
+        feats.append(Feature(f"opening_{key}", key, half, "cut", cut))
     return feats
 
 
@@ -877,7 +904,9 @@ def cove(key, grow=0.0):
     j = joints()[key]
     a0, a1 = j["world"]
     cx, cy = j["pos"][:2]
-    pts = np.vstack([_points(e, grow) for e in LEG_ENVELOPE if not e[0].startswith(("coxa_top", "coxa_bottom"))])
+    env = LEG_ENVELOPE if key in LEGS else ARM_ENVELOPE
+    rings = ("coxa_top", "coxa_bottom", "bracket_hub")            # parts that only turn round the axis: their own ring
+    pts = np.vstack([_points(e, grow) for e in env if e[1] != "cyl" and not e[0].startswith(rings)])
     r, z, phi = np.hypot(pts[:, 0], pts[:, 1]), pts[:, 2], np.arctan2(pts[:, 1], pts[:, 0])
     outline = _hull2d([(round(float(a), 3), round(float(b), 3)) for a, b in zip(r, z)])
     start, arc = a0 + phi.min(), (a1 - a0) + (phi.max() - phi.min())
@@ -888,7 +917,7 @@ def cove(key, grow=0.0):
         t = start + arc * k / (n - 1)
         wires.append(Polyline(*[(a * sag * math.cos(t), a * sag * math.sin(t), b) for a, b in outline], close=True))
     plates = fuse([_revolved(cx, cy, a0, a1, (e[1] - grow, e[2] + grow, _grow_y(e[3], grow), e[4] - grow, e[5] + grow))
-                   for e in LEG_ENVELOPE if e[0].startswith(("coxa_top", "coxa_bottom"))])
+                   for e in env if e[1] != "cyl" and e[0].startswith(rings)])
     return Pos(cx, cy, 0) * Solid.make_loft(wires, ruled=True) + plates
 
 
@@ -911,7 +940,7 @@ def features():
     for name in PADS:
         f += pad_recess(name)
     f += switch_cut() + pogo_mount("pogo_l") + pogo_mount("pogo_r")
-    f += split_bosses() + side_vents() + lid_knuckle()
+    f += split_bosses() + side_vents() + lid_knuckle() + waist_walls()
     f = [_trim(x) for x in f] + joint_openings()
     assert all(n in lay.parts for n in {x.owner for x in f} if n and n not in LEGS + ARMS)
     return tuple(f)

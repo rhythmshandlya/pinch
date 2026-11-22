@@ -87,7 +87,7 @@ def pick_pose():
     walking clearance is only needed while walking). Returns (18-joint pose, how much lower the body is, m)."""
     from crab.emotes import crouch, pose
     from crab.kinematics import leg_fk
-    want = float(os.environ.get("GRIP_CROUCH", "0"))
+    want = float(os.environ.get("GRIP_CROUCH", "0.03"))       # v2.1 picks from a 30 mm crouch (belly 35 mm standing)
     if want <= 0:
         return STAND, 0.0
     idx = [JOINT_NAMES.index("FL_" + k) for k in ("coxa", "femur", "tibia")]

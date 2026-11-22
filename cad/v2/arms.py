@@ -139,6 +139,9 @@ def upper_arm():
     servo_room = TILT_UPPER * Pos(LU, 0, CLAW_Z) * Pos(0, 0, 0) * sts3032()
     neck = Pos((bx0 + LU) / 2, 0, -4.0) * RBox(LU - bx0, SP.W + 2 * WALL, 22.0)
     neck = neck - servo_room - TILT_UPPER * Pos(LU, 0, CLAW_Z) * Box(SP.L + 1.0, SP.W + 1.0, SP.T + 1.0)
+    above_horn = TILT_UPPER * Pos(LU, 0, CLAW_Z + SP.horn_face - 1.0 + 50.0) * Box(100, 100, 100)
+    neck = neck - above_horn                                             # below the horn plane: the moving jaw turns there
+    bridge = bridge - (above_horn & Pos(LU, 0, 0) * Cylinder(HUB_R * 2.2, 200))      # where the jaw's web swings
     return horn + boss + straps + bridge + TILT_UPPER * palm + neck + pollex + beam
 
 
@@ -158,22 +161,35 @@ def dactyl():
     jaw = _box(strip_c, strip_h, strip_q) + _box(np.array(J["d_blade"][0]) * m, np.array(J["d_blade"][1]) * m, J["d_blade"][2])
     for c, h, q in J["pads"]["dactyl"]:
         jaw += _box(c, h, q)
-    # the drop rises from the (tilted) jaw strip's back top corner to the web under the hub
+    # Built in the claw servo's own (tilted) frame, where the horn faces up: the hub on the horn, a web in the hub's
+    # plane above the servo, and a post down to the jaw strip's back corner, just outside the palm's side wall (y)
     w, qx, qy, qz = strip_q
     R = np.array([[1 - 2 * (qy * qy + qz * qz), 2 * (qx * qy - qz * w), 2 * (qx * qz + qy * w)],
                   [2 * (qx * qy + qz * w), 1 - 2 * (qx * qx + qz * qz), 2 * (qy * qz - qx * w)],
                   [2 * (qx * qz - qy * w), 2 * (qy * qz + qx * w), 1 - 2 * (qx * qx + qy * qy)]])
-    corner = strip_c + R @ np.array([-strip_h[0] + 4.0, 0.0, strip_h[2] - 1.0])
-    x_drop, top_of_strip = float(corner[0]), float(corner[2])
-    z_top = (TILT_DACTYL * Location((0, 0, hub_z + PLATE / 2))).position.Z + 3.5
-    drop = Pos(x_drop, strip_c[1], (top_of_strip + z_top) / 2) * RBox(6.0, 5.4, z_top - top_of_strip)
-    # the hub turns with the tilted claw servo's horn; a web joins it to the drop down to the jaw
-    hub = TILT_DACTYL * hub
-    hc = TILT_DACTYL * Location((0, 0, hub_z + PLATE / 2))
-    hx, hzc = hc.position.X, hc.position.Z
-    y0, y1 = min(0.0, strip_c[1]) - 4.0, max(0.0, strip_c[1]) + 4.0
-    web = Pos((hx + x_drop + 3.0) / 2, (y0 + y1) / 2, hzc + 2.0) * RBox(x_drop + 3.0 - hx, y1 - y0, PLATE + 3.0)
-    return hub + web + drop + jaw
+    # the jaw keeps clear of the palm: nothing of it within R_CLEAR of the hinge axis below the horn's plane; the post
+    # stands on the strip just beyond that
+    R_CLEAR = 22.5
+    along = -strip_h[0] + 4.0
+    for a in np.linspace(-strip_h[0] + 4.0, strip_h[0] - 10.0, 60):
+        pt = strip_c + R @ np.array([a, 0.0, strip_h[2] - 1.0])
+        tp = (TILT_DACTYL.inverse() * Location(tuple(pt))).position
+        if np.hypot(tp.X, tp.Y) >= R_CLEAR + 3.5:
+            along = a
+            break
+    corner = strip_c + R @ np.array([along, 0.0, strip_h[2] - 1.0])                     # dactyl frame
+    ct = (TILT_DACTYL.inverse() * Location(tuple(corner))).position                      # tilted frame
+    side = 1.0 if strip_c[1] >= 0 else -1.0
+    y_post = side * (SP.W / 2 + WALL + 0.6 + 2.0)                                        # outside the palm's wall
+    z_web = hub_z + PLATE / 2
+    wx0, wx1 = min(0.0, ct.X) - 3.0, max(0.0, ct.X) + 3.0               # from the hub's centre to the post, not behind it
+    wy0, wy1 = min(0.0, y_post) - 4.0, max(0.0, y_post) + 4.0
+    web = Pos((wx0 + wx1) / 2, (wy0 + wy1) / 2, z_web) * RBox(wx1 - wx0, wy1 - wy0, PLATE)
+    post = Pos(ct.X, y_post, (ct.Z + z_web + PLATE / 2) / 2) * RBox(6.0, 4.0, z_web + PLATE / 2 - ct.Z)
+    foot = Pos(ct.X, (y_post + float(strip_c[1])) / 2, ct.Z + 1.0) * RBox(6.0, abs(y_post - float(strip_c[1])) + 4.0, 4.0)
+    keep_out = Pos(0, 0, (-80.0 + hub_z - 1.0) / 2) * Cylinder(R_CLEAR, hub_z - 1.0 + 80.0)
+    jaw = jaw - TILT_DACTYL * keep_out
+    return TILT_DACTYL * (hub + web + post + foot) + jaw
 
 
 @cache
@@ -194,11 +210,14 @@ def arm_envelope(z_shoulder, x_max=45.0, steps=7):
     whole = shoulder_link() + lift
     out = [box("bracket_hub", whole & Pos(0, 0, 0) * Box(2 * HUB_R + 0.2, 2 * HUB_R + 0.2, 200)),
            box("bracket_arm", whole & Pos(HUB_R + 100, 0, 0) * Box(200, 200, 200))]
-    upper = upper_arm() + Pos(LU, 0, CLAW_Z) * sts3032()
+    # the upper arm as a box in its own frame (the part within 30 mm of the lift axis: beyond that it is outside the
+    # shell), tilted to each lift angle about the lift axis (an upright box over all angles swept the cover away)
+    upper = upper_arm() + TILT_UPPER * Pos(LU, 0, CLAW_Z) * sts3032()
+    ub = (upper & Pos(30.0 - 500, 0, 0) * Box(1000, 1000, 1000)).bounding_box()
     lo, hi = PARAMS.arm.shoulder_pitch_range
     for k in range(steps):
         q = lo + (hi - lo) * k / (steps - 1)
-        out.append(box(f"upper{k}", Pos(LS, 0, 0) * Location((0, 0, 0), (0, degrees(-q), 0)) * upper))
+        out.append((f"upper{k}", ub.min.X, ub.max.X, (ub.min.Y, ub.max.Y), ub.min.Z, ub.max.Z, degrees(-q), LS, z_shoulder))
     return tuple(out)
 
 

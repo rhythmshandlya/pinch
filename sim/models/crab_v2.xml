@@ -152,7 +152,7 @@
       <camera name="track" mode="trackcom" pos="0.336 -0.4 0.24" xyaxes="0.7657 0.6432 -0 -0.2685 0.3197 0.9087"/>
       <camera name="eye_cam" pos="0.08626 0 -0.0195" xyaxes="0 -1 0 -0 0 1" fovy="102"/>
       <site name="imu" pos="-0.02 0 0.01" quat="1 0 0 0" size="0.0080" rgba="0 0 0 0"/>
-      <inertial pos="1.573365e-02 -1.236853e-04 2.025042e-02" mass="1.141608" fullinertia="5.781006e-03 4.583961e-03 3.936066e-03 -8.113383e-05 -9.963648e-04 -8.607044e-05"/>
+      <inertial pos="1.686749e-02 1.985722e-04 2.185866e-02" mass="1.188737" fullinertia="5.831711e-03 4.666523e-03 4.081830e-03 -8.125301e-05 -9.330573e-04 -6.786409e-05"/>
         <geom class="visual" type="mesh" mesh="v2_body_tray" material="shell"/>
         <geom class="visual" type="mesh" mesh="v2_body_cover" material="shell"/>
         <geom class="visual" type="mesh" mesh="v2_body_battery_door" material="shell"/>
@@ -377,7 +377,7 @@
         <body name="L_upper" pos="0.0427 0 0">
           <joint name="L_shoulder_pitch" class="srv_STS3032T" axis="0 -1 0" range="-1.222 1.257"/>
         <joint name="L_shoulder_pitch_backlash" class="bl_STS3032T" axis="0 -1 0"/>
-          <inertial pos="4.511252e-02 -8.107335e-04 -6.096539e-03" mass="0.047202" fullinertia="7.381975e-06 2.839439e-05 2.635754e-05 2.482726e-09 3.902214e-06 6.347149e-10"/>
+          <inertial pos="4.575955e-02 -8.383516e-04 -6.453448e-03" mass="0.045647" fullinertia="7.088367e-06 2.761795e-05 2.566848e-05 -2.227828e-08 3.583999e-06 1.429300e-08"/>
         <geom class="visual" type="mesh" mesh="v2_L_upper_upper" material="printed"/>
         <geom class="visual" type="mesh" mesh="v2_L_upper_claw_servo" material="servo"/>
           <geom name="L_pollex_pad0" type="box" pos="0.07046 0.001184 -0.01902" quat="0.8654 0.3584 -0.3235 0.134" size="0.01798 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
@@ -399,9 +399,9 @@
           
           <site name="L_grip_site" pos="0.08041 0 -0.01245" euler="0 -0.7156 0" size="0.005" rgba="0 0 0 0"/>
           <body name="L_dactyl" pos="0.0450 0 0">
-            <joint name="L_claw" class="srv_STS3032T" axis="-0.656059 0 0.754710" range="0.3 1.658"/>
+            <joint name="L_claw" class="srv_STS3032T" axis="-0.656059 0 0.754710" range="0.1219 1.292"/>
         <joint name="L_claw_backlash" class="bl_STS3032T" axis="-0.656059 0 0.754710"/>
-            <inertial pos="2.280333e-02 7.519072e-03 -4.398723e-03" mass="0.014658" fullinertia="3.119012e-06 8.372738e-06 5.800208e-06 -4.486931e-07 5.544605e-07 2.904068e-07"/>
+            <inertial pos="2.722990e-02 7.270485e-03 7.087420e-03" mass="0.007975" fullinertia="1.004545e-06 5.244095e-06 4.640683e-06 -4.256256e-07 1.118119e-06 8.460607e-08"/>
         <geom class="visual" type="mesh" mesh="v2_L_dactyl_dactyl" material="printed"/>
             <geom name="L_dactyl_pad0" type="box" pos="0.02546 0.005816 -0.01902" quat="0.8654 -0.3584 -0.3235 -0.134" size="0.01798 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
             <geom name="L_dactyl_pad1" type="box" pos="0.02849 0.005816 -0.02252" quat="0.3584 -0.8654 -0.134 -0.3235" size="0.01798 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
@@ -432,7 +432,7 @@
         <body name="R_upper" pos="0.0427 0 0">
           <joint name="R_shoulder_pitch" class="srv_STS3032T" axis="0 -1 0" range="-1.222 1.257"/>
         <joint name="R_shoulder_pitch_backlash" class="bl_STS3032T" axis="0 -1 0"/>
-          <inertial pos="4.527988e-02 8.167341e-04 -6.141663e-03" mass="0.046855" fullinertia="7.368760e-06 2.820276e-05 2.617867e-05 3.922120e-09 3.854051e-06 -2.361519e-09"/>
+          <inertial pos="4.593762e-02 8.447697e-04 -6.502852e-03" mass="0.045300" fullinertia="7.073568e-06 2.741434e-05 2.547918e-05 2.909254e-08 3.531544e-06 -1.618365e-08"/>
         <geom class="visual" type="mesh" mesh="v2_R_upper_upper" material="printed"/>
         <geom class="visual" type="mesh" mesh="v2_R_upper_claw_servo" material="servo"/>
           <geom name="R_pollex_pad0" type="box" pos="0.07046 -0.001184 -0.01902" quat="0.8654 -0.3584 -0.3235 -0.134" size="0.01798 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
@@ -454,9 +454,9 @@
           
           <site name="R_grip_site" pos="0.08041 0 -0.01245" euler="0 -0.7156 0" size="0.005" rgba="0 0 0 0"/>
           <body name="R_dactyl" pos="0.0450 0 0">
-            <joint name="R_claw" class="srv_STS3032T" axis="0.656059 0 -0.754710" range="0.3 1.658"/>
+            <joint name="R_claw" class="srv_STS3032T" axis="0.656059 0 -0.754710" range="0.1219 1.292"/>
         <joint name="R_claw_backlash" class="bl_STS3032T" axis="0.656059 0 -0.754710"/>
-            <inertial pos="2.280333e-02 -7.519072e-03 -4.398723e-03" mass="0.014658" fullinertia="3.119012e-06 8.372738e-06 5.800208e-06 4.486931e-07 5.544605e-07 -2.904068e-07"/>
+            <inertial pos="2.722990e-02 -7.270485e-03 7.087420e-03" mass="0.007975" fullinertia="1.004545e-06 5.244095e-06 4.640683e-06 4.256256e-07 1.118119e-06 -8.460607e-08"/>
         <geom class="visual" type="mesh" mesh="v2_R_dactyl_dactyl" material="printed"/>
             <geom name="R_dactyl_pad0" type="box" pos="0.02546 -0.005816 -0.01902" quat="0.8654 0.3584 -0.3235 0.134" size="0.01798 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
             <geom name="R_dactyl_pad1" type="box" pos="0.02849 -0.005816 -0.02252" quat="0.3584 0.8654 -0.134 0.3235" size="0.01798 0.0008 0.002475" mass="0.00015" material="pad" priority="1" solref="0.004 1" friction="1.2 0.02 0.001"/>
@@ -492,10 +492,10 @@
     <position name="RR_tibia" joint="RR_tibia" class="srv_STS3215M6" inheritrange="1"/>
     <position name="L_shoulder_yaw" joint="L_shoulder_yaw" class="srv_STS3032T" inheritrange="1"/>
     <position name="L_shoulder_pitch" joint="L_shoulder_pitch" class="srv_STS3032T" inheritrange="1"/>
-    <position name="L_claw" joint="L_claw" class="srv_STS3032T" ctrlrange="0 1.658"/>
+    <position name="L_claw" joint="L_claw" class="srv_STS3032T" ctrlrange="0 1.292"/>
     <position name="R_shoulder_yaw" joint="R_shoulder_yaw" class="srv_STS3032T" inheritrange="1"/>
     <position name="R_shoulder_pitch" joint="R_shoulder_pitch" class="srv_STS3032T" inheritrange="1"/>
-    <position name="R_claw" joint="R_claw" class="srv_STS3032T" ctrlrange="0 1.658"/>
+    <position name="R_claw" joint="R_claw" class="srv_STS3032T" ctrlrange="0 1.292"/>
   </actuator>
 
   <sensor>
