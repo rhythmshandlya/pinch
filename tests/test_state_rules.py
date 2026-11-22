@@ -52,6 +52,7 @@ def test_resting_asleep_is_the_sleep_state():
     m._start("rest", "test")
     assert m.state == "rest"
     for _ in range(8):                                   # face, goto (motion) ... until the asleep phase
+        m.t += 0.5                                       # (time passes: the eyes lead a walk by 0.4 s)
         m._advance(body_busy=False, body_ok=True)
         if m.phase == "asleep":
             break

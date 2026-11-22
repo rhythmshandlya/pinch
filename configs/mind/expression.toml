@@ -1,0 +1,145 @@
+# One inner state drives what Pinch shows (phase 4, part 2; docs/research/v2_1/expression/notes.md: Kismet affect
+# space, ALMA emotions decaying into mood; docs/research/v2_1/believable/notes.md: emotion shown through all behaviour).
+# Read by pinch/affect.py (emotions, mood) and pinch/mind/expression.py (the face, sounds, motion style).
+version = "4.2"
+
+[emotion]
+show_threshold = 0.25      # an emotion this strong becomes the named feeling
+min_show_s = 1.5           # a feeling stays on screen at least this long (no flicker)
+switch_margin = 0.10       # another emotion must be this much stronger to take over sooner
+fear_threshold = 0.55      # one line for fear: above it Pinch feels scared, shows it and may hide
+
+# half-life of each emotion in seconds (ALMA-style decay; startle shortest, sadness longest)
+[emotion.half_life]
+surprised = 3.0
+dizzy = 6.0
+squeeze = 8.0
+scared = 12.0
+excited = 15.0
+curious = 15.0
+love = 20.0
+proud = 20.0
+shy = 20.0
+happy = 25.0
+content = 30.0
+angry = 30.0
+grumpy = 40.0
+sad = 60.0
+lonely = 60.0
+
+[mood]
+time_constant_s = 600.0    # the mood follows the feelings' valence this slowly (ALMA: about 10 minutes)
+weight = 0.5               # how far the mood pulls the resting valence away from the personality's default
+
+# which emotion an event raises and how strongly (on top of its valence / arousal / need effects in affect.py)
+[event]
+petted = { love = 0.5, content = 0.4 }
+stroked = { love = 0.7, content = 0.5 }
+tickled = { squeeze = 0.8, happy = 0.3 }
+booped = { happy = 0.4, surprised = 0.3 }
+tapped = { curious = 0.4 }
+held_leg = { surprised = 0.3, shy = 0.3 }
+lifted = { surprised = 0.8, scared = 0.4 }
+high_up = { scared = 0.3 }
+put_down_relief = { content = 0.6 }
+shaken = { dizzy = 0.9, scared = 0.6 }
+bumped = { surprised = 0.7, scared = 0.3 }
+loud_noise = { surprised = 0.8, scared = 0.4 }
+sudden_motion = { surprised = 0.6, scared = 0.6 }
+praised = { proud = 0.8, happy = 0.4 }
+scolded = { sad = 0.7, shy = 0.5 }
+greeted = { happy = 0.7, excited = 0.4 }
+name_called = { curious = 0.4, happy = 0.2 }
+spoken_to = { happy = 0.3 }
+played_with = { happy = 0.6, excited = 0.5 }
+trick_done = { proud = 0.4, happy = 0.3 }
+tidied = { proud = 0.4, content = 0.3 }
+novelty = { curious = 0.6 }
+owner_left = { lonely = 0.5, sad = 0.2 }
+owner_returned = { happy = 0.8, excited = 0.6 }
+owner_sad = { sad = 0.3 }
+owner_happy = { happy = 0.4 }
+fed = { content = 0.6 }
+fell = { dizzy = 0.6, scared = 0.7 }
+stuck = { grumpy = 0.5, scared = 0.3 }
+unstuck = { content = 0.6, happy = 0.3 }
+touched_unwanted = { shy = 0.6, scared = 0.3 }
+failed = { grumpy = 0.2 }      # one miss doesn't show; a few in a row do
+succeeded = { content = 0.3, proud = 0.2 }
+
+# faces that can honestly show each feeling: the face an activity asks for is shown only if it is in the feeling's
+# list (else the feeling's own face shows); sim/benches/congruence.py measures against the same table
+[shows]
+happy = ["happy", "joy", "content", "excited", "proud", "focused", "curious"]
+excited = ["excited", "happy", "joy", "surprised", "proud", "curious", "focused"]
+love = ["love", "happy", "content", "joy", "squeeze"]
+content = ["content", "happy", "love", "neutral", "focused", "curious", "sleepy", "thinking"]
+proud = ["proud", "happy", "joy", "excited", "content"]
+squeeze = ["squeeze", "joy", "happy", "excited"]
+sad = ["sad", "lonely", "shy", "quiet", "sleepy"]
+lonely = ["lonely", "sad", "shy", "bored"]
+angry = ["angry", "grumpy"]
+grumpy = ["grumpy", "angry", "bored", "focused"]
+scared = ["scared", "surprised", "shy"]
+shy = ["shy", "scared", "quiet", "content"]
+surprised = ["surprised", "scared", "curious", "confused", "excited"]
+curious = ["curious", "focused", "surprised", "thinking", "confused", "happy", "excited", "neutral"]
+sleepy = ["sleepy", "asleep", "content", "bored", "quiet"]
+bored = ["bored", "sleepy", "neutral", "curious", "thinking"]
+quiet = ["quiet", "content", "neutral", "sleepy", "shy"]
+dizzy = ["dizzy", "surprised", "scared"]
+neutral = ["neutral", "content", "curious", "focused", "thinking", "confused", "bored", "happy"]
+
+[face]
+intent_hold_s = 2.5        # how long an activity's asked-for look shows before the feeling's own face returns
+perform = ["asleep", "dead", "music"]   # body states and tricks: shown for the whole activity, whatever the feeling
+
+# sounds: an activity asks for one; a sound that says the opposite of the feeling becomes the feeling's own sound
+[sound]
+bright = ["happy_trill", "giggle", "purr", "fanfare"]
+dark = ["sad_tone", "whimper", "angry_buzz"]
+good_feelings = ["happy", "excited", "love", "content", "proud", "squeeze"]
+bad_feelings = ["sad", "lonely", "scared", "angry", "grumpy"]
+
+[sound.of]
+happy = "happy_trill"
+excited = "giggle"
+content = "purr"
+love = "purr"
+proud = "fanfare"
+squeeze = "giggle"
+lonely = "whimper"
+sad = "sad_tone"
+scared = "startled_squeak"
+grumpy = "angry_buzz"
+angry = "angry_buzz"
+curious = "curious_chirp"
+surprised = "startled_squeak"
+sleepy = "yawn"
+bored = "sleepy_hum"
+
+# walking tempo from the feeling (pinch/body/locomotion.py walk_tempo): base + weights, 1.0 = the gait's top speed
+[motion]
+base = 0.90        # a calm, neutral crab walks near the gait's usual speed; mood moves it from there
+arousal = 0.30
+valence = 0.10
+fatigue = 0.30
+sleepy = 0.20
+fear = 0.30
+min = 0.5
+max = 1.0
+
+# what it wants follows how it feels (pinch/mind/selection.py): an activity's utility is multiplied by
+# 1 + sum(weight * level), kept within [0.1, 2]; levels: fear (needs.safety), sad (-valence), joy (+valence),
+# fatigue. Activities not listed (safety, commands, touch) are never damped.
+[wants]
+play = { fear = -1.5, sad = -0.8, fatigue = -0.7, joy = 0.3 }
+show_off = { fear = -1.5, sad = -1.0, fatigue = -0.5, joy = 0.3 }
+celebrate = { fear = -1.5, sad = -1.0 }
+explore = { fear = -1.2, sad = -0.3, fatigue = -0.5 }
+investigate = { fear = -0.6, fatigue = -0.3 }
+tidy = { fear = -1.0, fatigue = -0.3 }
+greet = { fear = -0.8 }
+seek_attention = { fear = -0.5, fatigue = -0.3 }
+shy = { fear = 0.8, sad = 0.3 }
+rest = { fatigue = 0.5, sad = 0.2 }

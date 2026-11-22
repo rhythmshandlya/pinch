@@ -5,6 +5,8 @@ from pinch.mind.common import (  # noqa: F401
     understand_rules,
 )
 
+KIND_TOUCH = ("petted", "stroked", "tickled", "booped")   # touches meant kindly (a feared person's are unwelcome)
+
 
 class Senses:
     # ---------------------------------------------------------------- senses
@@ -117,9 +119,11 @@ class Senses:
         if s.speech > 0.25 and self.t - self.words_mood_t > 120 and o.busy != "meeting":
             o.mood, o.mood_t = label, self.t
 
-    def hear_event(self, kind):
+    def hear_event(self, kind, direction=None):
+        """A sound event. direction: its bearing (rad, + left) when the two microphones give one, else None (never
+        the last voice's bearing: a bang from elsewhere would send the eyes the wrong way)."""
         if kind == "loud_noise":
-            self.attention.notice("loud", self.t, 1.0, direction=self.world.owner.voice_dir)
+            self.attention.notice("loud", self.t, 1.0, direction=direction)
             self.affect.feel("loud_noise")
         elif kind == "double_clap":
             self.affect.feel("name_called")
@@ -163,6 +167,9 @@ class Senses:
         if gesture == "put_down":
             self.touch_event = (gesture, self.t)
             return
+        self.touch_from = self._toucher()
+        if ev in KIND_TOUCH and self.touch_from == "feared":     # a "pet" from someone it fears is not welcome
+            ev = "touched_unwanted"
         if ev:
             self.affect.feel(ev)
             self.memory.count("pets") if ev in ("petted", "stroked") else None
@@ -172,6 +179,19 @@ class Senses:
         self.touch_event = (gesture, self.t)
         self._interrupt()
         self._say("touch", gesture)
+
+    touch_from = "known"
+
+    def _toucher(self):
+        """Who is touching, as far as it can tell: "feared" (someone it is afraid of is here), "stranger" (only
+        people it hardly knows), else "known" (its person, or nobody seen: the person it lives with)."""
+        now = self.world.clock()
+        if self.people.feared_here(now):
+            return "feared"
+        here = self.people.present(now)
+        if here and len(self.people.strangers_here(now)) == len(here):
+            return "stranger"
+        return "known"
 
     def _meeting_changed(self, on):
         o = self.world.owner

@@ -38,6 +38,7 @@ def test_play_starts_varies_and_ends():
         plays = [r for r in sim.mind.decisions if r["to"] == "play"]
         if len(plays) >= 2:
             break
+    sim.run(30.0)                                                # (the game under way finishes and is recorded)
     assert plays, f"never played: {[r['to'] for r in sim.mind.decisions]}"
     ended = [r for r in sim.mind.decisions if r["prev"] == "play"]
     assert ended, "a game never ended"

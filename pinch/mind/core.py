@@ -16,6 +16,7 @@ from pinch.mind.common import (  # noqa: F401
     np,
     situations,
 )
+from pinch.mind.expression import face_now, sound_for
 
 
 class MindCore:
@@ -149,8 +150,11 @@ class MindCore:
             cancel = self._choose()
             self._force = False
             if cancel or timed_out:
+                self.face_expr = face_now(self)
                 return None, True
-        return self._advance(body_busy, body_ok), False
+        step = self._advance(body_busy, body_ok)
+        self.face_expr = face_now(self)                  # the face follows the feeling (pinch/mind/expression.py)
+        return step, False
 
     FATIGUE_UP_S, FATIGUE_DOWN_S, FATIGUE_REST_S = 4500.0, 1800.0, 600.0   # s to go 0 -> 1 working, 1 -> 0 idle / resting
 
@@ -172,7 +176,6 @@ class MindCore:
 
     gaze_target_xy = None
     ORIENT_S, ORIENT_SALIENCE = 1.2, 0.25           # a fresh stimulus holds the eyes this long (research: orienting)
-    _outcome_until, _outcome_face = -1e9, None
 
     def _orienting(self):
         """The eyes' answer to a new stimulus (docs/research/v2_1/aliveness: contingent reaction, eyes before body):
@@ -187,16 +190,35 @@ class MindCore:
         d = direction_of(s.xy, self.world.pose) if s.xy is not None else s.direction
         return (float(max(-1.0, min(1.0, -d / 0.8))), 0.2)
 
+    OUTCOME_STATES = ("task", "play", "explore", "social", "idle")
+
     def react_to_outcome(self, ok, kind):
-        """A goal-directed motion just ended: a brief face that fits how it went (research: reacting to outcomes
-        raised perceived competence 3.86 -> 4.72, Takayama et al. 2011), unless the activity shows its own."""
-        face = ("happy" if kind in ("pick", "drop", "push") else "content") if ok else "surprised"
-        self._outcome_face = (face, self.face_expr)
-        self._outcome_until = self.t + 1.0
-        self.face_expr = face
+        """A goal-directed motion just ended (research: reacting to outcomes raised perceived competence 3.86 ->
+        4.72, Takayama et al. 2011). Only for the things it set out to do: never while hiding, fleeing, on alert or
+        getting up (a smile after running away reads as wrong). A failure adds frustration (grumpy after a few), a
+        pick, push or drop that worked adds satisfaction; the face is asked for and shows only if it fits."""
+        a = self.activity
+        if a is None or a.state not in self.OUTCOME_STATES:
+            return
+        if not ok or kind != "goto":
+            self.affect.feel("succeeded" if ok else "failed")
+        face = ("happy" if kind in ("pick", "drop", "push") else "content") if ok else "confused"
+        self.face_intent = (face, self.t, self.started)
         self.face_set_t = self.t
-        if not ok and not self.affect.quiet:
-            self.sounds.append("uh_oh")
+        if not ok:
+            self.sound("uh_oh")
+        elif face_now(self) == self.face_expr:       # the face on screen won't change (already there, or not its mood):
+            self.sound("happy_trill")                # a small sound instead, one that fits the feeling
+
+    def sound(self, name):
+        """Play a sound that fits the feeling: one that says the opposite becomes the feeling's own sound
+        (configs/mind/expression.toml [sound]); nothing in quiet mode."""
+        if self.affect.quiet:
+            return
+        s = sound_for(name, self.affect.feeling())
+        if s:
+            self.sounds.append(s)
+            self.sound_set_t = self.t
 
     def outputs(self):
         """Face expression (the feeling unless an activity set one recently), gaze, sounds to play. Gaze: where
@@ -204,10 +226,7 @@ class MindCore:
         place on the desk is re-aimed from the current pose every tick, so the eyes stay on it while it walks."""
         from pinch.attention import direction_of
         s, self.sounds = self.sounds, []
-        if self.t > self._outcome_until and self._outcome_face is not None:   # a brief outcome face is over
-            if self.face_expr == self._outcome_face[0]:
-                self.face_expr = self._outcome_face[1]
-            self._outcome_face = None
+        self.face_expr = face_now(self)
         new = self._orienting()
         if new is not None:                                  # something just happened: the eyes go to it first
             self.gaze = new
@@ -221,5 +240,25 @@ class MindCore:
                 d = direction_of(f.xy, self.world.pose) if f.xy is not None else f.direction
                 self.gaze = (float(max(-1.0, min(1.0, -d / 0.8))), 0.2)
             elif f is None:
-                self.gaze = (0.0, 0.0)
+                self.gaze = self._glance()
         return self.face_expr, self.gaze, s
+
+    _glance_xy, _glance_until = None, -1e9
+
+    def _glance(self):
+        """Nothing calls its attention: the eyes wander between things it knows around it - its person's spot, the
+        desk things in view - a few seconds each, now and then straight ahead (states.toml idle: "wander"). Own
+        random stream, so the activity choices replay as before."""
+        if self.affect.quiet or self.state == "sleep":
+            return (0.0, 0.0)
+        if self.t >= self._glance_until:
+            rng = self.__dict__.get("_glance_rng")
+            if rng is None:
+                rng = self._glance_rng = np.random.default_rng(0x5EED)
+            x, y, h = self.world.pose
+            seen = [xy for _, xy in self.world.things_on_desk()] + [self.world.desk.owner_xy]
+            near = [xy for xy in seen
+                    if abs((np.arctan2(xy[1] - y, xy[0] - x) - h + np.pi) % (2 * np.pi) - np.pi) < 0.8]
+            self._glance_xy = None if not near or rng.random() < 0.2 else tuple(near[rng.integers(len(near))])
+            self._glance_until = self.t + rng.uniform(1.5, 4.0)
+        return (0.0, 0.0) if self._glance_xy is None else self._gaze_to(self._glance_xy)

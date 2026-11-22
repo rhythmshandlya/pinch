@@ -8,6 +8,9 @@ from pinch.mind.common import (  # noqa: F401
     np,
     situations,
 )
+from pinch.mind.expression import EXPR
+
+WANTS = EXPR.get("wants", {})
 
 
 class Selection:
@@ -52,7 +55,8 @@ class Selection:
             r = self._own_jitter_rng = np.random.default_rng(0x9E3779B9)
         return r
 
-    RESUME_S, RESUME_BONUS = 60.0, 0.1   # an activity cut short by something urgent is preferred back for 60 s
+    RESUME_S, RESUME_BONUS = 60.0, 0.15  # an activity cut short by something urgent is preferred back for 60 s
+                                         # (0.15: enough to beat idling's 0.25 plus jitter when it still wants it)
 
     def _choose(self):
         scores = {}
@@ -60,6 +64,8 @@ class Selection:
             u = a.utility(self)
             if self.affect.quiet and not a.quiet_ok:
                 u = 0.0
+            if u > 0 and a.name in WANTS:
+                u *= self._mood_gate(WANTS[a.name])
             if u > 0 and self.suspended and self.suspended[0] == a.name and self.t - self.suspended[1] < self.RESUME_S:
                 u += self.RESUME_BONUS
             scores[a.name] = u + 0.02 * (self._own_jitter.random() if a.own_jitter else self.rng.random())
@@ -89,6 +95,16 @@ class Selection:
                         + (" (after an interrupt)" if self._force else ""))
             return True
         return False
+
+    def _mood_gate(self, w):
+        """How much the feeling makes it want this (configs/mind/expression.toml [wants]; Loyall/Oz: emotion shown
+        through every choice, docs/research/v2_1/believable)."""
+        a = self.affect
+        e = a.emotions
+        lv = dict(fear=max(a.needs.safety, e.get("scared", 0.0)),
+                  sad=max(0.0, -a.valence, e.get("sad", 0.0), e.get("lonely", 0.0)),
+                  joy=max(0.0, a.valence), fatigue=a.needs.fatigue)
+        return min(2.0, max(0.1, 1.0 + sum(k * lv[n] for n, k in w.items())))
 
     def _timeout(self):
         """An activity that has run past its max_s ends now (reason "timeout"): nothing stays stuck in a state."""
@@ -133,6 +149,7 @@ class Selection:
                 "sound": name if name and self.t - self.sound_set_t <= 1.0 else "ambient"}
 
     face_set_t = sound_set_t = -1e9
+    face_intent = None
     _motion_kind = None
 
     RESUME_DEPTH = 3                     # interruptions remembered at once (explore -> investigate -> guard_edge)
@@ -159,7 +176,7 @@ class Selection:
         self.phase = ""
         self.start_score = getattr(self, "scores", {}).get(name, 0.0)
         self.activity, self.gen, self.started = a, a.run(self), self.t
-        self.waiting_motion, self.wait_until = False, -1.0
+        self.waiting_motion, self.wait_until, self._lead_step = False, -1.0, None
         self._say("activity", name)
 
     def _advance(self, body_busy, body_ok):
@@ -174,6 +191,10 @@ class Selection:
                 self.react_to_outcome(body_ok, self._motion_kind)
         if self.t < self.wait_until or self.t < self.praise_until:
             return None
+        if self._lead_step is not None:                   # it has looked at the goal: now it goes
+            step, self._lead_step = self._lead_step, None
+            self.gaze_set_t = self.t - 3.0 + self.LEAD_HOLD_S   # (then the eyes are free for what catches them)
+            return self._issue(step)
         for _ in range(20):                          # run instant steps until a motion step (or the end)
             try:
                 step = next(self.gen)
@@ -182,13 +203,11 @@ class Selection:
                 self.next_choice = 0.0
                 return None
             kind = step[0]
-            if kind == "face":
-                self.face_expr = step[1]
+            if kind == "face":                       # an asked-for look: shown only if it fits the feeling
+                self.face_intent = (step[1], self.t, self.started)     # (pinch/mind/expression.py)
                 self.face_set_t = self.t
             elif kind == "sound":
-                if not self.affect.quiet:
-                    self.sounds.append(step[1])
-                    self.sound_set_t = self.t
+                self.sound(step[1])
             elif kind == "look_at":
                 self.gaze = self._gaze_to(step[1])
                 self.gaze_target_xy = tuple(step[1])        # re-aimed every tick as the body moves (outputs)
@@ -210,7 +229,7 @@ class Selection:
             elif kind == "say_mood":
                 f = self.affect.feeling()
                 face, sound, emote = MOOD_REPLY.get(f, MOOD_REPLY["neutral"])
-                self.face_expr = face
+                self.face_intent = (face, self.t, self.started)
                 if not self.affect.quiet:
                     self.sounds.append(sound)
                 self.waiting_motion = True
@@ -220,9 +239,40 @@ class Selection:
                     self._say("refused", f"{kind} is not allowed in {self.state} ({self.activity.name})")
                     self.last_step_ok = False
                     continue
-                if kind in ("goto", "push", "pick", "drop"):
-                    self.gaze = (0.0, 0.3)
-                self.waiting_motion = True
-                self._motion_kind = kind
-                return step
+                goal = self._goal_xy(step)
+                if goal is not None and not self._eyes_on(goal):
+                    # forethought (Takayama et al. 2011): eyes to the goal first, the legs a moment later
+                    self.gaze_target_xy, self.gaze_set_t = tuple(goal), self.t
+                    self.gaze = self._gaze_to(goal)
+                    self._lead_step, self.wait_until = step, self.t + self.LEAD_S
+                    return None
+                return self._issue(step)
         return None
+
+    LEAD_S = 0.4                       # eyes lead a goal-directed move by this much
+    LEAD_HOLD_S = 0.0                  # then, once the legs go, the eyes are free again (attention, ARC-005)
+    _lead_step = None
+
+    def _issue(self, step):
+        kind = step[0]
+        if kind in ("pick", "drop"):
+            self.gaze = (0.0, 0.3)                       # (looks down at the claw's work)
+        self.waiting_motion = True
+        self._motion_kind = kind
+        return step
+
+    def _goal_xy(self, step):
+        """Where a goal-directed motion step is headed (None for other steps)."""
+        kind = step[0]
+        if kind not in ("goto", "push", "pick", "drop") or len(step) < 2:
+            return None
+        a = step[1]
+        if isinstance(a, str):
+            o = self.world.objects.get(a)
+            return tuple(o.xy) if o is not None else None
+        return tuple(a[:2]) if isinstance(a, (tuple, list)) and len(a) >= 2 else None
+
+    def _eyes_on(self, xy):
+        """Were the eyes already aimed at xy (an activity looked there in the last 3 s)?"""
+        g = self.gaze_target_xy
+        return g is not None and self.t - self.gaze_set_t <= 3.0 and self.t - self.gaze_set_t >= self.LEAD_S - 0.05             and (g[0] - xy[0]) ** 2 + (g[1] - xy[1]) ** 2 < 0.03 ** 2

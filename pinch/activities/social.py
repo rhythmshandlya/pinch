@@ -21,7 +21,7 @@ class Obey(Activity):
             return
         kind, arg = req
         if kind == "trick":
-            yield ("face", "excited" if arg != "play_dead" else "neutral")
+            yield ("face", "excited" if arg != "play_dead" else "dead")
             if arg == "spin":
                 yield ("sound", "happy_trill")
                 yield ("walk", 0.0, 0.0, 0.9, 6.5)
@@ -56,11 +56,11 @@ class Obey(Activity):
             yield ("emote", "stretch")
             yield ("face", "happy")
             yield ("sound", "greeting_beep")
-        elif kind == "play":
-            m.affect.feel("played_with", 0.5)
+        elif kind == "play":                         # an invitation: a game starts next (Play), if it feels like it
+            m.play_request_t = m.t                   # (credited as play only once it has played)
+            m.affect.needs.play = max(m.affect.needs.play, 0.8)
             yield ("face", "excited")
             yield ("sound", "giggle")
-            yield ("emote", m.rng.choice(["excited", "dance", "beg"]))
         elif kind in ("tidy", "put_away", "fetch"):
             m.tidy_request = (kind, arg, m.t)
         elif kind == "quiet":
@@ -159,7 +159,7 @@ class SeekAttention(Activity):
             yield ("goto", _owner_near(m), 0.06)
             yield ("emote", "wave")
         if level >= 2:
-            yield ("emote", m.rng.choice(["beg", "dance", "handshake"]))
+            yield ("emote", m.rng.choice(["beg", "handshake"]))       # (no dance under a lonely face)
             yield ("sound", "attention_chirp")
         if level >= 4:
             yield ("face", "sad")
@@ -297,6 +297,19 @@ class ReactTouch(Activity):
 
         if woken:
             yield ("face", "sleepy")
+        feel = a.feeling()
+        unwanted = (getattr(m, "touch_from", "known") == "feared"
+                    or (getattr(m, "touch_from", "known") == "stranger" and a.personality.timidity > 0.5
+                        and g not in ("stroke", "hold"))
+                    or (g in ("tickle", "boop", "tap", "double_tap") and feel in ("grumpy", "angry", "scared")))
+        if unwanted and g not in ("put_down",):
+            # not wanted now (someone it fears, a stranger poking a timid crab, a poke while grumpy or scared):
+            # it shrinks back from the hand instead of performing a happy reaction (configs/mind/states.toml social)
+            yield ("face", "shy" if feel != "angry" else "grumpy")
+            back = -0.03 * (side if side else 0.0)
+            yield ("walk", -0.025, back, 0.0, 0.8)
+            yield ("pose", "low", 1.5)
+            return
         if direction is not None and abs(direction) > 0.3:          # eyes to the touched side
             x, y, h = m.world.pose
             yield ("look_at", (x + 0.25 * math.cos(h + direction), y + 0.25 * math.sin(h + direction)))
@@ -358,3 +371,9 @@ class ReactTouch(Activity):
         elif g == "held_leg":
             yield ("face", "curious")
             yield ("emote", "handshake")
+        elif g == "bumped":                                         # knocked: a flinch and a step away
+            yield ("face", "surprised")
+            if not quiet:
+                yield ("sound", "startled_squeak")
+            yield ("walk", -0.025, 0.0, 0.0, 0.6)
+            yield ("pose", "low", 1.0)

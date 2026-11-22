@@ -5,6 +5,9 @@ import numpy as np
 from pinch.activities.base import (  # noqa: F401
     Activity,
 )
+from pinch.affect import EMO
+
+FEAR = EMO["fear_threshold"]                 # configs/mind/expression.toml: one line for fear
 
 
 class Startle(Activity):
@@ -12,7 +15,7 @@ class Startle(Activity):
     name, interruptible, min_s, quiet_ok = "startle", False, 2.0, True
 
     def utility(self, m):
-        return 2.2 * (m.affect.needs.safety > 0.6)
+        return 2.2 * (m.affect.needs.safety > FEAR)    # the same line as the scared feeling
 
     def run(self, m):
         yield ("face", "scared")
@@ -43,7 +46,7 @@ class Orient(Activity):
         a = h + f.direction
         target = (x + 0.3 * np.cos(a), y + 0.3 * np.sin(a))
         yield ("phase", f"orient_{f.kind}")
-        yield ("face", "curious")
+        yield ("face", "surprised" if f.kind == "loud" else "curious")
         yield ("look_at", target)
         yield ("turn_to", target)
         yield ("wait", 1.5)
@@ -87,7 +90,7 @@ class Hide(Activity):
         if not m.affect.quiet:
             yield ("sound", "whimper")
         yield ("goto", m.memory.home_of("pinch") or m.world.desk.home_xy, 0.04)
-        yield ("pose", "low")
+        yield ("pose", "guard")                              # crouched, claws up as a shield
         while m.people.feared_here(m.world.clock()):
+            yield ("look_at", m.world.desk.owner_xy)          # keeps an eye on them (states.toml: gaze on the threat)
             yield ("wait", 3.0)
-        yield ("face", "neutral")

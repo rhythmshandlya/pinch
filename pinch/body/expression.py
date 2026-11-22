@@ -39,7 +39,7 @@ class Expression:
     def _mood(self, style):
         mood = {"arousal": float(getattr(self.life, "liveliness", 0.4))}
         if self.mood_fn is not None:
-            mood.update(self.mood_fn())
+            mood.update({k: v for k, v in self.mood_fn().items() if k in STYLE_KEYS})
         mood.update({k: v for k, v in (style or {}).items() if k in STYLE_KEYS and v is not None})
         return mood
 

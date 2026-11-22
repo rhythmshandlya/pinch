@@ -15,7 +15,9 @@ from pinch.world import Desk
 
 J = {n: i for i, n in enumerate(JOINT_NAMES)}
 SUB = 10                                               # gait integrates at 500 Hz inside each 20 ms tick
-POSES = {"stand": STAND, "low": pose(crouch(0.25)), "nap": EMOTES["sleep"].keyframes[1][1]}
+POSES = {"stand": STAND, "low": pose(crouch(0.25)), "nap": EMOTES["sleep"].keyframes[1][1],
+         # defensive: crouched, claws raised and open as a shield (crabs' threat display; configs/mind/states.toml)
+         "guard": pose(crouch(0.25), {"*_shoulder_pitch": 0.9, "*_shoulder_yaw": 0.25, "*_claw": 0.6})}
 V_MAX, W_MAX = 0.06, 0.8
 REACH_LOW = {"crouch": 0.38, "pitch": -0.13}           # jaws flat on the desk, pressing lightly (measured: -0.11)
 CARRY_PITCH = 0.45                                      # carrying: the held part ~3 cm up, the short end clear of the legs

@@ -7,11 +7,21 @@ are right there but ignoring it.
 Emotion is a point in valence (-1 unhappy .. +1 happy) x arousal (0 calm .. 1 excited), nudged by
 events and pulled back to a resting mood. A named feeling (happy, lonely, scared, ...) is read off
 that point plus the needs and what just happened; the face and body show the named feeling.
+
+Phase 4 (docs/research/v2_1/expression: Kismet's affect space, ALMA): each event also raises named emotions that
+decay at their own pace (a fright in seconds, sadness over a minute; configs/mind/expression.toml), a slow mood
+follows them over about ten minutes and shifts the resting valence, and the named feeling is the strongest emotion
+(held at least 1.5 s, no flicker), else read off the mood point as before.
 """
 
 from dataclasses import dataclass, field
 
 import numpy as np
+
+from pinch.settings import load as _load_settings
+
+EXPR = _load_settings("expression")
+EMO = EXPR["emotion"]
 
 
 @dataclass
@@ -80,7 +90,11 @@ EVENT_EFFECTS = {
     "fell":          (-0.40, +0.70, dict(safety=+0.60)),
     "stuck":         (-0.35, +0.45, dict(safety=+0.35)),     # a foot over the edge, caught, going nowhere
     "unstuck":       (+0.40, -0.20, dict(safety=-0.40)),     # relief
+    "touched_unwanted": (-0.15, +0.30, dict(safety=+0.25)),  # touched by someone it fears
+    "failed":        (-0.10, +0.10, dict()),                  # a goal-directed move didn't work
+    "succeeded":     (+0.08, +0.00, dict()),                  # it did
 }
+FEAR_EVENTS = ("lifted", "shaken", "bumped", "loud_noise", "fell", "sudden_motion")
 
 
 @dataclass
@@ -96,6 +110,10 @@ class Affect:
     quiet: bool = False          # set while the owner is in a meeting / asleep
     being_touched: bool = False
     ignored_s: float = 0.0       # owner present, but not paying attention to Pinch
+    emotions: dict = field(default_factory=dict)   # named emotion -> intensity 0..1, each decaying (expression.toml)
+    mood: float = None           # slow valence (ALMA mood); None until the first tick
+    _shown: str = ""             # the feeling on show and since when (hysteresis)
+    _shown_t: float = -1e9
 
     def feel(self, event: str, strength: float = 1.0):
         if event not in EVENT_EFFECTS:
@@ -113,6 +131,10 @@ class Affect:
                      "name_called"):
             self.ignored_s = 0.0
         self.last_event, self.last_event_t = event, self.t
+        fear = (0.5 + p.timidity) if event in FEAR_EVENTS else 1.0
+        for emo, k in EXPR["event"].get(event, {}).items():
+            gain = fear if emo in ("scared", "surprised") else 1.0
+            self.emotions[emo] = min(1.0, self.emotions.get(emo, 0.0) + k * strength * gain)
         self._clip()
 
     def tick(self, dt, owner_present=False, owner_attending=False, battery=None, awake_hours=None, sleep_drive=1.0):
@@ -132,8 +154,16 @@ class Affect:
         n.safety -= dt * 0.05
         if battery is not None:
             n.energy = 1.0 - float(battery)
+        # named emotions fade, each at its own pace; the mood follows the valence slowly (ALMA)
+        hl = EMO["half_life"]
+        self.emotions = {e: i * 0.5 ** (dt / hl.get(e, 20.0)) for e, i in self.emotions.items()
+                         if i * 0.5 ** (dt / hl.get(e, 20.0)) > 0.02}
+        if self.mood is None:
+            self.mood = self.valence
+        self.mood += (self.valence - self.mood) * min(1.0, dt / EXPR["mood"]["time_constant_s"])
+        base_v = self.resting_valence + EXPR["mood"]["weight"] * (self.mood - self.resting_valence)
         # emotions relax toward a mood shaped by the needs
-        rest_v = self.resting_valence - 0.35 * max(0, n.social - 0.6) - 0.3 * n.safety - 0.2 * max(0, n.energy - 0.7)
+        rest_v = base_v - 0.35 * max(0, n.social - 0.6) - 0.3 * n.safety - 0.2 * max(0, n.energy - 0.7)
         rest_a = 0.25 + 0.2 * n.play * p.playfulness - 0.2 * n.sleep
         self.valence += (rest_v - self.valence) * min(1.0, dt / 30.0)
         self.arousal += (rest_a - self.arousal) * min(1.0, dt / 12.0)
@@ -145,26 +175,38 @@ class Affect:
         self.needs.clip()
 
     def feeling(self) -> str:
-        """The named feeling right now (drives the face)."""
-        n, v, a = self.needs, self.valence, self.arousal
-        recent = self.t - self.last_event_t < 4.0
-        ev = self.last_event if recent else ""
-        if n.safety > 0.55:
-            return "scared"
-        if ev in ("shaken", "fell") and recent:
-            return "dizzy"
+        """The named feeling right now (drives the face): fear first, quiet mode, then the strongest named emotion
+        (held at least min_show_s unless another is clearly stronger), else the mood point."""
+        n = self.needs
+        dz = self.emotions.get("dizzy", 0.0)
+        if dz >= 0.5 and dz >= max(self.emotions.values()):    # just shaken or tumbled: dizzy first, then fear
+            return self._show("dizzy")
+        if n.safety > EMO["fear_threshold"]:
+            return self._show("scared")
         if self.quiet:
-            return "quiet"
-        if ev in ("stroked", "petted") and recent:
-            return "love" if v > 0.5 else "content"
-        if ev == "tickled" and recent:
-            return "squeeze"
-        if ev == "praised" and recent:
-            return "proud"
-        if ev == "scolded" and recent:
-            return "sad" if v < 0 else "shy"
-        if ev in ("lifted", "loud_noise", "bumped") and recent:
-            return "surprised"
+            return self._show("quiet")
+        cur = self._shown
+        cur_i = self.emotions.get(cur, 0.0)
+        best, best_i = max(self.emotions.items(), key=lambda kv: kv[1], default=("", 0.0))
+        held = self.t - self._shown_t < EMO["min_show_s"] and cur and (cur_i >= 0.1 or cur not in self.emotions)
+        if held and best_i < cur_i + EMO["switch_margin"]:
+            return cur
+        if best_i >= EMO["show_threshold"]:
+            return self._show(best)
+        f = self._mood_feeling()
+        if held and f != cur and cur in self.emotions:
+            return cur
+        return self._show(f)
+
+    def _show(self, f):
+        if f != self._shown:
+            self._shown, self._shown_t = f, self.t
+        return f
+
+    def _mood_feeling(self):
+        """The feeling read off the mood point and the needs (when no named emotion is strong)."""
+        n, v, a = self.needs, self.valence, self.arousal
+        ev = self.last_event if self.t - self.last_event_t < 4.0 else ""
         if n.sleep > 0.8 or n.energy > 0.85:
             return "sleepy"
         if v > 0.55 and a > 0.6:

@@ -22,6 +22,7 @@ class RightSelf(Activity):
             yield ("phase", "roll")
             yield ("right_self",)
             if m.last_step_ok:
+                m.affect.feel("unstuck")                     # relief first: the fear drops, then a pleased look
                 yield ("face", "happy")
                 if not m.affect.quiet:
                     yield ("sound", "happy_trill")

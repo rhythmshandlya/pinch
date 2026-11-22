@@ -65,6 +65,7 @@ EXPRESSIONS = {
     "dead":     Eyes(glyph="x"),
     "proud":    Eyes(glyph="star"),
     "squeeze":  Eyes(glyph="squeeze"),
+    "confused": Eyes(left_scale=0.9, right_scale=1.12, lid_top=0.12, lid_angle=-6.0, overlay="?"),
     "thinking": Eyes(lid_top=0.2, overlay="..."),
     "music":    Eyes(glyph="arc", overlay="note"),
 }
@@ -108,10 +109,11 @@ class Face:
     def update(self, dt, expression=None, gaze=None):
         self.set(expression, gaze)
         self.t += dt
-        k = 1 - np.exp(-dt / 0.08)             # ~80 ms blend toward the target look
+        k = 1 - np.exp(-dt / 0.15)             # ~150 ms blend toward the target look (every number, never a snap)
         c, tg = self.cur, self.target
-        self.cur = Eyes(**{f: (_mix(getattr(c, f), getattr(tg, f), k) if isinstance(getattr(tg, f), float)
-                               else getattr(tg, f)) for f in c.__dataclass_fields__})
+        self.cur = Eyes(**{f: (_mix(float(getattr(c, f)), float(getattr(tg, f)), k)
+                               if isinstance(getattr(tg, f), (int, float)) else getattr(tg, f))
+                           for f in c.__dataclass_fields__})
         # gaze: small saccades around the target, like a living eye
         if self.t > self.next_saccade:
             jitter = self.rng.normal(0, EYES["saccade_sd"], 2)

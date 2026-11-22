@@ -18,6 +18,9 @@ from pinch.body.common import (  # noqa: F401
     np,
     pio,
 )
+from pinch.settings import load as _load_settings  # noqa: E402
+
+MOTION = _load_settings("expression")["motion"]
 
 
 class Locomotion:
@@ -116,6 +119,7 @@ class Locomotion:
             self.trace("goto_fitted", asked=tuple(np.round(xy, 3)), to=tuple(np.round(fitted, 3)))
             xy = fitted
         settle_n = 0
+        tempo = self.walk_tempo()
         for k in range(int(timeout / DT)):
             if self.held and self.grip_fn is not None and k % 10 == 0 and not self.grip_fn(*self.held):
                 self.trace("lost_hold", obj=self.held[0])         # it slipped out on the way: say so, and stop
@@ -135,7 +139,7 @@ class Locomotion:
             ex, ey = np.cos(h) * dx + np.sin(h) * dy, -np.sin(h) * dx + np.cos(h) * dy
             v = np.array([ex, ey]) * 1.6
             sp = np.linalg.norm(v)
-            vmax = V_MAX * slow
+            vmax = V_MAX * slow * tempo
             if sp > vmax:
                 v *= vmax / sp
             elif 0 < sp < 0.012 and dist > tol:                    # small steps still need some speed
@@ -151,6 +155,17 @@ class Locomotion:
         x, y, h = self.pose_fn()
         ok = np.hypot(xy[0] - x, xy[1] - y) < tol * 1.6 and (heading is None or abs(_wrap(heading - h)) < 0.3)
         return bool(ok)
+
+    def walk_tempo(self):
+        """How fast it walks follows how it feels (Laban effort; Cozmo/aibo mood-styled motion,
+        docs/research/v2_1/expression): brisk when lively or scared, slow when sad, sleepy or tired.
+        configs/mind/expression.toml [motion]; 1.0 = the gait's top speed."""
+        if self.mood_fn is None:
+            return 1.0
+        m, c = self.mood_fn(), MOTION
+        t = (c["base"] + c["arousal"] * (m.get("arousal", 0.4) - 0.4) + c["valence"] * m.get("valence", 0.0)
+             - c["fatigue"] * m.get("fatigue", 0.0) - c["sleepy"] * m.get("sleepy", 0.0) + c["fear"] * m.get("fear", 0.0))
+        return float(min(c["max"], max(c["min"], t)))
 
     def _turn_to(self, xy, tol=0.15):
         x, y, h = self.pose_fn()

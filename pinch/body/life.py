@@ -32,6 +32,7 @@ class IdleLife:
         self.period_breath = period_breath
         self.liveliness = 0.4                       # 0 drowsy .. 1 excited (set by the mind)
         self.quiet_s = 0.0                          # how long nothing has happened around it
+        self.asleep = False                         # set by the host: asleep = slow breathing only, no fidgets
         self.next_t = 2.0
         self.current = None                         # (action, t0, duration, amplitude, leg)
         self.recent = []
@@ -46,6 +47,8 @@ class IdleLife:
     def offsets(self, t, dt):
         """Joint offsets (18) for this tick."""
         lv = max(0.05, min(1.0, self.liveliness)) * (0.5 if self.quiet_s > 300 else 1.0)
+        if self.asleep:
+            lv = 0.0
         q = np.zeros(len(JOINT_NAMES))
         # breathing follows the feeling: about 14 breaths a minute calm, 23 excited (research: idle from state);
         # the phase is integrated, so a change of pace never jumps
@@ -63,6 +66,9 @@ class IdleLife:
             q[J[f"{lg}_femur"]] += s
         for lg in ("FR", "RR"):
             q[J[f"{lg}_femur"]] -= s
+        if self.asleep:                             # states.toml sleep: still, breathing only
+            self.current, self.next_t = None, max(self.next_t, t + 2.0)
+            return q
         if self.current is None and t >= self.next_t:
             a = self._pick()
             dur = float(self.rng.uniform(*FI["duration_s"]))

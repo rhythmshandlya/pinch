@@ -72,8 +72,18 @@ class Routine:
                 name = part
         return name
 
+    DAY_JITTER_H = 0.5                    # bed and wake time move up to half an hour each day (not a clockwork 06:00)
+
+    def night_window(self, clock_s):
+        """Tonight's sleep window: NIGHT shifted by a per-day draw (the same day gives the same times, so the twin
+        replays; a new day gives new ones)."""
+        day = int((clock_s / 3600.0 + (self.settings.get("utc_offset_h") or 0.0) - NIGHT[1]) // 24)
+        j1 = ((day * 2654435761) % 1000) / 1000.0 - 0.5
+        j2 = ((day * 40503 + 977) % 1000) / 1000.0 - 0.5
+        return NIGHT[0] + 2 * self.DAY_JITTER_H * j1, NIGHT[1] + 2 * self.DAY_JITTER_H * j2
+
     def is_night(self, clock_s):
-        return in_window(self.hour(clock_s), *NIGHT)
+        return in_window(self.hour(clock_s), *self.night_window(clock_s))
 
     def sleep_drive(self, clock_s):
         """How much faster than usual sleepiness builds right now."""

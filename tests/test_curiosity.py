@@ -89,7 +89,7 @@ def test_new_thing_cautious_look_and_habituation():
     t_show = sim.t
     sim.show_prop("box", (0.15, 0.0))                    # 15 cm in front: closer than it likes at first
     speeds, near_edge = [], 1.0
-    last, n_mo, slows = sim.pose(), len(sim.motions), []
+    n_mo, slows, hist = len(sim.motions), [], []
     while sim.t < t_show + 200.0:
         sim.run(0.2)
         p = sim.pose()
@@ -97,9 +97,10 @@ def test_new_thing_cautious_look_and_habituation():
             if mo[1][0] == "goto" and sim.mind.phase in ("approach", "inspect"):
                 slows.append(mo[1][5])
         n_mo = len(sim.motions)
-        if sim.mind.activity and sim.mind.activity.name == "investigate" and sim.mind.phase == "approach":
-            speeds.append(math.hypot(p[0] - last[0], p[1] - last[1]) / 0.2)
-        last = p
+        approaching = sim.mind.activity and sim.mind.activity.name == "investigate" and sim.mind.phase == "approach"
+        hist = (hist + [(p, approaching)])[-4:]
+        if len(hist) == 4 and all(a for _, a in hist):      # speed over 0.6 s: walking pace, not the gait's sway
+            speeds.append(math.hypot(p[0] - hist[0][0][0], p[1] - hist[0][0][1]) / 0.6)
         near_edge = min(near_edge, sim.desk.feet_margin(p[:2], p[2]))
         th = next(iter(sim.mind.novelty.things.values()), None)
         if th is not None and th.familiar and sim.mind.activity.name != "investigate":

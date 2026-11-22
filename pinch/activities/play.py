@@ -17,9 +17,13 @@ class Play(Activity):
         if m.affect.quiet or m.world.owner.busy == "meeting":
             return 0.0
         n = m.affect.needs
-        return 0.8 * m.affect.personality.playfulness * max(0.0, n.play - 0.35) * (1 - n.sleep) * (1 - m.hunger())
+        asked = 1.0 if m.t - getattr(m, "play_request_t", -1e9) < self.ASKED_S else 0.0   # "pinch, play!"
+        return (0.8 * m.affect.personality.playfulness * max(0.0, n.play - 0.35) + asked) * (1 - n.sleep) * (1 - m.hunger())
+
+    ASKED_S = 60.0                                   # an invitation to play stands this long
 
     def run(self, m):
+        m.play_request_t = -1e9                      # (the invitation is taken up)
         now = m.world.clock()
         game, score = m.playbook.choose(m.world, m.danger, m.memory.data["likes"], m.rng, now)
         yield ("face", "excited")
@@ -106,6 +110,8 @@ class Explore(Activity):
             target = d.clamp((m.rng.uniform(-d.half_x, d.half_x), m.rng.uniform(-d.half_y, d.half_y)), 0.1)
             if m.danger(target) < 0.15:
                 break
+        else:                                                 # everywhere it drew is scary: look near home instead
+            target = m.memory.home_of("pinch") or d.home_xy
         yield ("face", "curious")
         yield ("phase", "go_look")
         yield ("goto", target, 0.05)
