@@ -868,6 +868,20 @@ def waist_walls():
     return feats
 
 
+FRONT_X, FRONT_T, FRONT_Y = 46.0, 2.0, 18.0       # the arm bays' inner walls: behind the arm yaw servos, |y| >= 18
+
+
+def front_walls():
+    """The inner wall of each arm bay: the arms' brackets swing through the shell's front corners, so a wall behind
+    them (in front of the computer) closes the body; it meets the leg bay's wall at the side."""
+    feats = []
+    for side in (1, -1):
+        y0, y1 = sorted((side * FRONT_Y, side * (WAIST_Y + WAIST_T)))
+        wall = abox((FRONT_X, y0, -70.0), (FRONT_X + FRONT_T, y1, SPLIT_Z + LIP_H)) & _inset(WALL - 0.5)
+        feats.append(Feature(f"front_{'left' if side > 0 else 'right'}", "", "tray", "add", wall))
+    return feats
+
+
 def joint_openings():
     """A leg's opening is one smooth cove round its hip (cove): it contains everything the leg sweeps and reads as a
     designed arch, not a union of every pose; an arm's opening follows its sweep."""
@@ -940,7 +954,7 @@ def features():
     for name in PADS:
         f += pad_recess(name)
     f += switch_cut() + pogo_mount("pogo_l") + pogo_mount("pogo_r")
-    f += split_bosses() + side_vents() + lid_knuckle() + waist_walls()
+    f += split_bosses() + side_vents() + lid_knuckle() + waist_walls() + front_walls()
     f = [_trim(x) for x in f] + joint_openings()
     assert all(n in lay.parts for n in {x.owner for x in f} if n and n not in LEGS + ARMS)
     return tuple(f)
