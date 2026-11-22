@@ -45,6 +45,7 @@ class Rest(Activity):
         yield ("goto", m.world.desk.home_xy, 0.05)
         yield ("emote", "yawn")
         while True:
+            yield ("phase", "asleep")                        # the sleep state (configs/mind/states.toml)
             yield ("face", "asleep")
             yield ("pose", "nap", 10.0)
             night = m.routine.is_night(m.world.clock())
@@ -53,5 +54,6 @@ class Rest(Activity):
             m.affect.needs.sleep = max(0.0, m.affect.needs.sleep - (0.02 if night else 0.08))
             if m.affect.needs.sleep < 0.05 and m.t > m.sleeping_until and not night:
                 break
+        yield ("phase", "wake")
         yield ("face", "sleepy")
         yield ("emote", "stretch")

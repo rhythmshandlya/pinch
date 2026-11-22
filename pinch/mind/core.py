@@ -157,14 +157,22 @@ class MindCore:
         ang = (ang + np.pi) % (2 * np.pi) - np.pi
         return (float(np.clip(-ang / 0.8, -1, 1)), 0.2)
 
+    gaze_target_xy = None
+
     def outputs(self):
         """Face expression (the feeling unless an activity set one recently), gaze, sounds to play. Gaze: where
-        an activity aimed it in the last 3 s, otherwise the focus of attention, otherwise ahead."""
+        an activity aimed it in the last 3 s, otherwise the focus of attention, otherwise ahead. A target with a
+        place on the desk is re-aimed from the current pose every tick, so the eyes stay on it while it walks."""
+        from pinch.attention import direction_of
         s, self.sounds = self.sounds, []
-        if self.t - self.gaze_set_t > 3.0:
+        if self.t - self.gaze_set_t <= 3.0:
+            if self.gaze_target_xy is not None:
+                self.gaze = self._gaze_to(self.gaze_target_xy)
+        else:
             f, sal = self.attention.update(self.t)
-            if f is not None and f.direction is not None and sal > 0.1:
-                self.gaze = (float(max(-1.0, min(1.0, -f.direction / 0.8))), 0.2)
+            if f is not None and sal > 0.1 and (f.xy is not None or f.direction is not None):
+                d = direction_of(f.xy, self.world.pose) if f.xy is not None else f.direction
+                self.gaze = (float(max(-1.0, min(1.0, -d / 0.8))), 0.2)
             elif f is None:
                 self.gaze = (0.0, 0.0)
         return self.face_expr, self.gaze, s

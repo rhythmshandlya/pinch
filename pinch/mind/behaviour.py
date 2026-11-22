@@ -37,3 +37,23 @@ def rank(name):
 def overrides_uninterruptible(name):
     """May this activity cut short one that is not interruptible (an emergency stop is separate: no motion at all)?"""
     return rank(name) <= settings()["priority"]["overrides_uninterruptible"]
+
+
+STATES_PATH = PATH.with_name("states.toml")
+CHANNELS = ("legs", "claws", "gaze", "face", "sound")
+
+
+@cache
+def states():
+    with open(STATES_PATH, "rb") as f:
+        s = tomllib.load(f)
+    for name, st in s.items():
+        missing = [k for k in ("sub", "allow", "intent", "interrupt", "on_timeout") if k not in st]
+        if missing or set(st["intent"]) != set(CHANNELS):
+            raise ValueError(f"{STATES_PATH.name} [{name}]: missing {missing or 'intent for ' + str(CHANNELS)}")
+    return s
+
+
+def allowed(state, step_kind):
+    """May a motion step of this kind run in this state?"""
+    return step_kind in states()[state]["allow"]

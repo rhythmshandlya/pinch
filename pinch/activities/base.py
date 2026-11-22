@@ -10,7 +10,7 @@ GRASP_ENABLED = True       # the redesigned claw picks up sticks and blocks (dec
 
 # Top-level behaviour states (decision 63). Every activity belongs to one; the mind reports the current one
 # and logs every change. "task" (desk work you asked for) is Pinch's addition to the usual animal set.
-STATES = ("idle", "explore", "social", "play", "alert", "defensive", "rest", "recover", "task")
+STATES = ("idle", "explore", "social", "play", "alert", "defensive", "rest", "sleep", "recover", "task")   # sleep: rest in its asleep phase
 
 
 class Activity:

@@ -1,6 +1,6 @@
 """Choosing what to do: utility scores, the state layer (timeouts, resume), stepping through the activity, and the decision log."""
 
-from pinch.mind.behaviour import category, overrides_uninterruptible
+from pinch.mind.behaviour import allowed, category, overrides_uninterruptible, rank
 from pinch.mind.common import (  # noqa: F401
     LIBRARY,
     MOOD_REPLY,
@@ -99,10 +99,36 @@ class Selection:
 
     @property
     def state(self):
-        """The top-level behaviour state now (activities/base.py STATES)."""
-        return self.activity.state if self.activity is not None else "idle"
+        """The top-level behaviour state now (activities/base.py STATES; configs/mind/states.toml): the activity's,
+        or "sleep" while a resting activity is in its asleep phase."""
+        if self.activity is None:
+            return "idle"
+        if self.activity.state == "rest" and self.phase == "asleep":
+            return "sleep"
+        return self.activity.state
 
     start_score = 0.0
+
+    def motion_owner(self):
+        """(owner, layer) for the motion the mind hands the body (pinch/body/arbiter.py layers): the top two
+        priority categories as reflexes, what its person asked as a command, hazards and human contact as
+        reactions, everything else as the activity."""
+        a = self.activity
+        if a is None:
+            return "mind", "activity"
+        r = rank(a.name)
+        layer = "reflex" if r <= 2 else "command" if a.name == "obey" else "reaction" if r <= 4 else "activity"
+        return a.name, layer
+
+    def channel_owners(self):
+        """Who drives the eyes, the face and the sound now: the activity when it set them recently, else ambient
+        life (the attention focus, the feeling, silence)."""
+        name = self.activity.name if self.activity else None
+        return {"gaze": name if name and self.t - self.gaze_set_t <= 3.0 else "ambient:attention",
+                "face": name if name and self.t - self.face_set_t <= 3.0 else "ambient:feeling",
+                "sound": name if name and self.t - self.sound_set_t <= 1.0 else "ambient"}
+
+    face_set_t = sound_set_t = -1e9
 
     RESUME_DEPTH = 3                     # interruptions remembered at once (explore -> investigate -> guard_edge)
 
@@ -151,11 +177,14 @@ class Selection:
             kind = step[0]
             if kind == "face":
                 self.face_expr = step[1]
+                self.face_set_t = self.t
             elif kind == "sound":
                 if not self.affect.quiet:
                     self.sounds.append(step[1])
+                    self.sound_set_t = self.t
             elif kind == "look_at":
                 self.gaze = self._gaze_to(step[1])
+                self.gaze_target_xy = tuple(step[1])        # re-aimed every tick as the body moves (outputs)
                 self.gaze_set_t = self.t
             elif kind == "wait":
                 self.wait_until = self.t + step[1]
@@ -180,6 +209,10 @@ class Selection:
                 self.waiting_motion = True
                 return ("emote", emote)
             elif kind in MOTION_STEPS:
+                if not allowed(self.state, kind):            # the state's rules (configs/mind/states.toml)
+                    self._say("refused", f"{kind} is not allowed in {self.state} ({self.activity.name})")
+                    self.last_step_ok = False
+                    continue
                 if kind in ("goto", "push", "pick", "drop"):
                     self.gaze = (0.0, 0.3)
                 self.waiting_motion = True

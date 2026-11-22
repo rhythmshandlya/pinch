@@ -162,7 +162,7 @@ class TwinCore:
                 if self.recorder is not None:
                     self.recorder.step_cancelled(self.t, "mind")
             if motion is not None:
-                self.body.start(motion)
+                self.body.start(motion, *self.mind.motion_owner())
                 self.motions.append((round(self.t, 2), motion))
                 if self.recorder is not None:
                     self.recorder.step_started(self.t, motion, "mind")

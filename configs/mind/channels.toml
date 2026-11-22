@@ -1,0 +1,30 @@
+# Body parts and their owners (phase 4): read by pinch/body/arbiter.py.
+# Each motion step claims the body parts it moves; the arbiter gives each part to one owner (the highest layer;
+# at equal layers the one already holding it) and refuses the rest with a reason. Ambient life (breathing, weight
+# shift, claw flexes, shoulder twitches, glances, blinks) fills every part no one owns, and the parts a step lists
+# under `ambient` (e.g. the claws fidget while it walks), never a part a step moves on purpose.
+version = "4.1"
+
+channels = ["legs", "claw_L", "claw_R", "gaze", "face", "sound"]
+# highest first: a safety reflex, something its person asked, a reaction (startle, a touch), the activity, ambient
+layers = ["reflex", "command", "reaction", "activity", "ambient"]
+
+[steps]
+walk = { claims = ["legs"], ambient = ["claw_L", "claw_R"] }
+goto = { claims = ["legs"], ambient = ["claw_L", "claw_R"] }
+turn_to = { claims = ["legs"], ambient = ["claw_L", "claw_R"] }
+detour = { claims = ["legs"], ambient = ["claw_L", "claw_R"] }
+climb = { claims = ["legs"], ambient = ["claw_L", "claw_R"] }
+settle = { claims = ["legs"], ambient = ["claw_L", "claw_R"] }
+pose = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+emote = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+mood = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+push = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+push_to = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+push_lineup = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+pick = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+drop = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+release = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+let_go = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+right_self = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
+recover = { claims = ["legs", "claw_L", "claw_R"], ambient = [] }
