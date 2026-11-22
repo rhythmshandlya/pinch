@@ -38,7 +38,8 @@ class Rest(Activity):
     def utility(self, m):
         n = m.affect.needs
         asked = m.t < m.sleeping_until
-        return 1.5 * asked + 1.2 * n.sleep ** 2 + 1.4 * max(0.0, n.energy - 0.7) + 0.5 * m.situation_strength("owner_away") * (n.sleep > 0.4)
+        return (1.5 * asked + 1.2 * n.sleep ** 2 + 1.4 * max(0.0, n.energy - 0.7) + 0.9 * n.fatigue ** 2
+                + 0.5 * m.situation_strength("owner_away") * (n.sleep > 0.4))
 
     def run(self, m):
         yield ("face", "sleepy")

@@ -47,6 +47,9 @@ def serve(fw: "PinchFirmware", port=8080):
                 if what not in FORGETTABLE and not what.startswith("person:"):
                     return self._send({"error": f"what: one of {', '.join(FORGETTABLE)} or person:<id>"}, 400)
                 fw.forget(what)
+            elif self.path == "/approve":                    # {"facts": [...] or "all", "keep": true}: facts it heard
+                which = None if data.get("facts", "all") == "all" else [str(f) for f in data.get("facts", [])]
+                fw.approve_facts(which, bool(data.get("keep", True)))
             elif self.path == "/settings" and isinstance(data.get("face_recognition"), bool):
                 fw.set_face_recognition(data["face_recognition"])
             elif self.path == "/quiet_hours":                # {"start": 22, "end": 7} or {"off": true}

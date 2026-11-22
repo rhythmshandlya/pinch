@@ -37,6 +37,7 @@ class Needs:
     energy: float = 0.1      # 1 - battery fraction (set from the battery monitor)
     tidy: float = 0.0        # things out of place that it has noticed
     safety: float = 0.0      # fear: spikes on scares, decays
+    fatigue: float = 0.0     # tired from moving (not sleepiness): builds while the body works, recovers at rest
 
     def clip(self):
         for k in self.__dataclass_fields__:

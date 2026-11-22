@@ -139,6 +139,7 @@ class MindCore:
         self.affect.tick(dt, owner_present=present, owner_attending=self.world.owner_attending(60),
                          battery=self.world.battery, sleep_drive=self.routine.sleep_drive(now))
         self._self_preservation(dt)
+        self._fatigue(dt, body_busy)
         timed_out = self._timeout()
         if self.t >= self.next_choice or self._force:
             self.situations = situations(self.world, self.affect, self.memory)
@@ -150,6 +151,18 @@ class MindCore:
             if cancel or timed_out:
                 return None, True
         return self._advance(body_busy, body_ok), False
+
+    FATIGUE_UP_S, FATIGUE_DOWN_S, FATIGUE_REST_S = 4500.0, 1800.0, 600.0   # s to go 0 -> 1 working, 1 -> 0 idle / resting
+
+    def _fatigue(self, dt, body_busy):
+        """ARC-002: physical tiredness builds while the body works (about an hour of non-stop motion to the top) and
+        drains when still, three times faster while resting or asleep; it makes rest more attractive."""
+        n = self.affect.needs
+        if body_busy:
+            n.fatigue = min(1.0, n.fatigue + dt / self.FATIGUE_UP_S)
+        else:
+            resting = self.activity is not None and self.activity.state == "rest"
+            n.fatigue = max(0.0, n.fatigue - dt / (self.FATIGUE_REST_S if resting else self.FATIGUE_DOWN_S))
 
     def _gaze_to(self, xy):
         x, y, h = self.world.pose

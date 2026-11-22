@@ -117,6 +117,10 @@ class FirmwareCore:
         """Make Pinch forget something (pinch/mind/privacy.py FORGETTABLE, or "person:<id>"); applied in the loop."""
         self.inbox.put(("forget", what))
 
+    def approve_facts(self, which=None, keep=True):
+        """The person's yes or no to facts it heard about them (pinch/memory.py approve_facts); applied in the loop."""
+        self.inbox.put(("approve", (which, keep)))
+
     def set_face_recognition(self, on):
         self.inbox.put(("face_recognition", bool(on)))
 
