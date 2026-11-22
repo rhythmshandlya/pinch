@@ -56,3 +56,26 @@ def test_resting_asleep_is_the_sleep_state():
         if m.phase == "asleep":
             break
     assert m.phase == "asleep" and m.state == "sleep"
+
+
+def test_the_state_decides_who_may_cut_in_urgently():
+    from pinch.mind.behaviour import rank
+    m = Mind(memory=Memory(path=None), llm=False, clock=lambda: 0.0)
+    m._start("rest", "test")
+    m.phase = "asleep"                                   # the sleep state: only rank <= 4 may wake it urgently
+    m.started = m.t - 100.0
+    assert m.state == "sleep" and rank("greet") > 4 >= rank("react_touch")
+    old = {a.name: a.utility for a in LIBRARY}
+    try:
+        for a in LIBRARY:
+            a.utility = (lambda self_, mm, n=a.name: 3.0 if n == "greet" else 0.0).__get__(a)
+        m.start_score = 2.9                              # (the rest it is in still counts nearly as much)
+        m._choose()
+        assert m.activity.name == "rest", m.activity.name
+        for a in LIBRARY:
+            a.utility = (lambda self_, mm, n=a.name: 3.0 if n == "react_touch" else 0.0).__get__(a)
+        m._choose()
+        assert m.activity.name == "react_touch", m.activity.name
+    finally:
+        for a in LIBRARY:
+            a.utility = old[a.name]

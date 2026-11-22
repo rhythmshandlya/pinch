@@ -1,6 +1,6 @@
 """Choosing what to do: utility scores, the state layer (timeouts, resume), stepping through the activity, and the decision log."""
 
-from pinch.mind.behaviour import allowed, category, overrides_uninterruptible, rank
+from pinch.mind.behaviour import allowed, category, overrides_uninterruptible, rank, states
 from pinch.mind.common import (  # noqa: F401
     LIBRARY,
     MOOD_REPLY,
@@ -77,7 +77,11 @@ class Selection:
             return False
         elapsed = self.t - self.started
         urgent = scores[best] >= 1.5 and scores[best] > scores.get(cur.name, 0) + 0.1
-        better = scores[best] > scores.get(cur.name, 0) + 0.15 and elapsed > cur.min_s
+        # the current state says how important an urgent newcomer must be (configs/mind/states.toml interrupt):
+        # e.g. a greeting doesn't wake it from sleep, a touch or its person's request does
+        may_cut_in = rank(best) <= states()[self.state]["interrupt"]
+        urgent = urgent and may_cut_in
+        better = scores[best] > scores.get(cur.name, 0) + 0.15 and elapsed > cur.min_s and may_cut_in
         if (cur.interruptible and (urgent or better)) or (not cur.interruptible and urgent and overrides_uninterruptible(best)):
             if urgent and cur.name != best:
                 self._suspend(cur.name)                          # (it may come back to it afterwards)

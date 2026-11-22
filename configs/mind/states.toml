@@ -7,6 +7,8 @@
 # interrupt: the lowest priority rank that may cut it short when urgent (1 = physical safety .. 8 = idle).
 # on_timeout: what follows a timeout.
 
+version = "4.1"
+
 [idle]
 sub = ["observe", "micro_adjust", "settle"]
 allow = ["emote", "pose", "turn_to"]

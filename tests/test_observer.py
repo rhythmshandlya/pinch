@@ -32,6 +32,8 @@ def test_it_catches_planted_problems():
     assert "repetition" in {f.kind for f in observe_records(rep, [], [], 150.0)}
     lock = [_d(0.0, None, "idle", state=("idle", "idle"))]
     assert "state_lock" in {f.kind for f in observe_records(lock, [], [], 1000.0)}
+    log = [(400.0, "timeout", "rest ran 400 s (limit 300 s)")]                 # OBS-007 inappropriate timing
+    assert "timeouts" in {f.kind for f in observe_records([_d(0.0, None, "rest")], [], log, 500.0)}
 
 
 def test_ten_minutes_alone_has_no_errors():

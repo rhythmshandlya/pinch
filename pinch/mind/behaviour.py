@@ -47,6 +47,7 @@ CHANNELS = ("legs", "claws", "gaze", "face", "sound")
 def states():
     with open(STATES_PATH, "rb") as f:
         s = tomllib.load(f)
+    s.pop("version", None)
     for name, st in s.items():
         missing = [k for k in ("sub", "allow", "intent", "interrupt", "on_timeout") if k not in st]
         if missing or set(st["intent"]) != set(CHANNELS):

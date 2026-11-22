@@ -72,6 +72,10 @@ def test_short_recording_has_all_streams():
         assert h["closed"] and h["config"]["seed"] == 3 and h["config"]["scenario"] == "test"
         assert h["git"]["commit"] and "gait.npz" in h["policies"] and h["policies"]["gait.npz"]["registry"]
         assert "mujoco" in h["versions"]
+        for f in ("behaviour.toml", "states.toml", "channels.toml", "ambient.toml"):    # SIM-025: behaviour versions
+            assert h["behaviour"][f]["version"] and h["behaviour"][f]["sha256"], f
+        for k in ("owners",):                                                          # who owned each body part
+            assert k in {e["kind"] for e in s["events"]}, k
         kinds = {e["kind"] for e in s["events"]}
         for k in ("decision", "step_start", "step_end", "face", "feeling", "say", "touch", "show_prop", "sound", "log",
                   "attend", "body"):

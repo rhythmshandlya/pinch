@@ -53,7 +53,7 @@ class Rest(Activity):
             # by day a nap pays off sleepiness and ends; at night it sleeps on until morning (or something wakes it:
             # touch, voice and the owner preempt Rest through the usual selection), paying it off 4x more slowly
             m.affect.needs.sleep = max(0.0, m.affect.needs.sleep - (0.02 if night else 0.08))
-            if m.affect.needs.sleep < 0.05 and m.t > m.sleeping_until and not night:
+            if m.affect.needs.sleep < 0.05 and m.affect.needs.fatigue < 0.1 and m.t > m.sleeping_until and not night:
                 break
         yield ("phase", "wake")
         yield ("face", "sleepy")
