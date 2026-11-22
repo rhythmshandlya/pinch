@@ -23,15 +23,29 @@ from crab.params import LEG_IDS, PARAMS  # noqa: E402
 MODEL = ROOT / "sim" / "models" / PARAMS.model_file     # crab.xml; CRAB_DESIGN=v2: crab_v2.xml
 
 
+RANDOMIZE_FRICTIONLOSS = False   # the servo's dry friction spread is covered by the damping and strength ranges meanwhile
+COLLIDERS = set()        # names of the last loaded model's own contact shapes (its non-visual geoms), for righting_env
+
+
 def load_training_model(sim_dt: float) -> mujoco.MjModel:
     spec = mujoco.MjSpec.from_file(str(MODEL))
     for s in list(spec.sensors):                 # touch sensors etc. not needed
         spec.delete(s)
+    shell_mesh = False
     for g in list(spec.geoms):                   # CAD visual meshes: looks only, slow for MJX
         if g.type == mujoco.mjtGeom.mjGEOM_MESH:
+            shell_mesh |= g.name == "shell"
             spec.delete(g)
     for msh in list(spec.meshes):
         spec.delete(msh)
+    if shell_mesh:                               # design v2: the pill shell's contact mesh becomes an ellipsoid of its
+        from crab.electronics import Layout  # size (MJX collides it with the floor natively; no mass: the body's
+        ch = Layout().chassis                    # inertial carries it)
+        spec.body("body").add_geom(name="shell_proxy", type=mujoco.mjtGeom.mjGEOM_ELLIPSOID,
+                                   size=[v / 1000.0 for v in ch["shell_half_mm"]],
+                                   pos=[v / 1000.0 for v in ch["shell_center_mm"]], mass=0.0, contype=1, conaffinity=0)
+    COLLIDERS.clear()
+    COLLIDERS.update(g.name for g in spec.geoms if g.name and (g.contype or g.conaffinity) and "_pad" not in g.name)
     m = spec.compile()
     m.opt.timestep = sim_dt
     m.opt.iterations = 4
@@ -108,7 +122,9 @@ def domain_randomize(sys: mjx.Model, rng: jax.Array):
     friction, body_mass, gain, bias, frange, armature, damping, gravity, frictionloss = rand(rng)
     fields = dict(geom_friction=friction, body_mass=body_mass, actuator_gainprm=gain,
                   actuator_biasprm=bias, actuator_forcerange=frange,
-                  dof_armature=armature, dof_damping=damping, dof_frictionloss=frictionloss)
+                  dof_armature=armature, dof_damping=damping)
+    if RANDOMIZE_FRICTIONLOSS:                    # off: a per-robot frictionloss made msi-1's first evaluation crawl
+        fields["dof_frictionloss"] = frictionloss
     in_axes = jax.tree_util.tree_map(lambda _: None, sys)
     in_axes = in_axes.tree_replace({**{k: 0 for k in fields}, "opt.gravity": 0})
     return sys.tree_replace({**fields, "opt.gravity": gravity}), in_axes

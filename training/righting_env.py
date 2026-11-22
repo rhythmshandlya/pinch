@@ -34,12 +34,17 @@ REWARD_SCALES = dict(upright=1.0, height=1.0, stood=2.0, action_rate=-0.01, ener
 def load_righting_model(sim_dt=0.002):
     """The training model with the whole robot touching the floor (it rolls on its shell, legs and claws),
     never itself, and a few more solver iterations for the many contacts."""
+    from training.robot_model import COLLIDERS
     m = load_training_model(sim_dt)
     m.opt.iterations = 6
     floor = m.geom("floor").id
     for g in range(m.ngeom):
-        if g != floor:
-            m.geom_contype[g], m.geom_conaffinity[g] = 1, 0
+        if g == floor:
+            continue
+        # the model's own contact shapes (shell, legs, claw jaws); not the electronics boxes inside the shell or the
+        # claw's small pads (dozens of extra floor contacts per robot: the get-up run crawled on msi-1)
+        on = (m.geom(g).name or "") in COLLIDERS if COLLIDERS else True
+        m.geom_contype[g], m.geom_conaffinity[g] = (1, 0) if on else (0, 0)
     return m
 
 
