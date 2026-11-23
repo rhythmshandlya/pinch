@@ -22,6 +22,8 @@ train = ["jax==0.9.2", "jaxlib==0.9.2", "flax==0.12.6", "optax==0.2.9", "orbax-c
          "brax==0.14.2", "mujoco-mjx==4.0.1"]
 # cloud GPUs beyond Modal
 cloud = ["modal>=1.6", "skypilot[runpod,lambda]"]
+# converting the worlds' furniture models once, when fetched (python -m sim.worlds.furniture fetch)
+worlds = ["trimesh"]
 # the robot (Radxa ZERO 3W); OpenCV comes from apt there
 robot = ["pyserial", "smbus2"]
 
