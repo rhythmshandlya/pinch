@@ -155,7 +155,7 @@ class FirmwareCore:
     def estop(self, why="user"):
         """Emergency stop (HTTP /stop, or "freeze" said aloud): cancel what the body is doing, go limp, and do
         nothing that moves until resume(). Senses, memory and the face keep working."""
-        self.body.cancel()
+        self.body.cancel(force=True)
         self.crab.pause(why)
         self.mind.estopped = True
         self.mind.motion_cancelled()                          # (the step it was waiting on did not happen)
@@ -244,6 +244,9 @@ class FirmwareCore:
             self.save_memory()
         self.body.life.liveliness = self.mind.affect.arousal
         self.body.life.asleep = self.mind.state == "sleep"
+        self.mind.body_reflex = self.body.claim is not None and self.body.claim.layer == "reflex"
+        o = self.mind.world.owner                             # nothing happening for a while: idle life settles
+        self.body.life.quiet_s = self.mind.t - max(o.last_attention, o.last_voice, o.last_touch, 0.0)
         self.body.life.mood_in = (self.mind.affect.needs.safety, self.mind.affect.valence)
         if self.body.mood_fn is None:          # the emote style follows the whole mood (decision 92)
             a = self.mind.affect

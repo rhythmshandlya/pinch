@@ -207,9 +207,25 @@ class SessionRecorder:
         self._end_why = f"cancelled ({why})"
 
     # -- every control tick --------------------------------------------------------------------------------------
+    def _mind_start(self, t, mind, body):
+        """Once, at the start: the seeds and what the mind starts from - what it has learned, its likes, its
+        personality, its needs and mood, when the next quirk is due - so a session can be replayed exactly."""
+        a = mind.affect
+        life_rng = getattr(getattr(body, "life", None), "rng", None)
+        entropy = getattr(getattr(getattr(life_rng, "bit_generator", None), "seed_seq", None), "entropy", None)
+        self.event(t, "mind_start", seed=getattr(mind, "seed", None), life_entropy=str(entropy),
+                   learned=_plain(mind.learner.to_dict()) if hasattr(mind, "learner") else None,
+                   likes=_plain(dict(mind.memory.data.get("likes", {}))),
+                   quirk_due=mind.memory.data.get("quirk_due"),
+                   personality=_plain(vars(a.personality)), needs=_plain(a.needs.as_dict()),
+                   mood=a.mood, valence=a.valence, arousal=a.arousal, people=len(mind.people.people))
+
     def tick(self, t, k, mind, body, q_req, q_cmd, sample_fn=None):
         """After the body's tick. t: time at the end of this tick; k: the tick's index. sample_fn() -> dict with
         pose (x, y, yaw), up (z of the body's up axis), q_meas, and with state: qpos, mocap."""
+        if mind is not None and not getattr(self, "_mind_started", False):
+            self._mind_started = True
+            self._mind_start(t, mind, body)
         if mind is not None and mind.t != self._mind_t:
             self._mind_t = mind.t
             self._poll_mind(t, mind)
@@ -382,7 +398,7 @@ class SessionRecorder:
             ob = mind.world.objects.get(val)
             return float(math.dist(ob.xy, self.goal[2])) if ob is not None else np.nan
         if kind == "obj":                                   # a pick walks to a stance from which the claw reaches,
-            nav = getattr(body, "nav_goal", None) or getattr(body, "step_goal", None)   # not onto the thing
+            nav = getattr(body, "step_goal", None) or getattr(body, "nav_goal", None)   # not onto the thing
             ob = mind.world.objects.get(val)
             val = nav if nav is not None else (ob.xy if ob is not None else None)
         return float(math.dist(pose[:2], val[:2])) if val is not None else np.nan
@@ -414,6 +430,10 @@ class SessionRecorder:
             row.update(gaze_x=float(mind.gaze[0]), gaze_y=float(mind.gaze[1]), gaze_want=np.nan if want is None else want,
                        gaze_target=what or "", face=mind.face_expr, feeling=mind.affect.feeling(),
                        valence=float(mind.affect.valence), arousal=float(mind.affect.arousal),
+                       mood=float(mind.affect.mood if mind.affect.mood is not None else mind.affect.valence),
+                       emotion=max(mind.affect.emotions, key=mind.affect.emotions.get, default=""),
+                       emotion_i=float(max(mind.affect.emotions.values(), default=0.0)),
+                       face_asked=(mind.face_intent[0] if getattr(mind, "face_intent", None) else ""),
                        activity=self._act(mind) or "", phase=mind.phase, state=mind.state, quiet=bool(mind.affect.quiet))
         row["goal_d"] = self._goal_distance(mind, body, pose)
         if self.state:

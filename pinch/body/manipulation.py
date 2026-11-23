@@ -332,8 +332,8 @@ class Manipulation:
         down = arm_pose(pose(crouch(REACH_LOW["crouch"], "F?"), crouch(-0.20, "R?")), side,
                         pitch=REACH_LOW["pitch"] + 0.12, claw=0.0)
         yield from self._blend_to(down, 0.7)
+        self.held = None                                 # (before opening: while held, every tick keeps the claw shut)
         yield from self._blend_to(arm_pose(down, side, claw=0.9), 0.3)
-        self.held = None
         yield from self._let_go(down, side)
         self.hold = STAND.copy()
         return True
@@ -394,6 +394,9 @@ class Manipulation:
         stand_xy = goal - np.array((c * tip[0] - s * tip[1], s * tip[0] + c * tip[1]))
         ok = yield from self._goto(self.desk.clamp(stand_xy, 0.06), tol=0.012, heading=heading, timeout=50.0, slow=0.5)
         if not self.held:                                    # it slipped out on the way (traced in _goto)
+            return False
+        if self.blocked:                                     # couldn't get there: keep holding it, don't drop it short
+            self.trace("drop_blocked", goal=tuple(np.round(goal, 3)))
             return False
         yield from self._blend_to(reach, 0.8)
         self.held = None                                     # (before opening: while held, every tick keeps the claw

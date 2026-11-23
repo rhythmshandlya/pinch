@@ -122,11 +122,18 @@ class Locomotion:
         if np.linalg.norm(fitted - xy) > 1e-4:                # (the feet wouldn't fit there: stop short)
             self.trace("goto_fitted", asked=tuple(np.round(xy, 3)), to=tuple(np.round(fitted, 3)))
             xy = fitted
-        settle_n = 0
         self.blocked = False
-        best_d, best_k = float("inf"), 0                    # progress watchdog (ROS move_base: planner patience)
-        tempo = self.walk_tempo()
         self.nav_goal = (float(xy[0]), float(xy[1]))         # where it is walking right now (the recorder's goal)
+        try:
+            return (yield from self._goto_loop(xy, tol, heading, timeout, slow, htol))
+        finally:
+            self.nav_goal = None
+
+    def _goto_loop(self, xy, tol, heading, timeout, slow, htol):
+        settle_n = 0
+        hist = []                                           # (dist, |heading error|) per tick: progress watchdog
+        window = int(self.NO_PROGRESS_S / DT)               # (ROS move_base: planner patience)
+        tempo = self.walk_tempo()
         for k in range(int(timeout / DT)):
             if self.held and self.grip_fn is not None and k % 10 == 0 and not self.grip_fn(*self.held):
                 self.trace("lost_hold", obj=self.held[0])         # it slipped out on the way: say so, and stop
@@ -137,12 +144,14 @@ class Locomotion:
             dx, dy = xy[0] - x, xy[1] - y
             dist = np.hypot(dx, dy)
             herr = 0.0 if heading is None else _wrap(heading - h)
-            if dist < best_d - 0.01:
-                best_d, best_k = dist, k
-            elif dist > tol and k - best_k > int(self.NO_PROGRESS_S / DT):   # walking, getting no nearer
-                self.trace("goto_no_progress", to=tuple(np.round(xy, 3)), d=round(float(dist), 3))
-                self.blocked = True
-                break
+            hist.append((dist, abs(herr)))
+            if len(hist) > window and dist > tol + 0.01:    # not just finishing a turn on the spot
+                d0, h0 = hist[-window - 1]
+                turning = dist < tol + 0.03 and h0 - abs(herr) >= 0.1     # (at the spot, turning to face the way)
+                if d0 - dist < 0.01 and not turning:            # no nearer, and not finishing a turn at the spot
+                    self.trace("goto_no_progress", to=tuple(np.round(xy, 3)), d=round(float(dist), 3))
+                    self.blocked = True
+                    break
             if dist < tol and abs(herr) < htol:
                 settle_n += 1
                 if settle_n > 3:
@@ -164,7 +173,6 @@ class Locomotion:
             if abs(herr) < htol * 0.7 and dist < tol:
                 wz = 0.0
             yield self._gait_q((float(v[0]), float(v[1]), wz), self._arms())
-        self.nav_goal = None
         yield from self._settle()
         x, y, h = self.pose_fn()
         ok = np.hypot(xy[0] - x, xy[1] - y) < tol * 1.6 and (heading is None or abs(_wrap(heading - h)) < 0.3)
@@ -176,6 +184,9 @@ class Locomotion:
         configs/mind/expression.toml [motion]; 1.0 = the gait's top speed."""
         if self.mood_fn is None:
             return 1.0
+        claim = getattr(self, "claim", None)
+        if claim is not None and claim.layer in ("reflex", "reaction"):
+            return 1.0                                      # getting away from an edge or a threat: full pace
         m, c = self.mood_fn(), MOTION
         t = (c["base"] + c["arousal"] * (m.get("arousal", 0.4) - 0.4) + c["valence"] * m.get("valence", 0.0)
              - c["fatigue"] * m.get("fatigue", 0.0) - c["sleepy"] * m.get("sleepy", 0.0) + c["fear"] * m.get("fear", 0.0))

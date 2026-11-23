@@ -121,7 +121,8 @@ class Explore(Activity):
                 target = m.memory.home_of("pinch") or d.home_xy
             yield ("phase", "go_look")
             yield ("goto", target, 0.05)
-            last = target
+            if m.last_step_ok:
+                last = target
             yield ("phase", "take_in")
             x, y, h = m.world.pose
             for side in ((-1, 1) if m.rng.random() < 0.5 else (1, -1)):

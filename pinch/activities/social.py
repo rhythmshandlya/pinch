@@ -159,6 +159,7 @@ class Comfort(Activity):
         mood = m.world.owner.mood
         yield ("face", "sad" if mood == "sad" else "content")
         yield ("goto", _owner_near(m), 0.05)
+        reached = m.last_step_ok
         yield ("turn_to", m.world.desk.owner_xy)
         yield ("sound", "purr")
         yield ("emote", "handshake")                           # offers a claw to hold
@@ -168,7 +169,10 @@ class Comfort(Activity):
         elif mood == "stressed":
             yield ("emote", "beg")                             # "take a break?"
         yield ("pose", "low", 6.0)
-        m.memory.remember("comfort", f"my person was {mood}, so I stayed close")
+        if reached:                                            # (only what happened: no false memories)
+            m.memory.remember("comfort", f"my person was {mood}, so I stayed close")
+        else:
+            m.memory.remember("comfort", f"my person was {mood}; I couldn't get close, so I comforted them from here")
 
 
 class SeekAttention(Activity):

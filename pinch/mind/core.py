@@ -16,16 +16,18 @@ from pinch.mind.common import (  # noqa: F401
     np,
     situations,
 )
-from pinch.mind.expression import face_now, sound_for
+from pinch.mind.expression import EXPR, face_now, sound_for
 from pinch.mind.learning import CFG as LEARN_CFG
 from pinch.mind.learning import own_block
 
 TASTE = {"play": "play", "explore": "curiosity"}       # learned activity -> the need that drives it
+EXPECT = EXPR["expectation"]
 
 
 class MindCore:
     def __init__(self, memory=None, personality=None, llm=True, seed=0, clock=None):
         self.memory = memory if memory is not None else Memory(path=None)
+        self.seed = seed                                  # (recorded at the start of a session)
         self.affect = Affect(personality=personality or Personality())
         self.world = WorldModel()
         if clock is not None:          # one clock for everything that dates things: simulation time in the twin
@@ -142,6 +144,7 @@ class MindCore:
             self._say("owner", "my person is back!")
         elif not present and self._was_present:
             self.affect.feel("owner_left")
+            self.gaze_target_xy, self.gaze_set_t = tuple(self.world.desk.owner_xy), self.t   # watches them go
             self._say("owner", "my person left")
         self._was_present = present
         now = self.world.clock()
@@ -225,7 +228,9 @@ class MindCore:
         if a is None or a.state not in self.OUTCOME_STATES:
             return
         if not ok or kind != "goto":
-            self.affect.feel("succeeded" if ok else "failed")
+            surprise = self._expectation(a.name, kind, ok)       # >0: better than it expected, <0: worse
+            k = EXPECT["base"] + EXPECT["gain"] * abs(surprise)
+            self.affect.feel("succeeded" if ok else "failed", k)
         face = ("happy" if kind in ("pick", "drop", "push") else "content") if ok else "confused"
         self.outcome_intent = (face, self.t, self.started)   # its own slot: the activity's next look waits a moment
         self.face_set_t = self.t
@@ -233,6 +238,17 @@ class MindCore:
             self.sound("uh_oh")
         elif face_now(self) == self.face_expr and sound_for("happy_trill", self.affect.feeling()) == "happy_trill":
             self.sound("happy_trill")                # the face can't show it: a small pleased sound, if that fits
+
+    def _expectation(self, activity, kind, ok):
+        """How sure it was this would work, learned per activity and kind of move; returns the surprise
+        (outcome - expectation) and updates the expectation. A sure thing that works pleases a little; an
+        unlikely success delights; an expected failure barely stings, a surprising one stings more."""
+        ex = self.memory.data.setdefault("expect", {})
+        key = f"{activity}:{kind}"
+        p = ex.get(key, EXPECT["prior"])
+        o = 1.0 if ok else 0.0
+        ex[key] = round(p + EXPECT["rate"] * (o - p), 4)
+        return o - p
 
     def sound(self, name):
         """Play a sound that fits the feeling: one that says the opposite becomes the feeling's own sound

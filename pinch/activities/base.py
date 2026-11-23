@@ -33,4 +33,11 @@ class Activity:
         yield ("wait", 1.0)
 
 def _owner_near(m):
-    return m.world.desk.owner_xy[0], m.world.desk.owner_xy[1] + 0.32       # a spot on the desk near you
+    """A spot on the desk near its person, nearer the more it likes and knows them, further if it fears them
+    (proxemics by relationship: Mumm & Mutlu 2011, docs/research/v2_1/gaps/notes.md)."""
+    ox, oy = m.world.desk.owner_xy
+    pid = m.feedback_person() if hasattr(m, "feedback_person") else None
+    p = m.people.people.get(pid, {}) if pid else {}
+    w, f, r = p.get("W", 0.5), p.get("F", 0.5), p.get("R", 0.0)
+    d = 0.32 - 0.06 * max(0.0, w) * f + 0.08 * max(r, 1.0 - f) * (0.0 if p.get("owner") else 1.0)
+    return ox, oy + float(min(0.42, max(0.24, d)))

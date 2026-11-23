@@ -113,6 +113,14 @@ intent_hold_s = 2.5        # how long an activity's asked-for look shows before 
 outcome_hold_s = 0.8       # a reaction to how a move went shows this long before the activity's next look
 perform = ["asleep", "dead", "music"]   # body states and tricks: shown for the whole activity, whatever the feeling
 
+# expectation: how strongly an outcome is felt = base + gain x |outcome - what it expected| (OCC prospect emotions,
+# reward-prediction error); the expectation per activity and move follows outcomes at `rate`
+[expectation]
+prior = 0.6
+rate = 0.2
+base = 0.3
+gain = 1.2
+
 # sounds: an activity asks for one; a sound that says the opposite of the feeling becomes the feeling's own sound
 [sound]
 bright = ["happy_trill", "giggle", "purr", "fanfare"]

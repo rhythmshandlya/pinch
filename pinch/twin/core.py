@@ -206,6 +206,9 @@ class TwinCore:
             set_face(self.m, self.face.rgb(scale=2))
         self.body.life.liveliness = self.mind.affect.arousal
         self.body.life.asleep = self.mind.state == "sleep"
+        self.mind.body_reflex = self.body.claim is not None and self.body.claim.layer == "reflex"
+        o = self.mind.world.owner                             # nothing happening for a while: idle life settles
+        self.body.life.quiet_s = self.mind.t - max(o.last_attention, o.last_voice, o.last_touch, 0.0)
         self.body.life.mood_in = (self.mind.affect.needs.safety, self.mind.affect.valence)
         if self.body.mood_fn is None:          # the emote style follows the whole mood (decision 92)
             a = self.mind.affect

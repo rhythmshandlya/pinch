@@ -75,11 +75,17 @@ class BodyCore:
         """Run a step. owner and layer say who asked and how strongly (arbiter layers: reflex, command, reaction,
         activity); the step claims the body parts it moves."""
         kind, args = step[0], step[1:]
+        if self.busy and self.claim is not None and self.claim.layer == "reflex" and layer != "reflex":
+            # a reflex is running: nothing below it takes the body; the step waits and starts when it ends
+            # (orchestration invariant: reflex > command > reaction > activity > ambient)
+            self.pending = (step, owner, layer)
+            self.trace("queued_behind_reflex", step=kind, owner=owner)
+            return
         make = getattr(self, f"_{kind}", None)
         if make is None:
             self.busy, self.ok = False, False
             return
-        self.step_goal = None
+        self.step_goal, self.nav_goal = None, None
         self.task = make(*args)
         self.busy, self.ok, self.status = True, True, kind
         self.claim = claim_for(kind, owner or kind, layer, self.t)
@@ -89,16 +95,23 @@ class BodyCore:
         """A safety reflex (backing off an edge) takes over from whatever was running. When it ends, the step
         it cut short counts as failed - the mind must not take "backed off the edge" for "picked up the pen"."""
         interrupted = self.busy
-        self.cancel()
+        self.cancel(force=True)
         self.start(step, owner="reflex", layer="reflex")
         self._reflexed = interrupted
 
     _reflexed = False
+    pending = None                                       # a step that waits for the running reflex to end
 
-    def cancel(self):
+    def cancel(self, force=False):
+        """Stop the running step. The mind changing its mind never stops a reflex (it drops what was waiting
+        behind it instead); a new reflex or an emergency stop does (force)."""
+        if not force and self.claim is not None and self.claim.layer == "reflex":
+            self.pending = None
+            return
         if self.task is not None:
             self.task.close()
-        self.task, self.busy, self.ok, self.claim = None, False, False, None
+        self.task, self.busy, self.ok, self.claim, self.pending = None, False, False, None, None
+        self.nav_goal = None
 
     def _use_claw(self, side):
         """A step that turns out to need one claw only (a pick, a drop) gives the other one back: ambient life moves it."""
@@ -133,6 +146,10 @@ class BodyCore:
                 self.ok = e.value is not False and not self._reflexed
                 self.task, self.busy, self._reflexed, self.claim = None, False, False, None
                 q = self.hold
+                if self.pending is not None:               # the reflex is over: what waited behind it starts now
+                    step, owner, layer = self.pending
+                    self.pending = None
+                    self.start(step, owner, layer)
         else:
             q = self.hold
         self.ambient_amp = 0.0                             # the largest ambient offset this tick (rad): aliveness

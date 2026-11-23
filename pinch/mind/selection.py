@@ -11,7 +11,7 @@ from pinch.mind.common import (  # noqa: F401
 from pinch.mind.expression import EXPR
 
 WANTS = EXPR.get("wants", {})
-from pinch.mind.learning import own_block  # noqa: E402
+from pinch.mind.learning import LEARNABLE, own_block  # noqa: E402
 
 
 class Selection:
@@ -31,6 +31,7 @@ class Selection:
                    state=[self.state, nxt.state],
                    priority=[category(self.activity.name) if self.activity else None, category(name)],
                    top=[[k, round(v, 3)] for k, v in top],
+                   why={k: getattr(self, "score_parts", {}).get(k, {}) for k, _ in top},
                    noticed=[[s.kind, s.target, round(s.strength, 2)] for s in self.situations[:5]],
                    feeling=self.affect.feeling(), valence=round(self.affect.valence, 3),
                    needs={k: round(v, 2) for k, v in self.affect.needs.as_dict().items()})
@@ -85,25 +86,38 @@ class Selection:
         scores = {}
         ctx, person, clock = self.learn_context(), self.feedback_person(), self.world.clock()
         daytime = EXPR.get("daytime", {}).get(self.routine.part_of_day(clock), {})
+        parts = {}
         for a in LIBRARY:
             u = a.utility(self)
+            why = dict(want=round(u, 3))                          # what made the score (the decision log keeps it)
             if self.affect.quiet and not a.quiet_ok:
                 u = 0.0
+                why["quiet"] = True
             if u > 0 and a.name in WANTS:
-                u *= self._mood_gate(WANTS[a.name])
-            if u > 0:
-                u *= daytime.get(a.name, 1.0)                     # the day's rhythm
+                g = self._mood_gate(WANTS[a.name])
+                u *= g
+                why["mood"] = round(g, 2)
+            if u > 0 and daytime.get(a.name, 1.0) != 1.0:
+                u *= daytime[a.name]                              # the day's rhythm
+                why["day"] = daytime[a.name]
             if u > 0 and not own_block(a.name, clock):
-                u = self.learner.shape(a.name, u, ctx, person or self.owner_id(), clock)   # what it was taught
+                u2 = self.learner.shape(a.name, u, ctx, person or self.owner_id(), clock)   # what it was taught
+                if u2 != u:
+                    why["learned"] = round(u2 - u, 3)
+                u = u2
+            elif u > 0 and a.name in LEARNABLE:
+                why["as_itself"] = True                           # (one of its own stretches: learning set aside)
             if u > 0 and self.suspended and self.suspended[0] == a.name and self.t - self.suspended[1] < self.RESUME_S:
                 u += self.RESUME_BONUS
+                why["resume"] = self.RESUME_BONUS
+            parts[a.name] = why
             scores[a.name] = u + 0.02 * (self._own_jitter.random() if a.own_jitter else self.rng.random())
         cur = self.activity
         # commitment: an activity under way keeps most of the priority it started with, so a job doesn't
         # evaporate halfway (e.g. a pushed cap stops counting as "settled" the moment Pinch moves it)
         if cur is not None and self.gen is not None and not (self.affect.quiet and not cur.quiet_ok):
             scores[cur.name] = max(scores.get(cur.name, 0.0), 0.9 * self.start_score)
-        self.scores = scores
+        self.scores, self.score_parts = scores, parts
         best = max(scores, key=scores.get)
         if cur is None or self.gen is None:
             self._start(best, "first" if cur is None else "previous activity finished")
@@ -116,9 +130,12 @@ class Selection:
         # e.g. a greeting doesn't wake it from sleep, a touch or its person's request does
         may_cut_in = rank(best) <= states()[self.state]["interrupt"]
         urgent = urgent and may_cut_in
-        better = scores[best] > scores.get(cur.name, 0) + 0.15 and elapsed > cur.min_s and may_cut_in
+        # clearly better and the same kind of thing (a new object while exploring): it may take over even where the
+        # state lets only higher kinds cut in (level of interest, Blumberg's Hamsterdam); other kinds follow the state
+        same_kind = rank(best) == rank(cur.name)
+        better = scores[best] > scores.get(cur.name, 0) + 0.15 and elapsed > cur.min_s and (may_cut_in or same_kind)
         if (cur.interruptible and (urgent or better)) or (not cur.interruptible and urgent and overrides_uninterruptible(best)):
-            if urgent and cur.name != best:
+            if cur.name != best:
                 self._suspend(cur.name)                          # (it may come back to it afterwards)
             self._start(best, ("urgent" if urgent else "clearly better") + f" than {cur.name}"
                         + (" (after an interrupt)" if self._force else ""))
@@ -229,8 +246,9 @@ class Selection:
             return None
         if self.waiting_motion:
             if body_busy:
-                if self._motion_kind in ("pick", "drop") and self.gaze_target_xy is not None:
-                    self.gaze_set_t = self.t                 # eyes stay on the thing / the spot the whole time
+                if self._motion_kind in ("pick", "drop") and self.gaze_target_xy is not None \
+                        and not getattr(self, "body_reflex", False):
+                    self.gaze_set_t = self.t                 # eyes stay on the thing / the spot (not through a reflex)
                 return None
             self.waiting_motion = False
             self.last_step_ok = body_ok
@@ -279,9 +297,10 @@ class Selection:
                 self.face_intent = (face, self.t, self.started)
                 if not self.affect.quiet:
                     self.sounds.append(sound)
-                self.waiting_motion = True
-                self._motion_kind = "emote"
-                return ("emote", emote)
+                if not allowed(self.state, "emote"):         # the state's rules apply to the reply too
+                    self._say("refused", f"emote is not allowed in {self.state} ({self.activity.name})")
+                    continue
+                return self._issue(("emote", emote))
             elif kind in MOTION_STEPS:
                 if not allowed(self.state, kind):            # the state's rules (configs/mind/states.toml)
                     self._say("refused", f"{kind} is not allowed in {self.state} ({self.activity.name})")
@@ -331,8 +350,9 @@ class Selection:
             step = self._vary_emote(step)                   # (a trick asked for by name plays as asked)
         if kind in ("pick", "drop"):
             goal = self._goal_xy(step)                   # watches the thing it picks up, or where it puts it down
+            self.gaze_target_xy = tuple(goal) if goal is not None else None
             if goal is not None:
-                self.gaze_target_xy, self.gaze_set_t = tuple(goal), self.t
+                self.gaze_set_t = self.t
                 self.gaze = self._gaze_to(goal)
         self.waiting_motion = True
         self._motion_kind = kind
