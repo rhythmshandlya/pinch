@@ -129,29 +129,12 @@ class Selection:
         parts = {}
         for a in LIBRARY:                                         # book-keeping first: scoring changes nothing
             a.prepare(self)
+        env = dict(ctx=ctx, person=person, clock=clock, daytime=daytime)
         for a in LIBRARY:
             u = a.utility(self)
             why = dict(want=round(u, 3))                          # what made the score (the decision log keeps it)
-            if self.affect.quiet and not a.quiet_ok:
-                u = 0.0
-                why["quiet"] = True
-            if u > 0 and a.name in WANTS:
-                g = self._mood_gate(WANTS[a.name])
-                u *= g
-                why["mood"] = round(g, 2)
-            if u > 0 and daytime.get(a.name, 1.0) != 1.0:
-                u *= daytime[a.name]                              # the day's rhythm
-                why["day"] = daytime[a.name]
-            if u > 0 and not own_block(a.name, clock):
-                u2 = self.learner.shape(a.name, u, ctx, person or self.owner_id(), clock)   # what it was taught
-                if u2 != u:
-                    why["learned"] = round(u2 - u, 3)
-                u = u2
-            elif u > 0 and a.name in LEARNABLE:
-                why["as_itself"] = True                           # (one of its own stretches: learning set aside)
-            if u > 0 and self.suspended and self.suspended[0] == a.name and self.t - self.suspended[1] < self.RESUME_S:
-                u += self.RESUME_BONUS
-                why["resume"] = self.RESUME_BONUS
+            for stage in self.score_stages():
+                u = stage(a, u, why, env)
             parts[a.name] = why
             scores[a.name] = u + 0.02 * (self._own_jitter.random() if a.own_jitter else self.rng.random())
         cur = self.activity
@@ -187,6 +170,52 @@ class Selection:
                         + (" (after an interrupt)" if self._force else ""))
             return True
         return False
+
+    # ---------------------------------------------------------------- the score stages
+    # A choice is each activity's want passed through these stages in order; each may change the score and says
+    # why (the decision log keeps it). extra_stages (empty today) is where a learned scorer or the language-model
+    # director plugs in, after what it was taught and before the resume bonus: same signature, capped by itself.
+    extra_stages = ()
+
+    def score_stages(self):
+        return (self._stage_quiet, self._stage_mood, self._stage_daytime, self._stage_learned,
+                *self.extra_stages, self._stage_resume)
+
+    def _stage_quiet(self, a, u, why, env):
+        if self.affect.quiet and not a.quiet_ok:
+            why["quiet"] = True
+            return 0.0
+        return u
+
+    def _stage_mood(self, a, u, why, env):
+        if u > 0 and a.name in WANTS:
+            g = self._mood_gate(WANTS[a.name])
+            why["mood"] = round(g, 2)
+            return u * g
+        return u
+
+    def _stage_daytime(self, a, u, why, env):
+        k = env["daytime"].get(a.name, 1.0)
+        if u > 0 and k != 1.0:                                    # the day's rhythm
+            why["day"] = k
+            return u * k
+        return u
+
+    def _stage_learned(self, a, u, why, env):
+        if u > 0 and not own_block(a.name, env["clock"]):
+            u2 = self.learner.shape(a.name, u, env["ctx"], env["person"] or self.owner_id(), env["clock"])
+            if u2 != u:
+                why["learned"] = round(u2 - u, 3)                 # what its person's feedback taught it
+            return u2
+        if u > 0 and a.name in LEARNABLE:
+            why["as_itself"] = True                               # (one of its own stretches: learning set aside)
+        return u
+
+    def _stage_resume(self, a, u, why, env):
+        if u > 0 and self.suspended and self.suspended[0] == a.name and self.t - self.suspended[1] < self.RESUME_S:
+            why["resume"] = self.RESUME_BONUS
+            return u + self.RESUME_BONUS
+        return u
 
     def learn_from(self, event):
         """Its person's feedback (praise, scolding, petting) teaches it about what it is doing or just did."""

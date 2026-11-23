@@ -54,3 +54,21 @@ def test_the_log_holds_what_a_learned_chooser_would_need():
         assert k in e, k
     assert any(ep["feedback"] for ep in m.episodes) or (m.episode and m.episode["feedback"])
     assert len(m.choice_log) > 2 * len(m.decisions)          # (choices to keep going are there too)
+
+
+def test_a_new_score_stage_plugs_in_and_explains_itself():
+    """The seam a learned scorer or the language-model director will use: one more stage, logged like the rest."""
+    from pinch.memory import Memory
+    from pinch.mind import Mind
+    m = Mind(memory=Memory(path=None), llm=False, seed=0)
+
+    def director(a, u, why, env):
+        if a.name == "explore" and u > 0:
+            why["director"] = 0.5
+            return u + 0.5
+        return u
+    m.affect.needs.curiosity = 0.9
+    m.extra_stages = (director,)
+    m._choose()
+    assert m.score_parts["explore"].get("director") == 0.5
+    assert max(m.scores, key=m.scores.get) == "explore"

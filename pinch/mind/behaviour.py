@@ -6,13 +6,18 @@ import tomllib
 from functools import cache
 from pathlib import Path
 
+from pinch.settings import load as load_settings
+
 PATH = Path(__file__).resolve().parents[2] / "configs" / "mind" / "behaviour.toml"
 
 
 @cache
 def settings(path=None):
-    with open(path or PATH, "rb") as f:
-        s = tomllib.load(f)
+    if path is None:
+        s = load_settings("behaviour")                # (one loader: pinch/settings.py)
+    else:
+        with open(path, "rb") as f:
+            s = tomllib.load(f)
     order = s["priority"]["order"]
     unknown = {c for c in s["activity"].values() if c not in order}
     if unknown:
@@ -45,9 +50,7 @@ CHANNELS = ("legs", "claws", "gaze", "face", "sound")
 
 @cache
 def states():
-    with open(STATES_PATH, "rb") as f:
-        s = tomllib.load(f)
-    s.pop("version", None)
+    s = {k: v for k, v in load_settings("states").items() if k != "version"}
     for name, st in s.items():
         missing = [k for k in ("sub", "allow", "intent", "interrupt", "on_timeout") if k not in st]
         if missing or set(st["intent"]) != set(CHANNELS):

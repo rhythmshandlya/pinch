@@ -10,18 +10,18 @@ action holds fails with TRACKS_LOCKED; docs/research/v2_1/mind_architecture_note
   * ambient life never refuses or is refused: it fills the parts no one owns, and the parts an owner lets it have.
 """
 
-import tomllib
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
+
+from pinch.settings import load as load_settings
 
 PATH = Path(__file__).resolve().parents[2] / "configs" / "mind" / "channels.toml"
 
 
 @cache
 def config():
-    with open(PATH, "rb") as f:
-        c = tomllib.load(f)
+    c = load_settings("channels")                       # (one loader: pinch/settings.py)
     for kind, s in c["steps"].items():
         bad = (set(s["claims"]) | set(s["ambient"])) - set(c["channels"])
         if bad:
