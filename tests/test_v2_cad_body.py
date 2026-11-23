@@ -4,8 +4,6 @@ about two minutes) runs with `python cad/v2/body_check.py`. Skipped (passes empt
 import functools
 import importlib.util
 import math
-import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -15,24 +13,15 @@ HAVE_CAD = importlib.util.find_spec("build123d") is not None
 
 
 def _isolated(fn):
-    """Run the test in a fresh interpreter with CRAB_DESIGN=v2: the CAD reads the design's numbers when it is imported,
-    and the test runner's own process has today's design (v1) loaded."""
+    """Runs the test only where the CAD library (build123d) is installed; passes empty elsewhere."""
     @functools.wraps(fn)
     def run():
-        if not HAVE_CAD:
-            return
-        params = sys.modules.get("crab.params")
-        if params is not None and params.DESIGN == "v2":
+        if HAVE_CAD:
             return fn()
-        code = f"import sys; sys.path.insert(0, {str(ROOT)!r}); import tests.test_v2_cad_body as t; t.{fn.__name__}.__wrapped__()"
-        r = subprocess.run([sys.executable, "-c", code], env=dict(os.environ, CRAB_DESIGN="v2"), cwd=str(ROOT),
-                           capture_output=True, text=True)
-        assert r.returncode == 0, (r.stdout[-1500:] + r.stderr[-1500:])
     return run
 
 
 def _modules():
-    os.environ["CRAB_DESIGN"] = "v2"
     from cad.v2 import body as B
     from cad.v2 import body_check as C
     return B, C

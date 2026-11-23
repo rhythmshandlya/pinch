@@ -1,5 +1,4 @@
-"""Runs inside a process started with CRAB_DESIGN=v2 (tests/test_v2.py starts it) and prints one JSON object of
-measurements. The design is read once at import, so v2 cannot be tested in the same process as today's design."""
+"""Runs in its own process (tests/test_v2.py starts it) and prints one JSON object of measurements of the robot."""
 
 import json
 import sys
@@ -17,12 +16,12 @@ from crab.params import JOINT_NAMES, JOINT_SERVO, PARAMS, SERVOS  # noqa: E402
 from robot.backends import SimBackend  # noqa: E402
 from robot.servos import SERVO_IDS  # noqa: E402
 
-out = {"design": PARAMS.design, "model_file": PARAMS.model_file, "scale": PARAMS.scale,
+out = {"model_file": PARAMS.model_file, "scale": PARAMS.scale,
        "trot_period": GAITS["trot"].period, "leg_servo": JOINT_SERVO["femur"], "arm_servo": JOINT_SERVO["claw"],
        "servos": sorted(SERVOS)}
 
 # the committed model is what the generator makes now
-sys.argv = ["build_model.py", "--design", "v2"]
+sys.argv = ["build_model.py"]
 sys.path.insert(0, str(ROOT / "sim"))
 import build_model  # noqa: E402
 

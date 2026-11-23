@@ -187,7 +187,7 @@ def _run_one(xml):
 def run(name, c):
     xml = Path(tempfile.mkdtemp()) / "crab_v2.xml"
     e = env_for(c)
-    r = subprocess.run([sys.executable, str(ROOT / "sim" / "build_model.py"), "--design", "v2", "--primitive", "--out", str(xml)],
+    r = subprocess.run([sys.executable, str(ROOT / "sim" / "build_model.py"), "--primitive", "--out", str(xml)],
                        env=e, capture_output=True, text=True)
     if r.returncode:
         return {"error": r.stderr[-400:]}

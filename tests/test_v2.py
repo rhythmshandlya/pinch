@@ -1,9 +1,7 @@
-"""Design v2, the resized STS3215 robot in the twin (docs/dev/V2_MODEL.md): selected explicitly with CRAB_DESIGN=v2,
-today's design untouched. v2 needs its own process (the design is read once at import), so one probe process
-(tests/v2_probe.py) measures everything and these tests read its answers."""
+"""The v2.1 robot in the twin (docs/dev/V2_MODEL.md): its numbers, its model and how it stands and walks. One probe
+process (tests/v2_probe.py) measures everything once and these tests read its answers."""
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -14,8 +12,7 @@ _CACHE = {}
 
 def probe():
     if "r" not in _CACHE:
-        env = dict(os.environ, CRAB_DESIGN="v2")
-        p = subprocess.run([sys.executable, str(ROOT / "tests" / "v2_probe.py")], env=env, capture_output=True,
+        p = subprocess.run([sys.executable, str(ROOT / "tests" / "v2_probe.py")], capture_output=True,
                            text=True, cwd=str(ROOT), timeout=600)
         line = [ln for ln in p.stdout.splitlines() if ln.startswith("PROBE")]
         assert line, f"the v2 probe failed:\n{p.stdout[-1500:]}\n{p.stderr[-2500:]}"
@@ -23,33 +20,17 @@ def probe():
     return _CACHE["r"]
 
 
-def test_todays_design_is_the_default_and_unchanged():
-    from crab.params import DESIGN, JOINT_SERVO, PARAMS, SERVOS
-    assert DESIGN == "v1" and PARAMS.design == "v1" and PARAMS.model_file == "crab.xml"
-    assert "STS3215M6" not in SERVOS and JOINT_SERVO["femur"] == "STS3032"
-    assert PARAMS.leg.tibia_len == 0.052 and PARAMS.gait_period_factor == 1.0 and PARAMS.arm_scale == 1.0
-    from crab.gait import GAITS
-    assert abs(GAITS["trot"].period - 0.9 * 0.52 ** 0.5) < 1e-12
-
-
-def test_v2_is_selected_explicitly_and_has_the_sizing_study_geometry():
+def test_the_robot_has_the_sizing_study_geometry():
     r = probe()
-    assert r["design"] == "v2" and r["model_file"] == "crab_v2.xml"
+    assert r["model_file"] == "crab_v2.xml"
     assert abs(r["scale"] - 0.8) < 1e-9                                       # style B: tibia 80 mm
     assert r["leg_servo"] == "STS3215M6" and r["arm_servo"] == "STS3032T" and "STS3215M6" in r["servos"]   # arms: STS3032 at its torque limit
     assert abs(r["trot_period"] - 0.9 * 0.8 ** 0.5 * 1.5) < 1e-9              # the trot slowed 1.5x
-    try:
-        subprocess.run([sys.executable, "-c", "import crab.params"], env=dict(os.environ, CRAB_DESIGN="v3"),
-                       cwd=str(ROOT), check=True, capture_output=True)
-    except subprocess.CalledProcessError:
-        pass
-    else:
-        raise AssertionError("an unknown design must be refused")
 
 
 def test_v2_model_is_current_and_has_the_right_mass():
     r = probe()
-    assert r["model_is_current"], "sim/models/crab_v2.xml is stale: python sim/build_model.py --design v2"
+    assert r["model_is_current"], "sim/models/crab_v2.xml is stale: python sim/build_model.py"
     assert r["nu"] == 18 and r["njnt"] == 1 + 2 * 18                          # root + 18 servo joints + 18 gear play
     assert 1.90 < r["mass"] < 2.40, r["mass"]                                 # from the CAD: 2.27 kg with the 300 g screen (2.2 is a target, not a limit: owner, 2026-11-23)
     assert 0.62 < r["leg_mass"] < 0.80                                        # 4 legs from the CAD: 12 servos + brackets + crab shins (0.683 kg)

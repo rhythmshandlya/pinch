@@ -1,7 +1,7 @@
 """The Pinch robot for mjlab, built from the project's MJCF (pure mujoco: importable without mjlab or torch).
 
 The robot model file and the servo numbers are both swappable: MODEL names the MJCF (default
-sim/models/crab.xml, today's 12 leg + 6 arm joints) and the servo numbers come from crab/params.py or, for the
+sim/models/crab_v2.xml, its 12 leg + 6 arm joints) and the servo numbers come from crab/params.py or, for the
 measured STS3215, from a BAM file (env_cfg.py). A resized robot only has to keep the joint, foot and site names.
 
 spec() strips what mjlab supplies itself or does not need: the floor and sky, lights, cameras, the CAD display
@@ -52,7 +52,7 @@ def compile_check() -> mujoco.MjModel:
 
 
 def servo_numbers(joint: str) -> dict:
-    """Today's servo model for a joint, from crab/params.py (the numbers crab.xml was generated from)."""
+    """Today's servo model for a joint, from crab/params.py (the numbers the model was generated from)."""
     sv = servo_for(joint)
     return dict(stiffness=sv.kp, effort_limit=sv.force_limit, armature=sv.armature, frictionloss=sv.frictionloss,
                 viscous_damping=sv.damping)

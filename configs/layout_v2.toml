@@ -17,7 +17,7 @@
 
 [meta]
 design = "v2"
-note = "Edit a position, then run `python sim/fit_check.py`; `python sim/build_model.py --design v2` rebuilds the model."
+note = "Edit a position, then run `python sim/fit_check.py`; `python sim/build_model.py` rebuilds the model."
 
 [chassis]
 # Design v2 style B (the owner's "chubbier cartoon crab"): ONE shell, a superellipsoid pill (crab/shapes.py), replaces the

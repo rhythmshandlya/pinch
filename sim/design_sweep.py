@@ -166,7 +166,7 @@ def margins(r):
 def run(c):
     xml = Path(tempfile.mkdtemp()) / "crab_v2.xml"
     e = env_for(c, xml)
-    r = subprocess.run([sys.executable, str(ROOT / "sim" / "build_model.py"), "--design", "v2", "--primitive", "--out", str(xml)],
+    r = subprocess.run([sys.executable, str(ROOT / "sim" / "build_model.py"), "--primitive", "--out", str(xml)],
                        env=e, capture_output=True, text=True)
     if r.returncode:
         return c, {"error": r.stderr[-300:]}

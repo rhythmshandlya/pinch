@@ -1,4 +1,4 @@
-"""Finger-trap check on the real CAD shapes (R-25, children under 6): every joint swept over the range it is used in.
+"""Finger-trap check on the real CAD shapes (the gap rule for small children): every joint swept over the range it is used in.
 
     python cad/v2/gap_check.py                  # one front leg, one rear leg, the left arm (the right side mirrors)
     python cad/v2/gap_check.py --full           # the joints' whole mechanical range
