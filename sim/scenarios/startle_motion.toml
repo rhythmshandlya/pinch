@@ -1,0 +1,49 @@
+# Converted from startle_motion(): something drifting past far away, it watches; something rushing at it, it startles.
+[scenario]
+name = "startle_motion"
+title = "something rushes at it: startles and backs off; something drifting past far away: just watches"
+seconds = 22
+props = ["toy"]
+kinds = ["desk", "table"]
+
+[[event]]
+at = 0.0
+do = "forget_homes"
+
+[[event]]
+name = "drift"
+at = [0.0, 1.0]
+do = "move_prop"
+args = { prop = "toy", path = [[0.33, [-30, -20]], [0.33, [20, 30]]], speed = [0.03, 0.05] }
+
+[[event]]
+name = "hide"
+after = "drift"
+delay = 8.0
+do = "hide_prop"
+args = { prop = "toy" }
+
+[[event]]
+name = "rush"
+after = "hide"
+delay = 8.0
+do = "move_prop"
+args = { prop = "toy", path = [[0.32, [-10, 10]], [0.12, 0]], speed = [0.4, 0.5] }
+
+[[assert]]
+name = "watches the slow one"
+eventually = { activity = "watch" }
+after = "drift"
+until = "hide"
+
+[[assert]]
+name = "no startle at the slow one"
+never = { activity = "startle" }
+after = "drift"
+until = "hide"
+
+[[assert]]
+name = "startles at the fast one"
+eventually = { activity = "startle" }
+after = "rush"
+within = 5

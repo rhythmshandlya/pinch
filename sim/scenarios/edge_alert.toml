@@ -1,0 +1,19 @@
+# Converted from edge_alert(): the ball is about to roll off the front edge, so it raises the alarm.
+[scenario]
+name = "edge_alert"
+title = "something about to fall off the desk: raises the alarm"
+seconds = 25
+kinds = ["desk", "table"]
+
+[[event]]
+at = 0.0
+do = "place"
+args = { thing = "ball", where = { edge = "front", inset = [0.017, 0.025], along = [-0.6, 0.6] } }
+
+[[assert]]
+name = "guards the edge"
+eventually = { activity = "guard_edge" }
+
+[[assert]]
+name = "points at it"
+eventually = { emote = "point" }

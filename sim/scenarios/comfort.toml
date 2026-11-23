@@ -1,0 +1,37 @@
+# Converted from comfort(): you're sad; it comes close, offers a claw, purrs.
+[scenario]
+name = "comfort"
+title = "you're sad: it comes close, offers a claw, purrs"
+seconds = 33
+kinds = ["desk", "table"]
+
+[vars]
+sad = { choice = ["I'm feeling really sad today", "I'm so sad", "today was awful, I feel sad"] }
+
+[[event]]
+name = "sad"
+at = [3.0, 6.0]
+do = "say"
+args = { text = "{sad}" }
+
+[[assert]]
+name = "comforts"
+eventually = { activity = "comfort" }
+after = "sad"
+within = 25
+
+[[assert]]
+name = "offers a claw"
+eventually = { emote = "handshake" }
+after = "sad"
+within = 25
+
+[[assert]]
+name = "purrs"
+eventually = { sound = "purr" }
+after = "sad"
+within = 25
+
+[[assert]]
+name = "ends near you"
+at_end = { near_owner_spot = { dist = 0.08 } }

@@ -52,6 +52,7 @@ def _box(body, pos, half, rgba=None, material=None, euler=(0, 0, 0), friction=No
     if material:
         a["material"] = material
     else:
+        rgba = rgba if rgba is not None else (0.5, 0.5, 0.5)
         a["rgba"] = list(rgba) + [1] if len(rgba) == 3 else list(rgba)
     if friction is not None:
         a["friction"] = [friction, 0.02, 0.001]
@@ -63,12 +64,40 @@ def _rot(x, y, yaw):
     return c * x - s * y, s * x + c * y
 
 
-def furniture(spec, f, H, mats):
-    """A piece of furniture as a static body of boxes (its own frame: x along its width, its back toward +y)."""
+def _seed(*xs):
+    return int(sum(abs(int(round(x * 1000))) * (k + 7) for k, x in enumerate(xs))) % (2**31)
+
+
+def furniture(spec, f, H, mats, models=True):
+    """A piece of furniture (its own frame: x along its width, its back toward +y): a Poly Haven model scaled to
+    its size when fetched (sim/worlds/furniture.py), with simple boxes for contacts; boxes alone otherwise."""
     b = spec.worldbody.add_body(pos=[f["x"], f["y"], -H], euler=[0, 0, f["yaw"]])
     w, d, h, k = f["w"], f["d"], f["h"], f["kind"]
-    wood = mats("wood", f["rgb"], (2, 2))
-    fabric = mats("noise", tuple(np.clip(np.array(f["rgb"]) * [0.6, 0.7, 0.9], 0, 1)), (3, 3))
+    if models:
+        from sim.worlds import furniture as F
+        entry = F.choose(k, w, d, h, _seed(f["x"], f["y"]))
+        if entry is not None:
+            F.add(spec, b, entry, w, d, h, f"furn{len(spec.bodies)}")
+            n0 = len(b.geoms)
+            _furniture_boxes(b, f, w, d, h, k, None, None)
+            for g in list(b.geoms)[n0:]:                     # the boxes stay for contacts, out of sight
+                g.group, g.rgba = 3, [0.5, 0.5, 0.5, 0.0]
+            if k == "tv_stand":
+                tv = F.choose("tv", min(w * 0.7, 1.2), 0.1, 0.6, 1)
+                if tv is not None:
+                    tb = spec.worldbody.add_body(pos=[f["x"], f["y"], -H + h], euler=[0, 0, f["yaw"]])
+                    F.add(spec, tb, tv, min(w * 0.7, 1.2), 0.12, min(w * 0.7, 1.2) * 0.6, f"tv{len(spec.bodies)}")
+            return b
+    _furniture_boxes(b, f, w, d, h, k, mats, None)
+    return b
+
+
+def _furniture_boxes(b, f, w, d, h, k, mats, _):
+    if mats is None:
+        wood = fabric = None
+    else:
+        wood = mats("wood", f["rgb"], (2, 2))
+        fabric = mats("noise", tuple(np.clip(np.array(f["rgb"]) * [0.6, 0.7, 0.9], 0, 1)), (3, 3))
     if k in ("desk", "table", "coffee"):
         _box(b, (0, 0, h - 0.015), (w / 2, d / 2, 0.015), material=wood)
         for sx in (-1, 1):
@@ -87,7 +116,7 @@ def furniture(spec, f, H, mats):
             _box(b, (sx * (w / 2 - 0.1), -0.05, 0.32), (0.1, d / 2 - 0.05, 0.32), material=fabric)
     elif k == "bed":
         _box(b, (0, 0, 0.15), (w / 2, d / 2, 0.15), material=wood)
-        _box(b, (0, -0.03, (h + 0.3) / 2), (w / 2 - 0.02, d / 2 - 0.05, (h - 0.3) / 2), rgba=(0.92, 0.92, 0.95))
+        _box(b, (0, -0.03, (h + 0.3) / 2), (w / 2 - 0.02, d / 2 - 0.05, (h - 0.3) / 2), rgba=(0.92, 0.92, 0.95), material=None)
         _box(b, (0, d / 2 - 0.03, 0.5), (w / 2, 0.03, 0.5), material=wood)
     elif k == "shelf":
         _box(b, (0, d / 2 - 0.01, h / 2), (w / 2, 0.01, h / 2), material=wood)
@@ -98,10 +127,9 @@ def furniture(spec, f, H, mats):
             _box(b, (0, 0, i * (h - 0.02) / n + 0.01), (w / 2, d / 2, 0.01), material=wood)
     elif k == "tv_stand":
         _box(b, (0, 0, h / 2), (w / 2, d / 2, h / 2), material=wood)
-        _box(b, (0, 0.05, h + 0.32), (min(w / 2 - 0.05, 0.6), 0.02, 0.32), rgba=(0.05, 0.05, 0.06))
+        _box(b, (0, 0.05, h + 0.32), (min(w / 2 - 0.05, 0.6), 0.02, 0.32), rgba=(0.05, 0.05, 0.06), material=None)
     else:                                                # wardrobe, counter, nightstand: a block
         _box(b, (0, 0, h / 2), (w / 2, d / 2, h / 2), material=wood)
-    return b
 
 
 def _walls(spec, w, H, mat):
@@ -177,9 +205,11 @@ def _cube_cameras(spec):
         cam.parent.add_camera(name=f"eye_{name}", pos=list(cam.pos), quat=list(q), fovy=90.0)
 
 
-def decorate(spec, w, things=True, people=True, visual=True, fisheye=True):
+def decorate(spec, w, things=True, people=True, visual=True, fisheye=True, models=None):
     """Add world w to the twin's spec (sim/desk.py has already made the desk top, the tray and Pinch's things)."""
     H = w.surface["height"]
+    if models is None:                                     # furniture meshes only where they are seen
+        models = visual
     mats = _Mats(spec, w.tex_seed)
     for li in [li for li in spec.lights if li.parent.name == "world"]:      # crab.xml's demo light: ours instead
         spec.delete(li)
@@ -209,7 +239,18 @@ def decorate(spec, w, things=True, people=True, visual=True, fisheye=True):
     # near clipping: MuJoCo scales it with the model's extent (a whole house), which clipped the desk away from the
     # eye camera 4.6 cm above it. 0.0005 x extent (a few mm) keeps close things in view.
     spec.visual.map.znear = 0.0005
-    if w.kind != "floor":                                  # Pinch's desk/table: legs under the desk top
+    own = None
+    if w.kind != "floor" and models:                       # Pinch's desk/table as a real model with a flat top
+        from sim.worlds import furniture as F
+        hx, hy = w.surface["half_x"], w.surface["half_y"]
+        own = F.choose(w.surface["furniture"], 2 * hx, 2 * hy, H, _seed(hx, hy, H), surface=True)
+        if own is not None:
+            F.add(spec, spec.worldbody.add_body(pos=[0, 0, -H]), own, 2 * hx, 2 * hy, H, "own")
+            for g in spec.geoms:
+                if g.name == "desk_top":                   # contacts as before, the model's top is what is seen
+                    g.rgba = [1, 1, 1, 0]
+                    g.material = ""
+    if w.kind != "floor" and own is None:                  # Pinch's desk/table: legs under the desk top
         hx, hy = w.surface["half_x"], w.surface["half_y"]
         leg = mats("wood", tuple(np.array(w.surface["rgb"]) * 0.8), (1, 1))
         for sx in (-1, 1):
@@ -220,7 +261,7 @@ def decorate(spec, w, things=True, people=True, visual=True, fisheye=True):
             _box(spec.worldbody, (0, hy - 0.02, (-H - 0.03) / 2 + 0.15), (hx - 0.06, 0.01, (H - 0.33) / 2), material=leg,
                  kw=VISUAL)
     for f in w.furniture:
-        furniture(spec, f, H, mats)
+        furniture(spec, f, H, mats, models)
     if w.mat is not None:
         mt = w.mat
         _box(spec.worldbody, (mt["xy"][0], mt["xy"][1], mt["thick"] / 2), (mt["half"][0], mt["half"][1], mt["thick"] / 2),
@@ -247,8 +288,18 @@ def decorate(spec, w, things=True, people=True, visual=True, fisheye=True):
     spec.visual.headlight.ambient = [min(0.6, 0.2 + w.ambient)] * 3             # room light bouncing off the walls
     spec.visual.headlight.diffuse = [min(0.5, 0.25 * lvl)] * 3
     if people:
+        from sim.worlds import humans
+        from sim.worlds.people import seat_of
         imgs = face_images()
+        if w.kind != "floor" and any(p["role"] == "sitter" for p in w.people):    # something to sit on
+            (sx, sy), seat, what = seat_of(w)
+            dims = (0.46, 0.5, 0.9) if what == "chair" else (1.8, 0.85, 0.8)
+            furniture(spec, dict(kind=what, x=sx, y=sy - (0.08 if what == "chair" else 0.15), yaw=np.pi, w=dims[0],
+                                 d=dims[1], h=dims[2], rgb=(0.4, 0.3, 0.25)), H, mats, models)
         for i, p in enumerate(w.people):
+            if humans.available():                       # real bodies (MakeHuman, CC0) when fetched
+                humans.add(spec, i, p)
+                continue
             img = imgs[p["face"] % len(imgs)] if imgs else np.full((64, 64, 3), [200, 160, 130], np.uint8)
             tname = f"face_tex{i}"
             t = spec.add_texture(name=tname, type=mujoco.mjtTexture.mjTEXTURE_2D, width=img.shape[1],

@@ -1,0 +1,64 @@
+# Converted from sim/benches/scenarios.py tricks(): four spoken tricks, each performed within 9 s.
+[scenario]
+name = "tricks"
+title = "obeys tricks: dance, wave, play dead, handshake"
+seconds = 40
+
+[vars]
+dance = { choice = ["dance!", "pinch, dance", "dance for me"] }
+wave = { choice = ["pinch, wave", "wave!", "wave hello"] }
+
+[[event]]
+name = "dance"
+at = [0.0, 1.0]
+do = "say"
+args = { text = "{dance}" }
+
+[[event]]
+name = "wave"
+after = "dance"
+delay = [9.0, 10.0]
+do = "say"
+args = { text = "{wave}" }
+
+[[event]]
+name = "dead"
+after = "wave"
+delay = [9.0, 10.0]
+do = "say"
+args = { text = "play dead" }
+
+[[event]]
+name = "shake"
+after = "dead"
+delay = [9.0, 10.0]
+do = "say"
+args = { text = "shake" }
+
+[[assert]]
+name = "dances"
+eventually = { emote = "dance" }
+after = "dance"
+within = 9
+
+[[assert]]
+name = "waves"
+eventually = { emote = "wave" }
+after = "wave"
+within = 9
+
+[[assert]]
+name = "plays dead"
+eventually = { emote = "play_dead" }
+after = "dead"
+within = 9
+
+[[assert]]
+name = "shakes hands"
+eventually = { emote = "handshake" }
+after = "shake"
+within = 9
+
+[[assert]]
+name = "never falls"
+always = { no_fall = true }

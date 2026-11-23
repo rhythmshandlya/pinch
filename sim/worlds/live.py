@@ -19,10 +19,25 @@ from sim.worlds.people import Person
 CAMERA_HZ = 5.0                      # faces at 5 Hz, as on the robot (pinch/faces.py)
 
 
+def _has(m, body):
+    try:
+        m.body(body)
+        return True
+    except KeyError:
+        return False
+
+
 class Life:
     def __init__(self, sim, camera=False, people=True):
         self.sim, self.w = sim, sim.world
-        self.people = [Person(i, p, self.w) for i, p in enumerate(self.w.people)] if people and self.w else []
+        self.people = []
+        if people and self.w:
+            from sim.worlds import humans
+            for i, p in enumerate(self.w.people):
+                body = None
+                if _has(sim.m, f"person{i}_pelvis"):     # built as a MakeHuman body
+                    body = humans.geometry(*humans.params(p), round(p["height"], 2))
+                self.people.append(Person(i, p, self.w, body=body))
         self.touches = []                 # (t, person index, gesture)
         self.seen = []                    # (t, pid, confidence)
         self.frames = 0

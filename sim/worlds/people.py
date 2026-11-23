@@ -82,6 +82,15 @@ def add_person(spec, i, p, face_material):
                rgba=skin, **vis)
 
 
+def seat_of(world):
+    """Where someone sitting with Pinch sits (surface frame), the seat height above the floor, and on what: at a
+    desk or dining table a chair with knees under it, at a coffee table a sofa behind it."""
+    ox, hy = world.owner_xy[0], world.surface["half_y"]
+    if world.surface["height"] > 0.6:
+        return (ox, -hy - 0.38), 0.46, "chair"
+    return (ox, -hy - 0.62), 0.42, "sofa"
+
+
 def _quat_z_to(v):
     """Quaternion rotating +z onto v."""
     v = np.asarray(v, float)
@@ -109,11 +118,17 @@ class Person:
     reaching to Pinch now and then; role "walker": walks through, and (by style) stops to look and reaches.
     step(t, dt, crab_xyz, crab_vel) poses the bodies and returns a touch gesture when the hand reaches the shell."""
 
-    def __init__(self, i, p, world):
-        self.i, self.p, self.w = i, p, world
+    def __init__(self, i, p, world, body=None):
+        """body: the MakeHuman geometry (sim/worlds/humans.py) when the person is a skinned human, else capsules."""
+        self.i, self.p, self.w, self.body = i, p, world, body
         self.rng = np.random.default_rng(p["seed"])
         self.st = STYLE[p["style"]]
         self.D = dims(p)
+        if body is not None:                                 # the real body's proportions
+            from sim.worlds.humans import lengths
+            L = lengths(body)
+            self.D.update(hip=L["hip"], thigh=L["thigh"], shin=L["shin"], uarm=L["uarm"], farm=L["farm"],
+                          shoulder=L["shoulder"], torso=L["torso"] / 0.95, head=L["head_up"] * 0.45)
         self.floor_z = -world.surface["height"]
         self.hand_speed = self.rng.uniform(*self.st["hand"])
         self.stop = self.rng.uniform(*self.st["stop"])
@@ -122,24 +137,24 @@ class Person:
         self.hand_state, self.hand_t = "rest", 0.0
         self.next_reach = self.rng.exponential(60.0 / max(self.st["reach"], 1e-3))
         self.touched_at = -99.0
+        self.insist = False
         self.enabled = p["role"] == "sitter"
         self.reach_enabled = True
         self.script = []                                   # scenario overrides: (t, action)
-        hy = world.surface["half_y"]
         if p["role"] == "sitter":
             ox, oy = world.owner_xy
             if world.kind == "floor":
                 self.base = np.array([ox, oy])
                 self.seat = self.floor_z + 0.0                 # sitting on the floor
-            elif world.surface["height"] > 0.6:              # at a desk or dining table: knees under it
-                self.base = np.array([ox, -hy - 0.38])
-                self.seat = self.floor_z + 0.46
-            else:                                            # at a coffee table: on a sofa behind it
-                self.base = np.array([ox, -hy - 0.62])
-                self.seat = self.floor_z + 0.42
+            else:
+                (bx, by), seat, _ = seat_of(world)
+                self.base = np.array([bx, by])
+                self.seat = self.floor_z + seat
             self.heading = None
-        else:
+        else:                                              # someone may already be walking by
             self._new_walk(0.0)
+            self.enabled = self.rng.random() < 0.7
+            self.base = self.path[0] + (self.path[1] - self.path[0]) * self.rng.uniform(0.3, 0.8)
         self.hand = None
         self.pose = {}
 
@@ -154,7 +169,13 @@ class Person:
         surf = max(self.w.surface["half_x"], self.w.surface["half_y"])
         across = np.array([-side[1], side[0]])
         d0 = surf + stop
-        self.path = [side * d0 + across * 3.0, side * d0, side * d0 - across * 3.0]
+        room = next((rm for rm in self.w.rooms if rm["x0"] <= 0 <= rm["x1"] and rm["y0"] <= 0 <= rm["y1"]), None)
+
+        def inside(q):                                     # walking stays in Pinch's room (no walking through walls)
+            if room is None:
+                return q
+            return np.array([np.clip(q[0], room["x0"] + 0.35, room["x1"] - 0.35), np.clip(q[1], room["y0"] + 0.35, room["y1"] - 0.35)])
+        self.path = [inside(side * d0 + across * 3.0), inside(side * d0), inside(side * d0 - across * 3.0)]
         self.path_t0, self.dwell = t, r.uniform(*self.st["dwell"])
         self.base = self.path[0].copy()
         self.leg = 0
@@ -203,7 +224,7 @@ class Person:
 
     def reach_now(self, gesture=None):
         """Scenario hook: reach out to Pinch at once (with this gesture, or the style's)."""
-        self.hand_state, self.hand_t, self.forced = "reach", 0.0, gesture
+        self.hand_state, self.hand_t, self.forced, self.insist = "reach", 0.0, gesture, True
 
     def _hand(self, dt, t, crab, crab_moving_toward, face_yaw):
         rest = self._hand_rest(face_yaw)
@@ -219,7 +240,7 @@ class Person:
                 self.hand_state, self.hand_t, self.forced = "reach", 0.0, None
         if self.hand_state == "reach":
             self.hand_t += dt
-            target = crab_top + np.array([0, 0, self.st["hover"]])
+            target = crab_top + np.array([0, 0, 0.0 if self.insist else self.st["hover"]])
             if crab_moving_toward and self.p["style"] == "fearful":
                 self.hand_state = "withdraw"
             elif np.linalg.norm(self.hand - target) < 0.012 or self.hand_t > 8.0:
@@ -228,7 +249,7 @@ class Person:
             self.hand_t += dt
             g = self.forced or self.st["gestures"][int(self.rng.integers(len(self.st["gestures"])))]
             self.forced = g
-            if self.st["hover"] > 0.05:                  # fearful/indifferent: they don't quite touch
+            if self.st["hover"] > 0.05 and not self.insist:   # fearful/indifferent: they don't quite touch
                 target = crab_top + np.array([0, 0, self.st["hover"]])
             else:
                 wig = 0.03 * np.sin(2 * np.pi * (1.0 if g == "stroke" else 2.5) * self.hand_t)
@@ -236,7 +257,7 @@ class Person:
                 if self.hand_t > 0.15 and t - self.touched_at > 1.5:
                     touch, self.touched_at = g, t
             if self.hand_t > (2.0 if g == "stroke" else 0.8):
-                self.hand_state, self.hand_t = "withdraw", 0.0
+                self.hand_state, self.hand_t, self.insist = "withdraw", 0.0, False
         elif self.hand_state == "withdraw":
             speed = self.hand_speed / max(self.st["withdraw"], 0.1) * 0.5
             if np.linalg.norm(self.hand - rest) < 0.02:
@@ -246,6 +267,13 @@ class Person:
         n = float(np.linalg.norm(d))
         if n > 1e-9:
             self.hand = self.hand + d / n * min(n, speed * dt)
+        sh = self._shoulder(face_yaw, right=True)              # a hand stays within arm's reach (+ a lean)
+        r = np.linalg.norm(self.hand - sh)
+        lim = self.D["uarm"] + self.D["farm"] + 0.12
+        if r > lim:
+            self.hand = sh + (self.hand - sh) * lim / r
+        if touch is not None and np.linalg.norm(self.hand - crab_top) > 0.06:
+            touch = None                                       # (it can't get there: no touch)
         return touch
 
     # -- pose ----------------------------------------------------------------------------------------------------
@@ -276,11 +304,14 @@ class Person:
             hip_z = self.floor_z + 0.12 * D["s"]
         self.shoulder_z = hip_z + D["torso"] * 0.95
         P = {}
+        self.targets = T = dict(pelvis=np.array([*self.base, hip_z]), yaw=body_yaw, feet={}, hands={}, look=None,
+                                knee=None, lean=0.0)
         P["torso"] = (np.array([*self.base, hip_z + D["torso"] / 2]), _quat_yaw_pitch(body_yaw))
         head_c = np.array([*self.base, hip_z + D["torso"] + 0.04 * D["s"] + D["head"]])
         dz = crab[2] - head_c[2]
         pitch = float(np.clip(-np.arctan2(dz, np.hypot(*(crab_xy - self.base))), -0.2, 0.7))
         P["head"] = (head_c, _quat_yaw_pitch(look, pitch))
+        T["look"] = (look, pitch)
         # legs: a sinusoidal walk (~25 deg hip swing) or sitting poses
         self.phase += 2 * np.pi * (speed / (1.2 * D["thigh"] + 1e-9)) * dt * 0.5
         c, s = np.cos(body_yaw), np.sin(body_yaw)
@@ -300,6 +331,8 @@ class Person:
                 knee = hip + thigh_dir * D["thigh"]
                 b = a - bend
                 foot = knee + np.array([np.sin(b) * c, np.sin(b) * s, -np.cos(b)]) * D["shin"]
+            T["feet"][side] = foot
+            T["knee"] = fwd + np.array([0, 0, 0.3]) if sitting else fwd
             P["thigh_" + side] = ((hip + knee) / 2, _quat_z_to(knee - hip))
             P["shin_" + side] = ((knee + foot) / 2, _quat_z_to(foot - knee))
         touch = self._hand(dt, t, crab, toward, body_yaw) if self.p["role"] == "sitter" or self.wait_until else None
@@ -328,6 +361,7 @@ class Person:
                 bend = 0.5 * out + np.array([0, 0, -0.85])                             # and down
                 bend = bend - u * (bend @ u)
                 elbow = sh + u * a + bend / (np.linalg.norm(bend) + 1e-9) * hgt
+            T["hands"][side] = wrist
             P["uarm_" + side] = ((sh + elbow) / 2, _quat_z_to(elbow - sh))
             P["farm_" + side] = ((elbow + wrist) / 2, _quat_z_to(wrist - elbow))
         hand_yaw = float(np.arctan2(self.hand[1] - self._shoulder(body_yaw, True)[1],
@@ -338,6 +372,16 @@ class Person:
 
     def apply(self, m, d):
         """Write the pose into the model's mocap bodies (parked far away when the person is not around)."""
+        if self.body is not None:
+            from sim.worlds import humans
+            if not self.pose:
+                humans.park(m, d, self.i, self.body)
+                return
+            if self.hand_state in ("reach", "touch"):
+                self.targets["lean"] = 0.2
+            pos = humans.pose(m, d, self.i, self.body, self.targets)
+            self.pose["head"] = (pos["head"] + np.array([0, 0, 0.09 * self.D["s"]]), self.pose["head"][1])
+            return
         for part in PARTS:
             mid = m.body(f"person{self.i}_{part}").mocapid[0]
             if part in self.pose:

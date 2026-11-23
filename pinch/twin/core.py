@@ -74,6 +74,8 @@ class TwinCore:
         self.mind = Mind(memory=memory if memory is not None else Memory(path=None), llm=llm, seed=seed,
                          clock=lambda: epoch + self.t)
         self.mind.decision_log_path = decision_log
+        if world is not None:                              # the surface it is on (the standard desk is the default)
+            self.mind.world.desk = self.desk
         if self.mind.routine.settings.get("utc_offset_h") is None:
             self.mind.routine.settings["utc_offset_h"] = TWIN_UTC_OFFSET_H
         self._mind_args = dict(llm=llm, seed=seed, epoch=epoch, decision_log=decision_log)
@@ -159,6 +161,7 @@ class TwinCore:
             self.mind = Mind(memory=self.mind.memory, llm=args["llm"], seed=args["seed"],
                              clock=lambda: args["epoch"] + self.t)
             self.mind.decision_log_path = args["decision_log"]
+            self.mind.world.desk = self.desk
             if self.mind.routine.settings.get("utc_offset_h") is None:
                 self.mind.routine.settings["utc_offset_h"] = TWIN_UTC_OFFSET_H
         return not c.computer_up

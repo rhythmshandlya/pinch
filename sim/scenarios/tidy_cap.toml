@@ -1,0 +1,26 @@
+# Converted from tidy_cap(): asked to put the cap away, it pushes it into the tray.
+[scenario]
+name = "tidy_cap"
+title = "tidies: pushes the cap into the desk tray when asked"
+seconds = 200
+kinds = ["desk", "table"]
+
+[[event]]
+at = 0.0
+do = "place"
+args = { thing = "cap", where = { near = "crab", dist = [0.06, 0.14], bearing = [-180, 180] }, home = "tray" }
+
+[[event]]
+name = "ask"
+at = [0.5, 2.0]
+do = "say"
+args = { text = "pinch, put the cap away" }
+
+[[assert]]
+name = "cap in the tray"
+eventually = { in_tray = "cap" }
+after = "ask"
+
+[[assert]]
+name = "never falls"
+always = { no_fall = true }

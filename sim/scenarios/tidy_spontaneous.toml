@@ -1,0 +1,15 @@
+# Converted from tidy_spontaneous(): notices on its own that the eraser is out of place, and tidies it.
+[scenario]
+name = "tidy_spontaneous"
+title = "notices on its own that something is out of place, and tidies it"
+seconds = 240
+kinds = ["desk", "table"]
+
+[[event]]
+at = 0.0
+do = "place"
+args = { thing = "eraser", where = { near = "crab", dist = [0.05, 0.12], bearing = [-180, 180] }, home = "tray" }
+
+[[assert]]
+name = "eraser in the tray, unasked"
+eventually = { in_tray = "eraser" }

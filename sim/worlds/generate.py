@@ -21,6 +21,7 @@ Randomisation ranges follow common indoor domain-randomisation practice (Tobin e
 
 import hashlib
 import json
+import math
 from dataclasses import asdict, dataclass, field
 
 import numpy as np
@@ -134,19 +135,27 @@ def world(split, index):
 
 # ----------------------------------------------------------------------------------------------------- geometry
 def _corners(x, y, yaw, hw, hd):
-    c, s = np.cos(yaw), np.sin(yaw)
+    c, s = math.cos(yaw), math.sin(yaw)
     return np.array([(x + c * a - s * b, y + s * a + c * b) for a, b in ((hw, hd), (-hw, hd), (-hw, -hd), (hw, -hd))])
 
 
+def _pts(x, y, yaw, hw, hd):
+    c, s = math.cos(yaw), math.sin(yaw)
+    return [(x + c * a - s * b, y + s * a + c * b) for a, b in ((hw, hd), (-hw, hd), (-hw, -hd), (hw, -hd))]
+
+
 def _overlap(a, b, gap=0.0):
-    """Do two oriented rectangles (x, y, yaw, half_w, half_d) come closer than gap? (separating axes)"""
-    pa, pb = _corners(*a[:3], a[3] + gap / 2, a[4] + gap / 2), _corners(*b[:3], b[3] + gap / 2, b[4] + gap / 2)
+    """Do two oriented rectangles (x, y, yaw, half_w, half_d) come closer than gap? (separating axes, after a
+    bounding-circle check; plain floats: this runs ~50 times per world)"""
+    if math.hypot(a[0] - b[0], a[1] - b[1]) > math.hypot(a[3], a[4]) + math.hypot(b[3], b[4]) + gap:
+        return False
+    pa, pb = _pts(*a[:3], a[3] + gap / 2, a[4] + gap / 2), _pts(*b[:3], b[3] + gap / 2, b[4] + gap / 2)
     for p in (pa, pb):
         for i in range(2):
-            e = p[i + 1] - p[i]
-            n = np.array([-e[1], e[0]])
-            ra, rb = pa @ n, pb @ n
-            if ra.max() < rb.min() or rb.max() < ra.min():
+            nx, ny = -(p[i + 1][1] - p[i][1]), p[i + 1][0] - p[i][0]
+            ra = [q[0] * nx + q[1] * ny for q in pa]
+            rb = [q[0] * nx + q[1] * ny for q in pb]
+            if max(ra) < min(rb) or max(rb) < min(ra):
                 return False
     return True
 
@@ -251,7 +260,7 @@ def _place_furniture(rng, room, kind, taken, wall=None):
         fp_use = (x - np.sin(yaw) * -reach / 2, y + np.cos(yaw) * -reach / 2, yaw, w / 2, d / 2 + reach / 2) \
             if reach else fp
         hw_ok = all(abs(c[0] - (x0 + x1) / 2) <= (x1 - x0) / 2 + 1e-6 and abs(c[1] - (y0 + y1) / 2) <= (y1 - y0) / 2 + 1e-6
-                    for c in _corners(*fp))
+                    for c in np.vstack([_corners(*fp), _corners(*fp_use)]))       # (the seat in front too)
         if hw_ok and not any(_overlap(fp_use, t, 0.05) for t in taken):
             taken.append(fp_use)
             return dict(kind=kind, x=float(x), y=float(y), yaw=float(yaw), w=float(w), d=float(d), h=float(h))
