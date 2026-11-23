@@ -45,7 +45,17 @@ class FeedbackLearner:
         self.log = []                                   # (t, event, person, {activity: delta}) for the diary, tests
 
     def to_dict(self):
-        return dict(w=self.w, base=self.base, t_decay=self.t_decay)
+        """A copy to save (the live tables keep changing)."""
+        return dict(w={p: {c: dict(a) for c, a in ctx.items()} for p, ctx in self.w.items()}, base=dict(self.base),
+                    t_decay=self.t_decay)
+
+    def forget(self, person=None):
+        """Drop what one person taught it (their id), or everything (None)."""
+        if person is None:
+            self.w, self.base, self.repeats, self.recent = {}, {}, {}, []
+        else:
+            self.w.pop(person, None)
+            self.base.pop(person, None)
 
     # -- what it is doing ------------------------------------------------------------------------------------------
     def ended(self, t, activity):
@@ -53,32 +63,34 @@ class FeedbackLearner:
         if activity in LEARNABLE:
             self.recent = [(t0, a) for t0, a in self.recent if t - t0 <= CFG["window_s"]] + [(t, activity)]
 
-    def credit(self, t, current):
-        """{activity: credit} for feedback given now."""
+    def credit(self, t, current, current_age=1e9):
+        """{activity: credit} for feedback given now. Something that started under JUST_STARTED_S ago gets credit in
+        proportion (a second "no!" right after a scolding is about what came before, not the reaction to it)."""
         c = {}
         for t0, a in self.recent:
             dt = t - t0
             if 0 <= dt <= CFG["window_s"]:
                 c[a] = max(c.get(a, 0.0), math.exp(-dt / CFG["trace_s"]))
         if current in LEARNABLE:
-            c[current] = 1.0
+            c[current] = max(c.get(current, 0.0), min(1.0, current_age / CFG["just_started_s"]))
         return c
 
     # -- feedback --------------------------------------------------------------------------------------------------
-    def feedback(self, event, t, clock, current, ctx, person="owner"):
+    def feedback(self, event, t, clock, current, ctx, person="owner", current_age=1e9):
         """A reward event from a person. Returns {activity: change} (empty if nothing was credited)."""
         r = REWARD.get(event)
         if r is None:
             return {}
-        self.events = [x for x in self.events if t - x < CFG["burst_s"]] + [t]
-        if len(self.events) > CFG["burst_max"]:          # a flurry of pats is one message, not five
-            return {}
+        self.events = [x for x in self.events if t - x < CFG["burst_s"]]
+        if len(self.events) >= CFG["burst_max"] and event in ("stroked", "petted", "tickled"):
+            return {}                                    # a flurry of pats is one message, not five (words still count)
+        self.events.append(t)
         self._fade(clock)
         b = self.base.get(person, 0.0)
         self.base[person] = b + CFG["baseline_rate"] * (r - b)
         adv = r - b
         out = {}
-        for a, k in self.credit(t, current).items():
+        for a, k in self.credit(t, current, current_age).items():
             reps = [x for x in self.repeats.get(a, []) if clock - x < CFG["repeat_s"]]
             self.repeats[a] = reps + [clock]
             step = CFG["rate"] * adv * k * CFG["repeat_discount"] ** len(reps)
@@ -101,15 +113,19 @@ class FeedbackLearner:
         self.t_decay = clock
 
     # -- choosing --------------------------------------------------------------------------------------------------
-    def bias(self, activity, ctx, person="owner"):
+    def bias(self, activity, ctx, person="owner", clock=None):
+        """The learned part for this activity now; faded for the time since the last feedback (it fades whether or
+        not new feedback comes)."""
         if activity not in LEARNABLE:
             return 0.0
         p = self.w.get(person, {})
         b = p.get(ctx, {}).get(activity, 0.0) + p.get("*", {}).get(activity, 0.0)
+        if clock is not None and self.t_decay is not None and clock > self.t_decay:
+            b *= 0.5 ** ((clock - self.t_decay) / (CFG["half_life_days"] * 86400.0))
         return max(-CFG["max_bias"], min(CFG["max_bias"], b))
 
-    def shape(self, activity, u, ctx, person="owner"):
+    def shape(self, activity, u, ctx, person="owner", clock=None):
         """The utility with what it has learned: never a want from nothing, never below floor of its own."""
         if u <= 0 or activity not in LEARNABLE:
             return u
-        return max(CFG["floor"] * u, u + self.bias(activity, ctx, person))
+        return max(CFG["floor"] * u, u + self.bias(activity, ctx, person, clock))

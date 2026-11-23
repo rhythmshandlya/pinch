@@ -44,9 +44,10 @@ def test_a_flurry_counts_once_and_it_fades_without_feedback():
     lr = FeedbackLearner()
     outs = [lr.feedback("stroked", 1.0 + 0.5 * k, 1.0 + 0.5 * k, "play", "evening:here") for k in range(6)]
     assert sum(1 for o in outs if o) == CFG["burst_max"]
-    b0 = lr.bias("play", "evening:here")
-    lr._fade(1.0 + CFG["half_life_days"] * DAY)
-    assert abs(lr.bias("play", "evening:here") - 0.5 * b0) < 0.02 * abs(b0) + 1e-6
+    assert lr.feedback("scolded", 4.5, 4.5, "play", "evening:here")      # words still count in a flurry
+    b0 = lr.bias("play", "evening:here", clock=4.5)
+    later = lr.bias("play", "evening:here", clock=4.5 + CFG["half_life_days"] * DAY)   # no feedback at all since
+    assert abs(later - 0.5 * b0) < 0.02 * abs(b0) + 1e-6
 
 
 def test_two_people_teach_it_different_things_and_it_remembers():
@@ -63,6 +64,7 @@ def test_two_people_teach_it_different_things_and_it_remembers():
 def test_the_mind_learns_from_good_crab_while_it_tidies():
     m = Mind(memory=Memory(path=None), llm=False, clock=lambda: 1.8e9)
     m._start("tidy", "test")
+    m.t += 5.0                                       # (a few seconds into it)
     m.hear_text("good crab")
     assert m.learner.log and "tidy" in m.learner.log[-1][3] and m.learner.log[-1][3]["tidy"] > 0
     assert "learned" in m.memory.data
@@ -78,3 +80,56 @@ def test_it_is_purely_itself_a_fixed_share_of_the_time():
         share = sum(own_block(act, k * CFG["own_block_s"]) for k in range(4000)) / 4000
         assert abs(share - CFG["own_share"]) < 0.03, (act, share)
     assert own_block("play", 1234.0) == own_block("play", 1234.0)          # replays exactly
+
+
+
+def test_what_it_learned_survives_a_restart_and_fades_only_once():
+    import json
+    lr = FeedbackLearner()
+    lr.feedback("praised", 10.0, 1000.0, "tidy", "morning:here")
+    lr.feedback("stroked", 20.0, 1000.0 + 3 * DAY, None, "morning:here")      # credits nothing, still fades
+    again = FeedbackLearner(json.loads(json.dumps(lr.to_dict())))
+    t = 1000.0 + 10 * DAY
+    assert again.bias("tidy", "morning:here", clock=t) == lr.bias("tidy", "morning:here", clock=t)
+
+
+def test_a_just_started_activity_gets_only_part_of_the_credit():
+    lr = FeedbackLearner()
+    assert lr.credit(10.0, "watch", current_age=0.5)["watch"] < 0.5
+    assert lr.credit(10.0, "watch", current_age=5.0)["watch"] == 1.0
+
+
+def _mind_with(people):
+    m = Mind(memory=Memory(path=None), llm=False, clock=lambda: 1.8e9)
+    for pid, owner in people:
+        m.see_person(pid, owner=owner)
+    return m
+
+
+def test_strangers_dont_teach_and_its_persons_lessons_stay_with_a_visitor_about():
+    m = _mind_with([("sam", True)])
+    m.people.people["sam"]["F"] = 1.0
+    m._start("tidy", "test")
+    m.t += 5.0
+    m.hear_text("good crab")
+    assert "sam" in m.learner.w and "owner" not in m.learner.w
+    m.see_person("visitor")                                      # a stranger comes up last
+    assert m.feedback_person() == "sam"                          # its person still counts
+    m2 = _mind_with([("visitor", False)])
+    m2._start("tidy", "test")
+    m2.t += 5.0
+    m2.hear_text("good crab")
+    assert not m2.learner.w                                      # only a stranger here: nothing learned
+
+
+def test_forgetting_a_person_forgets_what_they_taught():
+    m = _mind_with([("sam", True)])
+    m.people.people["sam"]["F"] = 1.0
+    m._start("tidy", "test")
+    m.t += 5.0
+    m.hear_text("good crab")
+    m.forget("person:sam")
+    assert "sam" not in m.learner.w and "sam" not in m.memory.data["learned"]["w"]
+    m.learner.feedback("praised", 50.0, 1.8e9, "play", "morning:here")
+    m.forget("everything")
+    assert not m.learner.w and not m.memory.data["learned"]["w"]

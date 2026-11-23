@@ -135,6 +135,9 @@ class MindCore:
         if present and not self._was_present:
             self.owner_returned_t = self.t
             self.affect.feel("owner_returned")
+            last = self.memory.data["stats"].get("last_seen")
+            self.greet_who = self.owner_id()                # (a return noticed from presence, not a face)
+            self.greet_away_h = (self.world.clock() - last) / 3600.0 if last else 8.0
             self.memory.data["stats"]["last_seen"] = self.world.clock()
             self._say("owner", "my person is back!")
         elif not present and self._was_present:
@@ -175,7 +178,8 @@ class MindCore:
         for activity, need in TASTE.items():
             grew = getattr(n, need) - before[need]
             if grew > 0 and not own_block(activity, clock):             # (in its own stretches, just itself)
-                k = 1.0 + LEARN_CFG["taste_gain"] * self.learner.bias(activity, ctx, person) / LEARN_CFG["max_bias"]
+                b = self.learner.bias(activity, ctx, person or self.owner_id(), clock)
+                k = 1.0 + LEARN_CFG["taste_gain"] * b / LEARN_CFG["max_bias"]
                 setattr(n, need, before[need] + grew * max(0.0, k))
 
     def _fatigue(self, dt, body_busy):
@@ -274,7 +278,7 @@ class MindCore:
         if self.t >= self._glance_until:
             rng = self.__dict__.get("_glance_rng")
             if rng is None:
-                rng = self._glance_rng = np.random.default_rng(0x5EED)
+                rng = self._glance_rng = np.random.default_rng(self.rng.bit_generator.seed_seq.spawn(1)[0])
             x, y, h = self.world.pose
             seen = [xy for _, xy in self.world.things_on_desk()] + [self.world.desk.owner_xy]
             near = [xy for xy in seen

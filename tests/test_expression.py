@@ -293,3 +293,25 @@ def test_rare_quirks_are_rare_and_never_the_same_as_the_last_few():
         assert m.memory.data["quirk_due"] - m.world.clock() >= 8 * 3600     # the next one is hours away
     assert all(seen[i] not in seen[max(0, i - 3):i] for i in range(len(seen)))
     assert len(set(seen)) >= 5
+
+
+
+def test_a_hello_uses_its_own_return_not_the_last_one():
+    from pinch.activities.social import Greet
+    m = _mind()
+    m.memory.data.setdefault("likes", {})["dance"] = 0.5
+    m.greet_who, m.greet_away_h, m.greet_warmth = "ana", 30.0, 0.9
+    list(Greet().run(m))
+    m.greet_warmth = 0.9                                       # a later return with no face seen
+    assert ("phase", "remember") not in list(Greet().run(m))   # the 30 h absence isn't replayed
+
+
+def test_looking_at_whether_a_quirk_is_due_changes_nothing():
+    from pinch.activities.play import Quirk
+    m = _mind()
+    q = Quirk()
+    q.utility(m)
+    state = Quirk._rng(m).bit_generator.state
+    for _ in range(5):
+        q.utility(m)
+    assert Quirk._rng(m).bit_generator.state == state

@@ -14,6 +14,7 @@ class Obey(Activity):
     """Do what my person just asked (tricks, come, sleep, ...)."""
     state, max_s = "social", 120.0
     name, interruptible, min_s = "obey", False, 0.5
+    exact_emotes = True                                    # a trick asked for by name plays as asked
 
     def utility(self, m):
         return 1.6 if m.request else 0.0
@@ -95,6 +96,7 @@ class Greet(Activity):
         return (1.4 + 0.8 * m.greet_warmth) if m.t - m.owner_returned_t < 8 and not m.affect.quiet else 0.0
 
     SIGNATURES = ("wave", "handshake", "excited")          # each person gets their own hello gesture
+    exact_emotes = True                                    # (their gesture, as chosen: no stand-ins)
 
     def run(self, m):
         """A hello that depends on who it is and how long they were away (audit SOC-007; Leite et al. 2013:
@@ -105,6 +107,7 @@ class Greet(Activity):
         m.owner_returned_t = -1e9
         warm, m.greet_warmth = m.greet_warmth, 0.0
         who, away_h = getattr(m, "greet_who", None), getattr(m, "greet_away_h", 8.0)
+        m.greet_who, m.greet_away_h = None, 8.0              # (used once: the next return brings its own)
         sig = self.SIGNATURES[zlib.crc32(str(who).encode()) % len(self.SIGNATURES)] if who else "wave"
         yield ("face", "excited" if warm < 0.6 else "love")
         yield ("sound", "greeting_beep")

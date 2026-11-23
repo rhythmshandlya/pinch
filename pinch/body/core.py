@@ -145,6 +145,8 @@ class BodyCore:
             target = self.life.posture(DT) * mask
             post = getattr(self, "_posture", None)
             post = np.zeros(len(q)) if post is None else post
+            if self.claim is not None and self.claim.layer == "reflex":
+                post = post * mask                           # a reflex (righting, the edge) gets its joints clean now
             self._posture = post + (target - post) * (1 - np.exp(-DT / _POSTURE["fade_s"]))
             q = q + self._posture
         if self.held:

@@ -126,6 +126,7 @@ class Quirk(Activity):
     wearing thin; docs/research/v2_1/longterm/notes.md). Only when it feels safe and not sad (the [wants] gate)."""
     state, max_s = "play", 40.0
     name, min_s = "quirk", 2.0
+    exact_emotes = True
     GAP_H = (8.0, 30.0)                      # hours between quirks (clock time)
     QUIRKS = ("sneeze", "solo_dance", "play_dead_pop", "applause_self", "claw_chase", "big_stretch")
 
@@ -138,7 +139,11 @@ class Quirk(Activity):
 
     def utility(self, m):
         now = m.world.clock()
-        due = m.memory.data.setdefault("quirk_due", now + 3600.0 * self._rng(m).uniform(1.0, self.GAP_H[0]))
+        d = m.memory.data
+        if "quirk_due" not in d:                             # (drawn once, not on every look)
+            d["quirk_due"] = now + 3600.0 * self._rng(m).uniform(1.0, self.GAP_H[0])
+            m.memory.changed()
+        due = d["quirk_due"]
         if now < due or m.affect.quiet or m.state == "sleep":
             return 0.0
         return 0.6
@@ -151,6 +156,7 @@ class Quirk(Activity):
         fresh = [q for q in self.QUIRKS if q not in recent and (q != "solo_dance" or m.affect.valence > 0.2)]
         q = fresh[int(rng.integers(len(fresh)))] if fresh else self.QUIRKS[0]
         m.memory.data["quirks"] = (m.memory.data["quirks"] + [q])[-10:]
+        m.memory.changed()
         yield ("phase", q)
         if q == "sneeze":
             yield ("face", "surprised")

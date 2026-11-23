@@ -28,6 +28,8 @@ class Privacy:
             if pid not in self.people.people:
                 raise KeyError(pid)
             self.forget_person(pid)
+            self.learner.forget(pid)                          # what they taught it goes with them
+            d["learned"] = self.learner.to_dict()
             faces = [pid]
         elif what not in FORGETTABLE:
             raise ValueError(f"can forget {', '.join(FORGETTABLE)} or person:<id>, not {what!r}")
@@ -36,7 +38,9 @@ class Privacy:
             faces = list(self.people.people)
             for pid in faces:
                 self.people.forget(pid)
+                self.learner.forget(pid)
             d["people"] = self.people.to_dict()
+            d["learned"] = self.learner.to_dict()
         if what in ("owner", "everything"):
             d["owner"]["name"] = ""
             d["owner"]["facts"] = []
@@ -55,6 +59,8 @@ class Privacy:
             self.playbook.games, self.playbook.toys = {}, {}
             d["play"] = self.playbook.to_dict()
             d["likes"] = {}
+            self.learner.forget()                             # what feedback taught it about its activities
+            d["learned"] = self.learner.to_dict()
         if what in ("routines", "everything"):
             d["routines"] = {k: [0] * 24 for k in d["routines"]}
         self.memory.changed()

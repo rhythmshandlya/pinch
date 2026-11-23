@@ -6,6 +6,7 @@ version = "4.3"
 learnable = ["play", "show_off", "explore", "investigate", "tidy", "greet", "celebrate", "watch"]
 window_s = 6.0            # something it finished this long ago can still be credited
 trace_s = 3.0             # credit fades with this time constant after the activity ends
+just_started_s = 2.0      # an activity younger than this gets only part of the credit (it may be the reaction)
 rate = 0.03               # utility change per unit of surprise (feedback minus the person's usual)
 baseline_rate = 0.05      # how fast the person's usual feedback is learned
 global_share = 0.5        # a share of each change also applies in every context (the back-off)
@@ -18,7 +19,7 @@ own_block_s = 600.0       # in blocks this long
 half_life_days = 14.0     # without feedback, what it learned fades back toward its own personality
 repeat_s = 600.0          # feedback for the same activity within 10 minutes counts less each time
 repeat_discount = 0.7
-burst_s = 10.0            # more than burst_max feedback events within burst_s: the rest are ignored
+burst_s = 10.0            # more than burst_max pats within burst_s: the rest are ignored (words always count)
 burst_max = 3
 
 [reward]

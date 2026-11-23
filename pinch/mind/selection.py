@@ -64,10 +64,22 @@ class Selection:
         here = "here" if self.world.owner_here(120) else "away"
         return f"{self.routine.part_of_day(self.world.clock())}:{here}"
 
+    def owner_id(self):
+        """Its own person's id (marked as the owner), or "owner" before it has seen them."""
+        return next((pid for pid, p in self.people.people.items() if p.get("owner")), "owner")
+
     def feedback_person(self):
-        """Who the feedback is from, as far as it can tell (the person seen most recently), else its owner."""
-        here = self.people.present(self.world.clock())
-        return max(here, key=lambda k: self.people.seen[k][0]) if here else "owner"
+        """Whose teaching counts now: the person seen most recently if it knows them (familiarity >= 0.3), else
+        its own person - strangers don't teach it, and its person's lessons don't vanish when a visitor is about.
+        None: a stranger is the only one here (their feedback teaches nothing)."""
+        now = self.world.clock()
+        here = self.people.present(now)
+        known = [p for p in here if self.people.people.get(p, {}).get("F", 0.0) >= 0.3]
+        if known:
+            return max(known, key=lambda k: self.people.seen[k][0])
+        if here:                                         # only people it hardly knows in view: not its person's lesson
+            return None
+        return self.owner_id()
 
     def _choose(self):
         scores = {}
@@ -82,7 +94,7 @@ class Selection:
             if u > 0:
                 u *= daytime.get(a.name, 1.0)                     # the day's rhythm
             if u > 0 and not own_block(a.name, clock):
-                u = self.learner.shape(a.name, u, ctx, person)        # what its person's feedback taught it
+                u = self.learner.shape(a.name, u, ctx, person or self.owner_id(), clock)   # what it was taught
             if u > 0 and self.suspended and self.suspended[0] == a.name and self.t - self.suspended[1] < self.RESUME_S:
                 u += self.RESUME_BONUS
             scores[a.name] = u + 0.02 * (self._own_jitter.random() if a.own_jitter else self.rng.random())
@@ -115,11 +127,15 @@ class Selection:
 
     def learn_from(self, event):
         """Its person's feedback (praise, scolding, petting) teaches it about what it is doing or just did."""
+        person = self.feedback_person()
+        if person is None:
+            return
         cur = self.activity.name if self.activity is not None else None
-        out = self.learner.feedback(event, self.t, self.world.clock(), cur, self.learn_context(),
-                                    self.feedback_person())
+        out = self.learner.feedback(event, self.t, self.world.clock(), cur, self.learn_context(), person,
+                                    current_age=self.t - self.started)
+        self.memory.data["learned"] = self.learner.to_dict()           # (saved every time: the fade too)
+        self.memory.changed()
         if out:
-            self.memory.data["learned"] = self.learner.to_dict()
             self._say("learned", f"{event}: " + ", ".join(f"{a} {d:+.3f}" for a, d in out.items()))
 
     def _mood_gate(self, w):
@@ -301,7 +317,7 @@ class Selection:
             if fresh:
                 rng = self.__dict__.get("_emote_rng")
                 if rng is None:
-                    rng = self._emote_rng = np.random.default_rng(0xE307E)
+                    rng = self._emote_rng = np.random.default_rng(self.rng.bit_generator.seed_seq.spawn(1)[0])
                 name = fresh[int(rng.integers(len(fresh)))]
                 step = (step[0], name) + tuple(step[2:])
         self._recent_emotes = (recent + [name])[-8:]
@@ -309,7 +325,7 @@ class Selection:
 
     def _issue(self, step):
         kind = step[0]
-        if kind == "emote" and len(step) > 1 and (self.activity is None or self.activity.name != "obey"):
+        if kind == "emote" and len(step) > 1 and not getattr(self.activity, "exact_emotes", False):
             step = self._vary_emote(step)                   # (a trick asked for by name plays as asked)
         if kind in ("pick", "drop"):
             self.gaze = (0.0, 0.3)                       # (looks down at the claw's work)
