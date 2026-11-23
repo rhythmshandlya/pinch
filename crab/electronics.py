@@ -11,6 +11,7 @@ Part 2, the models, used by robot/backends.py SimBackend (the twin) and sim/benc
 `Realism(data, ...)` bundles them. Everything is seeded: the same seed and the same calls give the same numbers.
 Nothing here imports the rest of the project (crab/ is the lowest layer)."""
 
+import json
 import math
 import os
 import tomllib
@@ -391,6 +392,19 @@ class Part:
         return self.world(centre), h, self.R
 
 
+def _apply_overrides(tree, text):
+    """Layout candidates without editing the file (sim/situations.py): CRAB_LAYOUT_JSON = {"chassis.shell_half_mm":
+    [84, 94, 40], "part.shoulder_l.joint_mm": [60, 40, 5], ...}; each dotted key sets one value."""
+    if not text:
+        return
+    for key, value in json.loads(text).items():
+        node, *path, leaf = key.split(".")
+        d = tree[node]
+        for p in path:
+            d = d[p]
+        d[leaf] = value
+
+
 class Layout:
     """configs/layout_v2.toml: the chassis, every part's outline, mass and place, with where each number came from."""
 
@@ -398,6 +412,7 @@ class Layout:
         self.path = Path(path) if path else LAYOUT_PATH
         with open(self.path, "rb") as f:
             self.tree = tomllib.load(f)
+        _apply_overrides(self.tree, os.environ.get("CRAB_LAYOUT_JSON"))
         self.chassis = self.tree["chassis"]
         self.rules = self.tree["rules"]
         self.parts = {n: Part(n, d) for n, d in self.tree["part"].items()}

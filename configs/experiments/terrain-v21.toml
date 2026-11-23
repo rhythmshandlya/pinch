@@ -1,0 +1,25 @@
+[experiment]
+name = "terrain-v21"
+env = "terrain_hard"
+preset = "gait_v2"
+design = "v2"
+init_from = "/home/armaan/pinch-jobs/terrain-v21b/out/terrain-v21b/params.pkl"   # warm start: the 20 M-step check on the CAD body (sideways bars to 20 mm, forward to 10-12 mm)
+description = "quick check of design v2.1 (design sweep winner): can a learned walker cross bars to 15 mm and ramps to 21 deg on this body (R-04)"
+
+[overrides]
+num_timesteps = 60_000_000     # forward bars to 15 mm (msi-1: about 3 500 steps/s, ~5 h)
+num_evals = 10
+
+[compute]
+min_vram_gb = 6
+small_gpu_num_envs = 2048
+timeout_min = 1440
+gpu = "A10G"
+cloud_ok = false               # free GPUs only (msi-1); paid compute needs the owner's yes
+
+[eval]
+skill = "gait"
+commands = [
+  "sim/benches/hurdles.py --policy {candidate}",
+  "sim/benches/robustness.py --what walk --world terrain --episodes 40",
+]

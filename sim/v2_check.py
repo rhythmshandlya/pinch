@@ -33,7 +33,7 @@ from sim.latency import DelayLine  # noqa: E402
 if PARAMS.design != "v2":
     sys.exit("sim/v2_check.py checks design v2: run it without CRAB_DESIGN set to anything but v2")
 
-MODEL = ROOT / "sim" / "models" / PARAMS.model_file
+MODEL = Path(os.environ["CRAB_MODEL_PATH"]) if os.environ.get("CRAB_MODEL_PATH") else ROOT / "sim" / "models" / PARAMS.model_file   # a candidate (sim/situations.py)
 LEGS = [i for i, j in enumerate(JOINT_NAMES) if j[0] in "FR" and j[1] in "LR"]          # the 12 leg joints
 SPEC = JOINT_SPECS[LEGS[0]]
 DS_STALL, RATED, VMAX = SPEC.datasheet_stall, SPEC.rated_torque, SPEC.max_cmd_speed

@@ -47,7 +47,7 @@ def joint_limits():
     r = []
     for j in JOINT_NAMES:
         side, kind = j.split("_", 1)
-        r.append({"coxa": L.coxa_range_for(side), "femur": L.femur_range, "tibia": L.tibia_range,
+        r.append({"coxa": L.coxa_range_for(side), "femur": L.femur_range_for(side), "tibia": L.tibia_range,
                   "shoulder_yaw": A.shoulder_yaw_range, "shoulder_pitch": A.shoulder_pitch_range,
                   "claw": A.claw_range}[kind])
     r = np.array(r)
@@ -132,6 +132,14 @@ class Crab:
         self._check_health()
         return self.q_cmd
 
+    servo_temp = {}                                  # joint -> C, refreshed every 0.2 s by the health check
+
+    @property
+    def hottest_leg_c(self):
+        """The hottest leg servo's reported temperature (C), or None before the first reading."""
+        legs = [v for j, v in self.servo_temp.items() if j.split("_", 1)[1] in ("coxa", "femur", "tibia")]
+        return max(legs) if legs else None
+
     arm_blocks = 0                                   # how often the arm guard held the arms
     bad_targets = 0                                  # how often a NaN / infinite / mis-sized target was held
     paused = False                                   # a user emergency stop is on (pause / resume)
@@ -171,6 +179,8 @@ class Crab:
         if int(round(self.t / DT)) % 10:                   # every 0.2 s is plenty
             return
         _, st = self.read_joints()
+        self.servo_temp = {JOINT_NAMES[i]: float(st[SERVO_IDS[j]].temperature) for i, j in enumerate(JOINT_NAMES)
+                           if st[SERVO_IDS[j]].feedback}       # C, what each bus servo reports (the mind reads it)
         st = [s for s in st.values() if s.feedback]          # only bus servos report volts and heat
         volts = min(s.voltage for s in st)
         temp = max(s.temperature for s in st)

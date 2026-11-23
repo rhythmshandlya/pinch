@@ -193,7 +193,7 @@ id = "electrode_head"
 kind = "electrode"
 from_part = "mpr121"
 to_part = "pad_head"
-connectors = []
+connectors = ["jst"]   # the JST-PH pair at the cover's seam: the cover lifts off without cutting it
 note = "28 AWG from MPR121 electrode input to the copper pad of zone head; the claw zones are wired through the arms"
 
 [[link]]
@@ -201,7 +201,7 @@ id = "electrode_back_left"
 kind = "electrode"
 from_part = "mpr121"
 to_part = "pad_back_left"
-connectors = []
+connectors = ["jst"]   # the JST-PH pair at the cover's seam: the cover lifts off without cutting it
 note = "28 AWG from MPR121 electrode input to the copper pad of zone back_left; the claw zones are wired through the arms"
 
 [[link]]
@@ -209,7 +209,7 @@ id = "electrode_back_right"
 kind = "electrode"
 from_part = "mpr121"
 to_part = "pad_back_right"
-connectors = []
+connectors = ["jst"]   # the JST-PH pair at the cover's seam: the cover lifts off without cutting it
 note = "28 AWG from MPR121 electrode input to the copper pad of zone back_right; the claw zones are wired through the arms"
 
 [[link]]
@@ -217,7 +217,7 @@ id = "electrode_side_left"
 kind = "electrode"
 from_part = "mpr121"
 to_part = "pad_side_left"
-connectors = []
+connectors = ["jst"]   # the JST-PH pair at the cover's seam: the cover lifts off without cutting it
 note = "28 AWG from MPR121 electrode input to the copper pad of zone side_left; the claw zones are wired through the arms"
 
 [[link]]
@@ -225,7 +225,7 @@ id = "electrode_side_right"
 kind = "electrode"
 from_part = "mpr121"
 to_part = "pad_side_right"
-connectors = []
+connectors = ["jst"]   # the JST-PH pair at the cover's seam: the cover lifts off without cutting it
 note = "28 AWG from MPR121 electrode input to the copper pad of zone side_right; the claw zones are wired through the arms"
 
 [[link]]
@@ -233,7 +233,7 @@ id = "electrode_face"
 kind = "electrode"
 from_part = "mpr121"
 to_part = "pad_face"
-connectors = []
+connectors = ["jst"]   # the JST-PH pair at the cover's seam: the cover lifts off without cutting it
 note = "28 AWG from MPR121 electrode input to the copper pad of zone face; the claw zones are wired through the arms"
 
 [[link]]
@@ -640,7 +640,7 @@ from = "RAIL_3V3"
 to = "N_mic_l"
 awg = 28
 length_mm = "auto"
-connectors = ["dupont"]
+connectors = ["dupont", "jst"]   # the JST-PH pair at the cover's seam: the cover lifts off without cutting it
 parts = ["radxa", "mic_l"]
 note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
 
@@ -650,7 +650,7 @@ from = "RAIL_3V3"
 to = "N_mic_r"
 awg = 28
 length_mm = "auto"
-connectors = ["dupont"]
+connectors = ["dupont", "jst"]   # the JST-PH pair at the cover's seam: the cover lifts off without cutting it
 parts = ["radxa", "mic_r"]
 note = "3.3 V and ground from the Radxa header (pins 1 / 17, ground 14 / 20 / 25 / 30 / 34 / 39)"
 
@@ -934,5 +934,5 @@ current = "load.pogo_charge_a"
 
 # ---- parts that need no wire of their own in this file ---------------------------------------------------------------
 [coverage]
-exempt = ["harness", "radxa_heatsink", "camera_lens", "visor"]
-exempt_why = "the harness is the wiring itself; the heatsink, the lens barrel and the visor are mounted on a part that is wired"
+exempt = ["harness", "radxa_heatsink", "camera_lens", "visor", "fasteners"]
+exempt_why = "the harness is the wiring itself; the heatsink, the lens barrel and the visor are mounted on a part that is wired; the fasteners are the screws and inserts (mass only)"

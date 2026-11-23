@@ -235,6 +235,7 @@ class Leg:
     coxa_range: tuple = (radians(-55), radians(49))           # rear legs: swung forward, the thigh meets the body (CAD)
     front_coxa_range: tuple = (radians(-55), radians(28))     # forward swing: front leg meets the arm (CAD)
     femur_range: tuple = (radians(-40), radians(86))          # lifted higher, the knee meets the shell (CAD)
+    front_femur_range: tuple = ()                             # v2: the front thighs stop below the face lid
     tibia_range: tuple = (radians(-133), radians(30))         # folded further, the foot hits the hip (CAD)
     # femur + tibia (the shin's angle from horizontal): folded back past -125 deg the shin's underside
     # meets the bottom corner of the hip link (CAD sweep, sideways crawl); 3 deg margin
@@ -242,6 +243,9 @@ class Leg:
 
     def coxa_range_for(self, leg_id: str) -> tuple:
         return self.front_coxa_range if leg_id[0] == "F" else self.coxa_range
+
+    def femur_range_for(self, leg_id: str) -> tuple:
+        return self.front_femur_range if leg_id[0] == "F" and self.front_femur_range else self.femur_range
 
 
 @dataclass(frozen=True)
@@ -319,7 +323,11 @@ def _v2_params() -> CrabParams:
               thigh_r=thigh_r, shin_r0=shin_r0, shin_r1=shin_r1, foot_mass=foot_mass,
               coxa_mass=0.0213 + sv,                                          # printed link + the thigh servo (as v1)
               femur_mass=printed_mass(area(tv, tf)) + sv,                     # the thigh cover + the knee servo
-              tibia_mass=printed_mass(area(sv_, sf_)) + foot_mass)            # the shin cover + the ball
+              tibia_mass=printed_mass(area(sv_, sf_)) + foot_mass,            # the shin cover + the ball
+              femur_range=(radians(-40), radians(70)))
+    # the legs keep their full ranges (owner, 2026-11-22: the CAD round's caps restricted the movements), except the
+    # thigh's lift: past 70 deg the upright knee servo swings in over the shell's top (CAD: 10 cm3 of the cover in the
+    # way at 86 deg, 0.6 at 70); walking and every move use up to 62 deg. Arm swing from CRAB_ARM_YAW_DEG if a candidate sets it
     lay = Layout()
     ch = lay.chassis
     mm = lambda v: tuple(x / 1000.0 for x in v)     # noqa: E731
@@ -333,12 +341,14 @@ def _v2_params() -> CrabParams:
                 lid_tilt=lay.lid_tilt, lid_hinge=mm(ch["lid_hinge_mm"]), lid_mass=lay["visor"].mass_g / 1000.0)
     sh = lay["shoulder_l"]
     # arms: the printed bones and palm only (12 g); the three STS3032 per arm are added by the model builder
-    arm = Arm(shoulder_offset=0.024, upper_len=0.045, finger_len=0.036, upper_mass=0.012, jaw_mass=0.003,
-              shoulder_mass=0.008, shoulder_yaw_range=(radians(-8), radians(20)), claw_range=(radians(0), radians(95)))
+    arm = Arm(shoulder_offset=0.0427, upper_len=0.045, finger_len=0.036, upper_mass=0.012, jaw_mass=0.003,
+              shoulder_mass=0.008, shoulder_yaw_range=tuple(radians(float(v)) for v in os.environ.get("CRAB_ARM_YAW_DEG", "-5,80").split(",")),
+              claw_range=(radians(0), radians(74)),         # v2.1: wider, the moving jaw's web meets the palm (CAD)
+              shoulder_pitch_range=tuple(radians(float(v)) for v in os.environ.get("CRAB_ARM_PITCH_DEG", "-70,72").split(",")))
     return CrabParams(body=body, leg=leg, arm=arm,
                       leg_mounts={"F": ((0.0352, 0.068, 0.0), radians(64)),
                                   "R": ((-0.0352, 0.068, 0.0), radians(116))},
-                      arm_mount=(tuple(float(v) / 1000 for v in sh.pos), 0.0),
+                      arm_mount=(tuple(float(v) / 1000 for v in sh.d.get("joint_mm", sh.pos)), 0.0),
                       bus_voltage=7.4, design="v2", model_file="crab_v2.xml",
                       gait_period_factor=1.5, arm_scale=1.5)
 

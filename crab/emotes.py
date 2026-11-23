@@ -28,9 +28,15 @@ if DESIGN == "v2":
     # arms straight ahead (docs/dev/V2_MODEL.md)
     import math as _m
     import os as _os
-    _thigh, _shin = float(_os.environ.get("CRAB_THIGH_DEG", "35")), float(_os.environ.get("CRAB_SHIN_DEG", "85"))
-    STAND_DICT.update({"*_femur": _m.radians(_thigh), "*_tibia": -_m.radians(_shin + _thigh),
+    _thigh, _shin = float(_os.environ.get("CRAB_THIGH_DEG", "0")), float(_os.environ.get("CRAB_SHIN_DEG", "85"))   # v2.1: thighs level (owner, 2026-11-23: more ground clearance; was 5 deg up, belly 35 mm)
+    # the hips swung forward at stand so the feet sit under the centre of mass (18.7 mm ahead of the body's middle:
+    # the 300 g face screen): even load on the four thighs instead of 62 % on the front pair
+    _coxa = float(_os.environ.get("CRAB_COXA_FWD_DEG", "12.5"))   # 22/22 moves in the limits (0: 16/22 with level thighs)
+    STAND_DICT.update({"*_coxa": _m.radians(_coxa), "*_femur": _m.radians(_thigh), "*_tibia": -_m.radians(_shin + _thigh),
                        "*_shoulder_yaw": 0.0, "*_shoulder_pitch": 0.35})
+
+
+TALL_STANCE = DESIGN == "v2" and STAND_DICT["*_femur"] < 0.349     # thighs under 20 deg up
 
 
 def pose(*overrides) -> np.ndarray:
@@ -50,7 +56,11 @@ def pose(*overrides) -> np.ndarray:
 
 
 def crouch(amount: float, legs: str = "*") -> dict:
-    """Lower the body by lifting knees while keeping tibias near vertical."""
+    """Lower the body by lifting knees while keeping tibias near vertical. In a tall stance (v2 with the thighs under
+    20 deg, design v2.1) the body never rises above it: a stretch there loads the thighs past the heat limit (scared,
+    yawn and sneeze measured 73-83 % of rated RMS), so the arms carry the stretch."""
+    if TALL_STANCE and amount < 0:
+        amount = 0.0
     return {f"{legs}_femur": STAND_DICT["*_femur"] + amount, f"{legs}_tibia": STAND_DICT["*_tibia"] - amount}
 
 
@@ -205,7 +215,7 @@ def _build() -> dict:
     # scared: drops low, claws up as a shield, trembles
     cower = pose(crouch(0.36), {"*_shoulder_pitch": 0.55, "*_shoulder_yaw": 0.0, "*_claw": 0.0})
     E["scared"] = Emote("scared", _seq(
-        [(0.0, STAND), (0.25, cower)]
+        [(0.0, STAND), (0.45 if TALL_STANCE else 0.25, cower)]          # tall stance: a slower drop (thigh heat)
         + [(0.12, pose(cower, {"?L_coxa": 0.04 * s, "?R_coxa": -0.04 * s})) for s in (1, -1) * 5]
         + [(1.0, cower), (1.0, STAND)]))
 
@@ -229,7 +239,7 @@ def _build() -> dict:
     pre = pose(crouch(-0.06, "F?"), crouch(0.06, "R?"), {"*_shoulder_pitch": 0.6})
     choo = pose(crouch(0.22, "F?"), {"*_shoulder_pitch": 0.1, "*_claw": 0.5})
     E["sneeze"] = Emote("sneeze", _seq([(0.0, STAND), (0.5, pre), (0.4, pose(pre, {"*_shoulder_pitch": 0.75})),
-                                        (0.22, choo), (0.5, choo), (0.7, STAND)]))
+                                        (0.35 if TALL_STANCE else 0.22, choo), (0.5, choo), (0.7, STAND)]))
 
     # look around: turns the body left and right on planted feet (all coxas together)
     left, right = pose({"?L_coxa": 0.22, "?R_coxa": -0.22}), pose({"?L_coxa": -0.22, "?R_coxa": 0.22})
@@ -289,7 +299,7 @@ def joint_limits(margin=0.0):
     r = []
     for j in JOINT_NAMES:
         side, kind = j.split("_", 1)
-        r.append({"coxa": L.coxa_range_for(side), "femur": L.femur_range, "tibia": L.tibia_range,
+        r.append({"coxa": L.coxa_range_for(side), "femur": L.femur_range_for(side), "tibia": L.tibia_range,
                   "shoulder_yaw": A.shoulder_yaw_range, "shoulder_pitch": A.shoulder_pitch_range,
                   "claw": A.claw_range}[kind])
     r = np.array(r)

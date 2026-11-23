@@ -1,0 +1,2497 @@
+{
+ "bodies": {
+  "body": {
+   "mass": 1.308144841555531,
+   "com": [
+    0.013946371094593728,
+    -0.0033394699797743284,
+    0.02107738961251832
+   ],
+   "inertia": [
+    0.006387384963420673,
+    0.0051806723004823915,
+    0.00461585958842629,
+    -8.6271616683776e-05,
+    -0.0011313208549288032,
+    -0.00014999727638484887
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_body_tray",
+     "file": "v2/body_tray.stl",
+     "material": "shell"
+    },
+    {
+     "mesh": "v2_body_cover",
+     "file": "v2/body_cover.stl",
+     "material": "shell"
+    },
+    {
+     "mesh": "v2_body_battery_door",
+     "file": "v2/body_battery_door.stl",
+     "material": "shell"
+    },
+    {
+     "mesh": "v2_body_deck",
+     "file": "v2/body_deck.stl",
+     "material": "shell"
+    },
+    {
+     "mesh": "v2_body_lid",
+     "file": "v2/body_lid.stl",
+     "material": "shell"
+    },
+    {
+     "mesh": "v2_body_lid_back",
+     "file": "v2/body_lid_back.stl",
+     "material": "shell"
+    },
+    {
+     "mesh": "v2_body_panel",
+     "file": "v2/body_panel.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_FL_hip_servo",
+     "file": "v2/body_FL_hip_servo.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_FR_hip_servo",
+     "file": "v2/body_FR_hip_servo.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_RL_hip_servo",
+     "file": "v2/body_RL_hip_servo.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_RR_hip_servo",
+     "file": "v2/body_RR_hip_servo.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_L_yaw_servo",
+     "file": "v2/body_L_yaw_servo.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_R_yaw_servo",
+     "file": "v2/body_R_yaw_servo.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_pack_cell0",
+     "file": "v2/body_pack_cell0.stl",
+     "material": "battery"
+    },
+    {
+     "mesh": "v2_body_pack_cap0",
+     "file": "v2/body_pack_cap0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_pack_cell1",
+     "file": "v2/body_pack_cell1.stl",
+     "material": "battery"
+    },
+    {
+     "mesh": "v2_body_pack_cap1",
+     "file": "v2/body_pack_cap1.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_pack_bms",
+     "file": "v2/body_pack_bms.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_pack_fet",
+     "file": "v2/body_pack_fet.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_xt60_body",
+     "file": "v2/body_xt60_body.stl",
+     "material": "battery"
+    },
+    {
+     "mesh": "v2_body_xt60_lead",
+     "file": "v2/body_xt60_lead.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_fuse_holder",
+     "file": "v2/body_fuse_holder.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_fuse_blade",
+     "file": "v2/body_fuse_blade.stl",
+     "material": "battery"
+    },
+    {
+     "mesh": "v2_body_ina_pcb",
+     "file": "v2/body_ina_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_ina_c0",
+     "file": "v2/body_ina_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_ina_c1",
+     "file": "v2/body_ina_c1.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_ina_c2",
+     "file": "v2/body_ina_c2.stl",
+     "material": "connector"
+    },
+    {
+     "mesh": "v2_body_ina_c3",
+     "file": "v2/body_ina_c3.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_reg_a_pcb",
+     "file": "v2/body_reg_a_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_reg_a_c0",
+     "file": "v2/body_reg_a_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_reg_a_c1",
+     "file": "v2/body_reg_a_c1.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_reg_a_c2",
+     "file": "v2/body_reg_a_c2.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_reg_a_c3",
+     "file": "v2/body_reg_a_c3.stl",
+     "material": "connector"
+    },
+    {
+     "mesh": "v2_body_reg_a_c4",
+     "file": "v2/body_reg_a_c4.stl",
+     "material": "connector"
+    },
+    {
+     "mesh": "v2_body_reg_a_c5",
+     "file": "v2/body_reg_a_c5.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_reg_b_pcb",
+     "file": "v2/body_reg_b_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_reg_b_c0",
+     "file": "v2/body_reg_b_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_reg_b_c1",
+     "file": "v2/body_reg_b_c1.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_reg_b_c2",
+     "file": "v2/body_reg_b_c2.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_reg_b_c3",
+     "file": "v2/body_reg_b_c3.stl",
+     "material": "connector"
+    },
+    {
+     "mesh": "v2_body_reg_b_c4",
+     "file": "v2/body_reg_b_c4.stl",
+     "material": "connector"
+    },
+    {
+     "mesh": "v2_body_reg_b_c5",
+     "file": "v2/body_reg_b_c5.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_hub_pcb",
+     "file": "v2/body_hub_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_hub_c0",
+     "file": "v2/body_hub_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_hub_c1",
+     "file": "v2/body_hub_c1.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_hub_c2",
+     "file": "v2/body_hub_c2.stl",
+     "material": "connector"
+    },
+    {
+     "mesh": "v2_body_hub_c3",
+     "file": "v2/body_hub_c3.stl",
+     "material": "connector"
+    },
+    {
+     "mesh": "v2_body_hub_c4",
+     "file": "v2/body_hub_c4.stl",
+     "material": "connector"
+    },
+    {
+     "mesh": "v2_body_hub_c5",
+     "file": "v2/body_hub_c5.stl",
+     "material": "connector"
+    },
+    {
+     "mesh": "v2_body_hub_c6",
+     "file": "v2/body_hub_c6.stl",
+     "material": "connector"
+    },
+    {
+     "mesh": "v2_body_hub_c7",
+     "file": "v2/body_hub_c7.stl",
+     "material": "connector"
+    },
+    {
+     "mesh": "v2_body_hub_c8",
+     "file": "v2/body_hub_c8.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_driver_s0",
+     "file": "v2/body_driver_s0.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_driver_s7",
+     "file": "v2/body_driver_s7.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s10",
+     "file": "v2/body_driver_s10.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s11",
+     "file": "v2/body_driver_s11.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s12",
+     "file": "v2/body_driver_s12.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s13",
+     "file": "v2/body_driver_s13.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s14",
+     "file": "v2/body_driver_s14.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s15",
+     "file": "v2/body_driver_s15.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s16",
+     "file": "v2/body_driver_s16.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s17",
+     "file": "v2/body_driver_s17.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s18",
+     "file": "v2/body_driver_s18.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s25",
+     "file": "v2/body_driver_s25.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s44",
+     "file": "v2/body_driver_s44.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s46",
+     "file": "v2/body_driver_s46.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s47",
+     "file": "v2/body_driver_s47.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s48",
+     "file": "v2/body_driver_s48.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s49",
+     "file": "v2/body_driver_s49.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s55",
+     "file": "v2/body_driver_s55.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s58",
+     "file": "v2/body_driver_s58.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s60",
+     "file": "v2/body_driver_s60.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s61",
+     "file": "v2/body_driver_s61.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s82",
+     "file": "v2/body_driver_s82.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s88",
+     "file": "v2/body_driver_s88.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s89",
+     "file": "v2/body_driver_s89.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s90",
+     "file": "v2/body_driver_s90.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s91",
+     "file": "v2/body_driver_s91.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s92",
+     "file": "v2/body_driver_s92.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s93",
+     "file": "v2/body_driver_s93.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s94",
+     "file": "v2/body_driver_s94.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s95",
+     "file": "v2/body_driver_s95.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s99",
+     "file": "v2/body_driver_s99.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s100",
+     "file": "v2/body_driver_s100.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s101",
+     "file": "v2/body_driver_s101.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s102",
+     "file": "v2/body_driver_s102.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s103",
+     "file": "v2/body_driver_s103.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s104",
+     "file": "v2/body_driver_s104.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s105",
+     "file": "v2/body_driver_s105.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s106",
+     "file": "v2/body_driver_s106.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s107",
+     "file": "v2/body_driver_s107.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s108",
+     "file": "v2/body_driver_s108.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_driver_s109",
+     "file": "v2/body_driver_s109.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_radxa_s0",
+     "file": "v2/body_radxa_s0.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_imu_pcb",
+     "file": "v2/body_imu_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_imu_c0",
+     "file": "v2/body_imu_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_imu_c1",
+     "file": "v2/body_imu_c1.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_mpr121_pcb",
+     "file": "v2/body_mpr121_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_mpr121_c0",
+     "file": "v2/body_mpr121_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mpr121_c1",
+     "file": "v2/body_mpr121_c1.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_amp_s0",
+     "file": "v2/body_amp_s0.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_amp_s1",
+     "file": "v2/body_amp_s1.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s2",
+     "file": "v2/body_amp_s2.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s3",
+     "file": "v2/body_amp_s3.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s4",
+     "file": "v2/body_amp_s4.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s5",
+     "file": "v2/body_amp_s5.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s6",
+     "file": "v2/body_amp_s6.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s7",
+     "file": "v2/body_amp_s7.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s8",
+     "file": "v2/body_amp_s8.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s9",
+     "file": "v2/body_amp_s9.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s10",
+     "file": "v2/body_amp_s10.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s11",
+     "file": "v2/body_amp_s11.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s12",
+     "file": "v2/body_amp_s12.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s13",
+     "file": "v2/body_amp_s13.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s14",
+     "file": "v2/body_amp_s14.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s15",
+     "file": "v2/body_amp_s15.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_amp_s16",
+     "file": "v2/body_amp_s16.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_radxa_heatsink_base",
+     "file": "v2/body_radxa_heatsink_base.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_radxa_heatsink_fin0",
+     "file": "v2/body_radxa_heatsink_fin0.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_radxa_heatsink_fin1",
+     "file": "v2/body_radxa_heatsink_fin1.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_radxa_heatsink_fin2",
+     "file": "v2/body_radxa_heatsink_fin2.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_radxa_heatsink_fin3",
+     "file": "v2/body_radxa_heatsink_fin3.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_radxa_heatsink_fin4",
+     "file": "v2/body_radxa_heatsink_fin4.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_radxa_heatsink_fin5",
+     "file": "v2/body_radxa_heatsink_fin5.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_camera_pcb",
+     "file": "v2/body_camera_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_camera_lens_holder",
+     "file": "v2/body_camera_lens_holder.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_camera_lens_barrel",
+     "file": "v2/body_camera_lens_barrel.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_camera_lens_glass",
+     "file": "v2/body_camera_lens_glass.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_tof8_pcb",
+     "file": "v2/body_tof8_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_tof8_sensor",
+     "file": "v2/body_tof8_sensor.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_tof_fl_pcb",
+     "file": "v2/body_tof_fl_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_tof_fl_c0",
+     "file": "v2/body_tof_fl_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_tof_fl_c1",
+     "file": "v2/body_tof_fl_c1.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_tof_fl_c2",
+     "file": "v2/body_tof_fl_c2.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_tof_fr_pcb",
+     "file": "v2/body_tof_fr_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_tof_fr_c0",
+     "file": "v2/body_tof_fr_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_tof_fr_c1",
+     "file": "v2/body_tof_fr_c1.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_tof_fr_c2",
+     "file": "v2/body_tof_fr_c2.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_tof_rear_pcb",
+     "file": "v2/body_tof_rear_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_tof_rear_c0",
+     "file": "v2/body_tof_rear_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_tof_rear_c1",
+     "file": "v2/body_tof_rear_c1.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_tof_rear_c2",
+     "file": "v2/body_tof_rear_c2.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_tof_left_pcb",
+     "file": "v2/body_tof_left_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_tof_left_c0",
+     "file": "v2/body_tof_left_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_tof_left_c1",
+     "file": "v2/body_tof_left_c1.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_tof_left_c2",
+     "file": "v2/body_tof_left_c2.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_tof_right_pcb",
+     "file": "v2/body_tof_right_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_tof_right_c0",
+     "file": "v2/body_tof_right_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_tof_right_c1",
+     "file": "v2/body_tof_right_c1.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_tof_right_c2",
+     "file": "v2/body_tof_right_c2.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_mic_l_s0",
+     "file": "v2/body_mic_l_s0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_l_s1",
+     "file": "v2/body_mic_l_s1.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_l_s2",
+     "file": "v2/body_mic_l_s2.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_l_s3",
+     "file": "v2/body_mic_l_s3.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_l_s4",
+     "file": "v2/body_mic_l_s4.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_l_s5",
+     "file": "v2/body_mic_l_s5.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_l_s6",
+     "file": "v2/body_mic_l_s6.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_mic_l_s7",
+     "file": "v2/body_mic_l_s7.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_l_s8",
+     "file": "v2/body_mic_l_s8.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_l_s67",
+     "file": "v2/body_mic_l_s67.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_r_s0",
+     "file": "v2/body_mic_r_s0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_r_s1",
+     "file": "v2/body_mic_r_s1.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_r_s2",
+     "file": "v2/body_mic_r_s2.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_r_s3",
+     "file": "v2/body_mic_r_s3.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_r_s4",
+     "file": "v2/body_mic_r_s4.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_r_s5",
+     "file": "v2/body_mic_r_s5.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_r_s6",
+     "file": "v2/body_mic_r_s6.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_mic_r_s7",
+     "file": "v2/body_mic_r_s7.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_r_s8",
+     "file": "v2/body_mic_r_s8.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_mic_r_s67",
+     "file": "v2/body_mic_r_s67.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_speaker_frame",
+     "file": "v2/body_speaker_frame.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_speaker_cone",
+     "file": "v2/body_speaker_cone.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_speaker_magnet",
+     "file": "v2/body_speaker_magnet.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_switch_bezel",
+     "file": "v2/body_switch_bezel.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_switch_rocker",
+     "file": "v2/body_switch_rocker.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_switch_body",
+     "file": "v2/body_switch_body.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_switch_lugs",
+     "file": "v2/body_switch_lugs.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_dock_board_pcb",
+     "file": "v2/body_dock_board_pcb.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_dock_board_c0",
+     "file": "v2/body_dock_board_c0.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_pogo_l_strip",
+     "file": "v2/body_pogo_l_strip.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_pogo_l_pin0",
+     "file": "v2/body_pogo_l_pin0.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_pogo_l_pin1",
+     "file": "v2/body_pogo_l_pin1.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_pogo_r_strip",
+     "file": "v2/body_pogo_r_strip.stl",
+     "material": "servo"
+    },
+    {
+     "mesh": "v2_body_pogo_r_pin0",
+     "file": "v2/body_pogo_r_pin0.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_pogo_r_pin1",
+     "file": "v2/body_pogo_r_pin1.stl",
+     "material": "horn"
+    },
+    {
+     "mesh": "v2_body_pad_head",
+     "file": "v2/body_pad_head.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_pad_back_left",
+     "file": "v2/body_pad_back_left.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_pad_back_right",
+     "file": "v2/body_pad_back_right.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_pad_side_left",
+     "file": "v2/body_pad_side_left.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_pad_side_right",
+     "file": "v2/body_pad_side_right.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_pad_face",
+     "file": "v2/body_pad_face.stl",
+     "material": "pcb"
+    },
+    {
+     "mesh": "v2_body_wires_power",
+     "file": "v2/body_wires_power.stl",
+     "material": "wire_power"
+    },
+    {
+     "mesh": "v2_body_wires_servo",
+     "file": "v2/body_wires_servo.stl",
+     "material": "wire_servo"
+    },
+    {
+     "mesh": "v2_body_wires_signal",
+     "file": "v2/body_wires_signal.stl",
+     "material": "wire_signal"
+    }
+   ],
+   "collision": []
+  },
+  "FL_coxa_link": {
+   "mass": 0.08650273631846551,
+   "com": [
+    0.02970768739954559,
+    -0.000466645552824172,
+    -0.00876260459051379
+   ],
+   "inertia": [
+    2.472346758893689e-05,
+    3.139622508525382e-05,
+    2.054182158557932e-05,
+    2.2186578442977061e-07,
+    2.967769495492732e-06,
+    7.033894150559949e-08
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_FL_coxa_link_coxa",
+     "file": "v2/FL_coxa_link_coxa.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_FL_coxa_link_thigh_servo",
+     "file": "v2/FL_coxa_link_thigh_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": [
+    {
+     "name": "coxa",
+     "pos": [
+      0.018550000000000004,
+      -0.00039999999999997904,
+      -0.007975000000000001
+     ],
+     "size": [
+      0.0315500001,
+      0.016425557385278126,
+      0.028475
+     ]
+    },
+    {
+     "name": "thigh_servo",
+     "pos": [
+      0.0352,
+      -0.00040000000000000034,
+      -0.01125
+     ],
+     "size": [
+      0.0124,
+      0.019799999999999998,
+      0.0227
+     ]
+    }
+   ]
+  },
+  "FL_femur_link": {
+   "mass": 0.07966359417678927,
+   "com": [
+    0.04874532782860905,
+    -0.0005599841050641986,
+    0.010070464824544781
+   ],
+   "inertia": [
+    2.5657973309193067e-05,
+    4.0318601574188016e-05,
+    3.7640494428659776e-05,
+    1.3849083002905658e-07,
+    -3.069406304597846e-06,
+    -1.314083024087473e-07
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_FL_femur_link_femur",
+     "file": "v2/FL_femur_link_femur.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_FL_femur_link_knee_servo",
+     "file": "v2/FL_femur_link_knee_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": [
+    {
+     "name": "femur",
+     "pos": [
+      0.02895,
+      -0.00040000000000000034,
+      0.01125
+     ],
+     "size": [
+      0.041950000099999996,
+      0.025299999999999996,
+      0.025200000000000004
+     ]
+    },
+    {
+     "name": "knee_servo",
+     "pos": [
+      0.056,
+      -0.00040000000000000034,
+      0.01125
+     ],
+     "size": [
+      0.012400000000000001,
+      0.019799999999999998,
+      0.0227
+     ]
+    }
+   ]
+  },
+  "FL_tibia_link": {
+   "mass": 0.0325126998655845,
+   "com": [
+    0.03789413943096618,
+    -0.00039998696782314895,
+    0.000283663423244226
+   ],
+   "inertia": [
+    6.535130858947124e-06,
+    2.3894687999309218e-05,
+    2.7739682589268288e-05,
+    6.866205806669562e-12,
+    -7.733415625499744e-08,
+    2.6407229886367065e-13
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_FL_tibia_link_tibia",
+     "file": "v2/FL_tibia_link_tibia.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_FL_tibia_link_foot",
+     "file": "v2/FL_tibia_link_foot.stl",
+     "material": "tip"
+    }
+   ],
+   "collision": [
+    {
+     "name": "shin0",
+     "type": "capsule",
+     "r": 0.008199999999999999,
+     "fromto": [
+      0.029,
+      -0.00040000000000000034,
+      0.0,
+      0.058,
+      -0.00040000000000000034,
+      0.0006
+     ]
+    },
+    {
+     "name": "shin1",
+     "type": "capsule",
+     "r": 0.00725,
+     "fromto": [
+      0.058,
+      -0.00040000000000000034,
+      0.0006,
+      0.08,
+      -0.00040000000000000034,
+      0.0
+     ]
+    },
+    {
+     "name": "tibia",
+     "pos": [
+      0.008,
+      -0.00040000000000000034,
+      0.0007687000314912104
+     ],
+     "size": [
+      0.021000000100000003,
+      0.025299999999999996,
+      0.014685067069955192
+     ]
+    }
+   ]
+  },
+  "FR_coxa_link": {
+   "mass": 0.08524813631846552,
+   "com": [
+    0.029885876686343866,
+    0.0004735131928202662,
+    -0.00889156416891665
+   ],
+   "inertia": [
+    2.4625440391720987e-05,
+    3.1111848898714426e-05,
+    2.035491815633375e-05,
+    -2.1467297479328025e-07,
+    2.8327039272944443e-06,
+    -7.55445389627791e-08
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_FR_coxa_link_coxa",
+     "file": "v2/FR_coxa_link_coxa.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_FR_coxa_link_thigh_servo",
+     "file": "v2/FR_coxa_link_thigh_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": [
+    {
+     "name": "coxa",
+     "pos": [
+      0.018550000000000004,
+      0.00039999999999997904,
+      -0.007975000000000001
+     ],
+     "size": [
+      0.0315500001,
+      0.016425557385278126,
+      0.028475
+     ]
+    },
+    {
+     "name": "thigh_servo",
+     "pos": [
+      0.0352,
+      0.00040000000000000034,
+      -0.01125
+     ],
+     "size": [
+      0.0124,
+      0.019799999999999998,
+      0.0227
+     ]
+    }
+   ]
+  },
+  "FR_femur_link": {
+   "mass": 0.07924539417678927,
+   "com": [
+    0.048854806697230364,
+    0.0005629392970368103,
+    0.010123609470153193
+   ],
+   "inertia": [
+    2.5615206215782766e-05,
+    4.009503634782938e-05,
+    3.745943263143574e-05,
+    -1.3360693976638731e-07,
+    -2.981576945420734e-06,
+    1.337791034634933e-07
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_FR_femur_link_femur",
+     "file": "v2/FR_femur_link_femur.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_FR_femur_link_knee_servo",
+     "file": "v2/FR_femur_link_knee_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": [
+    {
+     "name": "femur",
+     "pos": [
+      0.02895,
+      0.00040000000000000034,
+      0.01125
+     ],
+     "size": [
+      0.041950000099999996,
+      0.025299999999999996,
+      0.025200000000000004
+     ]
+    },
+    {
+     "name": "knee_servo",
+     "pos": [
+      0.056,
+      0.00040000000000000034,
+      0.01125
+     ],
+     "size": [
+      0.012400000000000001,
+      0.019799999999999998,
+      0.0227
+     ]
+    }
+   ]
+  },
+  "FR_tibia_link": {
+   "mass": 0.0325126998655845,
+   "com": [
+    0.03789413943096618,
+    0.00039998696782314906,
+    0.00028366342324422593
+   ],
+   "inertia": [
+    6.535130858947124e-06,
+    2.3894687999309218e-05,
+    2.7739682589268288e-05,
+    -6.866205806670056e-12,
+    -7.733415625499753e-08,
+    -2.6407229885642424e-13
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_FR_tibia_link_tibia",
+     "file": "v2/FR_tibia_link_tibia.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_FR_tibia_link_foot",
+     "file": "v2/FR_tibia_link_foot.stl",
+     "material": "tip"
+    }
+   ],
+   "collision": [
+    {
+     "name": "shin0",
+     "type": "capsule",
+     "r": 0.008199999999999999,
+     "fromto": [
+      0.029,
+      0.00040000000000000034,
+      0.0,
+      0.058,
+      0.00040000000000000034,
+      0.0006
+     ]
+    },
+    {
+     "name": "shin1",
+     "type": "capsule",
+     "r": 0.00725,
+     "fromto": [
+      0.058,
+      0.00040000000000000034,
+      0.0006,
+      0.08,
+      0.00040000000000000034,
+      0.0
+     ]
+    },
+    {
+     "name": "tibia",
+     "pos": [
+      0.008,
+      0.00040000000000000034,
+      0.0007687000314912104
+     ],
+     "size": [
+      0.021000000100000003,
+      0.025299999999999996,
+      0.014685067069955192
+     ]
+    }
+   ]
+  },
+  "RL_coxa_link": {
+   "mass": 0.08732893631846551,
+   "com": [
+    0.02959313921252743,
+    -0.00046223072113153166,
+    -0.008679703501620626
+   ],
+   "inertia": [
+    2.4786483934763928e-05,
+    3.157903504641664e-05,
+    2.0661971620142244e-05,
+    2.2648964997315402e-07,
+    3.0545957926494442e-06,
+    6.699254643449035e-08
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_RL_coxa_link_coxa",
+     "file": "v2/RL_coxa_link_coxa.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_RL_coxa_link_thigh_servo",
+     "file": "v2/RL_coxa_link_thigh_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": [
+    {
+     "name": "coxa",
+     "pos": [
+      0.018550000000000004,
+      -0.00039999999999997904,
+      -0.007975000000000001
+     ],
+     "size": [
+      0.0315500001,
+      0.016425557385278126,
+      0.028475
+     ]
+    },
+    {
+     "name": "thigh_servo",
+     "pos": [
+      0.0352,
+      -0.00040000000000000034,
+      -0.01125
+     ],
+     "size": [
+      0.0124,
+      0.019799999999999998,
+      0.0227
+     ]
+    }
+   ]
+  },
+  "RL_femur_link": {
+   "mass": 0.07993899417678928,
+   "com": [
+    0.04867385753625881,
+    -0.0005580548886145442,
+    0.010035770792661589
+   ],
+   "inertia": [
+    2.5685892639265586e-05,
+    4.0464550032446785e-05,
+    3.775869568287458e-05,
+    1.4167914453463417e-07,
+    -3.126743305394188e-06,
+    -1.2986058962525846e-07
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_RL_femur_link_femur",
+     "file": "v2/RL_femur_link_femur.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_RL_femur_link_knee_servo",
+     "file": "v2/RL_femur_link_knee_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": [
+    {
+     "name": "femur",
+     "pos": [
+      0.02895,
+      -0.00040000000000000034,
+      0.01125
+     ],
+     "size": [
+      0.041950000099999996,
+      0.025299999999999996,
+      0.025200000000000004
+     ]
+    },
+    {
+     "name": "knee_servo",
+     "pos": [
+      0.056,
+      -0.00040000000000000034,
+      0.01125
+     ],
+     "size": [
+      0.012400000000000001,
+      0.019799999999999998,
+      0.0227
+     ]
+    }
+   ]
+  },
+  "RL_tibia_link": {
+   "mass": 0.0325126998655845,
+   "com": [
+    0.03789413943096618,
+    -0.00039998696782314895,
+    0.000283663423244226
+   ],
+   "inertia": [
+    6.535130858947124e-06,
+    2.3894687999309218e-05,
+    2.7739682589268288e-05,
+    6.866205806669562e-12,
+    -7.733415625499744e-08,
+    2.6407229886367065e-13
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_RL_tibia_link_tibia",
+     "file": "v2/RL_tibia_link_tibia.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_RL_tibia_link_foot",
+     "file": "v2/RL_tibia_link_foot.stl",
+     "material": "tip"
+    }
+   ],
+   "collision": [
+    {
+     "name": "shin0",
+     "type": "capsule",
+     "r": 0.008199999999999999,
+     "fromto": [
+      0.029,
+      -0.00040000000000000034,
+      0.0,
+      0.058,
+      -0.00040000000000000034,
+      0.0006
+     ]
+    },
+    {
+     "name": "shin1",
+     "type": "capsule",
+     "r": 0.00725,
+     "fromto": [
+      0.058,
+      -0.00040000000000000034,
+      0.0006,
+      0.08,
+      -0.00040000000000000034,
+      0.0
+     ]
+    },
+    {
+     "name": "tibia",
+     "pos": [
+      0.008,
+      -0.00040000000000000034,
+      0.0007687000314912104
+     ],
+     "size": [
+      0.021000000100000003,
+      0.025299999999999996,
+      0.014685067069955192
+     ]
+    }
+   ]
+  },
+  "RR_coxa_link": {
+   "mass": 0.08625793631846551,
+   "com": [
+    0.029742049013118933,
+    0.00046796989277718903,
+    -0.00878747285997758
+   ],
+   "inertia": [
+    2.4704564248949772e-05,
+    3.1341386633364224e-05,
+    2.0505779556753308e-05,
+    -2.2047873950873908e-07,
+    2.9417237609545565e-06,
+    -7.134277698558832e-08
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_RR_coxa_link_coxa",
+     "file": "v2/RR_coxa_link_coxa.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_RR_coxa_link_thigh_servo",
+     "file": "v2/RR_coxa_link_thigh_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": [
+    {
+     "name": "coxa",
+     "pos": [
+      0.018550000000000004,
+      0.00039999999999997904,
+      -0.007975000000000001
+     ],
+     "size": [
+      0.0315500001,
+      0.016425557385278126,
+      0.028475
+     ]
+    },
+    {
+     "name": "thigh_servo",
+     "pos": [
+      0.0352,
+      0.00040000000000000034,
+      -0.01125
+     ],
+     "size": [
+      0.0124,
+      0.019799999999999998,
+      0.0227
+     ]
+    }
+   ]
+  },
+  "RR_femur_link": {
+   "mass": 0.07958199417678927,
+   "com": [
+    0.048766599207497284,
+    0.000560558289004244,
+    0.010080790651865183
+   ],
+   "inertia": [
+    2.5649663805639235e-05,
+    4.0275163596649536e-05,
+    3.76053147255861e-05,
+    -1.3754190644650694e-07,
+    -3.0523413531593387e-06,
+    1.3186894114331766e-07
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_RR_femur_link_femur",
+     "file": "v2/RR_femur_link_femur.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_RR_femur_link_knee_servo",
+     "file": "v2/RR_femur_link_knee_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": [
+    {
+     "name": "femur",
+     "pos": [
+      0.02895,
+      0.00040000000000000034,
+      0.01125
+     ],
+     "size": [
+      0.041950000099999996,
+      0.025299999999999996,
+      0.025200000000000004
+     ]
+    },
+    {
+     "name": "knee_servo",
+     "pos": [
+      0.056,
+      0.00040000000000000034,
+      0.01125
+     ],
+     "size": [
+      0.012400000000000001,
+      0.019799999999999998,
+      0.0227
+     ]
+    }
+   ]
+  },
+  "RR_tibia_link": {
+   "mass": 0.0325126998655845,
+   "com": [
+    0.03789413943096618,
+    0.00039998696782314906,
+    0.00028366342324422593
+   ],
+   "inertia": [
+    6.535130858947124e-06,
+    2.3894687999309218e-05,
+    2.7739682589268288e-05,
+    -6.866205806670056e-12,
+    -7.733415625499753e-08,
+    -2.6407229885642424e-13
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_RR_tibia_link_tibia",
+     "file": "v2/RR_tibia_link_tibia.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_RR_tibia_link_foot",
+     "file": "v2/RR_tibia_link_foot.stl",
+     "material": "tip"
+    }
+   ],
+   "collision": [
+    {
+     "name": "shin0",
+     "type": "capsule",
+     "r": 0.008199999999999999,
+     "fromto": [
+      0.029,
+      0.00040000000000000034,
+      0.0,
+      0.058,
+      0.00040000000000000034,
+      0.0006
+     ]
+    },
+    {
+     "name": "shin1",
+     "type": "capsule",
+     "r": 0.00725,
+     "fromto": [
+      0.058,
+      0.00040000000000000034,
+      0.0006,
+      0.08,
+      0.00040000000000000034,
+      0.0
+     ]
+    },
+    {
+     "name": "tibia",
+     "pos": [
+      0.008,
+      0.00040000000000000034,
+      0.0007687000314912104
+     ],
+     "size": [
+      0.021000000100000003,
+      0.025299999999999996,
+      0.014685067069955192
+     ]
+    }
+   ]
+  },
+  "L_shoulder": {
+   "mass": 0.03145768877827732,
+   "com": [
+    0.032380454695256786,
+    -0.0021971069121962243,
+    -0.0011376991760103914
+   ],
+   "inertia": [
+    2.7122471745577342e-06,
+    5.281057535152569e-06,
+    6.81721675275054e-06,
+    6.65692733674303e-07,
+    -4.1507630116495115e-07,
+    1.0802673596016274e-07
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_L_shoulder_shoulder",
+     "file": "v2/L_shoulder_shoulder.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_L_shoulder_lift_servo",
+     "file": "v2/L_shoulder_lift_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": [
+    {
+     "name": "shoulder",
+     "pos": [
+      0.021954999999999704,
+      0.0,
+      0.00024999994999997543
+     ],
+     "size": [
+      0.03295500010000032,
+      0.011000000099999999,
+      0.009750000050000025
+     ]
+    },
+    {
+     "name": "lift_servo",
+     "pos": [
+      0.036910000000000005,
+      -0.0027249999999999996,
+      0.0
+     ],
+     "size": [
+      0.016,
+      0.016475,
+      0.01
+     ]
+    }
+   ]
+  },
+  "L_upper": {
+   "mass": 0.04750936993180878,
+   "com": [
+    0.04403225820894804,
+    -0.0008861435368514938,
+    -0.0062004915122595
+   ],
+   "inertia": [
+    7.982393722695577e-06,
+    3.1320819287545526e-05,
+    3.0028089170029746e-05,
+    -1.2489877038556633e-07,
+    4.092828624899218e-06,
+    2.8371617931259814e-08
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_L_upper_upper",
+     "file": "v2/L_upper_upper.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_L_upper_claw_servo",
+     "file": "v2/L_upper_claw_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": []
+  },
+  "L_dactyl": {
+   "mass": 0.007974759867079417,
+   "com": [
+    0.027229897739591762,
+    0.0072704853068631045,
+    0.0070874195243050536
+   ],
+   "inertia": [
+    1.0045454319635993e-06,
+    5.244094910268664e-06,
+    4.640682755686253e-06,
+    -4.2562560497224604e-07,
+    1.118119225668732e-06,
+    8.460606535803598e-08
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_L_dactyl_dactyl",
+     "file": "v2/L_dactyl_dactyl.stl",
+     "material": "printed"
+    }
+   ],
+   "collision": []
+  },
+  "R_shoulder": {
+   "mass": 0.03053968877827732,
+   "com": [
+    0.03271202184002247,
+    0.0022631502880812713,
+    -0.001171897554754854
+   ],
+   "inertia": [
+    2.7064585878359818e-06,
+    5.1647822469081585e-06,
+    6.6976007557805e-06,
+    -6.427761702442076e-07,
+    -4.269428858935696e-07,
+    -1.1039038787222956e-07
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_R_shoulder_shoulder",
+     "file": "v2/R_shoulder_shoulder.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_R_shoulder_lift_servo",
+     "file": "v2/R_shoulder_lift_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": [
+    {
+     "name": "shoulder",
+     "pos": [
+      0.021954999999999704,
+      0.0,
+      0.00024999994999997543
+     ],
+     "size": [
+      0.03295500010000032,
+      0.011000000099999999,
+      0.009750000050000025
+     ]
+    },
+    {
+     "name": "lift_servo",
+     "pos": [
+      0.036910000000000005,
+      0.0027250000000000013,
+      0.0
+     ],
+     "size": [
+      0.016,
+      0.016475,
+      0.01
+     ]
+    }
+   ]
+  },
+  "R_upper": {
+   "mass": 0.04720336993180878,
+   "com": [
+    0.04417184296786369,
+    0.0008918880403195358,
+    -0.006240686744199347
+   ],
+   "inertia": [
+    7.970311108896333e-06,
+    3.116618554013182e-05,
+    2.98850543478319e-05,
+    1.3077530564032043e-07,
+    4.051709544915781e-06,
+    -3.0063842063769226e-08
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_R_upper_upper",
+     "file": "v2/R_upper_upper.stl",
+     "material": "printed"
+    },
+    {
+     "mesh": "v2_R_upper_claw_servo",
+     "file": "v2/R_upper_claw_servo.stl",
+     "material": "servo"
+    }
+   ],
+   "collision": []
+  },
+  "R_dactyl": {
+   "mass": 0.007974759867079417,
+   "com": [
+    0.027229897739591752,
+    -0.007270485306863108,
+    0.007087419524305056
+   ],
+   "inertia": [
+    1.0045454319635987e-06,
+    5.244094910268665e-06,
+    4.640682755686255e-06,
+    4.2562560497224657e-07,
+    1.118119225668732e-06,
+    -8.460606535803619e-08
+   ],
+   "visuals": [
+    {
+     "mesh": "v2_R_dactyl_dactyl",
+     "file": "v2/R_dactyl_dactyl.stl",
+     "material": "printed"
+    }
+   ],
+   "collision": []
+  }
+ },
+ "face": {
+  "up": 0.051,
+  "out": 0.0105,
+  "size": [
+   0.14418,
+   0.06659999999999999
+  ]
+ },
+ "lid_h": 0.086,
+ "lid_w": 0.165,
+ "claw_meet": 0.12187499999999998,
+ "foot": {
+  "x": 0.085,
+  "r": 0.008
+ },
+ "parts": [
+  [
+   "body",
+   "tray",
+   0.19145805680773811
+  ],
+  [
+   "body",
+   "cover",
+   0.07706342445327438
+  ],
+  [
+   "body",
+   "battery_door",
+   0.017929280959783103
+  ],
+  [
+   "body",
+   "deck",
+   0.026969310521535093
+  ],
+  [
+   "body",
+   "lid",
+   0.02971431461345492
+  ],
+  [
+   "body",
+   "lid_back",
+   0.023201528338513744
+  ],
+  [
+   "body",
+   "panel",
+   0.3
+  ],
+  [
+   "body",
+   "FL_hip_servo",
+   0.055
+  ],
+  [
+   "body",
+   "FR_hip_servo",
+   0.055
+  ],
+  [
+   "body",
+   "RL_hip_servo",
+   0.055
+  ],
+  [
+   "body",
+   "RR_hip_servo",
+   0.055
+  ],
+  [
+   "body",
+   "L_yaw_servo",
+   0.02
+  ],
+  [
+   "body",
+   "R_yaw_servo",
+   0.02
+  ],
+  [
+   "body",
+   "pack_cell0",
+   0.1
+  ],
+  [
+   "body",
+   "xt60_body",
+   0.012
+  ],
+  [
+   "body",
+   "fuse_holder",
+   0.014
+  ],
+  [
+   "body",
+   "ina_pcb",
+   0.0045
+  ],
+  [
+   "body",
+   "reg_a_pcb",
+   0.0055
+  ],
+  [
+   "body",
+   "reg_b_pcb",
+   0.0055
+  ],
+  [
+   "body",
+   "hub_pcb",
+   0.024
+  ],
+  [
+   "body",
+   "driver_s0",
+   0.015
+  ],
+  [
+   "body",
+   "radxa_s0",
+   0.0125
+  ],
+  [
+   "body",
+   "imu_pcb",
+   0.003
+  ],
+  [
+   "body",
+   "mpr121_pcb",
+   0.002
+  ],
+  [
+   "body",
+   "amp_s0",
+   0.0012
+  ],
+  [
+   "body",
+   "radxa_heatsink_base",
+   0.003
+  ],
+  [
+   "body",
+   "camera_pcb",
+   0.004
+  ],
+  [
+   "body",
+   "camera_lens_holder",
+   0.006
+  ],
+  [
+   "body",
+   "tof8_pcb",
+   0.003
+  ],
+  [
+   "body",
+   "tof_fl_pcb",
+   0.0014
+  ],
+  [
+   "body",
+   "tof_fr_pcb",
+   0.0014
+  ],
+  [
+   "body",
+   "tof_rear_pcb",
+   0.0014
+  ],
+  [
+   "body",
+   "tof_left_pcb",
+   0.0014
+  ],
+  [
+   "body",
+   "tof_right_pcb",
+   0.0014
+  ],
+  [
+   "body",
+   "mic_l_s0",
+   0.0015
+  ],
+  [
+   "body",
+   "mic_r_s0",
+   0.0015
+  ],
+  [
+   "body",
+   "speaker_frame",
+   0.004
+  ],
+  [
+   "body",
+   "switch_bezel",
+   0.012
+  ],
+  [
+   "body",
+   "dock_board_pcb",
+   0.003
+  ],
+  [
+   "body",
+   "pogo_l_strip",
+   0.0008
+  ],
+  [
+   "body",
+   "pogo_r_strip",
+   0.0008
+  ],
+  [
+   "body",
+   "pad_head",
+   0.0003
+  ],
+  [
+   "body",
+   "pad_back_left",
+   0.0003
+  ],
+  [
+   "body",
+   "pad_back_right",
+   0.0003
+  ],
+  [
+   "body",
+   "pad_side_left",
+   0.0003
+  ],
+  [
+   "body",
+   "pad_side_right",
+   0.0003
+  ],
+  [
+   "body",
+   "pad_face",
+   0.0003
+  ],
+  [
+   "body",
+   "wires_power",
+   0.023493269007585846
+  ],
+  [
+   "body",
+   "wires_servo",
+   0.020871640586656904
+  ],
+  [
+   "body",
+   "wires_signal",
+   0.02488122979587451
+  ],
+  [
+   "body",
+   "fasteners",
+   0.025
+  ],
+  [
+   "body",
+   "cable_rest",
+   0.008300211080289317
+  ],
+  [
+   "body",
+   "cable_rest",
+   0.0074638110802893185
+  ],
+  [
+   "body",
+   "cable_rest",
+   0.008851011080289318
+  ],
+  [
+   "body",
+   "cable_rest",
+   0.008137011080289318
+  ],
+  [
+   "body",
+   "cable_rest",
+   0.003911371074978545
+  ],
+  [
+   "body",
+   "cable_rest",
+   0.0032993710749785452
+  ],
+  [
+   "FL_coxa_link",
+   "coxa",
+   0.019052419698031536
+  ],
+  [
+   "FL_coxa_link",
+   "thigh_servo",
+   0.055
+  ],
+  [
+   "FL_coxa_link",
+   "cable_rest",
+   0.008300211080289317
+  ],
+  [
+   "FL_coxa_link",
+   "cable_rest",
+   0.0041501055401446585
+  ],
+  [
+   "FL_femur_link",
+   "femur",
+   0.020513488636644612
+  ],
+  [
+   "FL_femur_link",
+   "knee_servo",
+   0.055
+  ],
+  [
+   "FL_femur_link",
+   "cable_rest",
+   0.0041501055401446585
+  ],
+  [
+   "FL_tibia_link",
+   "tibia",
+   0.030577707930863517
+  ],
+  [
+   "FL_tibia_link",
+   "foot",
+   0.0019349919347209825
+  ],
+  [
+   "FR_coxa_link",
+   "coxa",
+   0.019052419698031536
+  ],
+  [
+   "FR_coxa_link",
+   "thigh_servo",
+   0.055
+  ],
+  [
+   "FR_coxa_link",
+   "cable_rest",
+   0.0074638110802893185
+  ],
+  [
+   "FR_coxa_link",
+   "cable_rest",
+   0.0037319055401446592
+  ],
+  [
+   "FR_femur_link",
+   "femur",
+   0.020513488636644612
+  ],
+  [
+   "FR_femur_link",
+   "knee_servo",
+   0.055
+  ],
+  [
+   "FR_femur_link",
+   "cable_rest",
+   0.0037319055401446592
+  ],
+  [
+   "FR_tibia_link",
+   "tibia",
+   0.030577707930863517
+  ],
+  [
+   "FR_tibia_link",
+   "foot",
+   0.0019349919347209825
+  ],
+  [
+   "RL_coxa_link",
+   "coxa",
+   0.019052419698031536
+  ],
+  [
+   "RL_coxa_link",
+   "thigh_servo",
+   0.055
+  ],
+  [
+   "RL_coxa_link",
+   "cable_rest",
+   0.008851011080289318
+  ],
+  [
+   "RL_coxa_link",
+   "cable_rest",
+   0.004425505540144659
+  ],
+  [
+   "RL_femur_link",
+   "femur",
+   0.020513488636644612
+  ],
+  [
+   "RL_femur_link",
+   "knee_servo",
+   0.055
+  ],
+  [
+   "RL_femur_link",
+   "cable_rest",
+   0.004425505540144659
+  ],
+  [
+   "RL_tibia_link",
+   "tibia",
+   0.030577707930863517
+  ],
+  [
+   "RL_tibia_link",
+   "foot",
+   0.0019349919347209825
+  ],
+  [
+   "RR_coxa_link",
+   "coxa",
+   0.019052419698031536
+  ],
+  [
+   "RR_coxa_link",
+   "thigh_servo",
+   0.055
+  ],
+  [
+   "RR_coxa_link",
+   "cable_rest",
+   0.008137011080289318
+  ],
+  [
+   "RR_coxa_link",
+   "cable_rest",
+   0.004068505540144659
+  ],
+  [
+   "RR_femur_link",
+   "femur",
+   0.020513488636644612
+  ],
+  [
+   "RR_femur_link",
+   "knee_servo",
+   0.055
+  ],
+  [
+   "RR_femur_link",
+   "cable_rest",
+   0.004068505540144659
+  ],
+  [
+   "RR_tibia_link",
+   "tibia",
+   0.030577707930863517
+  ],
+  [
+   "RR_tibia_link",
+   "foot",
+   0.0019349919347209825
+  ],
+  [
+   "L_shoulder",
+   "shoulder",
+   0.005590632165809501
+  ],
+  [
+   "L_shoulder",
+   "lift_servo",
+   0.02
+  ],
+  [
+   "L_shoulder",
+   "cable_rest",
+   0.003911371074978545
+  ],
+  [
+   "L_shoulder",
+   "cable_rest",
+   0.0019556855374892727
+  ],
+  [
+   "L_upper",
+   "upper",
+   0.025553684394319504
+  ],
+  [
+   "L_upper",
+   "claw_servo",
+   0.02
+  ],
+  [
+   "L_upper",
+   "cable_rest",
+   0.0019556855374892727
+  ],
+  [
+   "L_dactyl",
+   "dactyl",
+   0.007974759867079417
+  ],
+  [
+   "R_shoulder",
+   "shoulder",
+   0.005590632165809501
+  ],
+  [
+   "R_shoulder",
+   "lift_servo",
+   0.02
+  ],
+  [
+   "R_shoulder",
+   "cable_rest",
+   0.0032993710749785452
+  ],
+  [
+   "R_shoulder",
+   "cable_rest",
+   0.0016496855374892726
+  ],
+  [
+   "R_upper",
+   "upper",
+   0.025553684394319504
+  ],
+  [
+   "R_upper",
+   "claw_servo",
+   0.02
+  ],
+  [
+   "R_upper",
+   "cable_rest",
+   0.0016496855374892726
+  ],
+  [
+   "R_dactyl",
+   "dactyl",
+   0.007974759867079417
+  ]
+ ]
+}

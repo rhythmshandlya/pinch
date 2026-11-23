@@ -117,6 +117,7 @@ class WorldModel:
     objects: dict = field(default_factory=dict)
     pose: tuple = (0.0, 0.0, 0.0)     # Pinch x, y, heading
     battery: float = 1.0
+    servo_temp: float = None          # C, the hottest leg servo's reading (None: nothing reports it, e.g. no physics)
     t: float = 0.0
     clock: callable = time.time
 

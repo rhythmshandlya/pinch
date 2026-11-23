@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 
-QUIET_OK = {"go_quiet", "rest", "react_touch", "comfort", "idle", "startle", "tidy", "guard_edge"}
+QUIET_OK = {"go_quiet", "rest", "cool_down", "react_touch", "comfort", "idle", "startle", "tidy", "guard_edge"}
 
 GRASP_ENABLED = True       # the redesigned claw picks up sticks and blocks (decision 24); pushing is the fallback
 
@@ -26,7 +26,8 @@ class Activity:
     quiet_ok = False
     wakes_itself = False       # True: it handles being woken out of sleep itself (else the mind wakes up first)
     closes = True              # ends in its state's closing sub-state when it finishes (states.toml close), if any
-    own_jitter = False         # True: its tie-break jitter comes from its own random stream (Selection._own_jitter)
+    own_jitter = False         # True: its tie-break jitter comes from its own random stream (Selection._own_jitter);
+                               # a name: a stream of its own, so adding it reshuffles no other activity's draws
 
     def prepare(self, m):
         """Book-keeping before this choice (resetting a counter, drawing a due time): runs for every activity before

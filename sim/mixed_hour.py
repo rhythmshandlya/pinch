@@ -7,7 +7,9 @@ The hour is a seeded random mix of what a calm desk pet does: about half standin
 at the gait's speed cap, walking sideways at its cap, turning, and the keyframed moves (crab/emotes.py), in stretches
 of 5-40 s. Reported: each leg joint's RMS motor torque over the whole run as % of rated (0.637 N*m; limit 70 % for
 the hottest joint), the peak as % of the maker's stall (1.91 N*m; limit 80 %), falls, and the time share of each
-activity. The limit is the owner's requirement R-03 (docs/PLAN.md phase 2 exit check).
+activity; and each leg servo's predicted temperature, peak and final (crab/servo_model.py ServoHeat: copper loss of
+the motor torque plus gear friction, thermal numbers from configs/electronics.toml [servo_heat]; --ambient sets the
+room). The mix has no heat-aware rests (no mind runs here): the temperatures are what the body alone would reach.
 """
 
 import argparse
@@ -23,7 +25,8 @@ sys.path.insert(0, str(ROOT))
 
 from crab.emotes import EMOTES, STAND  # noqa: E402
 from crab.gait import GAITS, Gait  # noqa: E402
-from crab.params import JOINT_NAMES, PARAMS  # noqa: E402
+from crab.params import JOINT_NAMES, PARAMS, servo_for  # noqa: E402
+from crab.servo_model import ServoHeat  # noqa: E402
 from sim.v2_check import DS_STALL, LEGS, RATED, Run, settle  # noqa: E402
 
 MIX = [("stand", 0.50), ("forward", 0.15), ("sideways", 0.10), ("turn", 0.10), ("move", 0.15)]
@@ -35,6 +38,7 @@ def main():
     ap.add_argument("--servo", default="first_order", choices=["first_order", "bam"])
     ap.add_argument("--minutes", type=float, default=60.0)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--ambient", type=float, default=None, help="room temperature, C (default: configs/electronics.toml)")
     a = ap.parse_args()
     if PARAMS.design != "v2":
         sys.exit("design v2 only")
@@ -47,11 +51,23 @@ def main():
     total, share, falls = a.minutes * 60.0, {n: 0.0 for n in names}, 0
     t = 0.0
     last = np.array(STAND, float)
+    specs = [servo_for(JOINT_NAMES[j]) for j in LEGS]
+    heat = ServoHeat(specs, ambient=a.ambient)
+    fric, visc = np.array([s.frictionloss for s in specs]), np.array([s.viscous for s in specs])
+    acc, HEAT_EVERY = np.zeros((2, len(LEGS))), 50                # the heat model steps every 0.1 s
 
     def go(q):                                                     # every command passes here (remembers the last one)
         nonlocal last
         last = np.asarray(q, float)
         run.step(last)
+        w = np.abs(run.d.qvel[run.vadr[LEGS]])
+        acc[0] += run.motor_torque() ** 2
+        acc[1] += w * (fric + visc * w)
+        go.k += 1
+        if go.k % HEAT_EVERY == 0:
+            heat.step(HEAT_EVERY * run.dt, acc[0] / HEAT_EVERY, True, acc[1] / HEAT_EVERY)
+            acc[:] = 0.0
+    go.k = 0
 
     def blend_to(q_start_fn, secs=0.5):
         """Blend from the last command to the next activity's first pose, as the body does between activities."""
@@ -99,9 +115,15 @@ def main():
     hot = int(np.argmax(rms))
     print(f"mixed {t / 60:.1f} simulated minutes, servo model {a.servo}, seed {a.seed}; falls {falls}")
     print("time share: " + ", ".join(f"{n} {100 * v / t:.0f} %" for n, v in share.items()))
+    print(f"predicted servo temperature (room {heat.T_amb[0]:.0f} C, thermal resistance {heat.R_th[0]:.1f} K/W, "
+          f"time constant {heat.tau[0]:.0f} s):")
     for i, j in enumerate(LEGS):
-        print(f"  {JOINT_NAMES[j]:9s} RMS {100 * rms[i] / RATED:5.1f} % of rated   peak {100 * run.peak[i] / DS_STALL:5.1f} % of stall")
+        print(f"  {JOINT_NAMES[j]:9s} RMS {100 * rms[i] / RATED:5.1f} % of rated   peak {100 * run.peak[i] / DS_STALL:5.1f} % of stall"
+              f"   temperature peak {heat.peak[i]:5.1f} C  final {heat.T[i]:5.1f} C")
     ok = 100 * rms[hot] / RATED <= 70 and 100 * run.peak.max() / DS_STALL <= 80 and falls == 0
+    th = int(np.argmax(heat.peak))
+    print(f"hottest servo {JOINT_NAMES[LEGS[th]]}: peak {heat.peak[th]:.1f} C, final {heat.T[th]:.1f} C "
+          f"(the mind's cool-down drive starts at 45 C, walking stops at 60 C, torque off at 65 C)")
     print(f"hottest joint {JOINT_NAMES[LEGS[hot]]}: RMS {100 * rms[hot] / RATED:.1f} % of rated (limit 70), peak "
           f"{100 * run.peak.max() / DS_STALL:.1f} % of stall (limit 80): {'PASS' if ok else 'FAIL'}")
     return 0 if ok else 1

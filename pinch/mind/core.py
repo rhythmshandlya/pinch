@@ -172,6 +172,7 @@ class MindCore:
                          battery=self.world.battery, sleep_drive=self.routine.sleep_drive(now))
         self._acquired_taste(before)
         self._self_preservation(dt)
+        self._body_heat()
         self._fatigue(dt, body_busy)
         timed_out = self._timeout()
         if self.t >= self.next_choice or self._force:
@@ -211,6 +212,7 @@ class MindCore:
         else:
             resting = self.activity is not None and self.activity.state == "rest"
             n.fatigue = max(0.0, n.fatigue - dt / (self.FATIGUE_REST_S if resting else self.FATIGUE_DOWN_S))
+        n.fatigue = max(n.fatigue, n.heat)          # warm motors feel like tired legs: tiredness is at least the heat
 
     def _gaze_to(self, xy):
         x, y, h = self.world.pose

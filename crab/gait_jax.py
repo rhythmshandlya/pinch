@@ -36,8 +36,8 @@ class GaitJax:
         self.mount = jp.array(np.array([m for m, _ in mounts]))                           # (4, 3), left-mirrored
         self.yaw = jp.array([y for _, y in mounts])
         self.mirror = jp.array([1.0 if lg[1] == "L" else -1.0 for lg in LEG_IDS])
-        self.lo = jp.array([[L.coxa_range_for(lg)[0], L.femur_range[0], L.tibia_range[0]] for lg in LEG_IDS])
-        self.hi = jp.array([[L.coxa_range_for(lg)[1], L.femur_range[1], L.tibia_range[1]] for lg in LEG_IDS])
+        self.lo = jp.array([[L.coxa_range_for(lg)[0], L.femur_range_for(lg)[0], L.tibia_range[0]] for lg in LEG_IDS])
+        self.hi = jp.array([[L.coxa_range_for(lg)[1], L.femur_range_for(lg)[1], L.tibia_range[1]] for lg in LEG_IDS])
 
     def init(self):
         z2 = jp.zeros((4, 2))

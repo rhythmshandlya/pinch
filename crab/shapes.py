@@ -65,18 +65,52 @@ def area(verts, faces):
     return float(0.5 * np.linalg.norm(np.cross(v[f[:, 1]] - v[f[:, 0]], v[f[:, 2]] - v[f[:, 0]]), axis=1).sum())
 
 
-class Shell:
-    """The pill shell of the body (all lengths in mm, body frame): centre, half sizes, exponents, wall."""
+class BodyPlan:
+    """The body's outline in plan (mm, body frame): boxes (x0, x1, y0, y1, z0, z1) whose union, inside the pill, is the
+    body: the main body between the leg bays, a nose between the arms, a chin under the arms (configs: chassis.plan)."""
 
-    def __init__(self, center, half, exponents=(0.65, 0.6), wall=2.0):
+    def __init__(self, body_y, front_x, nose_x, nose_y, chin_y, chin_z):
+        self.body_y, self.front_x, self.nose_x, self.nose_y = body_y, front_x, nose_x, nose_y
+        self.chin_y, self.chin_z = chin_y, chin_z
+
+    def boxes(self, d=0.0):
+        big = 500.0
+        return [(-big, self.front_x - d, -self.body_y + d, self.body_y - d, -big, big),
+                (self.front_x - 30.0, self.nose_x - d, -self.nose_y + d, self.nose_y - d, -big, big),
+                (self.front_x - 30.0, big, -self.chin_y + d, self.chin_y - d, -big, self.chin_z - d)]
+
+    def contains(self, p, d=0.0):
+        p = np.asarray(p, float)
+        x, y, z = p[..., 0], p[..., 1], p[..., 2]
+        out = np.zeros(x.shape, bool)
+        for x0, x1, y0, y1, z0, z1 in self.boxes(d):
+            out |= (x >= x0) & (x <= x1) & (y >= y0) & (y <= y1) & (z >= z0) & (z <= z1)
+        return out
+
+    def depth(self, p):
+        """How far a point lies inside the plan's walls (mm; negative outside): the deepest of its boxes."""
+        p = np.asarray(p, float)
+        best = -1e9
+        for x0, x1, y0, y1, z0, z1 in self.boxes():
+            inner = min(p[0] - x0, x1 - p[0], p[1] - y0, y1 - p[1], p[2] - z0, z1 - p[2])
+            best = max(best, inner)
+        return best
+
+
+class Shell:
+    """The body shell (all lengths in mm, body frame): the pill (centre, half sizes, exponents, wall), cut to the body's
+    plan when the chassis gives one (BodyPlan)."""
+
+    def __init__(self, center, half, exponents=(0.65, 0.6), wall=2.0, plan=None):
         self.c = np.asarray(center, float)
         self.h = np.asarray(half, float)
         self.ev, self.eh = float(exponents[0]), float(exponents[1])
         self.wall = float(wall)
+        self.plan = BodyPlan(**plan) if isinstance(plan, dict) else plan
 
     @classmethod
     def from_chassis(cls, ch):
-        return cls(ch["shell_center_mm"], ch["shell_half_mm"], ch["shell_exponents"], ch["wall_mm"])
+        return cls(ch["shell_center_mm"], ch["shell_half_mm"], ch["shell_exponents"], ch["wall_mm"], ch.get("plan"))
 
     def f(self, p, grow=0.0):
         """Implicit function: < 1 inside, 1 on the surface of the shell shrunk by `grow` mm (every half size minus grow)."""
@@ -84,8 +118,9 @@ class Shell:
         return (q[..., 0] ** (2 / self.eh) + q[..., 1] ** (2 / self.eh)) ** (self.eh / self.ev) + q[..., 2] ** (2 / self.ev)
 
     def inside(self, p, margin=0.0):
-        """Inside the shell's interior: the shell shrunk by the wall and the margin (mm)."""
-        return self.f(p, self.wall + margin) <= 1.0
+        """Inside the shell's interior: the shell shrunk by the wall and the margin (mm), within the plan's walls."""
+        ok = self.f(p, self.wall + margin) <= 1.0
+        return ok & self.plan.contains(p, self.wall + margin) if self.plan is not None else ok
 
     def depth(self, p):
         """About how far a point lies below the outer surface (mm; negative = outside): the shrink of every half size
@@ -98,7 +133,7 @@ class Shell:
                 lo = mid                         # still inside the shrunk shell: the surface is deeper
             else:
                 hi = mid
-        return lo
+        return min(lo, self.plan.depth(p)) if self.plan is not None else lo
 
     def mesh(self, n=40):
         v, f = superellipsoid(*(self.h / 1000.0), self.ev, self.eh, n=n)
@@ -125,14 +160,18 @@ class Shell:
         """Distance along the ray o + t d (unit d) to the shell's outer surface, starting from a point outside, or None."""
         o, d = np.asarray(o, float), np.asarray(d, float)
         ts = np.linspace(0.0, tmax, 2000)
-        inside = self.f(o + ts[:, None] * d) <= 1.0
+
+        def body(P):                                     # inside the pill and, when there is one, the plan
+            ok = self.f(P) <= 1.0
+            return ok & self.plan.contains(P) if self.plan is not None else ok
+        inside = body(o + ts[:, None] * d)
         if not inside.any():
             return None
         k = int(np.argmax(inside))
         lo, hi = ts[max(k - 1, 0)], ts[k]
         for _ in range(30):
             mid = (lo + hi) / 2
-            if self.f(o + mid * d) <= 1.0:
+            if body(o + mid * d):
                 hi = mid
             else:
                 lo = mid

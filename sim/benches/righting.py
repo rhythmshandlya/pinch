@@ -37,7 +37,7 @@ from robot.servos import PWM_JOINTS  # noqa: E402
 from sim.benches.common import run_parallel, save_json  # noqa: E402
 from sim.benches.stats import rate  # noqa: E402
 
-PWM = np.array([JOINT_NAMES.index(j) for j in PWM_JOINTS])     # the arm servos: they report nothing
+PWM = np.array([JOINT_NAMES.index(j) for j in PWM_JOINTS], dtype=int)     # the PWM arm servos (v1): they report nothing; v2 has none
 
 MODEL = ROOT / "sim" / "models" / PARAMS.model_file   # follows CRAB_DESIGN (crab.xml for v1)
 DT, CTRL_DT, TIMEOUT = 0.002, pio.CTRL_DT, 8.0

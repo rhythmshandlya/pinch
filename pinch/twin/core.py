@@ -158,6 +158,8 @@ class TwinCore:
             self.perceive()
             if self.hw.elec is not None:                       # the battery monitor feeds the mind's hunger
                 self.mind.world.battery = self.hw.battery_fraction()
+            # the servos' temperatures (crab/servo_model.py heat model) feed its heat need and the body's heat limit
+            self.mind.world.servo_temp = self.body.servo_temp = self.crab.hottest_leg_c
             runtime.mind_step(self.mind, self.body, DT * MIND_EVERY, self.t, self.recorder,
                               on_motion=lambda mo: self.motions.append((round(self.t, 2), mo)),
                               on_sound=self._play)
