@@ -74,3 +74,18 @@ def test_a_held_leg_is_a_game_only_for_a_friend_in_a_good_mood():
     m2.touch_event = ("held_leg", m2.t)
     sad = list(ReactTouch().run(m2))
     assert not any(s[0] == "emote" and s[1] == "handshake" for s in sad) and any(s[0] == "pose" for s in sad)
+
+
+def test_a_stroke_while_busy_still_gets_a_purr():
+    """Stroked in the middle of something it won't drop (a trick you asked for), it answers the hand with a purr
+    and carries on; idle, the touch reaction itself answers (no double purr)."""
+    m = _mind()
+    m.request = ("trick", "dance")
+    m._start("obey", "test")
+    m.sounds = []
+    m.touch("stroke")
+    assert m.sounds == ["purr"] and m.activity.name == "obey"
+    m2 = _mind()
+    m2.sounds = []
+    m2.touch("stroke")
+    assert m2.sounds == []

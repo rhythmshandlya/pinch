@@ -298,9 +298,9 @@ def reflexes_and_errors():
         steps(fw3, 0.3)
         if dead:
             hw3.cliff["rear"].bus = Dead()
-        fw3.body.start(("walk", -0.03, 0.0, 0.0, 2.0))
+        fw3.body.start(("walk", -0.03, 0.0, 0.0, 4.0))
         p0 = hw3.d.qpos[0:2].copy()
-        steps(fw3, 1.5)
+        steps(fw3, 3.0)                                  # (v2.1's gait cycle is 1.2 s: a few steps to show a trend)
         back[dead] = moved_body(hw3, p0) @ guard["rear"]
     # (starting to walk shifts the body a few mm by itself: compare with the same walk, sensor alive)
     check("a dead cliff sensor -> 'don't know': no walking toward its side, and no backing off either",

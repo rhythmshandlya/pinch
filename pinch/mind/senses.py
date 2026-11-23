@@ -182,6 +182,9 @@ class Senses:
         o.last_touch = o.last_attention = self.t
         o.present = True
         self.touch_event = (gesture, self.t)
+        a = self.activity
+        if gesture in ("stroke", "hold", "claw_hold") and ev != "touched_unwanted" and a is not None                 and not a.interruptible and a.name != "react_touch" and not self.affect.quiet and self.state != "sleep":
+            self.sound("purr")          # busy with something it won't drop (a trick, a hazard): it still answers the hand
         self._interrupt()
         self._say("touch", gesture)
 

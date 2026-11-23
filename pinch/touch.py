@@ -265,7 +265,10 @@ class StuckSense:
                 k = max(1, len(meas) // 3)                    # mean of the first and last third: robust to jitter
                 a = np.mean([(r[1], r[2]) for r in meas[:k]], axis=0)
                 b = np.mean([(r[1], r[2]) for r in meas[-k:]], axis=0)
-                if np.hypot(*(b - a)) < 0.008:
+                # moved less than a fifth of what the walk should have covered (at least 8 mm): stuck. A fixed 8 mm
+                # was within the jitter of a marker fix from across the 1.2 m desk (about 1 cm)
+                expect = np.mean([r[3] for r in win]) * (win[-1][0] - win[0][0]) * 0.8
+                if np.hypot(*(b - a)) < max(0.008, 0.2 * expect):
                     why = "walking but not moving"
         out = []
         if why:
