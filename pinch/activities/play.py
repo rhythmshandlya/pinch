@@ -95,7 +95,21 @@ class ShowOff(Activity):
         yield ("praise_wait", 6.0)
 
 
+def _clear_way(m, frm, to, body=0.08, path=0.05):
+    """No desk thing or the tray within `body` of the spot, nor within `path` of the straight way there."""
+    d = m.world.desk
+    things = [xy for _, xy in m.world.things_on_desk()]
+    if d.tray_gap(to) < body or any(math.dist(to, xy) < body for xy in things):
+        return False
+    for k in range(1, 6):                                     # along the way
+        p = (frm[0] + (to[0] - frm[0]) * k / 6, frm[1] + (to[1] - frm[1]) * k / 6)
+        if d.tray_gap(p) < path or any(math.dist(p, xy) < path for xy in things):
+            return False
+    return True
+
+
 class Explore(Activity):
+    _clear = staticmethod(_clear_way)
     state, max_s = "explore", 300.0
     name, min_s = "explore", 5.0
 
@@ -113,10 +127,11 @@ class Explore(Activity):
         last = m.world.pose[:2]
         yield ("face", "curious")
         for k in range(stops):
-            for _ in range(8):                                # somewhere it isn't afraid of, not where it just was
+            for _ in range(16):                               # somewhere it isn't afraid of, not where it just was,
                 target = d.clamp((m.rng.uniform(-d.half_x, d.half_x), m.rng.uniform(-d.half_y, d.half_y)), 0.1)
-                if m.danger(target) < 0.15 and math.dist(target, last) > 0.08:
-                    break
+                if m.danger(target) < 0.15 and math.dist(target, last) > 0.08 and self._clear(m, last, target):
+                    break                                     # and with nothing in the way (the rhythm bench found
+                                                              # explores walking into the tray and getting stuck)
             else:                                             # everywhere it drew is scary: look near home instead
                 target = m.memory.home_of("pinch") or d.home_xy
             yield ("phase", "go_look")
