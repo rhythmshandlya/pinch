@@ -1,39 +1,26 @@
-# Pinch 🦀: a pocket robot crab pet
+# Pinch 🦀: a robot crab pet
 
-A hand-sized robot crab (about 20 cm across, 10 cm tall, 0.61 kg) that feels like a pet. It has
-moods and needs, and is a bit needy. It knows when you're in a meeting and goes quiet. It reacts to
-touch and to your voice, does tricks, keeps its desk tidy and asks for help when it can't. Its
-emotions show in its eyes on a small OLED face. It never talks: it chirps, purrs and trills.
+A small robot crab that feels like a pet: a pill-shaped shell about 17 cm across on four legs, two claws, about
+2.3 kg. It has moods and needs, and is a bit needy. It knows when you're in a meeting and goes quiet. It reacts to
+touch and to your voice, does tricks, keeps its desk tidy and asks for help when it can't. Its emotions show in its
+eyes on a 6.25 inch screen in a hinged face lid. It never talks: it chirps, purrs and trills.
 
 Everything was designed, simulated, trained and tested in software before buying a single part. Ideas
 are borrowed from KingKong's Jumper, MakeYourPet and Sesame ([docs/INSPIRATION.md](docs/INSPIRATION.md)).
-Every part was in stock in India on 2026-11-19, about ₹91k plus prints ([hardware/BOM.md](hardware/BOM.md)).
+The parts list comes to about ₹1.06 lakh with the prints and tools, in three orders, checked against Indian stores
+on 2026-11-21 ([hardware/BOM.md](hardware/BOM.md)).
 
 ## In simulation
 
-| | |
-|---|---|
-| ![a minute of pet life](docs/images/sim_pet_life.gif) | ![picks up a pen and puts it in the tray](docs/images/sim_pick_pen.gif) |
-| **A minute of pet life** (4× speed): it wanders, notices things, reacts | **Tidying:** picks up a pen and drops it in the desk tray |
-| ![gets up off its back](docs/images/sim_get_up.gif) | ![walks over a 6 mm bar](docs/images/sim_hurdle.gif) |
-| **Gets up off its back** with a learned policy (about half a second) | **Walks over obstacles:** a 6 mm bar, head-on |
-
 ![faces](docs/images/pinch_faces.png)
 
-## What's verified (in simulation)
+The clips and bench results of the v2.1 body come with phases 5 and 6.
 
 | Area | Result | Evidence |
 |---|---|---|
-| Walking | Learned corrections on a scripted trot: **0 falls** in 200 randomised episodes over five worlds (flat, rough, caught foot, hurdles, steeper hurdles), 80–86 % speed tracking (scripted alone: 65–69 %) | [docs/ROBUSTNESS.md](docs/ROBUSTNESS.md) and the `ROBUSTNESS_*` reports |
-| Obstacles | Cables, pens and a book, forward and sideways; bars and ramps in [docs/HURDLES.md](docs/HURDLES.md) | `sim/benches/obstacles.py`, `sim/benches/hurdles.py` |
-| Getting up | **200/200** random falls on its back, 0.54 s on average (the searched swing it replaced: 107/200) | `sim/benches/righting.py` |
-| Emotes | 22 emotes with a learned balance policy, 0 falls; each play varies with its mood (tempo, size, asymmetry, mirror), within joint and speed limits | [docs/ROBUSTNESS.md](docs/ROBUSTNESS.md), `tests/test_variation.py` |
+| Getting up | A learned policy rights it from **175/200** random falls on its back (88 %), **191/200** (96 %) with the realistic electronics on; the scripted swing manages 49/200 | `sim/benches/righting.py`, `policies/registry.toml` |
 | Touch | Reacts to where it was touched (turns to your hand, the touched claw answers, a back stroke settles it), gets used to repeated petting and recovers, and only wakes for the touches you allow | `tests/test_touch_nuance.py` |
-| Curiosity | Notices unknown things and motion: freezes, creeps closer slowly, looks from two sides, backs off, comes back until it's familiar; its eyes follow a moving toy; something rushing at it close by startles it | `tests/test_curiosity.py` |
-| A day and a week | 24 hours of full autonomy (sleeps through the night, silent in meetings and quiet hours, varied, 0 falls in the physics windows) and 7 days of memory across reboots, each in minutes | `sim/benches/longrun.py` |
-| Behaviour | 12 of 13 scenarios, from tricks and learning your name to comforting you and raising the alarm when something nears the edge | [docs/BEHAVIOUR_TESTS.md](docs/BEHAVIOUR_TESTS.md) |
-| Tidying | Still the weakest skill: on a 24-layout bench the cap reaches the tray 9-11/24 times and the eraser 12/24, and the toy ball gets knocked off in about half the runs. Picking up: a learned grab gets the eraser into the tray 11/24 times (scripted: 2/24) | `sim/benches/tidy.py`, `sim/benches/pick.py` |
-| Firmware | 47/47 checks on emulated hardware, 40/40 selftest; the control tick fits the robot's CPU budget | `robot/firmware_test.py`, `robot/selftest.py` |
+| Firmware | The firmware on emulated hardware and the robot's selftest; the control tick fits the robot's CPU budget | `robot/firmware_test.py`, `robot/selftest.py` |
 | Code | 35+ tests: exact replay, a golden trace for refactors, fault injection, fuzzed servo safety, layering rules, the operations layer; ruff and a private-file guard on every commit and in CI | `python -m ops check` |
 
 Every design decision and the measurements behind it are in [docs/DECISIONS.md](docs/DECISIONS.md); the
@@ -65,27 +52,27 @@ It remembers you between runs (`~/.pinch/memory.json`).
 |---|---|---|
 | Mind | Needs and emotions (needy by design), 24 activities chosen by utility with commitment, attention, memory, a daily routine with quiet hours, voice understanding (instant rules plus a local LLM), meeting detection from sound, touch gestures, faces | [pinch/](pinch/) |
 | Body | Walking and turning with an edge guard, pushing things with a claw paddle, picking and dropping, idle life (breathing, fidgets), getting up | [pinch/body/](pinch/body/) |
-| Face | 25 animated expressions (Vector-style eyes, blinks, glyphs) on a 128×64 OLED | [pinch/face.py](pinch/face.py) |
+| Face | 25 animated expressions (Vector-style eyes, blinks, glyphs) on the face screen | [pinch/face.py](pinch/face.py) |
 | Digital twin | MuJoCo desk with edges, a desk tray with ArUco marker, a pen, eraser, cap and ball; cliff sensors; wide-angle eye camera; live face texture; fault injection | [sim/desk.py](sim/desk.py), [pinch/twin/](pinch/twin/) |
-| Motion | 22 emotes; scripted trot; learned walking, emote-balance and get-up policies (Brax PPO on MJX, run on the robot as plain numpy) | [crab/](crab/), [training/](training/), [policies/](policies/) |
+| Motion | 22 emotes; scripted trot; a learned get-up policy (Brax PPO on MJX, run on the robot as plain numpy); the policies trained on the earlier body were retired with it | [crab/](crab/), [training/](training/), [policies/](policies/) |
 | Firmware | The robot's program (the same mind and body), drivers for the face, touch, cliff sensors, camera and mics, an HTTP API, a systemd service | [robot/firmware/](robot/firmware/), [deploy/](deploy/) |
-| Hardware | 12 STS3032 leg servos, 6 GS-4308MG arm servos on the Radxa's PWM, Radxa ZERO 3W, 2.42" OLED face, MPR121 touch, two I2S mics, a 160° camera, 2S LiPo | [hardware/](hardware/) |
-| CAD | 14 printable parts (31 pieces) including the face visor and the desk tray; 241/241 poses collision-free | [cad/](cad/), [cad/out/print/](cad/out/print) |
+| Hardware | 12 Feetech STS3215 leg servos (a published measured motor model) and 6 STS3032 arm servos on one bus, Radxa ZERO 3W, a 6.25" HDMI face screen, MPR121 touch, two I2S mics, a 160° camera, five cliff sensors and an 8×8 distance sensor, a 2S Li-ion pack | [hardware/](hardware/) |
+| CAD | The body (tray and cover), legs, arms and face lid in code CAD (build123d), with the STS3215's STEP model from SO-ARM100; the simulator model is generated from it | [cad/v2/](cad/v2/), [docs/dev/V2_MODEL.md](docs/dev/V2_MODEL.md) |
 
 ## Tests and benches
 
 ```powershell
 .venv\Scripts\python tests\run.py                     # the test suite
 .venv\Scripts\python robot\firmware_test.py           # the firmware on emulated hardware
-.venv\Scripts\python robot\selftest.py                # servo bus, PWM, calibration, drivers, safety
+.venv\Scripts\python robot\selftest.py                # servo bus, calibration, drivers, safety
 .venv\Scripts\python sim\benches\scenarios.py         # behaviour in the twin -> docs/BEHAVIOUR_TESTS.md
 .venv\Scripts\python sim\benches\robustness.py        # trained vs scripted motion -> docs/ROBUSTNESS.md
 .venv\Scripts\python sim\benches\hurdles.py           # bars and ramps -> docs/HURDLES.md
-.venv\Scripts\python sim\clips.py                     # these GIFs, freshly rendered -> media/
-.venv\Scripts\python cad\check.py                     # printability, servo fit, self-collision sweep (~25 min)
+.venv\Scripts\python sim\clips.py                     # short review clips (GIFs) -> media/
+.venv\Scripts\python cad\v2\body_check.py --quick      # the body CAD: fits, windows, joint openings (print_check, sweep_check, gap_check too)
 ```
 
-The other benches (tidy, pick, righting, soak, obstacles) are in [sim/benches/](sim/benches/); each takes
+The other benches (tidy, pick, righting, soak, obstacles, heat) are in [sim/benches/](sim/benches/); each takes
 `--json` to save its results.
 
 **Training** runs on any GPU through one command: this laptop, machines on a Tailscale network (Linux or
@@ -109,7 +96,8 @@ tests). Several agents can work at once, each in its own worktree (`python -m op
 
 ## On the robot
 
-Assembly and setup are in [hardware/ASSEMBLY.md](hardware/ASSEMBLY.md). Then:
+The assembly guide is written with the build ([hardware/ASSEMBLY.md](hardware/ASSEMBLY.md) says what exists until
+then). The software goes on the Radxa with:
 
 ```bash
 sudo bash deploy/install.sh

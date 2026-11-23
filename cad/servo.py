@@ -1,27 +1,17 @@
-"""Servo geometry profiles for the CAD (mm) + small solid helpers.
+"""The STS3032 arm servo's geometry for the CAD (mm) + small solid helpers.
 
-Servo frame (all profiles): output shaft = +Z through the origin (horn on the +Z face),
-case length along X with the output end at +X, width along Y, Z = 0 at the case
-mid-plane (case faces at Z = +-face).
+Servo frame: output shaft = +Z through the origin (horn on the +Z face), case length along X with the output end at +X,
+width along Y, Z = 0 at the case mid-plane (case faces at Z = +-face). The STS3032 screws down through its mounting
+ears into a ledge ("ears"); the profile also describes servos screwed into their case faces ("faces").
 
-Two mounting styles:
-  "faces": screws into the case faces (ST3215, HD-1910): cradle plates on both faces
-  "ears":  screws down through the mounting ears into a ledge (STS3032 / SCS0009 micro servos)
-
-Sources:
-  HD-1910 - Feetech dimension diagram on the Evelta listing: case 34 x 20 x 23, shaft 7.5 mm
-            off-centre, 4 x M2 holes on 30 x 16 per face, dual-axis horns dia 16 (29 mm over both).
-  SCS0009 - Waveshare "SC09 Servo" dimension drawing: case 23.3 x 12.1, 25.25 tall (28.45 to the
-            spline top), shaft 5.7 mm off-centre, ears 32.5 mm tip to tip, 11 wide, 1.6 thick, top of
-            ear 18.4 above the case bottom, ear holes dia 2 on 28.5 mm. Dual-shaft. The round disc horn
-            from the box (about dia 20) is screwed to each printed link.
+Source:
   STS3032 - Feetech's official drawing (feetechrc.com product page, ST-3032-C001): case 23 x 12,
             27.5 tall (31.9 to the spline top), shaft 5.71 mm from the output end, ears 32 mm tip to tip,
             12 wide, 1.5 thick (20.5 .. 22 above the case bottom), 4 ear holes dia 2.5: two per ear,
             28 mm apart along the case (8.21 / 19.79 from the shaft). 25T spline, aluminium disc horn.
-            The robot uses it for every joint (the only small bus servo in stock, 2026-11-18).
-  Anything not on those drawings (horn thickness, the ear holes' spacing across the ear, cable exit)
-  is an estimate: check one servo with a calliper before printing (hardware/ASSEMBLY.md, step 0).
+            The robot's six arm servos (yaw, lift, claw); the legs' STS3215 is in cad/v2/servos.py.
+  Anything not on that drawing (horn thickness, the ear holes' spacing across the ear, cable exit)
+  is an estimate: check one servo with a calliper before printing.
 """
 
 from dataclasses import dataclass
@@ -73,18 +63,6 @@ class ServoProfile:
         return self.horn_r + 0.4
 
 
-HD1910 = ServoProfile(
-    "HD1910", L=34.0, W=20.0, T=23.0, x_out=9.5,
-    horn_r=8.0, horn_face=14.5, horn_pcd_r=6.0, horn_holes=(45, 135, 225, 315), horn_screw_clear=2.2,
-    dual_horn=True, mount="faces", case_holes=((7.5, 8.0), (7.5, -8.0), (-22.5, 8.0), (-22.5, -8.0)),
-    cable="side", mass=0.021)
-
-SCS0009 = ServoProfile(
-    "SCS0009", L=23.3, W=12.1, T=25.25, x_out=5.95,
-    horn_r=10.0, horn_face=16.6, horn_pcd_r=6.5, horn_holes=(), horn_screw_clear=1.9,
-    dual_horn=False, mount="ears", ear_len=4.6, ear_z0=4.175, ear_t=1.6, ear_w=11.0,
-    ear_holes_x=(8.55, -19.95), boss_r=2.5, boss_h=1.0, cable="rear", mass=0.0132)
-
 STS3032 = ServoProfile(
     "STS3032", L=23.0, W=12.0, T=27.5, x_out=5.71,
     horn_r=10.0, horn_face=19.2, horn_pcd_r=7.0, horn_holes=(), horn_screw_clear=2.2,
@@ -92,18 +70,7 @@ STS3032 = ServoProfile(
     ear_holes_x=(8.21, -19.79), ear_holes_y=(3.25, -3.25), boss_r=2.5, boss_h=1.0, cable="side",
     mass=0.020)
 
-# GOTECK GS-4308MG 4.3 g metal-gear PWM micro servo (Evelta, 14 in stock 2026-11-18): the arms' motors.
-# Listing: 20.22 x 8.5 x 24 mm overall (ears and spline included), 0.58-0.65 kg*cm, 180 deg.
-# Case, shaft and ear positions below are ESTIMATES from that and the product photo (no drawing
-# published) - measure one before printing the arm parts (hardware/ASSEMBLY.md, stage 0).
-GS4308 = ServoProfile(
-    "GS4308", L=15.8, W=8.5, T=17.6, x_out=4.5,
-    horn_r=5.5, horn_face=16.0, horn_pcd_r=0.0, horn_holes=(), horn_screw_clear=1.6,
-    dual_horn=False, mount="ears", ear_len=2.2, ear_z0=5.6, ear_t=1.5, ear_w=8.5,
-    ear_holes_x=(5.6, -12.4), ear_holes_y=(0.0,), boss_r=0.0, boss_h=0.0, cable="side",
-    mass=0.0058)
-
-PROFILES = {p.name: p for p in (HD1910, SCS0009, STS3032, GS4308)}
+PROFILES = {p.name: p for p in (STS3032,)}
 
 M2_CLEAR, M2_PILOT = 2.2, 1.7     # M2 clearance / self-tapping pilot in printed plastic
 M3_CLEAR, M3_INSERT = 3.4, 4.0    # M3 clearance / brass heat-set insert hole

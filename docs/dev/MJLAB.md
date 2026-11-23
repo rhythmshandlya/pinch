@@ -15,7 +15,7 @@ export with the normaliser baked in, written reward-design rules) on top of
 | File | What | Needs |
 |---|---|---|
 | `layout.py` | the one observation / action / command layout, history, command buckets | numpy |
-| `robot_spec.py` | the robot from `sim/models/crab.xml` for mjlab; servo numbers from `crab/params.py` | mujoco |
+| `robot_spec.py` | the robot from `sim/models/crab_v2.xml` (`PARAMS.model_file`) for mjlab; servo numbers from `crab/params.py` | mujoco |
 | `mdp.py` | leg action (arms hold the stand pose), IMU with mounting error, bucketed velocity command | torch, mjlab |
 | `env_cfg.py` | the task: sensors, observations, events (randomisation), rewards, terminations, PPO settings | torch, mjlab |
 | `tasks.py`, `train.py` | register `Pinch-Velocity-Flat` (position actuators) and `Pinch-Velocity-Flat-Bam`; run mjlab's trainer | torch, mjlab |
@@ -142,12 +142,11 @@ Python < 3.13; its mjlab actuator imports and runs on mjlab 1.6.1 (64-env smoke 
 
 ## What is left
 
-- **BAM parameters for the STS3215 and the resized robot.** The `Pinch-Velocity-Flat-Bam` task uses
-  `feetech_sts3215_7_4V/m6` (decision 100) on today's small, light model: the file's reflected inertia (0.022 kg m^2)
-  is far larger than this robot's links, so that variant only proves the plumbing. Once the resized model exists:
-  set `PINCH_MJLAB_MODEL`, keep the joint names, re-check the stand height, joint limits and the action scale,
-  and re-run the smoke test and a training run. Also open: BAM's stiff friction-loss constraint and delay terms
-  against the real servo (decision 100's risk).
+- **The BAM variant on the robot's model.** The `Pinch-Velocity-Flat-Bam` task uses `feetech_sts3215_7_4V/m6`
+  (decision 100). Its proof runs were made on the earlier, smaller model, so they only prove the plumbing: on
+  `crab_v2.xml` re-check the stand height, joint limits and the action scale, then re-run the smoke test and a
+  training run. Also open: BAM's stiff friction-loss constraint and delay terms against the real servo (decision
+  100's risk).
 - **Get-up task** (righting from the back) and **motion tracking** (emotes and tricks as reference motions);
   mjlab has a tracking task to start from. Both reuse `layout.py` and the leg action.
 - **A robot-side loader** for the ONNX / `.npz` policy and a decision on which of the two the firmware runs.

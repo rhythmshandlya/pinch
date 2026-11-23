@@ -36,7 +36,7 @@ automatically; the rules below still apply.
 | Training: terrain-push walker | training | Modal A10G |
 | Training: gentler get-up | training (another env) | msi-1 |
 | Framework: unknown-object curiosity | mind, senses, twin | laptop |
-| Hardware: OLED mount tweak | cad | none |
+| Hardware: face lid hinge tweak | cad | none |
 
 Two training tracks may share the `training` area when they only add their own environment module and
 experiment file; the registry line is the one shared edit (trivial to merge).

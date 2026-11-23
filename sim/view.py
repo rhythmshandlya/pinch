@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT))
 from crab.emotes import EMOTES, STAND  # noqa: E402
 from crab.params import PARAMS  # noqa: E402
 
-MODEL = ROOT / "sim" / "models" / "crab.xml"
+MODEL = ROOT / "sim" / "models" / PARAMS.model_file
 KEY_UP, KEY_DOWN = 265, 264
 HOLD_AFTER = 1.0   # seconds of STAND between emotes
 
