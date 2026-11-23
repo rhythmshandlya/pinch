@@ -7,7 +7,7 @@
 What reaches the mind is what reaches it on the robot (robot/firmware/senses.py): a touch on the shell when a hand
 gets there (the gesture by the person's style), and, from rendered camera frames, the faces YuNet finds and SFace
 recognises (pinch/faces.py) - mind.see_person(pid, confidence) and "someone is there". Without the camera (the
-default for fast, headless runs) a person facing Pinch within 1.2 m counts as seen, with the confidence falling off
+default for fast, headless runs) a person facing Pinch within 1.5 m counts as seen, with the confidence falling off
 with distance and the field of view (pinch/novelty.py FOV_HALF), which is what the camera path measures.
 """
 
@@ -99,8 +99,8 @@ class Life:
                 continue
             d = float(np.hypot(f[0] - x, f[1] - y))
             bearing = (np.arctan2(f[1] - y, f[0] - x) - h + np.pi) % (2 * np.pi) - np.pi
-            if d < 1.2 and abs(bearing) < 1.1:
-                conf = float(np.clip(1.0 - (d - 0.3) / 0.9, 0.3, 1.0))
+            if d < 1.5 and abs(bearing) < 1.1:              # (faces were found out to 1.5 m in rendered frames)
+                conf = float(np.clip(1.0 - (d - 0.3) / 1.2, 0.3, 1.0))
                 pid = f"face-sim{p.i}"
                 sim.mind.world.owner.present, sim.mind.world.owner.last_seen = True, sim.mind.t
                 self.seen.append((round(sim.t, 2), pid, conf))

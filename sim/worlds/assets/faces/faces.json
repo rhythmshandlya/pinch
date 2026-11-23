@@ -1,5 +1,5 @@
 {
-"_about": "eye and mouth centres (px, 192 x 192 crops; YuNet landmarks) and whether the face is a child's",
+"_about": "YuNet landmarks per 192 x 192 crop (px): eye centres and mouth corners left to right as seen, nose tip, mouth centre; and whether the face is a child's",
 "faces": {
 "face_00.jpg": {
 "eyes": [
@@ -16,7 +16,21 @@
 82.0,
 136.3
 ],
-"child": false
+"child": false,
+"nose": [
+81.2,
+108.1
+],
+"mouth_corners": [
+[
+55.0,
+133.4
+],
+[
+109.1,
+139.1
+]
+]
 },
 "face_01.jpg": {
 "eyes": [
@@ -33,7 +47,21 @@
 89.6,
 135.6
 ],
-"child": false
+"child": false,
+"nose": [
+81.0,
+110.4
+],
+"mouth_corners": [
+[
+67.8,
+136.9
+],
+[
+111.4,
+134.2
+]
+]
 },
 "face_02.jpg": {
 "eyes": [
@@ -50,7 +78,21 @@
 93.7,
 144.6
 ],
-"child": false
+"child": false,
+"nose": [
+87.0,
+120.5
+],
+"mouth_corners": [
+[
+72.5,
+146.0
+],
+[
+114.9,
+143.3
+]
+]
 },
 "face_03.jpg": {
 "eyes": [
@@ -67,7 +109,21 @@
 98.2,
 141.8
 ],
-"child": false
+"child": false,
+"nose": [
+97.1,
+119.7
+],
+"mouth_corners": [
+[
+75.4,
+143.1
+],
+[
+121.1,
+140.6
+]
+]
 },
 "face_04.jpg": {
 "eyes": [
@@ -84,7 +140,21 @@
 95.1,
 135.2
 ],
-"child": false
+"child": false,
+"nose": [
+95.2,
+111.9
+],
+"mouth_corners": [
+[
+70.4,
+135.0
+],
+[
+119.8,
+135.4
+]
+]
 },
 "face_05.jpg": {
 "eyes": [
@@ -101,7 +171,21 @@
 98.3,
 143.0
 ],
-"child": false
+"child": false,
+"nose": [
+102.9,
+118.0
+],
+"mouth_corners": [
+[
+73.9,
+144.1
+],
+[
+122.7,
+142.0
+]
+]
 },
 "face_06.jpg": {
 "eyes": [
@@ -118,7 +202,21 @@
 99.5,
 139.5
 ],
-"child": false
+"child": false,
+"nose": [
+99.0,
+117.1
+],
+"mouth_corners": [
+[
+78.4,
+140.6
+],
+[
+120.6,
+138.3
+]
+]
 },
 "face_07.jpg": {
 "eyes": [
@@ -135,7 +233,21 @@
 98.3,
 137.2
 ],
-"child": false
+"child": false,
+"nose": [
+98.2,
+116.6
+],
+"mouth_corners": [
+[
+73.7,
+137.5
+],
+[
+123.0,
+136.8
+]
+]
 },
 "face_08.jpg": {
 "eyes": [
@@ -152,7 +264,21 @@
 97.6,
 146.0
 ],
-"child": true
+"child": true,
+"nose": [
+107.1,
+120.4
+],
+"mouth_corners": [
+[
+69.9,
+144.9
+],
+[
+125.3,
+147.1
+]
+]
 },
 "face_09.jpg": {
 "eyes": [
@@ -169,7 +295,21 @@
 98.3,
 144.6
 ],
-"child": true
+"child": true,
+"nose": [
+102.6,
+120.6
+],
+"mouth_corners": [
+[
+73.6,
+145.5
+],
+[
+122.9,
+143.7
+]
+]
 },
 "face_10.jpg": {
 "eyes": [
@@ -186,7 +326,21 @@
 98.6,
 144.3
 ],
-"child": true
+"child": true,
+"nose": [
+103.4,
+121.0
+],
+"mouth_corners": [
+[
+74.7,
+145.8
+],
+[
+122.5,
+142.9
+]
+]
 },
 "face_11.jpg": {
 "eyes": [
@@ -203,7 +357,21 @@
 88.0,
 143.3
 ],
-"child": true
+"child": true,
+"nose": [
+91.0,
+123.0
+],
+"mouth_corners": [
+[
+63.0,
+142.5
+],
+[
+113.0,
+144.0
+]
+]
 },
 "face_12.jpg": {
 "eyes": [
@@ -220,7 +388,21 @@
 104.0,
 143.7
 ],
-"child": true
+"child": true,
+"nose": [
+111.6,
+117.4
+],
+"mouth_corners": [
+[
+77.6,
+145.2
+],
+[
+130.5,
+142.3
+]
+]
 },
 "face_13.jpg": {
 "eyes": [
@@ -237,7 +419,21 @@
 94.4,
 143.3
 ],
-"child": true
+"child": true,
+"nose": [
+100.5,
+119.3
+],
+"mouth_corners": [
+[
+68.5,
+143.2
+],
+[
+120.3,
+143.3
+]
+]
 },
 "face_14.jpg": {
 "eyes": [
@@ -254,7 +450,21 @@
 99.2,
 146.6
 ],
-"child": true
+"child": true,
+"nose": [
+104.2,
+120.3
+],
+"mouth_corners": [
+[
+74.9,
+148.0
+],
+[
+123.6,
+145.2
+]
+]
 },
 "face_15.jpg": {
 "eyes": [
@@ -271,7 +481,21 @@
 108.6,
 145.0
 ],
-"child": true
+"child": true,
+"nose": [
+112.3,
+123.8
+],
+"mouth_corners": [
+[
+84.8,
+147.3
+],
+[
+132.4,
+142.7
+]
+]
 },
 "face_16.jpg": {
 "eyes": [
@@ -288,7 +512,21 @@
 95.1,
 146.5
 ],
-"child": false
+"child": false,
+"nose": [
+101.2,
+119.8
+],
+"mouth_corners": [
+[
+69.6,
+145.7
+],
+[
+120.5,
+147.3
+]
+]
 },
 "face_17.jpg": {
 "eyes": [
@@ -305,7 +543,21 @@
 95.8,
 142.7
 ],
-"child": false
+"child": false,
+"nose": [
+97.7,
+115.9
+],
+"mouth_corners": [
+[
+71.6,
+143.4
+],
+[
+120.0,
+142.1
+]
+]
 },
 "face_18.jpg": {
 "eyes": [
@@ -322,7 +574,21 @@
 99.1,
 145.6
 ],
-"child": false
+"child": false,
+"nose": [
+97.4,
+121.2
+],
+"mouth_corners": [
+[
+75.3,
+146.9
+],
+[
+122.8,
+144.3
+]
+]
 },
 "face_19.jpg": {
 "eyes": [
@@ -339,7 +605,21 @@
 107.0,
 142.4
 ],
-"child": true
+"child": true,
+"nose": [
+108.9,
+121.5
+],
+"mouth_corners": [
+[
+81.2,
+144.5
+],
+[
+132.8,
+140.2
+]
+]
 },
 "face_20.jpg": {
 "eyes": [
@@ -356,7 +636,21 @@
 99.8,
 146.6
 ],
-"child": true
+"child": true,
+"nose": [
+100.1,
+125.5
+],
+"mouth_corners": [
+[
+75.9,
+148.3
+],
+[
+123.7,
+144.9
+]
+]
 },
 "face_21.jpg": {
 "eyes": [
@@ -373,7 +667,21 @@
 112.5,
 148.9
 ],
-"child": true
+"child": true,
+"nose": [
+119.9,
+128.4
+],
+"mouth_corners": [
+[
+88.8,
+150.8
+],
+[
+136.2,
+147.0
+]
+]
 },
 "face_22.jpg": {
 "eyes": [
@@ -390,7 +698,21 @@
 95.1,
 140.0
 ],
-"child": true
+"child": true,
+"nose": [
+102.3,
+118.9
+],
+"mouth_corners": [
+[
+68.9,
+139.5
+],
+[
+121.2,
+140.5
+]
+]
 },
 "face_23.jpg": {
 "eyes": [
@@ -407,7 +729,21 @@
 94.7,
 141.0
 ],
-"child": true
+"child": true,
+"nose": [
+97.5,
+119.1
+],
+"mouth_corners": [
+[
+68.9,
+140.2
+],
+[
+120.4,
+141.7
+]
+]
 },
 "face_24.jpg": {
 "eyes": [
@@ -424,7 +760,21 @@
 86.5,
 147.3
 ],
-"child": true
+"child": true,
+"nose": [
+84.4,
+128.0
+],
+"mouth_corners": [
+[
+60.8,
+147.2
+],
+[
+112.2,
+147.5
+]
+]
 },
 "face_25.jpg": {
 "eyes": [
@@ -441,7 +791,21 @@
 102.1,
 140.8
 ],
-"child": false
+"child": false,
+"nose": [
+107.6,
+116.4
+],
+"mouth_corners": [
+[
+75.8,
+142.0
+],
+[
+128.5,
+139.7
+]
+]
 },
 "face_26.jpg": {
 "eyes": [
@@ -458,7 +822,21 @@
 91.6,
 140.8
 ],
-"child": false
+"child": false,
+"nose": [
+93.2,
+116.5
+],
+"mouth_corners": [
+[
+64.9,
+140.8
+],
+[
+118.3,
+140.8
+]
+]
 },
 "face_27.jpg": {
 "eyes": [
@@ -475,7 +853,21 @@
 98.0,
 144.4
 ],
-"child": false
+"child": false,
+"nose": [
+100.6,
+116.6
+],
+"mouth_corners": [
+[
+72.2,
+144.7
+],
+[
+123.8,
+144.0
+]
+]
 },
 "face_28.jpg": {
 "eyes": [
@@ -492,7 +884,21 @@
 93.7,
 137.4
 ],
-"child": false
+"child": false,
+"nose": [
+97.2,
+115.8
+],
+"mouth_corners": [
+[
+67.5,
+136.3
+],
+[
+119.8,
+138.4
+]
+]
 }
 }
 }

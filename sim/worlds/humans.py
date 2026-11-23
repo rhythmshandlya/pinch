@@ -194,7 +194,9 @@ def geometry(age, male, eth, height):
                 keep.append(f)
         zones[z] = keep
     zones["face"] = face
-    marks = dict(eyes=(eL, eR), mouth_z=mz, centre_y=float(head["head"][1]))
+    xm_ = (eL[0] + eR[0]) / 2                                              # mouth corners: MakeHuman's ~5 cm mouth
+    marks = dict(eyes=(eL, eR), mouth_z=mz, centre_y=float(head["head"][1]), nose=(float(nose[0]), float(nose[2])),
+                 mouth_corners=((xm_ - 0.026 * sc, mz), (xm_ + 0.026 * sc, mz)), sc=sc)
     return dict(P=P, VT=VT, zones=zones, bones=bones, head=head, parent=parent, W=Wm, bi=bi, height=height, marks=marks)
 
 
@@ -202,54 +204,109 @@ FACES = Path(__file__).resolve().parent / "assets" / "faces"
 
 
 def face_photo(p):
-    """A synthetic face photo for person p (a child's for a child): (RGB image, eye centres, mouth centre) in px."""
+    """A synthetic face photo for person p (a child's for a child): (RGB image, landmarks in px: eyes and mouth
+    corners left to right as seen, nose tip, mouth centre)."""
     import cv2
     info = json.loads((FACES / "faces.json").read_text())["faces"]
     names = [k for k, v in sorted(info.items()) if v["child"] == bool(p["child"])] or sorted(info)
     k = names[p["face"] % len(names)]
     img = cv2.imread(str(FACES / k))[:, :, ::-1]
-    return img, np.array(info[k]["eyes"], float), np.array(info[k]["mouth"], float)
+    v = info[k]
+    return img, dict(eyes=np.array(v["eyes"], float), mouth=np.array(v["mouth"], float),
+                     nose=np.array(v["nose"], float), mouth_corners=np.array(v["mouth_corners"], float))
 
 
+# Measured on 16 held-out worlds (YuNet in Pinch's fisheye view; SFace cosine between different people's faces,
+# >= 0.363 counts as mistaken for the same person), 2026-11-23:
+#   3-point fit, small oval: found 16/16, 34/120 pairs confused   (the first version)
+#   5-landmark thin-plate warp + de-lit photo, smaller oval:  59/120;  warp alone: 62/120 (a smaller face shows less)
+#   warp, small oval: 33/120;  warp, larger oval: 28/120;  3-point fit, larger oval: 23/120  <- kept
+# The warp (recommended by the research note for alignment) loses here: with five landmarks, and the mesh's mouth
+# corners only estimated, it bends the nose and mouth; kept switchable for when dense landmarks are mapped.
+WARP = False
 PAD = 1.0                                                                  # canvas margin, in photo sizes
 
 
-def face_canvas(img, eyes_px, mouth_px):
-    """The head's texture: the photo in the middle of a skin-coloured canvas (3x its size), blended into the skin with
-    a soft oval around eyes, nose and mouth, so its hair and background never show and there is no edge.
-    Returns (canvas, skin colour 0..1)."""
+def _delight(img, strength=0.0):                                       # (off: neutral on the numbers above, flatter faces)
+    """Take most of the photo's own lighting out (divide by a heavily blurred brightness), so the renderer's lights
+    don't shade the face a second time (the research note: de-light before projecting a photo onto a mesh)."""
+    import cv2
+    f = img.astype(np.float32)
+    lum = f.mean(2)
+    low = cv2.GaussianBlur(lum, (0, 0), sigmaX=0.15 * img.shape[0])
+    gain = (lum.mean() / np.maximum(low, 1.0)) ** strength
+    return np.clip(f * gain[..., None], 0, 255)
+
+
+def face_canvas(img, lm):
+    """The head's texture: the de-lit photo in the middle of a skin-coloured canvas (3x its size), blended into the
+    skin with a soft oval around eyes, nose and mouth, so its hair and background never show and there is no edge.
+    The skin colour is the photo's own, from a ring just inside the oval. Returns (canvas, skin colour 0..1)."""
+    eyes, mouth = lm["eyes"], lm["mouth"]
     h, w = img.shape[:2]
-    e = eyes_px.mean(0)
-    d = mouth_px[1] - e[1]                                                 # eyes -> mouth, px
-    ew = eyes_px[1, 0] - eyes_px[0, 0]
+    f = _delight(img)
+    e = eyes.mean(0)
+    d = mouth[1] - e[1]                                                    # eyes -> mouth, px
+    ew = eyes[1, 0] - eyes[0, 0]
     yy, xx = np.mgrid[0:h, 0:w]
-    cheeks = ((np.abs(xx - e[0]) - 0.45 * ew) ** 2 < (0.12 * ew) ** 2) & (np.abs(yy - (e[1] + 0.55 * d)) < 0.2 * d)
-    skin = img[cheeks].reshape(-1, 3).mean(0)
     cy = e[1] + 0.35 * d
-    ry = np.where(yy < cy, 1.05 * d, 1.6 * d)                              # short above the eyes: no fringe of hair
-    r = np.sqrt(((xx - e[0]) / (0.95 * ew)) ** 2 + ((yy - cy) / ry) ** 2)
+    ry = np.where(yy < cy, 1.15 * d, 1.75 * d)                            # short above the eyes: no fringe of hair
+    r = np.sqrt(((xx - e[0]) / (1.1 * ew)) ** 2 + ((yy - cy) / ry) ** 2)
+    ring = (r > 0.6) & (r < 0.8) & (yy > e[1])                             # cheeks and jaw, inside the oval's edge
+    skin = np.median(f[ring].reshape(-1, 3), axis=0)
     alpha = np.clip((1.0 - r) / 0.3, 0.0, 1.0)[..., None]                 # full photo inside, skin by the oval's edge
     m = int(PAD * h)
     canvas = np.empty((h + 2 * m, w + 2 * m, 3), np.float32)
     canvas[:] = skin
-    canvas[m:m + h, m:m + w] = alpha * img + (1 - alpha) * skin
+    canvas[m:m + h, m:m + w] = alpha * f + (1 - alpha) * skin
     return np.clip(canvas, 0, 255).astype(np.uint8), tuple(float(c) / 255 for c in skin)
 
 
-def _face_uv(g, P_head, eyes_px, mouth_px, size):
-    """Texture coordinates for the head's vertices on the canvas: the front projected straight on, so the photo's
-    eyes and mouth land on the mesh's; the back of the head on plain skin (a corner of the canvas)."""
-    (eL, eR), mz = g["marks"]["eyes"], g["marks"]["mouth_z"]
+def _tps(src, dst, smooth=1e-6):
+    """A thin-plate spline from src (n, 2) to dst (n, 2) points: returns f(points) (Bookstein 1989)."""
+    def U(r):
+        return np.where(r > 0, r * r * np.log(np.maximum(r, 1e-12)), 0.0)
+    n = len(src)
+    K = U(np.linalg.norm(src[:, None] - src[None], axis=2)) + smooth * np.eye(n)
+    P = np.hstack([np.ones((n, 1)), src])
+    A = np.zeros((n + 3, n + 3))
+    A[:n, :n], A[:n, n:], A[n:, :n] = K, P, P.T
+    sol = np.linalg.solve(A, np.vstack([dst, np.zeros((3, 2))]))
+    wts, aff = sol[:n], sol[n:]
+
+    def f(q):
+        return U(np.linalg.norm(q[:, None] - src[None], axis=2)) @ wts + np.hstack([np.ones((len(q), 1)), q]) @ aff
+    return f
+
+
+def _face_uv(g, P_head, lm, size):
+    """Texture coordinates for the head's vertices on the canvas: the front projected straight on and warped with a
+    thin-plate spline so the photo's eyes, nose tip and mouth corners land on the mesh's (five landmarks; far from
+    the face the warp follows the plain eye-and-mouth fit, so it can't fold); the back of the head on plain skin."""
+    mk = g["marks"]
+    (eL, eR), mz, sc = mk["eyes"], mk["mouth_z"], mk["sc"]
     ex_m, ez_m = (eL[0] + eR[0]) / 2, (eL[2] + eR[2]) / 2
-    sx = (eyes_px[1, 0] - eyes_px[0, 0]) / abs(eL[0] - eR[0])            # mesh +x = the photo's right (viewer's right)
-    ey_px = eyes_px[:, 1].mean()
-    sz = (mouth_px[1] - ey_px) / max(ez_m - mz, 1e-4)
-    px = eyes_px[:, 0].mean() + sx * (P_head[:, 0] - ex_m)
-    py = ey_px - sz * (P_head[:, 2] - ez_m)
+    eyes = lm["eyes"]
+    sx = (eyes[1, 0] - eyes[0, 0]) / abs(eL[0] - eR[0])                    # mesh +x = the photo's right (viewer's right)
+    ey_px = eyes[:, 1].mean()
+    sz = (lm["mouth"][1] - ey_px) / max(ez_m - mz, 1e-4)
+
+    def similar(q):
+        return np.stack([eyes[:, 0].mean() + sx * (q[:, 0] - ex_m), ey_px - sz * (q[:, 1] - ez_m)], 1)
+    left, right = sorted([eL, eR], key=lambda e: e[0])
+    src = [(left[0], left[2]), (right[0], right[2]), mk["nose"], *mk["mouth_corners"]]
+    dst = [eyes[0], eyes[1], lm["nose"], *lm["mouth_corners"]]
+    ang = np.linspace(0, 2 * np.pi, 10, endpoint=False)                    # a ring of anchors at the plain fit
+    ring = np.stack([ex_m + 0.11 * sc * np.cos(ang), ez_m - 0.03 * sc + 0.13 * sc * np.sin(ang)], 1)
+    src = np.vstack([np.array(src, float), ring])
+    dst = np.vstack([np.array(dst, float), similar(ring)])
+    f = _tps(src, dst) if WARP else similar
+    q = P_head[:, [0, 2]]
+    pxy = f(q)
     h, w = size[:2]
     m = PAD * h
-    uv = np.stack([(px + m) / (w + 2 * m), (py + m) / (h + 2 * m)], 1)    # (MuJoCo skins: row 0 at v = 0)
-    back = P_head[:, 1] > g["marks"]["centre_y"]                            # facing away: skin
+    uv = np.stack([(pxy[:, 0] + m) / (w + 2 * m), (pxy[:, 1] + m) / (h + 2 * m)], 1)    # (row 0 at v = 0)
+    back = P_head[:, 1] > mk["centre_y"]                                    # facing away: skin
     uv[back] = 0.02
     return np.clip(uv, 0.0, 1.0)
 
@@ -305,7 +362,7 @@ def add(spec, i, p):
         sk.vert = P[vid].flatten()
         sk.face = np.array(tri, np.int32).flatten()
         if z == "face" and photo is not None:
-            sk.texcoord = _face_uv(g, P[vid], photo[1], photo[2], photo[0].shape).astype(np.float32).flatten()
+            sk.texcoord = _face_uv(g, P[vid], photo[1], photo[0].shape).astype(np.float32).flatten()
             sk.material = f"person{i}_face"
         elif z == "skin" and photo is not None:                       # lit like the face
             sk.material = body_mat.name

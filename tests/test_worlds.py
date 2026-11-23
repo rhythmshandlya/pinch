@@ -77,6 +77,7 @@ def test_people_move_and_touch():
     sitter = next(p for p in life.people if p.p["role"] == "sitter")
     q = sim.d.qpos                                      # Pinch near the front edge, within the person's reach
     q[0], q[1] = sitter.base[0], -w.surface["half_y"] + 0.12
+    q[3:7] = (np.cos(-np.pi / 4), 0.0, 0.0, np.sin(-np.pi / 4))          # facing them (-y)
     sim.autonomous = False
     life.run(1.0)
     sitter.reach_now("stroke")
