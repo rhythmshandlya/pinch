@@ -78,7 +78,8 @@ def main():
     print(f"\n{sum(s['passed'] for s in summary.values())}/{sum(s['runs'] for s in summary.values())} runs passed "
           f"in {(time.time() - t0) / 60:.1f} min")
     save_json(a.json, dict(summary=summary, runs=results))
+    return 0                                  # a report: the pass rates are the result, there is no pass rule yet
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

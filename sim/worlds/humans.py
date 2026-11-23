@@ -171,7 +171,8 @@ def geometry(age, male, eth, height):
     for f in G["body"]:                                                    # painted features (the agent's recipe)
         c = P[[v for v, _ in f]].mean(0)
         front = not (c[1] > nose[1] + 0.045 * sc and c[2] < eL[2] + 0.08 * sc)
-        if c[2] > eL[2] + 0.075 * sc and c[2] > head["head"][2] + 0.05 * sc and (c[1] > eL[1] - 0.03 * sc or c[2] > eL[2] + 0.1 * sc):
+        hv_ = P[[v for v, _ in f]]                         # a smooth hairline: high at the forehead, low at the back
+        if dom[f[0][0]] in (bi["head"], bi["neck_01"]) and                 np.all(hv_[:, 2] + 0.45 * (hv_[:, 1] - eL[1]) > eL[2] + 0.055 * sc) and c[2] > head["head"][2] - 0.02 * sc:
             zones["hair"].append(f)
         elif front and abs(c[0]) < 0.026 * sc and abs(c[2] - mz) < 0.0045 * sc:
             zones["lips"].append(f)
@@ -180,22 +181,20 @@ def geometry(age, male, eth, height):
         else:
             zones[zone(f)].append(f)
     zones["eyes"] = G["helper-l-eye"] + G["helper-r-eye"]
-    # the face: the front of the head between brows and chin, where a photo face goes (add(photo=...))
-    xm, ez = (eL[0] + eR[0]) / 2, (eL[2] + eR[2]) / 2
+    # the head: all its skin (face, ears, scalp under the hair, the top of the neck) as one zone, so a photo face can
+    # fade into the skin around it with no seam (add())
     face = []
     for z in ("skin", "lips", "brows"):
         keep = []
         for f in zones[z]:
             vs = [v for v, _ in f]
-            c = P[vs].mean(0)
-            front = c[1] < eL[1] + 0.012 * sc and np.all(dom[vs] == bi["head"])
-            if front and ((c[0] - xm) / (0.068 * sc)) ** 2 + ((c[2] - (ez - 0.02 * sc)) / (0.085 * sc)) ** 2 < 1.0:
+            if np.all(np.isin(dom[vs], [bi["head"], bi["neck_01"]])):
                 face.append(f)
             else:
                 keep.append(f)
         zones[z] = keep
     zones["face"] = face
-    marks = dict(eyes=(eL, eR), mouth_z=mz)
+    marks = dict(eyes=(eL, eR), mouth_z=mz, centre_y=float(head["head"][1]))
     return dict(P=P, VT=VT, zones=zones, bones=bones, head=head, parent=parent, W=Wm, bi=bi, height=height, marks=marks)
 
 
@@ -212,16 +211,47 @@ def face_photo(p):
     return img, np.array(info[k]["eyes"], float), np.array(info[k]["mouth"], float)
 
 
-def _face_uv(g, P_face, eyes_px, mouth_px, size):
-    """Texture coordinates for face vertices: the photo placed so its eyes and mouth land on the mesh's."""
+PAD = 1.0                                                                  # canvas margin, in photo sizes
+
+
+def face_canvas(img, eyes_px, mouth_px):
+    """The head's texture: the photo in the middle of a skin-coloured canvas (3x its size), blended into the skin with
+    a soft oval around eyes, nose and mouth, so its hair and background never show and there is no edge.
+    Returns (canvas, skin colour 0..1)."""
+    h, w = img.shape[:2]
+    e = eyes_px.mean(0)
+    d = mouth_px[1] - e[1]                                                 # eyes -> mouth, px
+    ew = eyes_px[1, 0] - eyes_px[0, 0]
+    yy, xx = np.mgrid[0:h, 0:w]
+    cheeks = ((np.abs(xx - e[0]) - 0.45 * ew) ** 2 < (0.12 * ew) ** 2) & (np.abs(yy - (e[1] + 0.55 * d)) < 0.2 * d)
+    skin = img[cheeks].reshape(-1, 3).mean(0)
+    cy = e[1] + 0.35 * d
+    ry = np.where(yy < cy, 1.05 * d, 1.6 * d)                              # short above the eyes: no fringe of hair
+    r = np.sqrt(((xx - e[0]) / (0.95 * ew)) ** 2 + ((yy - cy) / ry) ** 2)
+    alpha = np.clip((1.0 - r) / 0.3, 0.0, 1.0)[..., None]                 # full photo inside, skin by the oval's edge
+    m = int(PAD * h)
+    canvas = np.empty((h + 2 * m, w + 2 * m, 3), np.float32)
+    canvas[:] = skin
+    canvas[m:m + h, m:m + w] = alpha * img + (1 - alpha) * skin
+    return np.clip(canvas, 0, 255).astype(np.uint8), tuple(float(c) / 255 for c in skin)
+
+
+def _face_uv(g, P_head, eyes_px, mouth_px, size):
+    """Texture coordinates for the head's vertices on the canvas: the front projected straight on, so the photo's
+    eyes and mouth land on the mesh's; the back of the head on plain skin (a corner of the canvas)."""
     (eL, eR), mz = g["marks"]["eyes"], g["marks"]["mouth_z"]
     ex_m, ez_m = (eL[0] + eR[0]) / 2, (eL[2] + eR[2]) / 2
     sx = (eyes_px[1, 0] - eyes_px[0, 0]) / abs(eL[0] - eR[0])            # mesh +x = the photo's right (viewer's right)
     ey_px = eyes_px[:, 1].mean()
     sz = (mouth_px[1] - ey_px) / max(ez_m - mz, 1e-4)
-    px = eyes_px[:, 0].mean() + sx * (P_face[:, 0] - ex_m)
-    py = ey_px - sz * (P_face[:, 2] - ez_m)
-    return np.stack([px / size[1], py / size[0]], 1)                     # (MuJoCo skins: row 0 at v = 0)
+    px = eyes_px[:, 0].mean() + sx * (P_head[:, 0] - ex_m)
+    py = ey_px - sz * (P_head[:, 2] - ez_m)
+    h, w = size[:2]
+    m = PAD * h
+    uv = np.stack([(px + m) / (w + 2 * m), (py + m) / (h + 2 * m)], 1)    # (MuJoCo skins: row 0 at v = 0)
+    back = P_head[:, 1] > g["marks"]["centre_y"]                            # facing away: skin
+    uv[back] = 0.02
+    return np.clip(uv, 0.0, 1.0)
 
 
 def lengths(g):
@@ -245,15 +275,14 @@ def add(spec, i, p):
     photo = None
     if (FACES / "faces.json").exists():
         photo = face_photo(p)
-        img = photo[0]
-        cheek = img[int(img.shape[0] * 0.55):int(img.shape[0] * 0.62), int(img.shape[1] * 0.22):int(img.shape[1] * 0.3)]
-        skin = tuple(float(c) / 255 for c in cheek.reshape(-1, 3).mean(0))     # the body's skin matches the face
+        canvas, skin = face_canvas(*photo)                                  # the body's skin is the face's
         tname = f"person{i}_face"
-        t = spec.add_texture(name=tname, type=mujoco.mjtTexture.mjTEXTURE_2D, width=img.shape[1], height=img.shape[0],
-                             nchannel=3)
-        t.data = bytes(np.ascontiguousarray(img))
-        mat = spec.add_material(name=tname, specular=0.1, emission=0.15)
+        t = spec.add_texture(name=tname, type=mujoco.mjtTexture.mjTEXTURE_2D, width=canvas.shape[1],
+                             height=canvas.shape[0], nchannel=3)
+        t.data = bytes(np.ascontiguousarray(canvas))
+        mat = spec.add_material(name=tname, specular=0.1, emission=0.1)
         mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = tname
+        body_mat = spec.add_material(name=f"person{i}_skin", specular=0.1, emission=0.1, rgba=list(skin) + [1.0])
     rng = np.random.default_rng(p["seed"] + 7)
     hair = tuple(float(x) for x in [(0.08, 0.06, 0.05), (0.25, 0.15, 0.08), (0.55, 0.4, 0.2), (0.7, 0.7, 0.7)][
         int(rng.choice(4, p=[0.5, 0.25, 0.15, 0.1]))])
@@ -278,9 +307,14 @@ def add(spec, i, p):
         if z == "face" and photo is not None:
             sk.texcoord = _face_uv(g, P[vid], photo[1], photo[2], photo[0].shape).astype(np.float32).flatten()
             sk.material = f"person{i}_face"
+        elif z == "skin" and photo is not None:                       # lit like the face
+            sk.material = body_mat.name
+        elif z == "hair":                                              # matte hair (no shiny rim at its edge)
+            hm = spec.add_material(name=f"person{i}_hair", specular=0.0, shininess=0.0, rgba=list(rgba["hair"]) + [1.0])
+            sk.material = hm.name
         else:
             sk.rgba = list(rgba.get(z, skin)) + [1.0]
-        sk.inflate = {"shirt": 0.004, "trousers": 0.004, "shoes": 0.004}.get(z, 0.0008 if z in ("lips", "brows", "hair") else 0.0)
+        sk.inflate = {"shirt": 0.004, "trousers": 0.004, "shoes": 0.004}.get(z, 0.005 if z == "hair" else 0.0008 if z in ("lips", "brows") else 0.0)
         used = [b for b in g["bones"] if (W[vid, g["bi"][b]] > 1e-4).any()]
         sk.bodyname = [f"{name}_{b}" for b in used]
         sk.bindpos = np.concatenate([g["head"][b] for b in used])

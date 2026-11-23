@@ -122,7 +122,8 @@ def main():
         ks = sum(s >= MATCH for s in same)
         print(f"  recognised again 1.5 s later: {ks}/{len(same)} (SFace cosine >= {MATCH}; median {np.median(same):.2f})")
     save_json(a.json, dict(found=k, n=n, lo=lo, hi=hi, out_of_view=len(rs_all) - n, runs=rs_all))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

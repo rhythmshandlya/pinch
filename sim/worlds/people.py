@@ -153,7 +153,7 @@ class Person:
             self.heading = None
         else:                                              # someone may already be walking by
             self._new_walk(0.0)
-            self.enabled = self.rng.random() < 0.7
+            self.enabled = self.rng.random() < 0.7 and not getattr(self, "blocked", False)
             self.base = self.path[0] + (self.path[1] - self.path[0]) * self.rng.uniform(0.3, 0.8)
         self.hand = None
         self.pose = {}
@@ -163,19 +163,40 @@ class Person:
         """A path past Pinch's surface: from one side of the room to the other, passing at the style's distance
         (indifferent people go by; curious and playful people come up to it; fearful ones keep away)."""
         r = self.rng
-        ang = r.uniform(-np.pi, np.pi)
-        stop = self.stop if self.p["style"] != "indifferent" else r.uniform(0.8, 2.0)
-        side = np.array([np.cos(ang), np.sin(ang)])
-        surf = max(self.w.surface["half_x"], self.w.surface["half_y"])
-        across = np.array([-side[1], side[0]])
-        d0 = surf + stop
         room = next((rm for rm in self.w.rooms if rm["x0"] <= 0 <= rm["x1"] and rm["y0"] <= 0 <= rm["y1"]), None)
 
         def inside(q):                                     # walking stays in Pinch's room (no walking through walls)
             if room is None:
                 return q
             return np.array([np.clip(q[0], room["x0"] + 0.35, room["x1"] - 0.35), np.clip(q[1], room["y0"] + 0.35, room["y1"] - 0.35)])
-        self.path = [inside(side * d0 + across * 3.0), inside(side * d0), inside(side * d0 - across * 3.0)]
+        obstacles = [(f["x"], f["y"], f["yaw"], f["w"] / 2 + 0.3, f["d"] / 2 + 0.3) for f in self.w.furniture]
+        if self.w.kind != "floor":                         # Pinch's own desk or table, and the seat in front of it
+            s_ = self.w.surface
+            obstacles.append((0.0, -0.25, 0.0, s_["half_x"] + 0.3, s_["half_y"] + 0.55))
+
+        def clear(path):                                   # no furniture on the way (sampled every 10 cm)
+            for a, b in zip(path, path[1:]):
+                for u in np.linspace(0, 1, max(2, int(np.linalg.norm(b - a) / 0.1))):
+                    q = a + (b - a) * u
+                    for x, y, yaw, hw, hd in obstacles:
+                        c, sn = np.cos(-yaw), np.sin(-yaw)
+                        lx, ly = c * (q[0] - x) - sn * (q[1] - y), sn * (q[0] - x) + c * (q[1] - y)
+                        if abs(lx) < hw and abs(ly) < hd:
+                            return False
+            return True
+        surf = max(self.w.surface["half_x"], self.w.surface["half_y"])
+        for _ in range(40):                                # a way past it that doesn't go through furniture
+            ang = r.uniform(-np.pi, np.pi)
+            stop = self.stop if self.p["style"] != "indifferent" else r.uniform(0.8, 2.0)
+            side = np.array([np.cos(ang), np.sin(ang)])
+            across = np.array([-side[1], side[0]])
+            d0 = surf + stop
+            self.path = [inside(side * d0 + across * 3.0), inside(side * d0), inside(side * d0 - across * 3.0)]
+            if clear(self.path):
+                break
+        else:
+            self.enabled = False                          # nowhere to walk in this room: they stay out of it
+            self.blocked = True
         self.path_t0, self.dwell = t, r.uniform(*self.st["dwell"])
         self.base = self.path[0].copy()
         self.leg = 0
@@ -191,7 +212,7 @@ class Person:
             self.leg += 1
         if self.leg >= len(self.path) - 1:
             self._new_walk(t)
-            self.enabled = self.rng.random() < 0.7
+            self.enabled = self.rng.random() < 0.7 and not getattr(self, "blocked", False)
             return 0.0
         tgt = self.path[self.leg + 1]
         d = tgt - self.base
@@ -284,7 +305,7 @@ class Person:
             self.pose = {}
             if self.p["role"] == "walker":
                 self.walk(dt, t, crab_xy) if self.rng.random() < dt / 20 else None
-                self.enabled = self.enabled or self.rng.random() < dt / 15
+                self.enabled = self.enabled or (self.rng.random() < dt / 15 and not getattr(self, "blocked", False))
             return None
         speed = self.walk(dt, t, crab_xy) if self.p["role"] == "walker" else 0.0
         to_me = self.base - crab_xy
