@@ -64,6 +64,7 @@ fell = { dizzy = 0.6, scared = 0.7 }
 stuck = { grumpy = 0.5, scared = 0.3 }
 unstuck = { content = 0.6, happy = 0.3 }
 touched_unwanted = { shy = 0.6, scared = 0.3 }
+feared_person = { scared = 0.4, shy = 0.4 }
 failed = { grumpy = 0.2 }      # one miss doesn't show; a few in a row do
 succeeded = { content = 0.3, proud = 0.2 }
 
@@ -90,8 +91,26 @@ quiet = ["quiet", "content", "neutral", "sleepy", "shy"]
 dizzy = ["dizzy", "surprised", "scared"]
 neutral = ["neutral", "content", "curious", "focused", "thinking", "confused", "bored", "happy"]
 
+# the day's rhythm: what it wants is scaled by the part of the day (audit LIFE-001/002: a busier morning, an
+# evening wind-down; animals' activity follows a daily rhythm, docs/research/v2_1/longterm/notes.md)
+[daytime]
+morning = { explore = 1.25, investigate = 1.15, play = 1.1 }
+afternoon = {}
+evening = { rest = 1.3, play = 0.85, explore = 0.85, show_off = 0.85 }
+night = { rest = 1.5, play = 0.6, explore = 0.6, show_off = 0.6, investigate = 0.8 }
+
+# emotes that can stand in for each other (Cozmo/Vector pick a variant from an animation group by mood and recent
+# use, docs/research/v2_1/expression): an emote played in the last `recent` emotes gives way to an unused sibling
+[emote_family]
+recent = 3
+joy = ["happy", "excited", "dance", "applause"]
+curious = ["curious", "look_around"]
+fidget = ["fidget", "stretch"]
+tired = ["yawn", "stretch"]
+
 [face]
 intent_hold_s = 2.5        # how long an activity's asked-for look shows before the feeling's own face returns
+outcome_hold_s = 0.8       # a reaction to how a move went shows this long before the activity's next look
 perform = ["asleep", "dead", "music"]   # body states and tricks: shown for the whole activity, whatever the feeling
 
 # sounds: an activity asks for one; a sound that says the opposite of the feeling becomes the feeling's own sound
@@ -120,7 +139,7 @@ bored = "sleepy_hum"
 
 # walking tempo from the feeling (pinch/body/locomotion.py walk_tempo): base + weights, 1.0 = the gait's top speed
 [motion]
-base = 0.90        # a calm, neutral crab walks near the gait's usual speed; mood moves it from there
+base = 0.90        # a calm crab ambles at 90 % of the gait's top speed; lively or scared reaches it, sad or tired is slower
 arousal = 0.30
 valence = 0.10
 fatigue = 0.30
@@ -143,3 +162,4 @@ greet = { fear = -0.8 }
 seek_attention = { fear = -0.5, fatigue = -0.3 }
 shy = { fear = 0.8, sad = 0.3 }
 rest = { fatigue = 0.5, sad = 0.2 }
+quirk = { fear = -2.0, sad = -1.2, fatigue = -0.5, joy = 0.3 }

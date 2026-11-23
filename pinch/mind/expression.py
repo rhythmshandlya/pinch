@@ -25,6 +25,9 @@ def face_now(mind):
     if mind.state == "sleep":
         return "asleep"
     feeling = mind.affect.feeling()
+    out = getattr(mind, "outcome_intent", None)       # how the move it just made went: shown first, briefly
+    if out is not None and out[2] == mind.started and mind.t - out[1] <= EXPR["face"]["outcome_hold_s"]             and fits(out[0], feeling):
+        return out[0]
     intent = getattr(mind, "face_intent", None)
     if intent is not None and intent[2] == mind.started and mind.activity is not None:   # this activity asked
         face, t0, _ = intent

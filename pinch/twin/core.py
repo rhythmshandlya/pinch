@@ -206,6 +206,7 @@ class TwinCore:
             set_face(self.m, self.face.rgb(scale=2))
         self.body.life.liveliness = self.mind.affect.arousal
         self.body.life.asleep = self.mind.state == "sleep"
+        self.body.life.mood_in = (self.mind.affect.needs.safety, self.mind.affect.valence)
         if self.body.mood_fn is None:          # the emote style follows the whole mood (decision 92)
             a = self.mind.affect
             self.body.mood_fn = lambda: dict(arousal=a.arousal, valence=a.valence, sleepy=a.needs.sleep,

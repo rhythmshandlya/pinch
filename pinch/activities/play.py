@@ -117,3 +117,65 @@ class Explore(Activity):
         yield ("goto", target, 0.05)
         yield ("emote", "look_around")
         m.affect.feel("novelty", 0.6)
+
+
+class Quirk(Activity):
+    """Now and then - once or twice a day, at a moment nobody can predict - something a little unusual: a sneeze,
+    a dance all by itself, playing dead and popping back up, clapping for itself, chasing its own claw, a big
+    stretch. Never the same one as the last few (long-term HRI: rare surprises and variety keep a companion from
+    wearing thin; docs/research/v2_1/longterm/notes.md). Only when it feels safe and not sad (the [wants] gate)."""
+    state, max_s = "play", 40.0
+    name, min_s = "quirk", 2.0
+    GAP_H = (8.0, 30.0)                      # hours between quirks (clock time)
+    QUIRKS = ("sneeze", "solo_dance", "play_dead_pop", "applause_self", "claw_chase", "big_stretch")
+
+    @staticmethod
+    def _rng(m):
+        r = m.__dict__.get("_quirk_rng")
+        if r is None:
+            r = m.__dict__["_quirk_rng"] = np.random.default_rng(m.memory.data.get("stats", {}).get("boots", 0) + 0x9C1)
+        return r
+
+    def utility(self, m):
+        now = m.world.clock()
+        due = m.memory.data.setdefault("quirk_due", now + 3600.0 * self._rng(m).uniform(1.0, self.GAP_H[0]))
+        if now < due or m.affect.quiet or m.state == "sleep":
+            return 0.0
+        return 0.6
+
+    def run(self, m):
+        now = m.world.clock()
+        rng = self._rng(m)
+        m.memory.data["quirk_due"] = now + 3600.0 * rng.uniform(*self.GAP_H)
+        recent = m.memory.data.setdefault("quirks", [])[-3:]
+        fresh = [q for q in self.QUIRKS if q not in recent and (q != "solo_dance" or m.affect.valence > 0.2)]
+        q = fresh[int(rng.integers(len(fresh)))] if fresh else self.QUIRKS[0]
+        m.memory.data["quirks"] = (m.memory.data["quirks"] + [q])[-10:]
+        yield ("phase", q)
+        if q == "sneeze":
+            yield ("face", "surprised")
+            yield ("emote", "sneeze")
+            yield ("face", "happy")
+        elif q == "solo_dance":
+            yield ("face", "joy")
+            yield ("sound", "happy_trill")
+            yield ("emote", "dance")
+        elif q == "play_dead_pop":
+            yield ("face", "dead")
+            yield ("emote", "play_dead")
+            yield ("wait", 1.5)
+            yield ("face", "surprised")
+            yield ("emote", "excited")
+        elif q == "applause_self":
+            yield ("face", "proud")
+            yield ("emote", "applause")
+        elif q == "claw_chase":
+            x, y, h = m.world.pose
+            side = 1 if rng.random() < 0.5 else -1
+            yield ("look_at", (x + 0.06 * np.cos(h + 1.2 * side), y + 0.06 * np.sin(h + 1.2 * side)))
+            yield ("face", "curious")
+            yield ("turn_to", (x + 0.2 * np.cos(h + 1.2 * side), y + 0.2 * np.sin(h + 1.2 * side)))
+            yield ("emote", "look_around")
+        else:
+            yield ("emote", "stretch")
+            yield ("emote", "yawn")

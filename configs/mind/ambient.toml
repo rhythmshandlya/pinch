@@ -24,6 +24,16 @@ leg_femur_rad = 0.03
 leg_tibia_rad = 0.02
 duration_s = [0.5, 1.2]
 
+[posture]                # how it holds itself follows the mood (Laban weight; fear and sadness lower and
+                         # contract the body, joy lifts it: docs/research/v2_1/expression/notes.md)
+crouch_fear = 0.10       # rad of crouch (thighs up, shins in) at full fear
+crouch_sad = 0.07        # at full sadness
+rise_joy = 0.04          # stands this much taller at full joy
+claws_low_sad = 0.12     # shoulders droop this much when sad
+claws_in_fear = 0.08     # claws pulled in (closed) a little when afraid
+follow_s = 1.5           # the posture follows the mood this slowly
+fade_s = 0.4             # and fades this fast when a step takes the part
+
 [eyes]
 blink_gap_s = [2.0, 6.0]        # sometimes a double blink
 double_blink = 0.25

@@ -20,6 +20,7 @@ from pinch.settings import load
 
 A = load("ambient")                                   # configs/mind/ambient.toml
 BR, SW, FI = A["breath"], A["sway"], A["fidget"]
+PO = A["posture"]
 
 J = {n: i for i, n in enumerate(JOINT_NAMES)}
 LEGS = ("FL", "FR", "RL", "RR")
@@ -33,6 +34,8 @@ class IdleLife:
         self.liveliness = 0.4                       # 0 drowsy .. 1 excited (set by the mind)
         self.quiet_s = 0.0                          # how long nothing has happened around it
         self.asleep = False                         # set by the host: asleep = slow breathing only, no fidgets
+        self.mood_in = (0.0, 0.0)                   # set by the host: (fear 0..1, valence -1..1)
+        self._mood = np.zeros(3)                    # fear, sadness, joy, followed slowly
         self.next_t = 2.0
         self.current = None                         # (action, t0, duration, amplitude, leg)
         self.recent = []
@@ -43,6 +46,23 @@ class IdleLife:
         weights = np.array([0.0 if a in self.recent[-2:] else 1.0 for a in ACTIONS])
         weights[ACTIONS.index("still")] *= 0.5
         return ACTIONS[self.rng.choice(len(ACTIONS), p=weights / weights.sum())]
+
+    def posture(self, dt):
+        """Joint offsets (18) for how it holds itself now: lower and contracted when afraid or sad, a little taller
+        when happy, shoulders drooping when sad (configs/mind/ambient.toml [posture])."""
+        fear, v = self.mood_in
+        target = np.array([max(0.0, min(1.0, fear)), max(0.0, -v), max(0.0, v)])
+        self._mood += (target - self._mood) * (1 - math.exp(-dt / PO["follow_s"]))
+        f, s, j = self._mood
+        q = np.zeros(len(JOINT_NAMES))
+        c = PO["crouch_fear"] * f + PO["crouch_sad"] * s - PO["rise_joy"] * j
+        for lg in LEGS:
+            q[J[f"{lg}_femur"]] += c
+            q[J[f"{lg}_tibia"]] -= c
+        for side in "LR":
+            q[J[f"{side}_shoulder_pitch"]] -= PO["claws_low_sad"] * s
+            q[J[f"{side}_claw"]] -= PO["claws_in_fear"] * f
+        return q
 
     def offsets(self, t, dt):
         """Joint offsets (18) for this tick."""
@@ -61,7 +81,10 @@ class IdleLife:
         for side in "LR":
             q[J[f"{side}_claw"]] += cb
             q[J[f"{side}_shoulder_pitch"]] += BR["shoulders_share"] * cb
-        s = SW["legs_rad"] * lv * math.sin(2 * math.pi * t / SW["period_s"] + self.sway_phase)   # weight shift
+        # wary or afraid: it freezes - breathing quickens (lv above) but sway and fidgets die down (graded fear:
+        # orient -> freeze -> startle; docs/research/v2_1/expression/notes.md)
+        lv_move = lv * max(0.15, 1.0 - 1.5 * float(self._mood[0]))
+        s = SW["legs_rad"] * lv_move * math.sin(2 * math.pi * t / SW["period_s"] + self.sway_phase)   # weight shift
         for lg in ("FL", "RL"):
             q[J[f"{lg}_femur"]] += s
         for lg in ("FR", "RR"):
@@ -82,14 +105,14 @@ class IdleLife:
             u = (t - t0) / dur
             if u >= 1.0:
                 self.current = None
-                gap = float(self.rng.exponential(FI["mean_gap_s"] / (0.4 + lv)))          # livelier: more often
+                gap = float(self.rng.exponential(FI["mean_gap_s"] / (0.4 + lv_move)))     # livelier: more often
                 self.next_t = t + max(FI["min_gap_s"], gap)
             else:
                 bump = math.sin(math.pi * u) ** 2 * amp
                 if a.startswith("claw_flex"):
-                    q[J[f"{a[-1]}_claw"]] += FI["claw_rad"] * lv * bump
+                    q[J[f"{a[-1]}_claw"]] += FI["claw_rad"] * lv_move * bump
                 elif a.startswith("shoulder"):
-                    q[J[f"{a[-1]}_shoulder_pitch"]] += FI["shoulder_rad"] * lv * bump
+                    q[J[f"{a[-1]}_shoulder_pitch"]] += FI["shoulder_rad"] * lv_move * bump
                 elif a == "leg_settle":
                     q[J[f"{leg}_femur"]] += FI["leg_femur_rad"] * bump
                     q[J[f"{leg}_tibia"]] -= FI["leg_tibia_rad"] * bump

@@ -18,6 +18,7 @@ from pinch.body.common import (  # noqa: F401
     copy,
     np,
 )
+from pinch.body.life import PO as _POSTURE
 
 
 def _part_joints():
@@ -140,6 +141,12 @@ class BodyCore:
                 off = self.life.offsets(self.t, DT) * mask
                 self.ambient_amp = float(np.abs(off).max())
                 q = q + off
+            # posture from the mood on the free parts; when a step takes a part it fades out over fade_s, not a jump
+            target = self.life.posture(DT) * mask
+            post = getattr(self, "_posture", None)
+            post = np.zeros(len(q)) if post is None else post
+            self._posture = post + (target - post) * (1 - np.exp(-DT / _POSTURE["fade_s"]))
+            q = q + self._posture
         if self.held:
             obj, side = self.held
             q = arm_pose(q, side, pitch=max(q[J[f"{'L' if side == 'left' else 'R'}_shoulder_pitch"]], CARRY_PITCH)

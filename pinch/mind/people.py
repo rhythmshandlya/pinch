@@ -14,11 +14,12 @@ class PeopleAware:
         away_h = self.people.see(pid, confidence, now, name=name, owner=owner)
         p = self.people.get(pid)
         if p["R"] > 0.45:                                     # someone it's afraid of
-            self.affect.feel("loud_noise", 0.6)
+            self.affect.feel("feared_person")        # (its own event: fear of a person doesn't wear off like a noise)
             self._say("people", f"{p['name'] or pid} is here - scared ({self.people.describe(pid)})")
             self._interrupt()
         elif p["W"] > 0.5 and (not known or away_h > 0.25):   # a favourite back: greet, harder after longer
             self.greet_warmth = min(1.0, p["W"] * min(1.0, away_h / 8.0) + 0.2)
+            self.greet_who, self.greet_away_h = pid, away_h
             self.owner_returned_t = self.t
             self._say("people", f"{p['name'] or pid} is back after {away_h:.1f} h!")
         self.memory.data["people"] = self.people.to_dict()

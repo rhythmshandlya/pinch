@@ -35,5 +35,6 @@ watch = "exploration"
 play = "exploration"
 show_off = "exploration"
 tidy = "exploration"
+quirk = "exploration"              # a rare little surprise (once or twice a day)
 idle = "idle"
 rest = "idle"

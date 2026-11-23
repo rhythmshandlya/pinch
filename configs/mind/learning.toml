@@ -1,0 +1,29 @@
+# Learning from its person's feedback (pinch/mind/learning.py; docs/research/v2_1/learning/notes.md: TAMER,
+# Deep TAMER, COACH, Blumberg's clicker-trained Dobie, gradient bandits). Starting values; the tests in
+# tests/test_learning.py check they give a visible but bounded change.
+version = "4.3"
+
+learnable = ["play", "show_off", "explore", "investigate", "tidy", "greet", "celebrate", "watch"]
+window_s = 6.0            # something it finished this long ago can still be credited
+trace_s = 3.0             # credit fades with this time constant after the activity ends
+rate = 0.03               # utility change per unit of surprise (feedback minus the person's usual)
+baseline_rate = 0.05      # how fast the person's usual feedback is learned
+global_share = 0.5        # a share of each change also applies in every context (the back-off)
+max_bias = 0.25           # the learned part never exceeds this: 0.3 x the spread of utilities (about 0.2 - 1)
+floor = 0.3               # an activity keeps at least this share of its own want, however it was scolded
+taste_gain = 0.35         # at the full learned bias, the need behind it builds 35 % faster (or slower)
+own_share = 0.35          # this share of the time it does each activity purely as itself (nothing scolded disappears:
+                          # 0.35 keeps a scolded activity at >= 30 % of its untrained time, sim/benches/learning.py)
+own_block_s = 600.0       # in blocks this long
+half_life_days = 14.0     # without feedback, what it learned fades back toward its own personality
+repeat_s = 600.0          # feedback for the same activity within 10 minutes counts less each time
+repeat_discount = 0.7
+burst_s = 10.0            # more than burst_max feedback events within burst_s: the rest are ignored
+burst_max = 3
+
+[reward]
+praised = 1.0
+scolded = -1.0
+stroked = 0.5
+petted = 0.5
+tickled = 0.5

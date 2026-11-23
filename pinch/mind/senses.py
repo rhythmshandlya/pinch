@@ -54,6 +54,7 @@ class Senses:
         i = u["intent"]
         if i in ("praise", "scold"):
             self._blame("praised" if i == "praise" else "scolded")
+            self.learn_from("praised" if i == "praise" else "scolded")
         if i == "praise":
             self.affect.feel("praised")
             self.memory.count("praise")
@@ -172,6 +173,7 @@ class Senses:
             ev = "touched_unwanted"
         if ev:
             self.affect.feel(ev)
+            self.learn_from(ev)
             self.memory.count("pets") if ev in ("petted", "stroked") else None
         o = self.world.owner
         o.last_touch = o.last_attention = self.t
@@ -186,8 +188,13 @@ class Senses:
         """Who is touching, as far as it can tell: "feared" (someone it is afraid of is here), "stranger" (only
         people it hardly knows), else "known" (its person, or nobody seen: the person it lives with)."""
         now = self.world.clock()
-        if self.people.feared_here(now):
-            return "feared"
+        feared = self.people.feared_here(now)
+        if feared:
+            here = self.people.present(now)
+            latest = max(here, key=lambda k: self.people.seen[k][0])
+            trusted = [p for p in here if self.people.people.get(p, {}).get("W", 0.0) > 0.5]
+            if latest in feared or not trusted:              # (its own person stroking it is still welcome)
+                return "feared"
         here = self.people.present(now)
         if here and len(self.people.strangers_here(now)) == len(here):
             return "stranger"

@@ -34,13 +34,20 @@ from robot.localizer import Localizer  # noqa: F401
 
 
 class FirmwareCore:
-    def __init__(self, hw, llm=True, memory_path=None, record_dir=None):
+    def __init__(self, hw, llm=True, memory_path=None, record_dir=None, mind_seed=None):
         self.hw = hw
         self.desk = hw.desk if hasattr(hw, "desk") else Desk()
         self.crab = Crab(hw.backend, calibration=hw.calibration if hasattr(hw, "calibration") else Calibration.load())
         # memory_path: None = the default file (PINCH_MEMORY), False = don't keep a memory file (tests)
         memory = Memory() if memory_path is None else Memory(path=memory_path or None)
-        self.mind = Mind(memory=memory, llm=llm)
+        # a fresh seed each boot, so its days don't repeat (audit LIFE-008); written to the diary so a day can be
+        # replayed; tests pass mind_seed for a fixed run
+        if mind_seed is None:
+            import secrets
+            mind_seed = secrets.randbits(31)
+        self.mind_seed = mind_seed
+        self.mind = Mind(memory=memory, llm=llm, seed=mind_seed)
+        self.mind._say("boot", f"mind seed {mind_seed}")
         if getattr(memory, "path", None):                    # why it did what it did, next to its memory
             self.mind.decision_log_path = str(Path(memory.path).parent / "decisions.jsonl")
         self.face = Face()
@@ -151,6 +158,7 @@ class FirmwareCore:
         self.body.cancel()
         self.crab.pause(why)
         self.mind.estopped = True
+        self.mind.motion_cancelled()                          # (the step it was waiting on did not happen)
         self.stats["estops"] = self.stats.get("estops", 0) + 1
 
     def resume(self):
@@ -236,6 +244,7 @@ class FirmwareCore:
             self.save_memory()
         self.body.life.liveliness = self.mind.affect.arousal
         self.body.life.asleep = self.mind.state == "sleep"
+        self.body.life.mood_in = (self.mind.affect.needs.safety, self.mind.affect.valence)
         if self.body.mood_fn is None:          # the emote style follows the whole mood (decision 92)
             a = self.mind.affect
             self.body.mood_fn = lambda: dict(arousal=a.arousal, valence=a.valence, sleepy=a.needs.sleep,

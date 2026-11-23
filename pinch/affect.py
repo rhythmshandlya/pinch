@@ -14,6 +14,7 @@ follows them over about ten minutes and shifts the resting valence, and the name
 (held at least 1.5 s, no flicker), else read off the mood point as before.
 """
 
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -91,6 +92,7 @@ EVENT_EFFECTS = {
     "stuck":         (-0.35, +0.45, dict(safety=+0.35)),     # a foot over the edge, caught, going nowhere
     "unstuck":       (+0.40, -0.20, dict(safety=-0.40)),     # relief
     "touched_unwanted": (-0.15, +0.30, dict(safety=+0.25)),  # touched by someone it fears
+    "feared_person": (-0.12, +0.36, dict(safety=+0.30)),     # someone it is afraid of came into view
     "failed":        (-0.10, +0.10, dict()),                  # a goal-directed move didn't work
     "succeeded":     (+0.08, +0.00, dict()),                  # it did
 }
@@ -115,9 +117,28 @@ class Affect:
     _shown: str = ""             # the feeling on show and since when (hysteresis)
     _shown_t: float = -1e9
 
+    # fear of harmless repeats wears off (a door that bangs every hour, a clumsy elbow): Stanley's habituation model
+    # as in pinch/touch.py (Thompson & Spencer 1966; Rankin et al. 2009) - each repeat h <- h + alpha (1 - h), recovery
+    # h <- h exp(-dt / tau) between them, the reaction never below FLOOR; falls, lifts and shakes never habituate
+    HABITUATING = {"loud_noise": 0.35, "bumped": 0.3, "sudden_motion": 0.25}
+    FEAR_TAU_S, FEAR_FLOOR = 600.0, 0.3
+
+    def _habituated(self, event):
+        alpha = self.HABITUATING.get(event)
+        if alpha is None:
+            return 1.0
+        h = self.__dict__.setdefault("_fear_h", {})
+        t0 = self.__dict__.get("_fear_t", {}).get(event)
+        v = h.get(event, 0.0) * (math.exp(-(self.t - t0) / self.FEAR_TAU_S) if t0 is not None else 1.0)
+        response = self.FEAR_FLOOR + (1 - self.FEAR_FLOOR) * (1 - v)
+        h[event] = v + alpha * (1 - v)
+        self.__dict__.setdefault("_fear_t", {})[event] = self.t
+        return response
+
     def feel(self, event: str, strength: float = 1.0):
         if event not in EVENT_EFFECTS:
             return
+        strength *= self._habituated(event)
         dv, da, dn = EVENT_EFFECTS[event]
         p = self.personality
         if event in ("lifted", "shaken", "bumped", "loud_noise", "fell"):
@@ -179,7 +200,8 @@ class Affect:
         (held at least min_show_s unless another is clearly stronger), else the mood point."""
         n = self.needs
         dz = self.emotions.get("dizzy", 0.0)
-        if dz >= 0.5 and dz >= max(self.emotions.values()):    # just shaken or tumbled: dizzy first, then fear
+        fresh = self.last_event in ("shaken", "fell") and self.t - self.last_event_t < 2.5
+        if dz >= 0.4 and (fresh or dz >= max(self.emotions.values())):   # just shaken or tumbled: dizzy, then fear
             return self._show("dizzy")
         if n.safety > EMO["fear_threshold"]:
             return self._show("scared")

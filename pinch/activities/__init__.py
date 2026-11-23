@@ -17,7 +17,7 @@ the Activity base class and shared helpers in base.py. LIBRARY keeps its order (
 from pinch.activities.base import *  # noqa: F401,F403 - shared constants and helpers, as before the split
 from pinch.activities.curiosity import Investigate, Watch
 from pinch.activities.defensive import Hide, Orient, Shy, Startle
-from pinch.activities.play import Explore, Play, ShowOff
+from pinch.activities.play import Explore, Play, Quirk, ShowOff
 from pinch.activities.recovery import HeadHome, LowPower, RightSelf, Unstick
 from pinch.activities.rest import Idle, Rest
 from pinch.activities.social import (
@@ -35,4 +35,4 @@ from pinch.activities.tasks import GuardEdge, Tidy
 
 LIBRARY = [Idle(), Obey(), GoQuiet(), AfterMeeting(), SeekAttention(), Comfort(), Celebrate(), ReactTouch(),
            Startle(), Orient(), RightSelf(), Unstick(), Hide(), Shy(), HeadHome(), LowPower(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet(),
-           Watch(), Investigate()]
+           Watch(), Investigate(), Quirk()]

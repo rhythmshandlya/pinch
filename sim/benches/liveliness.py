@@ -181,7 +181,7 @@ def session(seed, seconds=360.0, tidy=False):
                     goal_starts.append(any(abs(e - eye_dir(a)) < GAZE_TOL for e in lead))
                     ahead_info.append((round(sim.t, 1), sim.body.status, round(a, 2), round(eye_dir(a), 2),
                                        [round(e, 2) for e in lead], task_act))
-        if last_task is not None and task is not last_task and last_status in ("goto", "push", "pick", "drop")                 and m.state in m.OUTCOME_STATES and not (last_status == "goto" and sim.body.ok)                 and m.activity is not None and m.activity.name == task_act:   # (not cut short by something else)
+        if last_task is not None and task is not last_task and last_status in ("goto", "push", "pick", "drop")                 and m.state in m.OUTCOME_STATES and not (last_status == "goto" and sim.body.ok)                 and m.activity is not None and m.activity.name == task_act                 and not (sim.body.claim is not None and sim.body.claim.layer == "reflex"):   # (not cut short)
             outcomes.append(sim.t)     # (a goal it set out for, not a flight; a plain arrival needs no reaction)
             out_info.append((round(sim.t, 1), last_status, sim.body.ok, m.state, m.activity.name if m.activity else "",
                              m.face_expr, m.affect.feeling()))

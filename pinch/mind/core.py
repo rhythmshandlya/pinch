@@ -17,6 +17,10 @@ from pinch.mind.common import (  # noqa: F401
     situations,
 )
 from pinch.mind.expression import face_now, sound_for
+from pinch.mind.learning import CFG as LEARN_CFG
+from pinch.mind.learning import own_block
+
+TASTE = {"play": "play", "explore": "curiosity"}       # learned activity -> the need that drives it
 
 
 class MindCore:
@@ -68,6 +72,8 @@ class MindCore:
         self.stuck = False                      # StuckSense says so (a foot over the edge, caught, going nowhere)
         self.flipped_t = -1e9
         self.estopped = False                    # an emergency stop is on: the mind issues no motion
+        from pinch.mind.learning import FeedbackLearner
+        self.learner = FeedbackLearner(self.memory.data.get("learned"))   # what its person's feedback taught it
         from pinch.attention import Attention
         self.attention = Attention()             # what it is paying attention to (pinch/attention.py)
         self.gaze_set_t = -1e9                   # when an activity last aimed the eyes (attention waits)
@@ -137,8 +143,11 @@ class MindCore:
         self._was_present = present
         now = self.world.clock()
         self.affect.quiet = o.busy == "meeting" or self.t < self.quiet_until or self.routine.quiet_hours(now)
+        n = self.affect.needs
+        before = {need: getattr(n, need) for need in TASTE.values()}
         self.affect.tick(dt, owner_present=present, owner_attending=self.world.owner_attending(60),
                          battery=self.world.battery, sleep_drive=self.routine.sleep_drive(now))
+        self._acquired_taste(before)
         self._self_preservation(dt)
         self._fatigue(dt, body_busy)
         timed_out = self._timeout()
@@ -157,6 +166,17 @@ class MindCore:
         return step, False
 
     FATIGUE_UP_S, FATIGUE_DOWN_S, FATIGUE_REST_S = 4500.0, 1800.0, 600.0   # s to go 0 -> 1 working, 1 -> 0 idle / resting
+
+    def _acquired_taste(self, before):
+        """What its person praised it for, it comes to want more often, and less what it was scolded for: the need
+        behind a learned activity builds up to taste_gain x faster or slower (configs/mind/learning.toml). Without
+        this, a drive with no outlet only builds until it gets one, and scolding would just delay it."""
+        ctx, person, n, clock = self.learn_context(), self.feedback_person(), self.affect.needs, self.world.clock()
+        for activity, need in TASTE.items():
+            grew = getattr(n, need) - before[need]
+            if grew > 0 and not own_block(activity, clock):             # (in its own stretches, just itself)
+                k = 1.0 + LEARN_CFG["taste_gain"] * self.learner.bias(activity, ctx, person) / LEARN_CFG["max_bias"]
+                setattr(n, need, before[need] + grew * max(0.0, k))
 
     def _fatigue(self, dt, body_busy):
         """ARC-002: physical tiredness builds while the body works (about an hour of non-stop motion to the top) and
@@ -203,12 +223,12 @@ class MindCore:
         if not ok or kind != "goto":
             self.affect.feel("succeeded" if ok else "failed")
         face = ("happy" if kind in ("pick", "drop", "push") else "content") if ok else "confused"
-        self.face_intent = (face, self.t, self.started)
+        self.outcome_intent = (face, self.t, self.started)   # its own slot: the activity's next look waits a moment
         self.face_set_t = self.t
         if not ok:
             self.sound("uh_oh")
-        elif face_now(self) == self.face_expr:       # the face on screen won't change (already there, or not its mood):
-            self.sound("happy_trill")                # a small sound instead, one that fits the feeling
+        elif face_now(self) == self.face_expr and sound_for("happy_trill", self.affect.feeling()) == "happy_trill":
+            self.sound("happy_trill")                # the face can't show it: a small pleased sound, if that fits
 
     def sound(self, name):
         """Play a sound that fits the feeling: one that says the opposite becomes the feeling's own sound

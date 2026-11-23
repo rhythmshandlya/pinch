@@ -6,6 +6,9 @@ from pinch.activities.base import (  # noqa: F401
     math,
 )
 
+# touches by a hand (the only ones it can shrink away from; being lifted, shaken or bumped has its own reactions)
+HAND_TOUCHES = ("stroke", "hold", "tickle", "boop", "tap", "double_tap", "claw_hold", "ruffle")
+
 
 class Obey(Activity):
     """Do what my person just asked (tricks, come, sleep, ...)."""
@@ -91,17 +94,52 @@ class Greet(Activity):
     def utility(self, m):
         return (1.4 + 0.8 * m.greet_warmth) if m.t - m.owner_returned_t < 8 and not m.affect.quiet else 0.0
 
+    SIGNATURES = ("wave", "handshake", "excited")          # each person gets their own hello gesture
+
     def run(self, m):
+        """A hello that depends on who it is and how long they were away (audit SOC-007; Leite et al. 2013:
+        recognising and remembering the person is what keeps a robot companion engaging): a short absence gets a
+        glance and a chirp, a longer one the person's own gesture, a long one with someone it loves a run over to
+        them and a dance."""
+        import zlib
         m.owner_returned_t = -1e9
         warm, m.greet_warmth = m.greet_warmth, 0.0
+        who, away_h = getattr(m, "greet_who", None), getattr(m, "greet_away_h", 8.0)
+        sig = self.SIGNATURES[zlib.crc32(str(who).encode()) % len(self.SIGNATURES)] if who else "wave"
         yield ("face", "excited" if warm < 0.6 else "love")
         yield ("sound", "greeting_beep")
         yield ("turn_to", m.world.desk.owner_xy)
-        yield ("emote", "wave")
+        if away_h < 1.0:                                     # only just gone: a glance and a chirp
+            yield ("emote", "curious")
+            return
+        if warm >= 0.6 and away_h >= 4.0:                    # missed them a lot: go to them first
+            yield ("goto", _owner_near(m), 0.06)
+        yield ("emote", sig)
         yield ("emote", "excited")
-        if warm >= 0.6:                                       # missed them a lot
+        if warm >= 0.6:
             yield ("sound", "happy_trill")
             yield ("emote", "dance")
+        if away_h >= 24.0:                                   # a day or more: something you two share
+            yield from self._callback(m)
+
+    @staticmethod
+    def _callback(m):
+        """After a long absence, the trick you praised most, or a look at the toy of your favourite game: it
+        remembers (long-term HRI: referring to shared history keeps a companion engaging, Leite et al. 2013)."""
+        from crab.emotes import EMOTES
+        likes = [(v, k) for k, v in m.memory.data.get("likes", {}).items() if v > 0.2]
+        if not likes:
+            return
+        _, best = max(likes)
+        yield ("phase", "remember")
+        if best in EMOTES:
+            yield ("emote", best)
+        elif best.startswith("game:"):
+            toy = best.split(":")[2] if best.count(":") >= 3 else None
+            ob = m.world.objects.get(toy) if toy else None
+            if ob is not None:
+                yield ("look_at", tuple(ob.xy))
+                yield ("emote", "point")
 
 
 class Comfort(Activity):
@@ -302,7 +340,7 @@ class ReactTouch(Activity):
                     or (getattr(m, "touch_from", "known") == "stranger" and a.personality.timidity > 0.5
                         and g not in ("stroke", "hold"))
                     or (g in ("tickle", "boop", "tap", "double_tap") and feel in ("grumpy", "angry", "scared")))
-        if unwanted and g not in ("put_down",):
+        if unwanted and g in HAND_TOUCHES:
             # not wanted now (someone it fears, a stranger poking a timid crab, a poke while grumpy or scared):
             # it shrinks back from the hand instead of performing a happy reaction (configs/mind/states.toml social)
             yield ("face", "shy" if feel != "angry" else "grumpy")

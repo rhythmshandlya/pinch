@@ -23,6 +23,15 @@ _WORDS = {w: i + 1 for i, w in enumerate("one two three four five six seven eigh
 _HOUR = r"(\d{1,2}|" + "|".join(_WORDS) + r")(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?"
 
 
+def _unit(n, salt):
+    """A fixed pseudo-random number in [0, 1) for integer n (splitmix64 finaliser): the same night gives the same
+    times on every machine, neighbouring nights unrelated ones."""
+    z = (n * 0x9E3779B97F4A7C15 + salt * 0xBF58476D1CE4E5B9) & 0xFFFFFFFFFFFFFFFF
+    z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & 0xFFFFFFFFFFFFFFFF
+    z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & 0xFFFFFFFFFFFFFFFF
+    return ((z ^ (z >> 31)) >> 11) / float(1 << 53)
+
+
 def local_hour(clock_s, utc_offset_h=None):
     """Hour of the day (0-24, fractional) at time clock_s (seconds since the epoch)."""
     if utc_offset_h is None:
@@ -77,10 +86,12 @@ class Routine:
     def night_window(self, clock_s):
         """Tonight's sleep window: NIGHT shifted by a per-day draw (the same day gives the same times, so the twin
         replays; a new day gives new ones)."""
-        day = int((clock_s / 3600.0 + (self.settings.get("utc_offset_h") or 0.0) - NIGHT[1]) // 24)
-        j1 = ((day * 2654435761) % 1000) / 1000.0 - 0.5
-        j2 = ((day * 40503 + 977) % 1000) / 1000.0 - 0.5
-        return NIGHT[0] + 2 * self.DAY_JITTER_H * j1, NIGHT[1] + 2 * self.DAY_JITTER_H * j2
+        off = self.settings.get("utc_offset_h")
+        if off is None:                                   # the robot's own time zone, as hour() uses
+            off = time.localtime(clock_s).tm_gmtoff / 3600.0
+        night = int((clock_s / 3600.0 + off - 12.0) // 24)   # noon to noon: one bedtime and the wake after it
+        j1, j2 = _unit(night, 1), _unit(night, 2)
+        return NIGHT[0] + 2 * self.DAY_JITTER_H * (j1 - 0.5), NIGHT[1] + 2 * self.DAY_JITTER_H * (j2 - 0.5)
 
     def is_night(self, clock_s):
         return in_window(self.hour(clock_s), *self.night_window(clock_s))

@@ -11,6 +11,7 @@ from pinch.mind.common import (  # noqa: F401
 from pinch.mind.expression import EXPR
 
 WANTS = EXPR.get("wants", {})
+from pinch.mind.learning import own_block  # noqa: E402
 
 
 class Selection:
@@ -58,14 +59,30 @@ class Selection:
     RESUME_S, RESUME_BONUS = 60.0, 0.15  # an activity cut short by something urgent is preferred back for 60 s
                                          # (0.15: enough to beat idling's 0.25 plus jitter when it still wants it)
 
+    def learn_context(self):
+        """The coarse situation learned feedback is filed under: part of the day, and whether its person is here."""
+        here = "here" if self.world.owner_here(120) else "away"
+        return f"{self.routine.part_of_day(self.world.clock())}:{here}"
+
+    def feedback_person(self):
+        """Who the feedback is from, as far as it can tell (the person seen most recently), else its owner."""
+        here = self.people.present(self.world.clock())
+        return max(here, key=lambda k: self.people.seen[k][0]) if here else "owner"
+
     def _choose(self):
         scores = {}
+        ctx, person, clock = self.learn_context(), self.feedback_person(), self.world.clock()
+        daytime = EXPR.get("daytime", {}).get(self.routine.part_of_day(clock), {})
         for a in LIBRARY:
             u = a.utility(self)
             if self.affect.quiet and not a.quiet_ok:
                 u = 0.0
             if u > 0 and a.name in WANTS:
                 u *= self._mood_gate(WANTS[a.name])
+            if u > 0:
+                u *= daytime.get(a.name, 1.0)                     # the day's rhythm
+            if u > 0 and not own_block(a.name, clock):
+                u = self.learner.shape(a.name, u, ctx, person)        # what its person's feedback taught it
             if u > 0 and self.suspended and self.suspended[0] == a.name and self.t - self.suspended[1] < self.RESUME_S:
                 u += self.RESUME_BONUS
             scores[a.name] = u + 0.02 * (self._own_jitter.random() if a.own_jitter else self.rng.random())
@@ -95,6 +112,15 @@ class Selection:
                         + (" (after an interrupt)" if self._force else ""))
             return True
         return False
+
+    def learn_from(self, event):
+        """Its person's feedback (praise, scolding, petting) teaches it about what it is doing or just did."""
+        cur = self.activity.name if self.activity is not None else None
+        out = self.learner.feedback(event, self.t, self.world.clock(), cur, self.learn_context(),
+                                    self.feedback_person())
+        if out:
+            self.memory.data["learned"] = self.learner.to_dict()
+            self._say("learned", f"{event}: " + ", ".join(f"{a} {d:+.3f}" for a, d in out.items()))
 
     def _mood_gate(self, w):
         """How much the feeling makes it want this (configs/mind/expression.toml [wants]; Loyall/Oz: emotion shown
@@ -174,9 +200,12 @@ class Selection:
         self._record_decision(name, reason)
         a = next(x for x in LIBRARY if x.name == name)
         self.phase = ""
+        if self.activity is not None:
+            self.learner.ended(self.t, self.activity.name)            # (it can still be praised for it a moment)
+
         self.start_score = getattr(self, "scores", {}).get(name, 0.0)
         self.activity, self.gen, self.started = a, a.run(self), self.t
-        self.waiting_motion, self.wait_until, self._lead_step = False, -1.0, None
+        self.waiting_motion, self.wait_until, self._lead_step, self._motion_kind = False, -1.0, None, None
         self._say("activity", name)
 
     def _advance(self, body_busy, body_ok):
@@ -233,6 +262,7 @@ class Selection:
                 if not self.affect.quiet:
                     self.sounds.append(sound)
                 self.waiting_motion = True
+                self._motion_kind = "emote"
                 return ("emote", emote)
             elif kind in MOTION_STEPS:
                 if not allowed(self.state, kind):            # the state's rules (configs/mind/states.toml)
@@ -240,7 +270,7 @@ class Selection:
                     self.last_step_ok = False
                     continue
                 goal = self._goal_xy(step)
-                if goal is not None and not self._eyes_on(goal):
+                if goal is not None and rank(self.activity.name) > 3 and not self._eyes_on(goal):
                     # forethought (Takayama et al. 2011): eyes to the goal first, the legs a moment later
                     self.gaze_target_xy, self.gaze_set_t = tuple(goal), self.t
                     self.gaze = self._gaze_to(goal)
@@ -253,8 +283,34 @@ class Selection:
     LEAD_HOLD_S = 0.0                  # then, once the legs go, the eyes are free again (attention, ARC-005)
     _lead_step = None
 
+    def motion_cancelled(self):
+        """The body dropped the step it was doing from outside (an emergency stop): it did not succeed, and nothing
+        it was about to start goes ahead."""
+        if self.waiting_motion:
+            self.last_step_ok = False
+        self.waiting_motion, self._lead_step, self._motion_kind = False, None, None
+
+    def _vary_emote(self, step):
+        """An emote it just did gives way to an unused sibling from its family (configs/mind/expression.toml
+        [emote_family]), so asking twice doesn't look the same twice. Own random stream: replays exactly."""
+        fam_cfg = EXPR.get("emote_family", {})
+        name, recent = step[1], self.__dict__.setdefault("_recent_emotes", [])
+        fam = next((v for k, v in fam_cfg.items() if k != "recent" and name in v), None)
+        if fam and name in recent[-fam_cfg.get("recent", 3):]:
+            fresh = [e for e in fam if e not in recent[-fam_cfg.get("recent", 3):]]
+            if fresh:
+                rng = self.__dict__.get("_emote_rng")
+                if rng is None:
+                    rng = self._emote_rng = np.random.default_rng(0xE307E)
+                name = fresh[int(rng.integers(len(fresh)))]
+                step = (step[0], name) + tuple(step[2:])
+        self._recent_emotes = (recent + [name])[-8:]
+        return step
+
     def _issue(self, step):
         kind = step[0]
+        if kind == "emote" and len(step) > 1 and (self.activity is None or self.activity.name != "obey"):
+            step = self._vary_emote(step)                   # (a trick asked for by name plays as asked)
         if kind in ("pick", "drop"):
             self.gaze = (0.0, 0.3)                       # (looks down at the claw's work)
         self.waiting_motion = True
