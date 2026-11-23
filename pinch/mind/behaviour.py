@@ -46,11 +46,16 @@ def overrides_uninterruptible(name):
 
 STATES_PATH = PATH.with_name("states.toml")
 CHANNELS = ("legs", "claws", "gaze", "face", "sound")
+TIMEOUT_DO = {"resume_ok", "wake_slowly", "ask_help", "drop_object"}    # what a state's timeout may do
 
 
 @cache
 def states():
     s = {k: v for k, v in load_settings("states").items() if k != "version"}
+    for name, st in s.items():
+        bad = set(st.get("timeout_do", ())) - TIMEOUT_DO
+        if bad:
+            raise ValueError(f"states.toml [{name}]: unknown timeout_do {sorted(bad)} (known: {sorted(TIMEOUT_DO)})")
     for name, st in s.items():
         missing = [k for k in ("sub", "allow", "intent", "interrupt", "on_timeout") if k not in st]
         if missing or set(st["intent"]) != set(CHANNELS):

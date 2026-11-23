@@ -248,10 +248,22 @@ class Selection:
         if cur is None or self.gen is None or self.t - self.started <= cur.max_s:
             return False
         self._say("timeout", f"{cur.name} ran {self.t - self.started:.0f} s (limit {cur.max_s:.0f} s)")
+        do = set(states()[self.state].get("timeout_do", ()))     # the state's rule (configs/mind/states.toml)
         self.gen = None
         self.timed_out = (cur.name, self.t)
+        if "resume_ok" not in do:                              # nothing interrupted comes back after this one
+            self.suspended, self.resume_stack = None, []
+        if "wake_slowly" in do:
+            self.affect.arousal = min(self.affect.arousal, 0.2)
+        if "ask_help" in do:
+            self.sound("whimper")
+            self.memory.remember("help", f"{cur.name} took too long and I couldn't manage it alone")
+        if "drop_object" in do and self.tidy_current:
+            self.tidy_hold[self.tidy_current] = self.t + self.DROP_OBJECT_S
         self._interrupt()
         return True
+
+    DROP_OBJECT_S = 600.0                # a job that timed out leaves its object alone this long
 
     @property
     def state(self):

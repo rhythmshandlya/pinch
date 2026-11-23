@@ -31,6 +31,7 @@ class Tidy(Activity):
             yield ("emote", "look_around")
             return
         for name in todo:
+            m.tidy_current = name
             ob = m.world.objects.get(name)
             if ob is None:
                 yield ("face", "curious")

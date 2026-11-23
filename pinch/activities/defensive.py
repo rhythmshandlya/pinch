@@ -22,7 +22,9 @@ class Startle(Activity):
         if not m.affect.quiet:
             yield ("sound", "startled_squeak")
         yield ("emote", "scared")
-        yield ("walk", -0.04, 0.0, 0.0, 1.0)
+        f = m.attention.focus                                 # where the fright came from, if it knows
+        d = f.direction if f is not None and m.t - f.t < 3.0 and f.direction is not None else 0.0
+        yield ("walk", -0.04 * np.cos(d), -0.04 * np.sin(d), 0.0, 1.0)   # away from it (straight back if unknown)
 
 
 class Orient(Activity):

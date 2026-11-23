@@ -93,6 +93,8 @@ class MindCore:
         self.face_intent = self.outcome_intent = None      # (face, t, activity start) asked for by an activity
         self.scores, self.score_parts = {}, {}             # the last choice's scores and what made them
         self._danger_saved_t = -1e9
+        self.tidy_current = None                           # the thing a tidy job is working on
+        self.tidy_hold = {}                                # thing -> until when it is left alone (a timed-out job)
         self.next_choice = 0.0
         self.log = []                        # (t, kind, text) for the app's diary and tests
         self._was_present = False
@@ -117,6 +119,8 @@ class MindCore:
 
     def tidy_ok(self, name):
         """Not right after trying it, and not after failing three times recently (can't reach it?)."""
+        if self.t < self.tidy_hold.get(name, -1e9):
+            return False                                   # (a job on it timed out: left alone a while)
         tries = [(t, ok) for t, ok in self.tidy_tries.get(name, []) if self.t - t < 600]
         if tries and self.t - tries[-1][0] < 30:
             return False

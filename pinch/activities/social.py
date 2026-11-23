@@ -41,11 +41,13 @@ class Obey(Activity):
             yield ("turn_to", m.world.desk.owner_xy)
             yield ("emote", "wave")
         elif kind == "go_away":
+            m.suspended, m.resume_stack = None, []        # (told to go: it doesn't go back to what it was doing)
             yield ("face", "sad")
             yield ("sound", "whimper")
             yield ("goto", m.world.desk.home_xy, 0.05)
             m.affect.feel("scolded", 0.3)
         elif kind == "stop":
+            m.suspended, m.resume_stack = None, []        # (told to stop: what it was doing doesn't come back)
             yield ("face", "surprised")
             yield ("pose", "stand", 3.0)
         elif kind == "sleep":
@@ -422,8 +424,12 @@ class ReactTouch(Activity):
                 yield ("sound", "uh_oh")
             yield ("pose", "stand", 2.0)
         elif g == "held_leg":
-            yield ("face", "curious")
-            yield ("emote", "handshake")
+            if feel in ("happy", "excited", "love", "content", "proud", "squeeze") and m.touch_from == "known":
+                yield ("face", "curious")
+                yield ("emote", "handshake")                         # a friend, a good mood: a game
+            else:
+                yield ("face", "surprised" if feel not in ("scared", "shy") else "shy")
+                yield ("pose", "low", 1.0)                           # it pulls in and waits to be let go
         elif g == "bumped":                                         # knocked: a flinch and a step away
             yield ("face", "surprised")
             if not quiet:
