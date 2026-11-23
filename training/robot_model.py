@@ -1,6 +1,6 @@
 """The robot model as every MJX training env sees it, and the physics randomisation they share.
 
-load_training_model() adapts the CPU twin's model (sim/models/crab.xml, or crab_v2.xml with CRAB_DESIGN=v2)
+load_training_model() adapts the CPU twin's model (sim/models/crab_v2.xml)
 at load time: sensors MJX does not need and the CAD display meshes are removed, only the feet collide (envs that need more turn it on), and
 the physics step is the caller's. domain_randomize() draws a different robot per env: friction, masses,
 servo stiffness and strength, damping, armature and a tilted desk.
@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 
 from crab.params import LEG_IDS, PARAMS  # noqa: E402
 
-MODEL = ROOT / "sim" / "models" / PARAMS.model_file     # crab.xml; CRAB_DESIGN=v2: crab_v2.xml
+MODEL = ROOT / "sim" / "models" / PARAMS.model_file     # the robot model, generated from the CAD
 
 
 RANDOMIZE_FRICTIONLOSS = False   # the servo's dry friction spread is covered by the damping and strength ranges meanwhile

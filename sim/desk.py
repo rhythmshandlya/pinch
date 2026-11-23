@@ -19,10 +19,13 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from crab.params import CLIFF_BEAMS  # noqa: E402
+from crab.params import (
+    CLIFF_BEAMS,  # noqa: E402
+    PARAMS,  # noqa: E402
+)
 from pinch.world import Desk  # noqa: E402
 
-CRAB_XML = ROOT / "sim" / "models" / "crab.xml"
+CRAB_XML = ROOT / "sim" / "models" / PARAMS.model_file
 FACE_TEX = (256, 128)                 # 2x the OLED's 128 x 64
 
 # name: (shape, size, mass kg, rgba, graspable)
@@ -40,7 +43,7 @@ PROPS = {
     "toy":  ("sphere", (0.018,), (0.70, 0.30, 0.80, 1)),             # a 36 mm toy (moves along paths)
 }
 PROP_PARK = (3.0, 3.0, -0.5)          # where a hidden prop waits (far off the desk, above the room floor)
-START = {"pen": (-0.18, -0.02, 0.6), "eraser": (0.10, -0.12, 0.3), "cap": (-0.12, 0.06, 0.0), "ball": (0.05, 0.15, 0.0)}
+START = {"pen": (-0.22, -0.16, 0.6), "eraser": (0.25, -0.18, 0.3), "cap": (-0.18, 0.20, 0.0), "ball": (0.12, 0.21, 0.0)}   # clear of the v2.1 legs
 
 
 def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True, extras=()) -> mujoco.MjModel:

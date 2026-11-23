@@ -10,13 +10,11 @@ left (local y -> -y), as in today's CAD (cad/assembly.py).
 """
 
 import argparse
-import os
 import sys
 from functools import cache
 from math import degrees
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 

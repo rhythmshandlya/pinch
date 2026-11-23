@@ -4,11 +4,9 @@ like docs/images/pinch_desk.png above, a close-up of the face below.
     python sim/render_v2_face.py [expression] [out.png]       # default: media/review/v2/v2_face.png
 """
 
-import os
 import sys
 from pathlib import Path
 
-os.environ["CRAB_DESIGN"] = "v2"
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 

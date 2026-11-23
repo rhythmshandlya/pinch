@@ -24,8 +24,6 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-if "--design" in sys.argv:                                  # the design is read once, by crab/params.py
-    os.environ["CRAB_DESIGN"] = sys.argv[sys.argv.index("--design") + 1]
 
 from crab.emotes import STAND  # noqa: E402
 from crab.params import ARM_IDS, JOINT_NAMES, LEG_IDS, PARAMS, SERVOS, servo_for  # noqa: E402
@@ -34,7 +32,7 @@ from crab.shapes import Shell, superellipsoid, surface_y  # noqa: E402
 P = PARAMS
 OUT = Path(sys.argv[sys.argv.index("--out") + 1]).resolve() if "--out" in sys.argv else ROOT / "sim" / "models" / P.model_file
 S = P.scale                                   # size relative to the 100 mm-shin original
-V2 = P.design == "v2"
+V2 = True                                     # (the v1 branches below go in the model-builder cleanup)
 K = P.arm_scale                               # claw / jaw geometry relative to v1
 JAW_EXTRA = 24.0 if V2 else 0.0
 # v2 claw pads: TPU (friction 1.2) and a stiff contact that wins over a light toy's soft default (priority), or a 6 g ball is squashed flat

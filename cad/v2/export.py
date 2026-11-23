@@ -1,6 +1,6 @@
 """Export the v2 CAD to the simulator: meshes, masses, centres of mass and inertias per simulator body.
 
-    python cad/v2/export.py                  # then: CRAB_DESIGN=v2 python sim/build_model.py --design v2
+    python cad/v2/export.py                  # then: python sim/build_model.py
 
   sim/models/meshes/v2/<body>__<part>.stl   every part in its simulator body's frame (mm), for looks
   sim/models/v2_cad.json                    per body: mass, com, full inertia, the meshes with their materials, and
@@ -14,12 +14,10 @@ the simulator model is generated from the drawing, never edited by hand.
 """
 
 import json
-import os
 import re
 import sys
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 

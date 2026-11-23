@@ -83,14 +83,13 @@ _GAITS_100MM = {
 }
 # The values above were tuned on the original 100 mm-shin robot; scale them to this one.
 GAITS = {k: _scaled(v) for k, v in _GAITS_100MM.items()}
-if _P.design == "v2":
-    # style B: sideways walking at the forward cap runs the thigh and knee past the owner's torque limits (R-03: 80 % of
-    # stall peak, 70 % of rated RMS); a lower sideways stride cap keeps both (docs/dev/V2_MODEL.md has the numbers).
-    # v2.1 stance (thighs level, hips 12.5 deg forward): 0.6 instead of 0.5. Sideways is the crab's cheap direction
-    # (Chen et al., Bioinspir. Biomim. 17 046001, 2022: 40 % lower cost on a 3-joint-leg robot; here 17 % less energy
-    # per metre than forward at 8 cm/s), so it gets the most the limits allow: 6.1 cm/s instead of 5.4 with the
-    # hottest joint at 67 % (first-order) / 69 % (BAM) of rated RMS walking sideways nonstop; 0.65 reaches 72 % (BAM)
-    GAITS["trot"] = __import__("dataclasses").replace(GAITS["trot"], side_cap=float(__import__("os").environ.get("CRAB_SIDE_CAP", "0.6")))
+# style B: sideways walking at the forward cap runs the thigh and knee past the owner's torque limits (R-03: 80 % of
+# stall peak, 70 % of rated RMS); a lower sideways stride cap keeps both (docs/dev/V2_MODEL.md has the numbers).
+# v2.1 stance (thighs level, hips 12.5 deg forward): 0.6 instead of 0.5. Sideways is the crab's cheap direction
+# (Chen et al., Bioinspir. Biomim. 17 046001, 2022: 40 % lower cost on a 3-joint-leg robot; here 17 % less energy
+# per metre than forward at 8 cm/s), so it gets the most the limits allow: 6.1 cm/s instead of 5.4 with the
+# hottest joint at 67 % (first-order) / 69 % (BAM) of rated RMS walking sideways nonstop; 0.65 reaches 72 % (BAM)
+GAITS["trot"] = __import__("dataclasses").replace(GAITS["trot"], side_cap=float(__import__("os").environ.get("CRAB_SIDE_CAP", "0.6")))
 # "climb": the crawl with feet lifted 20 mm (absolute, not scaled) - for getting over things it's caught on.
 # In the twin, walking forward, it crosses a fixed 5 mm cable, a pen, and 8 and 12 mm steps; the trot
 # crosses none of them forward (sideways the trot manages all but the 12 mm step). Decision 52.

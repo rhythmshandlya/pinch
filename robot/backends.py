@@ -64,7 +64,7 @@ class SimBackend:
         of configs/electronics.toml: command delay, encoder steps, IMU noise and lag, distance-beam noise and
         dropouts, a battery that drains and sags; crab/electronics.py). Seeded: same seed, same numbers.
         soc: the pack's starting state of charge (datasheet realism only).
-        servo_model (design v2 only, CRAB_DESIGN=v2): the leg servo, measured Rhoban BAM m6 numbers from
+        servo_model: the leg servo, measured Rhoban BAM m6 numbers from
         configs/electronics.toml: "first_order" (the position actuator in crab_v2.xml plus the firmware's target
         slew limit) or "bam" (the full model, crab/servo_model.py; needs the optional `bam` package). Today's
         design (v1) has no measured servo model and only takes "first_order", which changes nothing.
@@ -81,8 +81,6 @@ class SimBackend:
             raise ValueError(f"power_model must be 'circuit' or 'lumped', not {power_model!r}")
         if servo_model not in ("first_order", "bam"):
             raise ValueError(f"servo_model must be 'first_order' or 'bam', not {servo_model!r}")
-        if servo_model == "bam" and PARAMS.design == "v1":
-            raise ValueError("the full BAM servo model exists for design v2 (CRAB_DESIGN=v2) only")
         voltage = PARAMS.bus_voltage if voltage is None else voltage
         self._flim = {j: s.force_limit for j, s in zip(JOINT_NAMES, JOINT_SPECS)}
         from pathlib import Path
@@ -94,10 +92,8 @@ class SimBackend:
         self.d = mujoco.MjData(self.m)
         mujoco.mj_resetDataKeyframe(self.m, self.d, self.m.key("stand").id)
         mujoco.mj_forward(self.m, self.d)          # body poses valid before the first step (IMU reads)
-        self.drive = None                          # design v2: the measured leg servo (crab/servo_model.py)
-        if PARAMS.design != "v1":
-            from crab.servo_model import make_drive
-            self.drive = make_drive(servo_model, self.m, self.d, JOINT_NAMES)
+        from crab.servo_model import make_drive  # the measured leg servo (crab/servo_model.py)
+        self.drive = make_drive(servo_model, self.m, self.d, JOINT_NAMES)
         self.mount ={j: 0.0 for j in JOINT_NAMES} if mount_offsets is None else dict(mount_offsets)
         self.sign = {j: default_sign(j) for j in JOINT_NAMES}
         self.qadr = {j: self.m.jnt_qposadr[self.m.joint(j).id] for j in JOINT_NAMES}
@@ -123,14 +119,13 @@ class SimBackend:
             self._target = self.d.ctrl[self._act_idx].copy()          # what the servos have been told (undelayed)
         if realism == "datasheet":
             from crab.electronics import Data, Realism
-            data = None if PARAMS.design == "v1" else Data().for_design(PARAMS.design)     # v2: its pack and rail
+            data = Data().for_design("v2")             # its pack and rail (configs/electronics.toml)
             self.elec = Realism(data, seed=seed, soc=soc, pwm=[j in self.no_feedback for j in JOINT_NAMES],
                                 kt=[s.kt_current for s in JOINT_SPECS], dt=float(self.m.opt.timestep),
                                 initial=self._target)
-            if PARAMS.design == "v2":
-                self._setup_mounts(data)
-                if power_model == "circuit":
-                    self._setup_circuit(data, seed, soc, enforce_module_min)
+            self._setup_mounts(data)
+            if power_model == "circuit":
+                self._setup_circuit(data, seed, soc, enforce_module_min)
             self._sync_power()
         self.viewer = None
         if render:

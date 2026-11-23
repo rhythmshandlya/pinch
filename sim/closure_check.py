@@ -1,6 +1,6 @@
 """How closed the body is: what inside it can be seen from outside, on the model generated from the CAD.
 
-    CRAB_DESIGN=v2 python sim/closure_check.py [model.xml]      # exit 1 above the limit
+    python sim/closure_check.py [model.xml]      # exit 1 above the limit
 
 Rays come from all round at three elevations (0, 25 and 50 deg) and many heights, aimed at the body's axis; legs and
 arms are looked past (a leg moves); the first thing on the body hit is classified. The shell, the face, the servos

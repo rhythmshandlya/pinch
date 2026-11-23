@@ -8,13 +8,11 @@ came out whole and its volume; the group whose removal makes it whole is the one
 
 import argparse
 import json
-import os
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 

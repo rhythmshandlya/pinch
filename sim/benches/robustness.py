@@ -46,7 +46,7 @@ from crab.params import (
 from crab.policy_np import POLICY_DIR, NumpyPolicy  # noqa: E402
 from sim.benches.common import run_parallel, save_json  # noqa: E402
 
-MODEL = ROOT / "sim" / "models" / PARAMS.model_file   # follows CRAB_DESIGN (crab.xml for v1)
+MODEL = ROOT / "sim" / "models" / PARAMS.model_file   # the robot model, generated from the CAD
 V, W = _S / _T, 1 / _T
 # commands inside the trained policy's envelope (it learned "clearly moving" or "stopped"; slower requests
 # are raised to its minimum by the body, and precise slow moves use the scripted gait)
@@ -324,9 +324,6 @@ def main():
     if a.realism != "ideal":
         lines.insert(3, f"Electronics: **{a.realism}** (configs/electronics.toml) - see the module docstring.")
         out = None                                   # the committed report is the ideal one
-    if PARAMS.design != "v1":
-        lines.insert(3, f"Design: **{PARAMS.design}** ({PARAMS.model_file}).")
-        out = None                                   # the committed reports are today's design
     if out and os.environ.get("PINCH_GAIT_POLICY", "gait") == "gait" and "PINCH_EMOTE_POLICY" not in os.environ:
         (ROOT / "docs" / out).write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))

@@ -13,7 +13,7 @@ from fnmatch import fnmatch
 
 import numpy as np
 
-from .params import DESIGN, JOINT_NAMES
+from .params import JOINT_NAMES
 
 STAND_DICT = {
     "*_coxa": 0.0,
@@ -23,20 +23,20 @@ STAND_DICT = {
     "*_shoulder_pitch": 0.35,
     "*_claw": 0.10,
 }
-if DESIGN == "v2":
-    # style B: thighs up 35 deg from horizontal, shins 85 deg below horizontal (78 deg was the first spec: it misses the owner's RMS torque limit, docs/dev/V2_MODEL.md),
-    # arms straight ahead (docs/dev/V2_MODEL.md)
-    import math as _m
-    import os as _os
-    _thigh, _shin = float(_os.environ.get("CRAB_THIGH_DEG", "0")), float(_os.environ.get("CRAB_SHIN_DEG", "85"))   # v2.1: thighs level (owner, 2026-11-23: more ground clearance; was 5 deg up, belly 35 mm)
-    # the hips swung forward at stand so the feet sit under the centre of mass (18.7 mm ahead of the body's middle:
-    # the 300 g face screen): even load on the four thighs instead of 62 % on the front pair
-    _coxa = float(_os.environ.get("CRAB_COXA_FWD_DEG", "12.5"))   # 22/22 moves in the limits (0: 16/22 with level thighs)
-    STAND_DICT.update({"*_coxa": _m.radians(_coxa), "*_femur": _m.radians(_thigh), "*_tibia": -_m.radians(_shin + _thigh),
-                       "*_shoulder_yaw": 0.0, "*_shoulder_pitch": 0.35})
+# style B: thighs up 35 deg from horizontal, shins 85 deg below horizontal (78 deg was the first spec: it misses the owner's RMS torque limit, docs/dev/V2_MODEL.md),
+# arms straight ahead (docs/dev/V2_MODEL.md)
+import math as _m
+import os as _os
+
+_thigh, _shin = float(_os.environ.get("CRAB_THIGH_DEG", "0")), float(_os.environ.get("CRAB_SHIN_DEG", "85"))   # v2.1: thighs level (owner, 2026-11-23: more ground clearance; was 5 deg up, belly 35 mm)
+# the hips swung forward at stand so the feet sit under the centre of mass (18.7 mm ahead of the body's middle:
+# the 300 g face screen): even load on the four thighs instead of 62 % on the front pair
+_coxa = float(_os.environ.get("CRAB_COXA_FWD_DEG", "12.5"))   # 22/22 moves in the limits (0: 16/22 with level thighs)
+STAND_DICT.update({"*_coxa": _m.radians(_coxa), "*_femur": _m.radians(_thigh), "*_tibia": -_m.radians(_shin + _thigh),
+                   "*_shoulder_yaw": 0.0, "*_shoulder_pitch": 0.35})
 
 
-TALL_STANCE = DESIGN == "v2" and STAND_DICT["*_femur"] < 0.349     # thighs under 20 deg up
+TALL_STANCE = STAND_DICT["*_femur"] < 0.349     # thighs under 20 deg up
 
 
 def pose(*overrides) -> np.ndarray:
@@ -195,7 +195,7 @@ def _build() -> dict:
 
     # excited: quick bounces with claws up
     # v2 (2.1 kg): slower, shallower bounces keep the hottest leg joint within the owner's heat limit (R-03)
-    ex_dt, ex_lo, ex_hi = (0.30, 0.12, -0.05) if DESIGN == "v2" else (0.22, 0.18, -0.08)
+    ex_dt, ex_lo, ex_hi = (0.30, 0.12, -0.05)
     E["excited"] = Emote("excited", _seq(
         [(0.0, STAND)]
         + [(ex_dt, q) for q in (pose(crouch(ex_lo), {"*_shoulder_pitch": 0.9, "*_claw": 0.7}),
@@ -248,7 +248,7 @@ def _build() -> dict:
 
     # applause: claws up and clacking open / shut
     # v2: the arm servos run at a 40 % torque limit (child safety), so the claps are slower and a little smaller
-    cl_dt, cl_open = (0.26, 0.6) if DESIGN == "v2" else (0.18, 0.8)
+    cl_dt, cl_open = (0.26, 0.6)
     E["applause"] = Emote("applause", _seq(
         [(0.0, STAND), (0.5, pose({"*_shoulder_pitch": 0.8, "*_shoulder_yaw": 0.0, "*_claw": cl_open}))]
         + [(cl_dt, pose({"*_shoulder_pitch": 0.8, "*_shoulder_yaw": 0.0, "*_claw": c})) for c in (0.05, cl_open) * 5]

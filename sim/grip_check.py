@@ -16,7 +16,6 @@ import os
 import sys
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
@@ -270,8 +269,6 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--video", default=None, help="a GIF of the first trial of each object")
     a = ap.parse_args()
-    if PARAMS.design != "v2":
-        sys.exit("design v2 only")
     m0 = mujoco.MjModel.from_xml_path(MODEL_PATH)
     stand_z = float(m0.key("stand").qpos[2])
     clips = []

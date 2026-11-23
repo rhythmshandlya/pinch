@@ -32,9 +32,9 @@ from crab import policy_io as pio  # noqa: E402
 from crab.arm import PUSH_LOWER, paddle_pose  # noqa: E402
 from crab.gait import _S, GAITS  # noqa: E402
 from crab.gait_jax import GaitJax  # noqa: E402
-from crab.params import JOINT_NAMES, LEG_IDS  # noqa: E402
+from crab.params import JOINT_NAMES, LEG_IDS, PARAMS  # noqa: E402
 
-MODEL = ROOT / "sim" / "models" / "crab.xml"
+MODEL = ROOT / "sim" / "models" / PARAMS.model_file
 THING_H = 0.006
 HL_DT = 0.1                                   # a decision every 0.1 s
 SUB = 10                                      # gait substeps per 20 ms control tick (as Body)

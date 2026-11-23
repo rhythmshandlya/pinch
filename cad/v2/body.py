@@ -15,7 +15,6 @@ own mount from anything else in its way.
 """
 
 import math
-import os
 import sys
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -24,7 +23,6 @@ from pathlib import Path
 
 import numpy as np
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 

@@ -13,18 +13,16 @@ it and the check reports how far they lag their keyframes instead. Limits: legs 
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 import numpy as np  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from crab.emotes import EMOTES, STAND  # noqa: E402
-from crab.params import JOINT_NAMES, PARAMS  # noqa: E402
+from crab.params import JOINT_NAMES  # noqa: E402
 from sim.v2_check import DS_STALL, LEGS, RATED, Run, settle  # noqa: E402
 
 ARMS = [i for i, j in enumerate(JOINT_NAMES) if i not in LEGS]
@@ -67,8 +65,6 @@ def main():
     ap.add_argument("--only", default=None, help="comma-separated move names")
     ap.add_argument("--json", default=None)
     a = ap.parse_args()
-    if PARAMS.design != "v2":
-        sys.exit("design v2 only")
     names = a.only.split(",") if a.only else list(EMOTES)
     rows = [play(n, a.servo) for n in names]
     print(f"servo model: {a.servo}; legs: peak % of {DS_STALL} N*m stall (limit {LEG_PEAK:.0f}), RMS % of {RATED} N*m "

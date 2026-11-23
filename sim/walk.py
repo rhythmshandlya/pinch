@@ -22,7 +22,7 @@ from crab.params import JOINT_NAMES, JOINT_SPECS, PARAMS  # noqa: E402
 from sim.latency import DelayLine  # noqa: E402
 from sim.servo_check import MAX_CMD, ServoMonitor  # noqa: E402
 
-MODEL = ROOT / "sim" / "models" / PARAMS.model_file          # crab.xml; CRAB_DESIGN=v2: crab_v2.xml
+MODEL = ROOT / "sim" / "models" / PARAMS.model_file          # the robot model, generated from the CAD
 IMG_DIR = ROOT / "docs" / "images"
 DELAY = max(s.command_delay for s in JOINT_SPECS)
 V, W = _S / _T, 1 / _T          # speed scale vs the 100 mm-shin original (same strides per body size)

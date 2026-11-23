@@ -14,15 +14,19 @@ from pathlib import Path
 
 import mujoco
 
-from crab.params import JOINT_NAMES, servo_for
+from crab.params import (
+    JOINT_NAMES,
+    PARAMS,  # noqa: E402
+    servo_for,
+)
 from training.mjlab_pinch.layout import ARM_JOINT_NAMES, LEG_JOINT_NAMES, STAND_POSE
 
 ROOT = Path(__file__).resolve().parents[2]
-MODEL = Path(os.environ.get("PINCH_MJLAB_MODEL", ROOT / "sim" / "models" / "crab.xml"))
+MODEL = Path(os.environ.get("PINCH_MJLAB_MODEL", ROOT / "sim" / "models" / PARAMS.model_file))
 FOOT_GEOMS = tuple(f"{lg}_foot" for lg in ("FL", "FR", "RL", "RR"))
 FOOT_SITES = tuple(f"{lg}_foot_site" for lg in ("FL", "FR", "RL", "RR"))
 BODY = "body"
-START_HEIGHT = 0.0487 + 0.002           # stand height of the keyframe plus a little: it settles onto its feet
+START_HEIGHT = PARAMS.stand_body_z + 0.002   # stand height plus a little: it settles onto its feet
 
 
 def spec() -> mujoco.MjSpec:

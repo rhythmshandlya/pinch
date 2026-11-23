@@ -12,13 +12,13 @@ import numpy as np
 
 @dataclass
 class Desk:
-    half_x: float = 0.35           # desk top is 0.70 x 0.45 m (sim); the robot learns its own with the cliff sensors
-    half_y: float = 0.225
-    owner_xy: tuple = (0.0, -0.30)            # where you sit
-    tray_xy: tuple = (0.18, 0.08)             # desk tray (pens, small things): Pinch's tidy target
-    tray_half: tuple = (0.08, 0.035)          # 16 x 7 cm inside, open toward you; Pinch needs ~7 cm around it
-    home_xy: tuple = (-0.05, 0.08)            # Pinch's rest spot, left of the tray
-    edge_margin: float = 0.07                 # Pinch keeps its body centre this far from any edge
+    half_x: float = 0.60           # desk top is 1.20 x 0.60 m (sim): the owner's desk is 100-140 cm wide, a standard
+    half_y: float = 0.30           # 60 cm deep; the robot learns its own with the cliff sensors
+    owner_xy: tuple = (0.0, -0.375)           # where you sit (7.5 cm beyond the near edge)
+    tray_xy: tuple = (0.35, 0.15)             # desk tray (pens, small things): Pinch's tidy target
+    tray_half: tuple = (0.08, 0.035)          # 16 x 7 cm inside, open toward you; Pinch needs ~12 cm around it
+    home_xy: tuple = (-0.40, 0.05)            # Pinch's rest spot, at the left end, out of the way
+    edge_margin: float = 0.12                 # Pinch keeps its body centre this far from any edge
 
     def inside(self, xy, margin=0.0):
         return abs(xy[0]) < self.half_x - margin and abs(xy[1]) < self.half_y - margin
@@ -26,10 +26,10 @@ class Desk:
     def edge_distance(self, xy):
         return min(self.half_x - abs(xy[0]), self.half_y - abs(xy[1]))
 
-    # Pinch's feet when standing (body frame, m; a little generous): they reach ~10 cm from the body centre,
-    # so keeping the centre edge_margin from the edge is not enough on its own (a rear foot ended up over
-    # the front edge in a 10-minute twin run, and Pinch stood there, lopsided, without noticing)
-    FEET = ((0.047, 0.094), (0.047, -0.094), (-0.047, 0.094), (-0.047, -0.094))   # measured stance (twin)
+    # Pinch's feet when standing (body frame, m): they reach 15-17 cm from the body centre, so keeping the centre
+    # edge_margin from the edge is not enough on its own (a foot over the edge, the robot standing there lopsided
+    # without noticing, was seen in a 10-minute twin run)
+    FEET = ((0.097, 0.145), (0.097, -0.145), (-0.057, 0.164), (-0.057, -0.164))   # measured v2.1 stance (twin)
 
     def fit_feet(self, xy, heading, margin=0.035):
         """The nearest spot to xy where Pinch, facing `heading`, has every foot at least `margin` inside the desk

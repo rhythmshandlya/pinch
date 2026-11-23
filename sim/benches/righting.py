@@ -1,5 +1,5 @@
 """Self-righting bench: the searched swing (crab/righting.py) against a learned policy (policies/<name>.npz),
-from the same random starts on its back, in the CPU twin's physics (sim/models/crab.xml, or crab_v2.xml with CRAB_DESIGN=v2;
+from the same random starts on its back, in the CPU twin's physics (sim/models/crab_v2.xml;
 2 ms steps).
 
     python sim/benches/righting.py                      # swing + policies/righting.npz if there is one
@@ -39,7 +39,7 @@ from sim.benches.stats import rate  # noqa: E402
 
 PWM = np.array([JOINT_NAMES.index(j) for j in PWM_JOINTS], dtype=int)     # the PWM arm servos (v1): they report nothing; v2 has none
 
-MODEL = ROOT / "sim" / "models" / PARAMS.model_file   # follows CRAB_DESIGN (crab.xml for v1)
+MODEL = ROOT / "sim" / "models" / PARAMS.model_file   # the robot model, generated from the CAD
 DT, CTRL_DT, TIMEOUT = 0.002, pio.CTRL_DT, 8.0
 
 

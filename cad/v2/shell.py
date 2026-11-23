@@ -5,14 +5,12 @@ is the simulated one), the inside is the same shape 2 mm smaller (WALL), and the
 Units mm, body frame (x forward, z up).
 """
 
-import os
 import sys
 from functools import cache
 from pathlib import Path
 
 import numpy as np
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 

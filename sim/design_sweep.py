@@ -41,7 +41,7 @@ SHOULDER_X, SHOULDER_Y = 56.0, 40.0
 def env_for(c, xml):
     layout = {"part.shoulder_l.joint_mm": [SHOULDER_X, SHOULDER_Y, c["shoulder_z"]],
               "part.shoulder_r.joint_mm": [SHOULDER_X, -SHOULDER_Y, c["shoulder_z"]]}
-    return dict(os.environ, CRAB_YAW_SERVO=c["yaw"], CRAB_DESIGN="v2", CRAB_THIGH_DEG=str(c["thigh"]), CRAB_SHIN_DEG=str(c["shin"]),
+    return dict(os.environ, CRAB_YAW_SERVO=c["yaw"], CRAB_THIGH_DEG=str(c["thigh"]), CRAB_SHIN_DEG=str(c["shin"]),
                 CRAB_LAYOUT_JSON=json.dumps(layout), CRAB_MODEL_PATH=str(xml), PYTHONIOENCODING="utf-8")
 
 

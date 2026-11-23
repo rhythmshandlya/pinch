@@ -25,7 +25,7 @@ length), the time share of each activity, walking commands the body's heat limit
 Pass, each run: no fall, no safety stop, the hottest leg servo never above 55 C; in the worst condition at least one
 cool-down rest (the drive has to act). --without-drive runs the same hours with the heat need held at 0 (the body's
 55-60 C walking limit and the firmware's 65 C stop stay): the comparison, judged on nothing.
-Design v1 unless CRAB_DESIGN says otherwise: the twin's desk (pinch/world.py Desk: its stance numbers and 0.70 x
+the twin's desk (pinch/world.py Desk: its stance numbers and 0.70 x
 0.45 m top) is still sized for v1, and on it the bigger v2 parks at the back edge, where the edge guard refuses every
 step, so a v2 hour would mostly stand. The v2 legs' temperatures come from sim/mixed_hour.py meanwhile.
 """

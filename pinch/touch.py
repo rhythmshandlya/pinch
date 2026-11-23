@@ -283,7 +283,11 @@ class StuckSense:
         return out
 
 
-STAND_BODY_Z = 0.0487          # m: body origin above the desk when standing (the twin's stand keyframe)
+from crab.params import PARAMS as _P  # noqa: E402
+
+STAND_BODY_Z = _P.stand_body_z  # m: body origin above the desk when standing, for the body in use (crab/params.py)
+CLIFF_MIN_MARGIN_MM = 25.0      # a beam reads "cliff" past max(margin x nominal, nominal + this): a beam that looks at the
+                                # desk from 1-2 cm (v2.1's front pair) would otherwise trip on the body's walking bob
 
 
 def cliff_beams(beams=None, body_z=STAND_BODY_Z, margin=1.6):
@@ -299,7 +303,8 @@ def cliff_beams(beams=None, body_z=STAND_BODY_Z, margin=1.6):
         d = np.asarray(d, float) / np.linalg.norm(d)
         g = d[:2] / np.linalg.norm(d[:2])
         nominal = (body_z + z_mm / 1000.0) / -d[2] * 1000.0
-        out.append((name, (float(g[0]), float(g[1])), float(nominal), float(margin * nominal)))
+        out.append((name, (float(g[0]), float(g[1])), float(nominal),
+                    float(max(margin * nominal, nominal + CLIFF_MIN_MARGIN_MM))))
     return out
 
 

@@ -1,45 +1,15 @@
-# The adopted policies: which run each came from, how it was judged, and the decision that adopted it.
-# Change a slot only through the adoption workflow (docs/dev/TRAINING.md): fetch, export, `ops eval`, compare
+# The adopted policies for the v2.1 body: which run each came from, how it was judged, and the decision that adopted
+# it. Change a slot only through the adoption workflow (docs/dev/TRAINING.md): fetch, export, `ops eval`, compare
 # with the incumbent, decision entry, then update this file and policies/<slot>.npz in the same commit.
-
-[gait]
-file = "gait.npz"
-run = "gait-v2"
-steps = 150_000_000
-env = "gait_v2"
-adopted_in = "fda4052"
-decision = 84
-evidence = "robustness desk/rough/stuck/terrain/terrain_hard 86/85/81/83/80 %, 0 falls; tidy cap 11/24 (was 3/24)"
+# A skill without a slot here runs its scripted controller (crab/policy_np.py load_policy -> None): walking is the
+# scripted trot, moves are the keyframed emotes, grasping and pushing are scripted. Phase 6 trains them for v2.1.
+# (The v1 body's policies were retired with the v1 body; they are in git history.)
 
 [righting]
 file = "righting.npz"
-run = "righting-v1"
-steps = 39_813_120
+run = "righting-v21-lag"
+steps = 13_762_560
 env = "righting"
-adopted_in = "fda4052"
-decision = 85
-evidence = "200/200 random falls on its back, 0.54 s mean (searched swing: 107/200, 0.84 s)"
-
-[emote]
-file = "emote.npz"
-run = "emote-v1"
-steps = 40_000_000
-env = "emote"
-adopted_in = "860bf6a"
-evidence = "22 emotes, 0 falls on the robustness bench"
-
-[alternatives.terrain_v1]
-file = "terrain_v1.npz"
-run = "terrain-v1"
-steps = 86_507_520
-env = "terrain"
-adopted_in = "914f487"
-note = "the documented alternative walker: better over bars, replaced by gait-v2 for tidying (decision 84)"
-
-[grasp]
-file = "grasp.npz"
-run = "grasp-v6"
-steps = 30_638_080
-env = "grasp"
-decision = 93
-evidence = "pick bench, 24 layouts each: eraser into the tray 11/24 (scripted grab 2/24), pen 10/24 (9/24), 0 falls"
+adopted_in = "phase 4 integration"
+decision = 110
+evidence = "v2.1 body, 200 random falls on its back: 175/200 = 88 % (82-91) ideal, 1.92 s mean; 191/200 = 96 % (92-98) with datasheet realism (command delay, encoder and IMU noise), 1.42 s mean. Scripted swing 49/200 = 24 %; the v1 policy on v2.1: 38 % / 45 %. Trained with 0-20 ms command latency. Commanded joint speed p95 11.6-13 rad/s against the 5.1 rad/s servo limit (the servos clip it; the numbers above include the clipping)."

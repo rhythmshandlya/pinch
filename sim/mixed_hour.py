@@ -13,11 +13,9 @@ room). The mix has no heat-aware rests (no mind runs here): the temperatures are
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 import numpy as np  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +23,7 @@ sys.path.insert(0, str(ROOT))
 
 from crab.emotes import EMOTES, STAND  # noqa: E402
 from crab.gait import GAITS, Gait  # noqa: E402
-from crab.params import JOINT_NAMES, PARAMS, servo_for  # noqa: E402
+from crab.params import JOINT_NAMES, servo_for  # noqa: E402
 from crab.servo_model import ServoHeat  # noqa: E402
 from sim.v2_check import DS_STALL, LEGS, RATED, Run, settle  # noqa: E402
 
@@ -40,8 +38,6 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--ambient", type=float, default=None, help="room temperature, C (default: configs/electronics.toml)")
     a = ap.parse_args()
-    if PARAMS.design != "v2":
-        sys.exit("design v2 only")
     rng = np.random.default_rng(a.seed)
     run = Run(a.servo)
     com = settle(run, 1.0)

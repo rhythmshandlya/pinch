@@ -1,14 +1,14 @@
 {
- "run": "righting-v1",
- "steps": 39813120,
- "num_timesteps": 60000000,
- "num_envs": 4096,
+ "run": "righting-v21-lag",
+ "steps": 13762560,
+ "num_timesteps": 40000000,
+ "num_envs": 2048,
  "batch_size": 256,
  "num_minibatches": 32,
  "unroll_length": 20,
  "num_updates_per_batch": 4,
  "episode_length": 200,
- "num_evals": 15,
+ "num_evals": 10,
  "num_eval_envs": 256,
  "learning_rate": 0.0003,
  "entropy_cost": 0.01,
@@ -23,9 +23,11 @@
   256,
   256
  ],
+ "seed": 0,
  "preset": "righting",
  "env": "righting",
  "randomize": true,
+ "design": "v2",
  "action_scale": 0.15,
  "covers": [
   "walk"

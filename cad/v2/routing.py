@@ -17,12 +17,10 @@ at least 10 x the cable's diameter where it flexes (at the hip ports: the bundle
 """
 
 import heapq
-import os
 import sys
 from functools import cache
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 

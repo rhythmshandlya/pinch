@@ -1,7 +1,7 @@
 """Where the open claw's gap is, for given joint angles (forward kinematics from the robot model).
 
 Used by the body's grab and push skills on the robot and in the twin. Needs `mujoco` (pip install
-mujoco works on the Radxa) and sim/models/crab.xml, but no simulation: kinematics only.
+mujoco works on the Radxa) and the robot model (sim/models/crab_v2.xml), but no simulation: kinematics only.
 """
 
 from pathlib import Path
@@ -9,9 +9,9 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from crab.params import JOINT_NAMES
+from crab.params import JOINT_NAMES, PARAMS
 
-MODEL = Path(__file__).resolve().parents[1] / "sim" / "models" / "crab.xml"
+MODEL = Path(__file__).resolve().parents[1] / "sim" / "models" / PARAMS.model_file
 GAP = 0.006            # aim a thing this far off the fixed jaw, into the open gap (mid-jaw)
 
 

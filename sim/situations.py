@@ -42,7 +42,7 @@ CANDIDATES = {
 
 
 def env_for(c):
-    e = dict(os.environ, CRAB_DESIGN="v2")
+    e = dict(os.environ)
     if "thigh" in c:
         e["CRAB_THIGH_DEG"] = str(c["thigh"])
     if "shin" in c:

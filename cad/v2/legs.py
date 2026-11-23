@@ -13,13 +13,11 @@ Servo poses (servo frame of cad/v2/servos.py: shaft +z through the origin, case 
 Units mm. Printed in PETG; masses come from the solids (cad/v2/assembly.py).
 """
 
-import os
 import sys
 from functools import cache
 from math import cos, radians, sin
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 

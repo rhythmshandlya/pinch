@@ -16,7 +16,6 @@ import os
 import sys
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")                  # before crab.params is imported
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
@@ -29,9 +28,6 @@ from crab.gait import _S, GAITS, Gait  # noqa: E402
 from crab.params import JOINT_NAMES, JOINT_SPECS, PARAMS  # noqa: E402
 from crab.servo_model import make_drive  # noqa: E402
 from sim.latency import DelayLine  # noqa: E402
-
-if PARAMS.design != "v2":
-    sys.exit("sim/v2_check.py checks design v2: run it without CRAB_DESIGN set to anything but v2")
 
 MODEL = Path(os.environ["CRAB_MODEL_PATH"]) if os.environ.get("CRAB_MODEL_PATH") else ROOT / "sim" / "models" / PARAMS.model_file   # a candidate (sim/situations.py)
 LEGS = [i for i, j in enumerate(JOINT_NAMES) if j[0] in "FR" and j[1] in "LR"]          # the 12 leg joints

@@ -1444,3 +1444,71 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Rejected:** a behaviour-tree library (py_trees, 655 stars) - the arbiter is about 100 lines and the selection
       already works; ambient motion on the legs under a walk (it would fight the gait); a recording-format switch
       to MCAP or Rerun now (the existing recorder covers the timeline; an exporter can come later).
+
+108. **Phase 4, parts 2-3: one feeling drives everything Pinch shows, it learns from its person, and its states have real sub-states.**
+    - **Why:** each activity picked its own face and kept it, so the face hid the feeling 31 % of awake time in the
+      review scene; sounds, walking and posture ignored the mood; nothing Pinch did changed with feedback; the
+      states' sub-states and timeout rules were declared but not used; social exchanges stopped dead; woken for a
+      hello it waved with a sleepy face; after a bang the eyes stayed on where the bang had been (a body-relative
+      angle) while it worked.
+    - **Evidence:**
+      - One affect state shown through all behaviour: Kismet (Breazeal 2003), the Oz project's believable agents
+        (Loyall 1997), Disney's "illusion of life".
+      - Display rules (Ekman & Friesen 1969).
+      - Habituation of harmless startles (Thompson & Spencer 1966).
+      - Expectation and appraisal (surprise = outcome - expectation).
+      - Learning from a person's praise and scolding: TAMER (Knox & Stone 2009), bounded as a gradient bandit
+        (Sutton & Barto).
+      - Forethought, the eyes before the body (Takayama et al. 2011).
+      - Proxemics by relationship (Mumm & Mutlu 2011).
+      - Engagement has an explicit close (Sidner et al. 2005; Bohus & Horvitz 2009).
+      - Top-down over bottom-up attention (Desimone & Duncan 1995); motion onset still captures it (Abrams & Christ
+        2003).
+      - Long-term HRI novelty and variety (Leite et al. 2013); an activity rhythm settled but not random (Blumberg's
+        level of interest).
+    - **Change:**
+      - **Expression:** `pinch/mind/expression.py` and `configs/mind/expression.toml` drive face, sounds, emote style,
+        walking tempo and posture from the feeling: an activity's face shows only if it fits the feeling, and a face
+        that doesn't fit the state is swapped for one from the same feeling's list.
+      - **Learning:** `pinch/mind/learning.py`, a per-person, per-context bandit that fades over 14 days, is cleared
+        when a person is forgotten, and gives an acquired taste.
+      - **Expectations:** per activity, so outcomes better or worse than expected raise delight or disappointment.
+      - **Pure scores:** activity scores are pure (`prepare` / `utility`), with score stages and a learnable decision
+        log (scores, parts, affect, context).
+      - **States:** `configs/mind/states.toml`:
+        - `phases` maps every activity step to a sub-state (`Mind.substate`, checked for every activity);
+        - `timeout_do` carries out each state's timeout rule;
+        - `close` gives social exchanges a disengage sub-state;
+        - `gaze_hold` keeps the eyes on the task's target against weaker pulls;
+        - woken for something calm, it passes through the sleep state's wake sub-state (a stretch, a sleepy face)
+          before it greets.
+      - **Attention:** heard and felt stimuli are placed in the room (`pinch/attention.py` `bearing`), and turns
+        start with the eyes.
+      - **Shared runtime:** `pinch/runtime.py` holds the mind-body step that the twin and the firmware share.
+      - **Observer:** new checks for no_closing, late_reaction, dragging_step, face against state and gaze while
+        walking; a step the body queues behind a reflex is now recorded when it starts.
+      - **Benches:** `sim/benches/` gains congruence, liveliness, learning and rhythm.
+    - **Measured:**
+      - **Congruence, review scene:** the face hid the feeling 31 % -> 0 % of awake time, and showed the opposite of
+        it 0.3 % -> 0.0 %. All congruence checks are 0 % on three scenarios.
+      - **Liveliness:** 6/7.
+        - Eyes reach a stimulus in a median 0.05 s, and lead the body 100 % of the time.
+        - Forethought 100 % of 12 goal moves; outcome reaction 100 %.
+        - Meaningful gaze is 88 % on target, but only about 20 points above chance (67-69 %) in the denser scenes,
+          against the 25 required. **Open.**
+      - **Rhythm, 20 seeds x 14 days:** flicker 0 %, median dwell 28 s, 1.68 switches per minute, repeat4 37 %,
+        day14/day1 0.99. Next-activity entropy is 1.48 bits over its own choices (2.005 over all switches).
+      - **Learning:** after 10 days of praise for exploring and scolding for playing, it explored 23 % more (target
+        +25 %, **open**) and played 59 % less (41 % kept: its personality stays).
+      - **Control tick:** p95 2.35 ms on an idle machine (limit 4 ms).
+      - **Tests:** the full suite is green.
+    - **Golden trace re-recorded:** behaviour changed on purpose. Social exchanges close; turns wait 0.4 s for the
+      eyes. Together these shift the seed-7 run after 67 s, where it now gets briefly stuck while tidying and the
+      stroke at 70 s waits behind the recovery.
+    - **Rejected:**
+      - A learned (deep RL) activity chooser now: there is no data yet. The decision log and the pure scores are the
+        seam where one can be added in phase 11.
+      - A language model choosing activities: it adds latency and needs the laptop; it stays optional, for phase 11.
+      - A behaviour-tree library (py_trees): utility selection with states as data already covers what it would add.
+      - A stricter liveliness rule passed by changing the bench: the uniform-random baseline is kept, and a
+        time-shifted control is only reported next to it.

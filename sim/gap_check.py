@@ -12,11 +12,9 @@ change over the travel (less than 1 mm) cannot pinch and is not counted; nor are
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
@@ -82,8 +80,6 @@ def main():
     ap.add_argument("--used", default=None, help="a .npy of [min, max] per joint (the range walking and the moves use), "
                     "swept with a 0.1 rad margin instead of the joints' full range")
     a = ap.parse_args()
-    if PARAMS.design != "v2":
-        sys.exit("design v2 only")
     m = mujoco.MjModel.from_xml_path(str(ROOT / "sim" / "models" / PARAMS.model_file))
     d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, m.key("stand").id)

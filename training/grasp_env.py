@@ -42,9 +42,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from crab import policy_io as pio  # noqa: E402
-from crab.params import LEG_IDS  # noqa: E402
+from crab.params import LEG_IDS, PARAMS  # noqa: E402
 
-MODEL = ROOT / "sim" / "models" / "crab.xml"
+MODEL = ROOT / "sim" / "models" / PARAMS.model_file
 P_LOW = -0.11          # arm pitch at which the jaws' lower edges reach the desk in the grasp crouch (measured)
 GAP_Y = 0.006          # aim the grab point this far off the fixed jaw, into the open gap (toward the moving jaw)
 # rigid things in hand: MuJoCo's default soft contacts let a servo squeeze a 9 g pen 3 mm deep

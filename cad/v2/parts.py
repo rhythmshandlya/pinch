@@ -14,14 +14,12 @@ Adafruit_CAD_Parts (MIT); Waveshare Bus Servo Adapter (A) wiki (42 x 33 mm, hole
 (28 mm, 5 mm); the rest from the sellers' listings and photos (estimates, flagged in the layout's size_source).
 """
 
-import os
 import sys
 from functools import cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-os.environ.setdefault("CRAB_DESIGN", "v2")
 
 from build123d import Box, Cylinder, Pos, Rot, import_step  # noqa: E402
 

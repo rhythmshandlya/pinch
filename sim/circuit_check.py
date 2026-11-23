@@ -6,14 +6,12 @@ earlier lumped battery + regulator model: standing, walking forward and sideways
 
 Prints, per case: peak and mean pack current (as the circuit sees it, averaged over each 10 ms control tick), the lowest
 voltage at the pack terminals, at a leg servo, at an arm servo and at the computer, the regulators' loads, whether the fuse
-or the BMS tripped, whether the computer browned out. Then the battery life. Needs CRAB_DESIGN=v2 (set here)."""
+or the BMS tripped, whether the computer browned out. Then the battery life.."""
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
-os.environ["CRAB_DESIGN"] = "v2"
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 

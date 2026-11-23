@@ -4,12 +4,10 @@
 Overlaps under 1 mm3 are touching contacts (a plate on a horn face) and are ignored. Exits 1 if any remain.
 """
 
-import os
 import sys
 from itertools import combinations
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 

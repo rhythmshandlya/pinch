@@ -10,14 +10,12 @@ Masses per metre are estimates for silicone / PVC wire (marked so in MASS_G_M) u
 layout's 60 g harness allowance. Units mm, body frame.
 """
 
-import os
 import sys
 import tomllib
 from functools import cache
 from math import sqrt
 from pathlib import Path
 
-os.environ.setdefault("CRAB_DESIGN", "v2")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
