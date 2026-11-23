@@ -20,7 +20,7 @@ Linux or WSL machine add `"jax[cuda12]==0.9.2"`). Most work never needs it: GPU 
 | `python tests/run.py <filter>` | some test files (`architecture`, `golden`, `ops`, ...) | while working |
 | `pytest` | the same tests under pytest | if you prefer it |
 | `python robot/firmware_test.py` | firmware on emulated hardware (about 45 checks, a minute) | part of `ops check`; alone when touching robot/ or the mind |
-| `python robot/selftest.py` | servo bus, PWM, calibration, drivers, safety (40 checks, seconds) | part of `ops check`; alone when touching robot/ |
+| `python robot/selftest.py` | servo bus, calibration, drivers, safety (40 checks, seconds) | part of `ops check`; alone when touching robot/ |
 | `python sim/benches/<bench>.py --json out.json` | behaviour and skill benches | when a change could move a number |
 
 Pre-commit runs ruff, the TOML/YAML checks, the guard and the layering/ops tests on each commit (seconds).

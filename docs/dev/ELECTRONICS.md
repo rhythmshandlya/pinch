@@ -1,6 +1,6 @@
 # Electronics in the twin
 
-> **Design v2** (`CRAB_DESIGN=v2`) has its own, much fuller electronics: where every part sits, the wiring as data with checks, and a power circuit solved from it. It is the last chapter of this page, "Design v2". The rest of this page is the part models that both designs share (and, for today's design v1, the whole story).
+> Two chapters. The first is the part models: delays, noise, steps and the battery, switched on with `realism="datasheet"`. The second, "Every part inside the body", is where every part sits, the wiring as data with checks, and the power circuit solved from it.
 
 The digital twin used to have perfect electronics: no command delay, an exact IMU, joint angles without steps, a
 battery that never changed and distance beams that never missed. This page describes the switch that fixes that.
@@ -21,7 +21,7 @@ unit, a **source** and a **ref**:
 
 - `measured`: someone measured the part (a public data set). The leg servo's whole motor model (torque constant,
   resistance, rotor inertia, friction, speed limit, command delay), from Rhoban BAM's `feetech_sts3215_7_4V/m6.json`;
-  the twin uses it for the resized design only (CRAB_DESIGN=v2, [V2_MODEL.md](V2_MODEL.md)).
+  the twin's leg servos run on it ([V2_MODEL.md](V2_MODEL.md)).
 - `datasheet`: printed in the maker's datasheet or product page, and the ref is the page it was read from.
 - `estimate`: our own reasoning, written in `why`. Replace it when a real number exists.
 
@@ -29,21 +29,20 @@ The loader is `crab/electronics.py` (`Data()("imu.fusion_rate_hz")`); `tests/tes
 has no valid source, no reference or an estimate without its reasoning. The datasheet and measured numbers were read
 on 2026-11-21 (BNO055 datasheet rev 1.8, INA219 SBOS448G, MPR121, Feetech and Pololu pages, the BAM JSON). ST's own
 VL53L0X datasheet could not be fetched, so its range, accuracy and resolution come from Pololu's product page, which
-quotes ST, and the page is the ref. Today's (v1) STS3032 torque and speed numbers are not in this file: they stay in
-`crab/params.py`. The v2 servo's measured numbers are (`[leg_servo]`), and so are v2's pack and servo rail
-(`[battery_v2]`, `[regulator_v2]`, swapped in by `Data.for_design("v2")`).
+quotes ST, and the page is the ref. The leg servo's measured numbers are here (`[leg_servo]`), and so are the pack and
+servo rail (`[battery_v2]`, `[regulator_v2]`, which `SimBackend` reads in place of the older `[battery]` and `[regulator]`).
 
 ## What is modelled
 
 | Part | What the twin does |
 |---|---|
 | Leg servo commands | Every servo target reaches the joint late: BAM's measured 5.0 ms plus the time the 12-servo write takes on the 1 Mbaud bus (0.9 ms). Physics runs in 2 ms steps, so the delay is 3 steps (6 ms). |
-| Arm servo commands | 15 ms (the next 50 Hz PWM frame plus the servo's own electronics): 8 steps. |
+| Arm servo commands | 15 ms (`arm_servo.command_delay_s`, an estimate from the earlier PWM arm servos, kept until an STS3032 is timed on the bench): 8 steps. |
 | Leg encoders | Angles come in 4096 steps per turn. |
 | Servo voltage report | The bus voltage in 0.1 V steps. |
 | IMU (BNO055) | Sampled at 100 Hz (reads inside one sample match); gyro noise 0.3 deg/s rms; accelerometer noise from its density and 62.5 Hz bandwidth; a fixed gyro bias and accelerometer offset per robot (a quarter of the datasheet limit, because fusion mode calibrates); a first-order lag of about 34 ms on the gravity direction and 9 ms on the gyro. |
 | Distance beams (VL53L0X) | 30 Hz samples per beam, noise of 1.5 % of the range (at least 2 mm), 1 mm steps, no answer beyond 2 m, and dropouts that grow from 0.2 % on a good surface to about 50 % at the end of the range. A dropout reads as "no answer", which the cliff reflex already treats as unknown. |
-| Battery | State of charge falls with the current the servos and the computer draw (servo torque divided by each servo's N*m per amp, plus idle current, plus 4 W for the computer, through a 90 % regulator). The pack voltage follows a LiPo curve minus current times internal resistance (0.1 ohm, doubling when empty). |
+| Battery | (The lumped model, `power_model="lumped"`: `SimBackend`'s default is the circuit of the second chapter.) State of charge falls with the current the servos and the computer draw (servo torque divided by each servo's N*m per amp, plus idle current, plus 4 W for the computer, through a 90 % regulator). The pack voltage follows a LiPo curve minus current times internal resistance (0.1 ohm, doubling when empty). |
 | Regulator | The 5 V bus holds until the pack drops within 0.5 V of it, sags by the wire resistance times the servo current, and droops steeply past the 5 A limit. |
 | INA219 | Reads pack voltage and current in its 4 mV and 10 uV steps, with a gain error (0.5 % max) and a little noise. |
 | Low battery | In the twin the mind's battery level comes from the INA219 reading, so hunger, the low-battery warning and the safety stop (6.4 V under load) happen by themselves. A pack at 0 % trips the stop within seconds. |
@@ -65,7 +64,7 @@ The models draw from their own random streams, so the twin's other random choice
 - **Servo speed and load feedback** are still exact. Temperature is modelled (above) but its two thermal constants
   are estimates until a real servo is logged; the sensor's lag behind the winding is not modelled.
 - **Bus transmission errors** (garbled replies) and I2C NACKs.
-- **Real current of the STS3032 legs**: current comes from torque divided by `kt_current` in `crab/params.py`, so
+- **Real servo current in the lumped model**: current comes from torque divided by `kt_current` in `crab/params.py`, so
   it follows whichever servo is configured. When the servo model changes the current, the power budget follows.
 - **Beam field of view**: the twin's beams are single rays; the 25 deg cone is not modelled.
 - Gyro bias is fixed per run; it does not drift with temperature.
@@ -182,6 +181,8 @@ Every number below is in `configs/electronics.toml` with its unit and reference;
 
 ## What it changes (benches)
 
+Measured on the earlier, smaller robot (decision 101); the v2.1 body's numbers come with its benches.
+
 Robustness bench (`sim/benches/robustness.py`, desk world, 40 random robots and worlds per row, the same seeds in
 both modes, 4 workers). In `datasheet` mode the bench's own ad-hoc noise (0.003 rad on joints, 0.02 rad/s on the
 gyro) is replaced by the models above. Falls with their 95 % ranges:
@@ -218,7 +219,7 @@ Self-righting bench (`sim/benches/righting.py --starts 100`, same 100 starts):
 
 The swing's 53 % against 49 % is "inconclusive" (p = 0.67; about 2400 starts per arm would be needed to tell them
 apart). The policy's time to upright rises from 0.54 s to 0.56 s (mean) and its 95th-percentile commanded joint speed
-falls from 18.4 to 17.5 rad/s. In short: today's controllers are robust to this electronics, with a measurable but
+falls from 18.4 to 17.5 rad/s. In short: those controllers were robust to this electronics, with a measurable but
 small cost, and the benches are not sensitive enough to rank them further. The robustness bench does not model the
 battery, so the power model has no effect there.
 
@@ -230,25 +231,23 @@ battery, so the power model has no effect there.
   change `leg_servo.command_delay_s` (BAM's m1 fits 1.0 ms and m6 5.0 ms) and the servo model in `crab/params.py`.
 - Test low battery: `PinchSim(realism="datasheet", soc=0.1)`.
 
-# Design v2: every part inside the body, wired, and a circuit that runs
+# Every part inside the body, wired, and a circuit that runs
 
-The sections above describe the part models of the old robot. For design v2 (`CRAB_DESIGN=v2`, `docs/dev/V2_MODEL.md`) the electronics
-are now modelled as the real build: where every part sits, how it is wired, and a circuit solved from that wiring while the twin runs.
+The sections above are the part models. Here the electronics are modelled as the real build ([V2_MODEL.md](V2_MODEL.md)): where every part sits, how it is wired, and a circuit solved from that wiring while the twin runs.
 "Exact" here means exact to the datasheets and to the wiring file; each number says which it is (measured, datasheet, estimate) and what
 only the real parts can settle is listed at the end.
 
 ```powershell
-$env:CRAB_DESIGN = "v2"
 .venv\Scripts\python sim\fit_check.py            # does everything fit? (layout_v2.toml)
 .venv\Scripts\python -m crab.wiring              # wiring checks and the table of wires (wiring_v2.toml)
-.venv\Scripts\python sim\build_model.py --design v2    # rebuilds sim/models/crab_v2.xml from the layout
+.venv\Scripts\python sim\build_model.py                # rebuilds sim/models/crab_v2.xml from the layout
 .venv\Scripts\python sim\circuit_check.py [--bam]      # the numbers below
 .venv\Scripts\python hardware\wiring_diagram.py        # hardware/wiring.svg, drawn from the netlist
 .venv\Scripts\python sim\render_v2_face.py             # media/review/v2/v2_face.png
 ```
 
 ```python
-SimBackend(realism="datasheet")                          # v2 default: the circuit model of the netlist
+SimBackend(realism="datasheet")                          # the default: the circuit model of the netlist
 SimBackend(realism="datasheet", power_model="lumped")    # the earlier battery + one regulator, kept for comparison
 SimBackend(realism="datasheet", enforce_module_min=True) # the regulator modules stop below their listed 7 V input
 hw.set_activity("npu")                                   # what the computer is doing: "idle", "camera" (default), "npu"
@@ -257,100 +256,79 @@ hw.set_activity("npu")                                   # what the computer is 
 ## 1. Placement: `configs/layout_v2.toml`
 
 A separate file next to `electronics.toml` on purpose. `electronics.toml` says how a part *behaves* (noise, delay, resistance); the layout
-says where a part *is* (outline, mass, position, tilt). The layout belongs to design v2 only, the other file serves both designs, and the
-two change for different reasons (a new part number versus moving a board). Every part has an outline L x W x H, a mass, a centre
+says where a part *is* (outline, mass, position, tilt). The two files
+change for different reasons (a new part number versus moving a board). Every part has an outline L x W x H, a mass, a centre
 position and a tilt in the body frame (x front, y left, z up, hip plane z = 0), the sides where cables leave with the room they need, and for
 sensors the window position and view cone. Each size and each mass says `datasheet` (printed on the maker's or seller's page, with the page),
-`measured` or `estimate` (with the reasoning). 43 entries; today 9 outlines are from datasheets and 33 are estimates (listings rarely
+`measured` or `estimate` (with the reasoning). 44 entries; 14 outlines are from datasheets and 28 are estimates (listings rarely
 give outlines: the Radxa's 65 x 30 mm, the regulator module's 25 x 22 mm, the Waveshare driver board's 42 x 33 mm, the STS3215's
 45.22 x 35 x 24.72 mm, the MAX98357A's 19.4 x 17.8 x 3 mm, the Samsung 25R cell). Replace an estimate with a caliper number when the part arrives.
 
-`sim/build_model.py --design v2` builds every electronic part into `crab_v2.xml` as a box with its own mass inside the chassis (no contact with
-the world), replacing the old lumped pack and electronics blocks, puts the IMU site where the BNO055 is mounted and the camera at the lens, and
-draws the face (section 6). `sim/fit_check.py` fails on a part outside the chassis interior (2 mm walls, then the dome's inner surface), two
+`sim/build_model.py` builds every electronic part into `crab_v2.xml` as a box with its own mass inside the shell (no contact with
+the world), puts the IMU site where the BNO055 is mounted and the camera at the lens, and
+draws the face (section 6). `sim/fit_check.py` fails on a part outside the shell's interior (the 2 mm wall and 1 mm clearance), two
 parts overlapping, less than 1 mm between parts, a connector without its cable room, and a sensor, camera or screen window that something
 blocks or that is not at the shell. A test makes a layout bad on purpose in each of those ways and checks that the check fails.
 
-Result: **it fits, but not in the old chassis, and the robot gets heavier.**
-
-| | before | now |
-|---|---|---|
-| Chassis box | 135.4 x 179.4 x 45.8 mm | 135.4 x 179.4 x **50.0** mm (4.2 mm taller; the dome is unchanged) |
-| Why | | the hip servos (45 x 25 x 35 mm, the model's own boxes) stood 1.15 mm through the old lid; with the 2 mm wall and 1 mm clearance the lid has to rise 4.2 mm. Everything else fitted in the old footprint. |
-| Electronics + pack | 171 g lumped (90 g + 81 g pack) | **339 g** in 37 entries: the 2S1P 18650 pack alone is about 100 g, the wiring harness 60 g (estimate), the screen and visor 31 g |
-| Printed body | 335 g | 347 g (scaled with the box's surface area) |
-| Robot | 1.571 kg | **1.750 kg** (+179 g, +11 %) |
-| Centre of mass (body frame) | | x +6.1, y -1.3, z -3.5 mm (the electronics alone: x +5.0, y -6.6, z -11.3 mm) |
-| Closest parts | | 1.0 mm (the rule), cable rooms all free |
-
-The extra 179 g was not in the sizing study's 1.55 kg budget: torque margins shrink by about the same 11 %, and `sim/v2_check.py` should be
-rerun on the heavier robot before the servo choice is called settled. Three further changes the fit forced: the five distance sensors'
-windows moved a few millimetres (below), the VL53L0X boards sit in angled pockets that stand up to 3.5 mm proud of the wall, and the two
-front sensors' windows sit 3 mm behind the wall plane so their boards stay inside the body.
-
-| Beam | window before (x1.6 of v1) | window now | direction (unchanged) |
-|---|---|---|---|
-| front left / right | 75.2, +-17.6, -25.6 | 71.5, +-20.0, -25.6 | 0.72, +-0.262, -0.643 |
-| rear | -62.4, 0, -25.6 | -58.8, 0, -25.6 | -0.766, 0, -0.643 |
-| side left / right | -12.8, +-88, -25.6 | 0, +-89.7, -25.6 | 0, +-0.866, -0.5 |
-
-`crab/params.py` now takes `CLIFF_BEAMS` for v2 from these windows, so the twin's desk beams start exactly there. The height of every window
-(-25.6 mm) is kept, because decision 48 found the cliff reach very sensitive to it. Not checked: the legs' swept volume through the chassis walls
-(the CAD must cut leg pockets; the model's chassis does not collide with its own legs), the printed decks and brackets that hold the
-boards (their mass is inside the printed body's 347 g), and the arms' reach against the screen.
+The first fit, in the earlier box chassis, is recorded in decision 104. The body is now the pill shell (168 x 172 x 104 mm,
+`configs/layout_v2.toml` `[chassis]`); the parts in the layout weigh 954 g and the whole model about 2.28 kg (`sim/models/crab_v2.xml`).
+`crab/params.py` takes `CLIFF_BEAMS` from the five distance sensors' windows in the layout, so the twin's desk beams start exactly there.
 
 ### The placement table
 
-| Part | Outline L x W x H (mm) | g | Position x, y, z (mm) | Tilt r, p, y (deg) | Size from | Mass from | Window / connector room |
-|---|---|---|---|---|---|---|---|
-| hip_fl | 45.2 x 24.7 x 35 | 55 | 35.2, 73.6, -5.2 | 0, 0, 0 | datasheet | datasheet |  |
-| hip_fr | 45.2 x 24.7 x 35 | 55 | 35.2, -73.6, -5.2 | 0, 0, 0 | datasheet | datasheet |  |
-| hip_rl | 45.2 x 24.7 x 35 | 55 | -35.2, 73.6, -5.2 | 0, 0, 0 | datasheet | datasheet |  |
-| hip_rr | 45.2 x 24.7 x 35 | 55 | -35.2, -73.6, -5.2 | 0, 0, 0 | datasheet | datasheet |  |
-| shoulder_l | 8.5 x 15.8 x 17.6 | 5.8 | 70.9, 28.5, 0.0 | 0, 0, 15 | estimate | estimate |  |
-| shoulder_r | 8.5 x 15.8 x 17.6 | 5.8 | 70.9, -28.5, 0.0 | 0, 0, -15 | estimate | estimate |  |
-| pack | 72 x 38.5 x 19.5 | 100 | -12.0, -36.0, -21.0 | 0, 0, 0 | estimate | estimate | leads +x 12 mm |
-| xt60 | 26 x 8 x 16 | 12 | 40.0, -36.0, -21.0 | 0, 0, 90 | estimate | estimate | to_pack -x 8 mm; to_fuse +x 8 mm |
-| fuse | 30 x 18 x 22 | 14 | 46.0, 50.0, -20.0 | 0, 0, 0 | estimate | estimate | in -x 8 mm; out +x 8 mm |
-| ina | 25.5 x 22.3 x 11 | 4.5 | -12.0, 0.0, -22.0 | 0, 0, 90 | estimate | estimate | terminals +y 10 mm; i2c -y 8 mm |
-| reg_a | 25 x 33 x 11 | 5.5 | -30.0, -34.0, -4.0 | 0, 0, 0 | datasheet | estimate | in -x 8 mm; out +x 8 mm |
-| reg_b | 25 x 33 x 11 | 5.5 | -2.0, 42.0, 0.0 | 0, 0, 0 | datasheet | estimate | in -x 8 mm; out +x 8 mm |
-| hub | 55 x 36 x 14 | 24 | -22.0, 34.0, -23.0 | 0, 0, 0 | estimate | estimate | servo_cables +z 10 mm; power_in -x 8 mm |
-| driver | 42 x 33 x 12 | 15 | 24.0, 14.0, -23.0 | 0, 0, 90 | datasheet | estimate | usb +x 14 mm; servo_port -x 8 mm |
-| radxa | 65 x 30 x 6.5 | 12.5 | 16.0, 0.0, -12.0 | 0, 0, 0 | datasheet | estimate | usb_host -x 14 mm; csi +x 12 mm; header +y 10 mm |
-| imu | 20 x 27 x 4 | 3 | -20.0, 0.0, 10.0 | 0, 0, 0 | estimate | estimate | i2c +y 8 mm |
-| mpr121 | 21 x 18 x 3 | 2 | 16.0, -32.0, -8.0 | 0, 0, 0 | estimate | estimate | electrodes +z 8 mm; i2c -y 8 mm |
-| amp | 19.4 x 17.8 x 3 | 1.2 | -38.0, 42.0, 0.0 | 0, 0, 0 | datasheet | datasheet | speaker +x 8 mm; i2s -x 8 mm |
-| radxa_heatsink | 14 x 14 x 6 | 3 | 21.0, 0.0, -5.8 | 0, 0, 0 | estimate | estimate |  |
-| camera | 1.6 x 25 x 24 | 4 | 61.8, 0.0, -19.5 | 0, 0, 0 | estimate | estimate | flex -x 10 mm |
-| camera_lens | 12 x 17 x 17 | 6 | 68.6, 0.0, -19.5 | 0, 0, 0 | estimate | estimate | looks [1.0, 0.0, 0.0] from [74.6, 0.0, -19.5], +-50 deg |
-| tof8 | 4 x 25 x 14 | 3 | 72.6, 0.0, 1.0 | 0, 0, 0 | estimate | estimate | looks [1.0, 0.0, 0.0] from [74.6, 0.0, 1.0], +-22.5 deg; qwiic -x 8 mm |
-| tof_fl | 25 x 10.7 x 3.5 | 1.4 | 69.0, 25.8, -23.3 | 130.76, -10.05, 101.44 | estimate | estimate | looks [0.72, 0.26, -0.64] from [71.5, 20.0, -25.6], +-12.5 deg; header -z 5 mm |
-| tof_fr | 25 x 10.7 x 3.5 | 1.4 | 69.0, -25.8, -23.3 | -130.76, -10.05, -101.44 | estimate | estimate | looks [0.72, -0.26, -0.64] from [71.5, -20.0, -25.6], +-12.5 deg; header -z 5 mm |
-| tof_rear | 25 x 10.7 x 3.5 | 1.4 | -57.5, 0.0, -24.5 | -130.01, 0, 90 | estimate | estimate | looks [-0.77, 0.0, -0.64] from [-58.8, 0.0, -25.6], +-12.5 deg; header -z 5 mm |
-| tof_left | 25 x 10.7 x 3.5 | 1.4 | 0.0, 88.2, -24.7 | -120, 0, 0 | estimate | estimate | looks [0.0, 0.87, -0.5] from [0.0, 89.7, -25.6], +-12.5 deg; header -z 5 mm |
-| tof_right | 25 x 10.7 x 3.5 | 1.4 | 0.0, -88.2, -24.7 | 120, 0, 0 | estimate | estimate | looks [0.0, -0.87, -0.5] from [0.0, -89.7, -25.6], +-12.5 deg; header -z 5 mm |
-| oled | 39.5 x 61.5 x 7 | 19 | 63.5, 0.0, 31.7 | 0, 65, 0 | estimate | estimate | looks [0.91, 0.0, 0.42] from [66.6, 0.0, 33.2], +-35 deg; header -z 8 mm |
-| visor | 45 x 67.5 x 1.7 | 12 | 67.4, 0.0, 33.5 | 0, 65, 0 | estimate | estimate |  |
-| mic_l | 18 x 12.5 x 3 | 1.5 | -20.0, 35.0, 11.0 | 0, 0, 0 | estimate | estimate | looks [0.0, 0.0, 1.0] from [-20.0, 35.0, 12.5], +-30 deg; header -y 6 mm |
-| mic_r | 18 x 12.5 x 3 | 1.5 | -20.0, -35.0, 11.0 | 0, 0, 0 | estimate | estimate | looks [0.0, 0.0, 1.0] from [-20.0, -35.0, 12.5], +-30 deg; header +y 6 mm |
-| speaker | 28 x 28 x 5 | 4 | -38.0, 42.0, 5.0 | 0, 0, 0 | estimate | estimate | leads +x 6 mm |
-| switch | 27 x 30 x 22 | 12 | -47.3, 0.0, -3.0 | 0, 0, 0 | estimate | estimate | terminals +x 12 mm |
-| dock_board | 18 x 12 x 4 | 3 | -48.0, -48.0, 5.0 | 0, 0, 0 | estimate | estimate | to_pack +x 8 mm |
-| pogo_l | 16.35 x 6 x 2 | 0.8 | -52.6, 20.0, 3.0 | 0, 0, 0 | estimate | estimate |  |
-| pogo_r | 16.35 x 6 x 2 | 0.8 | -52.6, -20.0, 3.0 | 0, 0, 0 | estimate | estimate |  |
-| harness | - | 60 | 0.0, 0.0, -12.0 | 0, 0, 0 | - | estimate |  |
-| pad_head | 14 x 10 x 0.2 | 0.3 | 4.0, 0.0, 17.8 | 0, 0, 0 | estimate | estimate |  |
-| pad_back_left | 14 x 10 x 0.2 | 0.3 | -40.0, 40.0, 12.8 | 0, 0, 0 | estimate | estimate |  |
-| pad_back_right | 14 x 10 x 0.2 | 0.3 | -40.0, -40.0, 12.8 | 0, 0, 0 | estimate | estimate |  |
-| pad_side_left | 14 x 10 x 0.2 | 0.3 | 0.0, 70.0, 12.8 | 0, 0, 0 | estimate | estimate |  |
-| pad_side_right | 14 x 10 x 0.2 | 0.3 | 0.0, -70.0, 12.8 | 0, 0, 0 | estimate | estimate |  |
-| pad_face | 14 x 10 x 0.2 | 0.3 | 38.0, 0.0, 15.8 | 0, 0, 0 | estimate | estimate |  |
+From `configs/layout_v2.toml` (`python sim/fit_check.py` prints it; window cones and connector rooms are in the file).
+
+| Part | Outline L x W x H (mm) | g | Position x, y, z (mm) | Tilt r, p, y (deg) | Size from | Mass from |
+|---|---|---|---|---|---|---|
+| hip_fl | 45.2 x 24.7 x 35 | 55 | 35.2, 68.0, -5.2 | 0, 0, 0 | datasheet | datasheet |
+| hip_fr | 45.2 x 24.7 x 35 | 55 | 35.2, -68.0, -5.2 | 0, 0, 0 | datasheet | datasheet |
+| hip_rl | 45.2 x 24.7 x 35 | 55 | -35.2, 68.0, -5.2 | 0, 0, 0 | datasheet | datasheet |
+| hip_rr | 45.2 x 24.7 x 35 | 55 | -35.2, -68.0, -5.2 | 0, 0, 0 | datasheet | datasheet |
+| shoulder_l | 12 x 23 x 27.5 | 20 | 61.8, 40.0, -16.7 | 0, 0, 90 | estimate | datasheet |
+| shoulder_r | 12 x 23 x 27.5 | 20 | 61.8, -40.0, -16.7 | 0, 0, 90 | estimate | datasheet |
+| pack | 72 x 38.5 x 19.5 | 100 | -12.0, -35.0, -26.0 | 0, 0, 0 | estimate | estimate |
+| xt60 | 26 x 8 x 16 | 12 | 29.5, -33.0, -26.0 | 0, 0, 90 | estimate | estimate |
+| fuse | 30 x 18 x 22 | 14 | 16.0, -30.0, 13.5 | 0, 0, 0 | estimate | estimate |
+| ina | 25 x 25 x 14 | 4.5 | -20.0, 0.0, -24.0 | 0, 0, 90 | datasheet | estimate |
+| reg_a | 25 x 22 x 11 | 5.5 | -30.0, -34.0, -4.0 | 0, 0, 0 | datasheet | estimate |
+| reg_b | 25 x 22 x 11 | 5.5 | 29.0, 40.0, 0.0 | 0, 0, 0 | datasheet | estimate |
+| hub | 55 x 36 x 14 | 24 | -27.5, 34.0, -23.0 | 0, 0, 0 | estimate | estimate |
+| driver | 42 x 34 x 15 | 15 | 19.0, 14.0, -24.5 | 0, 0, 90 | datasheet | estimate |
+| radxa | 65 x 32 x 13 | 12.5 | 2.0, -0.5, -6.5 | 0, 0, 0 | datasheet | estimate |
+| imu | 21 x 27 x 4 | 3 | -20.0, 0.0, 10.0 | 0, 0, 0 | datasheet | estimate |
+| mpr121 | 21 x 18 x 3 | 2 | 16.0, -32.0, -8.0 | 0, 0, 0 | estimate | estimate |
+| amp | 19.4 x 17.8 x 3 | 1.2 | -38.0, 40.0, 0.0 | 0, 0, 0 | datasheet | datasheet |
+| radxa_heatsink | 14 x 14 x 6 | 3 | -2.3, -2.3, -4.7 | 0, 0, 0 | estimate | estimate |
+| camera | 1.6 x 25 x 24 | 4 | 48.3, 0.0, -19.5 | 0, 0, 0 | estimate | estimate |
+| camera_lens | 12 x 17 x 17 | 6 | 55.1, 0.0, -19.5 | 0, 0, 0 | estimate | estimate |
+| tof8 | 4 x 25.4 x 25.4 | 3 | 58.0, 0.0, 6.0 | 0, 0, 0 | datasheet | estimate |
+| tof_fl | 25 x 13 x 3.5 | 1.4 | 51.9, 17.6, -44.2 | 131, -10, 101 | estimate | estimate |
+| tof_fr | 25 x 13 x 3.5 | 1.4 | 51.9, -17.6, -44.2 | -131, -10, -101 | estimate | estimate |
+| tof_rear | 25 x 13 x 3.5 | 1.4 | -66.5, 0.0, -32.1 | -130, 0, 90 | estimate | estimate |
+| tof_left | 25 x 13 x 3.5 | 1.4 | 0.0, 55.0, 35.0 | -124, 0, 0 | estimate | estimate |
+| tof_right | 25 x 13 x 3.5 | 1.4 | 0.0, -55.0, 35.0 | 124, 0, 0 | estimate | estimate |
+| oled | 76 x 158 x 8 | 300 | 49.6, 0.0, 88.9 | 0, 70, 0 | estimate | estimate |
+| visor | 82 x 165 x 10 | 61 | 49.6, 0.0, 88.9 | 0, 70, 0 | estimate | estimate |
+| mic_l | 16 x 11 x 3 | 1.5 | -9.8, 34.6, 47.6 | -6, -1, 0 | datasheet | estimate |
+| mic_r | 16 x 11 x 3 | 1.5 | -9.8, -34.6, 47.6 | 6, -1, 0 | datasheet | estimate |
+| speaker | 28 x 28 x 5 | 4 | -46.3, 0.0, 38.9 | 0, -18, 0 | estimate | estimate |
+| switch | 27 x 30 x 22 | 12 | -63.1, 0.0, -3.0 | 0, 0, 0 | estimate | estimate |
+| dock_board | 18 x 12 x 4 | 3 | -48.0, -48.0, 5.0 | 0, 0, 0 | estimate | estimate |
+| pogo_l | 16.35 x 6 x 2 | 0.8 | -68.3, 20.0, 3.0 | 0, 0, 0 | estimate | estimate |
+| pogo_r | 16.35 x 6 x 2 | 0.8 | -68.3, -20.0, 3.0 | 0, 0, 0 | estimate | estimate |
+| harness | - | 60 | 0.0, 0.0, -12.0 | 0, 0, 0 | - | estimate |
+| fasteners | - | 25 | 0.0, 0.0, -5.0 | 0, 0, 0 | - | estimate |
+| pad_head | 14 x 10 x 0.2 | 0.3 | 4.0, 0.0, 50.2 | 0, 0, 0 | estimate | estimate |
+| pad_back_left | 14 x 10 x 0.2 | 0.3 | -45.0, 38.0, 45.4 | -3, -17, 0 | estimate | estimate |
+| pad_back_right | 14 x 10 x 0.2 | 0.3 | -45.0, -38.0, 45.4 | 3, -17, 0 | estimate | estimate |
+| pad_side_left | 14 x 10 x 0.2 | 0.3 | -30.0, 58.4, 36.0 | -90, 0, 0 | estimate | estimate |
+| pad_side_right | 14 x 10 x 0.2 | 0.3 | -30.0, -58.4, 36.0 | 90, 0, 0 | estimate | estimate |
+| pad_face | 14 x 10 x 0.2 | 0.3 | 46.0, 0.0, 48.5 | 0, 8, 0 | estimate | estimate |
 
 ## 2. Wiring: `configs/wiring_v2.toml`, checked by `crab/wiring.py`
 
 One file lists every power connection (wire gauge, length, connectors, how many parallel conductors) and every signal: the Radxa's header
-pins as printed in Radxa's table, three I2C buses with every address, six PWM pins, I2S, USB, the camera flex, the touch pads. Wire lengths
+pins as printed in Radxa's table, three I2C buses with every address, I2S, USB, the camera flex, the touch pads. Wire lengths
 come from the layout (straight distance x 1.25 + a 40 mm loop), except bought cables (the 900 mm servo cable is 900 mm). Resistances,
 connector ratings, the fuse curve and the regulator numbers are in `electronics.toml` with their sources. `python -m crab.wiring` prints the
 table and runs the checks; the wiring diagram `hardware/wiring.svg` is drawn from the same file.
@@ -358,7 +336,7 @@ table and runs the checks; the wiring diagram `hardware/wiring.svg` is drawn fro
 The power chain: pack -> XT60 -> 15 A fuse -> INA219 with its shunt -> main switch -> the servo hub's 7.4 V rail (12 leg servos, **straight
 from the pack, 6.4-8.4 V**), regulator A (5 V: the Radxa, the audio amplifier and, through the Radxa's own 3.3 V pins, all sensors) and
 regulator B (5 V: the six arm servos, on their own hub headers). Signals: the servo bus (a star at the hub, IDs 1-12 as in
-`robot/servos.py`), `i2c3` (INA219 0x40, MPR121 0x5A, OLED 0x3C: Radxa pins 3 / 5), `i2c4` (the BNO055 alone: pins 27 / 28), `i2c5` (five
+`robot/servos.py`), `i2c3` (INA219 0x40, MPR121 0x5A: Radxa pins 3 / 5), `i2c4` (the BNO055 alone: pins 27 / 28), `i2c5` (five
 VL53L0X and the VL53L5CX: pins 31 / 29, each brought up through its XSHUT / LPn pin on pins 11, 13, 15, 22, 36, 32 and given 0x30-0x35).
 
 What the checks cover, and they all pass on the real netlist (tests make each fail on purpose):
@@ -377,8 +355,7 @@ What the checks cover, and they all pass on the real netlist (tests make each fa
 
 The checks found things, and the netlist now holds the fix; each is a **BOM change**, listed in section 7:
 the BOM's 0.005 ohm shunt would burn 1.1 W at the fuse's 15 A in a 1 W resistor (0.002 ohm burns 0.45 W and still reads to 5 mA);
-Radxa's table lists no I2C function on pins 3 and 5 (so INA219, MPR121 and OLED sit on a kernel `i2c-gpio` bus there) and lists pin 19 as
-`PWM15_IR_M1`; three servos on one daisy-chain cable would put 8 A through a 3 A connector (so each servo has its own hub header: 12 + 6
+Radxa's table lists no I2C function on pins 3 and 5 (so the INA219 and MPR121 sit on a kernel `i2c-gpio` bus there); three servos on one daisy-chain cable would put 8 A through a 3 A connector (so each servo has its own hub header: 12 + 6
 headers, not the BOM's 6 + 6).
 
 ## 3. The circuit model (`crab/wiring.py` `Circuit`, used by `SimBackend`)
@@ -449,9 +426,9 @@ Reading it:
 - The full BAM servo model gives the same walk within 10 % (2.37 A peak, 1.63 A mean).
 
 Battery life: "mixed day" is 50 % standing with the camera on, 20 % walking forward, 10 % walking sideways, 20 % standing with the computer idle
-(servo loads replayed from the runs above; the old `sim/power.py` scenarios are the same cases): **92 minutes** from full to the pack's usable 80 %
+(servo loads replayed from the runs above; `python sim/power.py` runs them): **92 minutes** from full to the pack's usable 80 %
 (2.5 Ah x 0.8 at a mean 1.26 A); 83 minutes until the loaded pack passes 7 V; 81 minutes to a reset if the modules obey their 7 V rating. (The 25R pack
-is 18.5 Wh; the earlier 1500 mAh figure in V2_MODEL.md was the sizing study's smaller pack.)
+is 18.5 Wh.)
 
 ## 5. What is still an estimate, and what only real hardware settles
 
@@ -516,14 +493,13 @@ Sources that refused or hung: robu.in and hubtronics.in (403), analog.com and st
 
 ## 6. The face
 
-v2 has today's face: the same 2.42 inch SSD1309 module at real size (61.5 x 39.5 mm, 55 x 27.5 mm lit; `cad/parts.py` FACE_MODULE,
-FACE_ACTIVE) in the same orange visor (67.5 x 45 mm, `FACE_HOUSING`) tilted 25 degrees back (`FACE_TILT`: the screen looks 25 degrees above the
-horizon), set into the front of the body with its lower edge just above the front shoulder servos (v1's centre is (36, 0, 36) mm at v1's size; v2's is
-(65, 0, 32.4) on the larger front). `eyes_xml()` no longer draws the white spheres on stalks for v2. The visor is an orange frame in the
-shell's material; the lit area is a visual box named `face_screen` with material `face_mat` (emission 0.9) and texture `face_tex` (256 x 128), which
-`sim/desk.py set_face()` fills from `pinch.face.Face().rgb(scale=2)`. `sim/desk.py` adds its own screen only when the model has none.
-The fit check covers the screen's window like the camera's: nothing may stand within a 35 degree cone in front of the glass, and neither the dome nor
-the chassis box may hide it. The picture is `media/review/v2/v2_face.png` (`sim/render_v2_face.py`).
+The face is a Waveshare 6.25 inch 720 x 1560 colour IPS panel over micro-HDMI (`hardware/BOM.md`; the layout's part `oled` keeps
+its old id), in a lid hinged at the top front of the shell and set by hand on a printed friction hinge, so the model holds it fixed (0.35 rad
+back from vertical). The module is modelled as 158 x 76 x 8 mm and 0.30 kg (an estimate and the listed worst case; 0.15 kg is hoped for:
+weigh it, bench order 1); it takes about 2 W from regulator A over its USB-C lead, and its flat cable runs through the hinge. In the model
+the lit area (144.18 x 66.6 mm) is a visual box named `face_screen` with material `face_mat` (emission 0.9) and texture `face_tex`
+(256 x 128), which `sim/desk.py set_face()` fills from `pinch.face.Face().rgb(scale=2)`. The fit check covers the screen's window like the
+camera's. `sim/render_v2_face.py` draws a picture of it.
 
 ## 7. Parts-list changes this work needs (`hardware/bom.py` and `BOM.md` are not edited here)
 
@@ -535,6 +511,5 @@ the chassis box may hide it. The picture is `media/review/v2/v2_face.png` (`sim/
 - **Waveshare driver board**: its wiki lists a 9-12.6 V input for the servo supply; our design feeds it only USB and takes signal + GND from it. Check on the
   bench that the bus works without its DC jack powered.
 - **Pack, camera, screen, switch, fuse holder, VL53L0X and VL53L5CX boards, driver board height**: measure when they arrive and edit the layout.
-- **Firmware / docs not edited here** (other owners): `robot/drivers/i2c_devices.py` and `hardware/ASSEMBLY.md` still put the OLED on I2C4 (pins 27 / 28) and the
-  IMU on a shared bus on pins 3 / 5; the netlist swaps them (BNO055 alone on i2c4, the OLED on the `i2c-gpio` bus on pins 3 / 5). The PWM overlay for pin 19 is
-  `PWM15_IR_M1`.
+- **Firmware not edited here** (other owners): `robot/drivers/i2c_devices.py` still drives the old 2.42 inch OLED on I2C4 (pins 27 / 28) and puts the
+  IMU on a shared bus on pins 3 / 5; the netlist has the BNO055 alone on i2c4, and the HDMI panel needs no I2C.
