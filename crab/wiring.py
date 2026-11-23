@@ -169,7 +169,7 @@ class Currents:
 
     def __init__(self, net, el):
         self.net, self.el, self.d = net, el, el.d
-        self.v_max = float(self.d("battery_v2.cells")) * 4.2
+        self.v_max = float(self.d("battery.cells")) * 4.2
         self.v_min = float(net.rules.get("pack_min_v", 6.4))
         self.children = {}
         for e in net.edges:
@@ -179,7 +179,7 @@ class Currents:
         for ld in net.loads:
             self.loads_at.setdefault(ld["node"], []).append(ld)
         self.cap_sustained = float(self.d("fuse.rating_a"))
-        self.cap_transient = float(self.d("battery_v2.bms_trip_a"))
+        self.cap_transient = float(self.d("battery.bms_trip_a"))
 
     def load(self, ld):
         d, k = self.d, ld["kind"]
@@ -544,7 +544,7 @@ class Circuit:
         self.d = data if isinstance(data, Data) else Data(data)
         self.el = Electrical(self.net, self.d, layout)
         d = self.d
-        b = "battery_v2"
+        b = "battery"
         self.cells = int(d(f"{b}.cells"))
         self.cap_as = float(d(f"{b}.capacity_ah")) * float(d(f"{b}.usable_fraction")) * 3600.0
         self.ocv = np.asarray(d(f"{b}.ocv_per_cell_v"), float)

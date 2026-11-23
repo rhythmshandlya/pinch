@@ -54,11 +54,8 @@ no_load_speed_rad_s = {value = 5.802464185690227, unit = "rad/s", source = "meas
 # Owner's decision 2026-11-21: the six arm servos are Feetech STS3032 bus servos (position and load feedback) on the same
 # TTL bus as the 12 leg servos; the six GS-4308MG PWM servos and their PWM pins are gone. Evidence: Evelta page opened
 # 2026-11-21 (4.5 kg*cm stall, 1.5 kg*cm rated, 4.8-6 V, 20 g, 23.2 x 12.1 x 28.5 mm, 27 in stock).
-# pwm_frame_s / command_delay_s / idle_current_a are the twin's v1 numbers for a PWM servo, kept because
-# crab/electronics.py and its tests still read them for a joint marked as PWM; design v2 marks none.
+# Their command delay is the bus's: the twin uses the [leg_servo] delay and SYNC_WRITE numbers for every servo.
 [arm_servo]
-pwm_frame_s = {value = 0.02, unit = "s", source = "estimate", why = "legacy v1 PWM arm (GS-4308MG): our hardware PWM ran exact 50 Hz frames; no joint of design v2 uses it", ref = "robot/backends.py"}
-command_delay_s = {value = 0.015, unit = "s", source = "estimate", why = "legacy v1 PWM arm: a new pulse width is picked up at the next frame (10 ms on average, 20 ms worst) plus about 5 ms of the servo's electronics; a bus arm servo is faster (the bus adds to this in the twin)", ref = "crab/params.py"}
 idle_current_a = {value = 0.015, unit = "A", source = "estimate", why = "needs bench: a small servo's amplifier idles at about 10-20 mA; the STS3032 listing prints no idle current", ref = "hardware/electronics.md"}
 stall_torque_kgcm = {value = 4.5, unit = "kg*cm", source = "datasheet", ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor", why = "stall torque at 6 V per the Evelta page"}
 rated_torque_kgcm = {value = 1.5, unit = "kg*cm", source = "datasheet", ref = "https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor", why = "rated (continuous) torque at 6 V per the Evelta page"}
@@ -134,49 +131,32 @@ count = 2
 spacing_m = {value = 0.07, unit = "m", source = "estimate", why = "design choice: they sit about 70 mm apart in the dome (hardware/electronics.md wiring table)", ref = "hardware/electronics.md"}
 sample_rate_hz = {value = 16000, unit = "Hz", source = "estimate", why = "design choice: common speech rate for I2S capture; not chosen yet", ref = "hardware/BOM.md"}
 
-# ---- battery: Bonka 2S 850 mAh 25C LiPo -----------------------------------------------------------------------
+# ---- battery: 2S Samsung 25R 18650 pack (2.5 Ah) with its BMS ------------------------------------------------------
+# crab/wiring.py Circuit reads it (the twin's default power model) and so does crab/electronics.py Power (the lumped model).
 [battery]
 cells = 2
-capacity_ah = {value = 0.85, unit = "Ah", source = "estimate", why = "needs bench: the vendor listing in hardware/BOM.md says 850 mAh; not re-read today and a real pack delivers a little less", ref = "hardware/BOM.md"}
-usable_fraction = {value = 0.8, unit = "fraction", source = "estimate", why = "design choice: the same 80 % usable assumption as hardware/electronics.md; the monitor stops the robot at 6.4 V before the pack is flat", ref = "hardware/electronics.md"}
-internal_resistance_ohm = {value = 0.10, unit = "ohm", source = "estimate", why = "needs bench: a small 2S 25C pack is typically 60-120 mOhm; no measurement yet (measure with the INA219 under load once it exists)", ref = "hardware/BOM.md"}
-resistance_rise_at_empty = {value = 2.0, unit = "times", source = "estimate", why = "needs bench: LiPo resistance roughly doubles near empty", ref = "hardware/BOM.md"}
-# open-circuit volts per cell at state of charge 1.0, 0.9 ... 0.0
-ocv_per_cell_v = {value = [4.20, 4.07, 3.98, 3.90, 3.84, 3.79, 3.75, 3.71, 3.66, 3.57, 3.30], unit = "V", source = "estimate", why = "needs bench: a typical LiPo rest-voltage curve; not measured on this pack", ref = "hardware/BOM.md"}
-
-# ---- regulators: 2 x 5 V 5 A buck (7Semi AP64500) ---------------------------------------------------------------
-[regulator]
-output_v = {value = 5.0, unit = "V", source = "estimate", why = "design choice: fixed 5 V buck (hardware/BOM.md)", ref = "hardware/BOM.md"}
-current_limit_a = {value = 5.0, unit = "A", source = "estimate", why = "unverified: the board is sold as 5 A (hardware/BOM.md); the chip's own limit was not read today", ref = "hardware/BOM.md"}
-efficiency = {value = 0.9, unit = "fraction", source = "estimate", why = "needs bench: same 90 % as hardware/electronics.md", ref = "hardware/electronics.md"}
-dropout_v = {value = 0.5, unit = "V", source = "estimate", why = "needs bench: a buck needs its input about half a volt above the output to hold regulation", ref = "hardware/BOM.md"}
-wiring_resistance_ohm = {value = 0.05, unit = "ohm", source = "estimate", why = "needs bench: regulator output, 20 AWG wire, hub and 900 mm servo cables to the servo", ref = "hardware/electronics.md"}
-overload_droop_ohm = {value = 1.0, unit = "ohm", source = "estimate", why = "design choice: past the current limit the output folds back; we model it as a steep droop", ref = "hardware/BOM.md"}
-computer_load_w = {value = 4.0, unit = "W", source = "estimate", why = "needs bench: Radxa ZERO 3W with Wi-Fi, camera and sensors, as assumed in hardware/electronics.md", ref = "hardware/electronics.md"}
-
-# ---- the v2 design's power: 2S 1500 mAh pack and a 7.4 V buck-boost servo rail (docs/research/SIZING_STS3215.md) ----
-# crab/electronics.py reads these in place of [battery] / [regulator] when CRAB_DESIGN=v2.
-[battery_v2]
-cells = 2
 capacity_ah = {value = 2.5, unit = "Ah", source = "datasheet", ref = "https://www.18650batterystore.com/products/samsung-25r-18650", why = "the BOM pack is two Samsung INR18650-25R cells in series (2S1P), 2500 mAh each at a 0.2 C discharge; a real pack delivers a little less"}
-usable_fraction = {value = 0.8, unit = "fraction", source = "estimate", why = "design choice: same 80 % usable assumption as the v1 pack", ref = "hardware/electronics.md"}
+usable_fraction = {value = 0.8, unit = "fraction", source = "estimate", why = "design choice: 80 % of the rated capacity is usable; the monitor stops the robot at 6.4 V before the pack is flat", ref = "hardware/electronics.md"}
 internal_resistance_ohm = {value = 0.06, unit = "ohm", source = "estimate", why = "needs bench: two 25R cells: 13.2 mOhm AC at 1 kHz each (datasheet), about 1.7 times that at DC, so 45 mOhm for the pair, plus 15 mOhm for the BMS MOSFETs and tabs; measure with the INA219 under load", ref = "https://www.18650batterystore.com/products/samsung-25r-18650"}
 bms_trip_a = {value = 25.0, unit = "A", source = "estimate", why = "needs bench: the listing gives 8C = 20 A for the cells and no BMS limit; a 2S BMS for 18650 packs usually cuts between 15 and 30 A (the 15 A fuse blows first either way)", ref = "hardware/BOM.md"}
 bms_trip_s = {value = 0.1, unit = "s", source = "estimate", why = "needs bench: typical BMS short-circuit / over-current delay of 10-200 ms", ref = "hardware/BOM.md"}
 resistance_rise_at_empty = {value = 2.0, unit = "times", source = "estimate", why = "needs bench: LiPo resistance roughly doubles near empty", ref = "hardware/BOM.md"}
 ocv_per_cell_v = {value = [4.20, 4.07, 3.98, 3.90, 3.84, 3.79, 3.75, 3.71, 3.66, 3.57, 3.30], unit = "V", source = "estimate", why = "needs bench: a typical LiPo rest-voltage curve; not measured on this pack", ref = "hardware/BOM.md"}
 
-[regulator_v2]
-output_v = {value = 7.4, unit = "V", source = "estimate", why = "design choice: our design choice: the supply voltage BAM fitted the STS3215 at (bam/feetech/actuator.py), so the measured model applies", ref = "docs/research/SIZING_STS3215.md"}
+# ---- the lumped model's one servo regulator (crab/electronics.py Power, power_model="lumped" only): the 7.4 V servo
+# rail as one buck-boost. The circuit model (the default) has no such part: the leg servos sit on the pack through the
+# fuse, shunt and switch, and the two [regulator_5v] modules below feed the computer and the arm servos.
+[regulator]
+output_v = {value = 7.4, unit = "V", source = "estimate", why = "design choice: the supply voltage BAM fitted the STS3215 at (bam/feetech/actuator.py), so the measured model applies", ref = "docs/research/SIZING_STS3215.md"}
 current_limit_a = {value = 12.0, unit = "A", source = "estimate", why = "design choice: walking peaks are far below 12 servos x 2.99 A stall (the sizing study); a regulator for the walking peak plus fall margin is not chosen yet", ref = "docs/research/SIZING_STS3215.md"}
-efficiency = {value = 0.9, unit = "fraction", source = "estimate", why = "design choice: same 90 % as the 5 V buck; a buck-boost is typically a little lower", ref = "hardware/electronics.md"}
+efficiency = {value = 0.9, unit = "fraction", source = "estimate", why = "design choice: same 90 % as the 5 V bucks; a buck-boost is typically a little lower", ref = "hardware/electronics.md"}
 dropout_v = {value = 0.0, unit = "V", source = "estimate", why = "design choice: a buck-boost holds 7.4 V from a pack that is above or below it; the 2S pack is 8.4 V full", ref = "docs/research/SIZING_STS3215.md"}
-wiring_resistance_ohm = {value = 0.05, unit = "ohm", source = "estimate", why = "needs bench: same wiring as the 5 V rail", ref = "hardware/electronics.md"}
+wiring_resistance_ohm = {value = 0.05, unit = "ohm", source = "estimate", why = "needs bench: regulator output, 20 AWG wire, hub and 900 mm servo cables to the servo", ref = "hardware/electronics.md"}
 overload_droop_ohm = {value = 1.0, unit = "ohm", source = "estimate", why = "design choice: past the current limit the output folds back; modelled as a steep droop", ref = "hardware/BOM.md"}
 computer_load_w = {value = 4.0, unit = "W", source = "estimate", why = "needs bench: Radxa ZERO 3W with Wi-Fi, camera and sensors, as assumed in hardware/electronics.md", ref = "hardware/electronics.md"}
 
 # ====================================================================================================================
-# The v2 circuit (crab/wiring.py solves it from configs/wiring_v2.toml every control tick; docs/dev/ELECTRONICS.md)
+# The circuit (crab/wiring.py solves it from configs/wiring_v2.toml every control tick; docs/dev/ELECTRONICS.md)
 # ====================================================================================================================
 
 # ---- the two 5 V regulators: 7Semi AP64500 module ----------------------------------------------------------------

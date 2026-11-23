@@ -4,10 +4,11 @@ Part 1, the data: `load()` reads the file, `Data(path)("imu.gyro_noise_rms_dps")
 lists every number whose source or reference is missing or wrong (tests/test_electronics.py runs it).
 
 Part 2, the models, used by robot/backends.py SimBackend (the twin) and sim/benches/robustness.py:
-  CommandDelay   servo targets reach the joint late (bus time + the servo's own delay, PWM frames for the arms)
+  CommandDelay   servo targets reach the joint late (the servo's own delay + the SYNC_WRITE's time on the bus)
   Imu            BNO055: sampled at its output rate, low-pass lag, noise, a fixed gyro bias and accelerometer offset
   Distance       VL53L0X: sampled at its rate, noise growing with range, 1 mm steps, dropouts at long range
-  Power          battery state of charge and internal resistance, 5 V regulator limit, INA219 readout
+  Power          battery state of charge and internal resistance, one lumped servo regulator, INA219 readout
+                 (the earlier model, kept for comparison: crab/wiring.py Circuit is the twin's default)
 `Realism(data, ...)` bundles them. Everything is seeded: the same seed and the same calls give the same numbers.
 Nothing here imports the rest of the project (crab/ is the lowest layer)."""
 
@@ -39,18 +40,6 @@ class Data:
         for part in dotted.split("."):
             node = node[part]
         return node["value"] if isinstance(node, dict) and "value" in node else node
-
-    def for_design(self, design):
-        """The data of one design: v1 is the file as it is; another design (v2) swaps in its own battery and
-        regulator sections ([battery_v2], [regulator_v2]) and leaves everything else."""
-        if design == "v1":
-            return self
-        out = Data.__new__(Data)
-        out.path = self.path
-        out.tree = dict(self.tree)
-        for part in ("battery", "regulator"):
-            out.tree[part] = self.tree[f"{part}_{design}"]
-        return out
 
     def parameters(self):
         """[(dotted name, {value, unit, source, ref, ...})] for every sourced number in the file."""
@@ -289,32 +278,34 @@ class Power:
 
 
 class Realism:
-    """All the electronics of one simulated robot. n joints, `pwm` = which of them are PWM servos, `kt` = N*m per
-    amp of each joint's servo (crab/params.py kt_current), `dt` = the physics step."""
+    """All the electronics of one simulated robot: `n` bus servos (default: the length of `initial` or `kt`), `kt` =
+    N*m per amp of each joint's servo (crab/params.py kt_current), `dt` = the physics step, `initial` = the servos'
+    targets at the start."""
 
-    def __init__(self, data=None, seed=0, soc=1.0, pwm=(), kt=None, dt=0.002, initial=None):
+    def __init__(self, data=None, seed=0, soc=1.0, kt=None, dt=0.002, initial=None, n=None):
         d = data if isinstance(data, Data) else Data(data)
         self.data = d
-        self.pwm = np.asarray(pwm, bool)
-        n = len(self.pwm)
-        bus_bytes = float(d("leg_servo.bus_overhead_bytes")) + (n - int(self.pwm.sum())) * float(
-            d("leg_servo.sync_write_bytes_per_servo"))
+        if n is None:
+            n = len(initial) if initial is not None else len(kt) if kt is not None else None
+        if n is None:
+            raise ValueError("Realism needs the number of servos: pass n, initial or kt")
+        bus_bytes = float(d("leg_servo.bus_overhead_bytes")) + n * float(d("leg_servo.sync_write_bytes_per_servo"))
         bus_s = float(d("leg_servo.command_delay_s")) + bus_bytes * 10.0 / float(d("leg_servo.bus_baud"))
-        self.delays = np.where(self.pwm, float(d("arm_servo.command_delay_s")), bus_s)
+        self.delays = np.full(n, bus_s)                                 # one SYNC_WRITE carries every servo's target
         self.delay = CommandDelay(self.delays, dt, np.zeros(n) if initial is None else initial)
         self.steps = float(d("leg_servo.encoder_steps_per_rev"))
         self.encoder_step = 2 * math.pi / self.steps
         self.kt = None if kt is None else np.asarray(kt, float)
-        self.idle = np.where(self.pwm, float(d("arm_servo.idle_current_a")), float(d("leg_servo.idle_current_a")))
+        self.idle = np.full(n, float(d("leg_servo.idle_current_a")))
         ss = np.random.SeedSequence([int(seed), 0xE1EC])
         r_imu, r_dist, r_pow = (np.random.default_rng(s) for s in ss.spawn(3))
         self.imu = Imu(d, r_imu)
         self.distance = Distance(d, r_dist)
         self.power = Power(d, r_pow, soc)
-        self.circuit = None                                             # v2: crab/wiring.py Circuit, set by SimBackend
+        self.circuit = None                                             # crab/wiring.py Circuit, set by SimBackend
 
     def encoder(self, angle):
-        """A leg servo's reported angle: the magnetic encoder's 4096 steps per turn."""
+        """A servo's reported angle: the magnetic encoder's 4096 steps per turn."""
         return quantise(angle, self.encoder_step)
 
     def servo_amps(self, forces, torque_on=True):
