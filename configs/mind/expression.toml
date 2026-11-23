@@ -108,6 +108,20 @@ curious = ["curious", "look_around"]
 fidget = ["fidget", "stretch"]
 tired = ["yawn", "stretch"]
 
+# faces that fit each state besides "neutral" (no joyful face while hiding, no sleepy face while playing): the
+# observer (pinch/observer.py, OBS-003) and the congruence bench check the face against the state with this table
+[state_faces]
+idle = ["happy", "joy", "excited", "love", "content", "proud", "squeeze", "sad", "lonely", "angry", "grumpy", "scared", "curious", "bored", "sleepy", "thinking", "quiet", "shy", "focused", "surprised", "confused", "dizzy"]
+explore = ["curious", "focused", "surprised", "thinking", "happy", "excited", "content", "scared", "shy", "confused", "joy"]
+social = ["happy", "joy", "excited", "love", "content", "proud", "squeeze", "sad", "lonely", "angry", "grumpy", "scared", "shy", "curious", "surprised", "quiet", "thinking", "focused", "dead", "music", "dizzy", "confused"]
+play = ["happy", "joy", "excited", "proud", "curious", "focused", "squeeze", "content", "surprised", "love", "confused", "grumpy", "dead", "music"]
+alert = ["surprised", "curious", "focused", "scared", "thinking", "confused", "shy"]
+defensive = ["scared", "shy", "surprised", "sad", "angry", "grumpy", "curious", "quiet"]
+rest = ["sleepy", "asleep", "content", "quiet", "bored", "happy", "love", "sad", "lonely"]
+sleep = ["asleep", "sleepy"]
+recover = ["thinking", "focused", "surprised", "sad", "scared", "dizzy", "grumpy", "sleepy", "content", "happy", "confused", "asleep", "lonely"]
+task = ["focused", "curious", "thinking", "proud", "happy", "content", "surprised", "sad", "grumpy", "confused", "joy", "excited"]
+
 [face]
 intent_hold_s = 2.5        # how long an activity's asked-for look shows before the feeling's own face returns
 outcome_hold_s = 0.8       # a reaction to how a move went shows this long before the activity's next look

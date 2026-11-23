@@ -30,21 +30,9 @@ from pinch.mind.expression import DARK as NEG_SOUNDS  # noqa: E402
 from pinch.mind.expression import NEGATIVE as NEG  # noqa: E402
 from pinch.mind.expression import POSITIVE as POS  # noqa: E402
 from pinch.mind.expression import SHOWS as EXPR_SHOWS  # noqa: E402
+from pinch.mind.expression import STATE_FACES as FAMILY  # noqa: E402  (configs/mind/expression.toml)
 from pinch.twin import PinchSim  # noqa: E402
 
-FAMILY = {                                     # faces that fit each state (besides "neutral")
-    "idle": POS | NEG | {"curious", "bored", "sleepy", "thinking", "quiet", "shy", "focused", "surprised"},
-    "explore": {"curious", "focused", "surprised", "thinking", "happy", "excited", "content", "scared", "shy"},
-    "social": POS | NEG | {"shy", "curious", "surprised", "quiet", "thinking"},
-    "play": {"happy", "joy", "excited", "proud", "curious", "focused", "squeeze", "content", "surprised", "love",
-             "confused", "grumpy"},
-    "alert": {"surprised", "curious", "focused", "scared", "thinking"},
-    "defensive": {"scared", "shy", "surprised", "sad", "angry", "grumpy"},
-    "rest": {"sleepy", "asleep", "content", "quiet", "bored", "happy"},
-    "sleep": {"asleep", "sleepy"},
-    "recover": {"thinking", "focused", "surprised", "sad", "scared", "dizzy", "grumpy", "sleepy", "content", "happy"},
-    "task": {"focused", "curious", "thinking", "proud", "happy", "content", "surprised", "sad", "grumpy", "confused"},
-}
 # faces that can honestly show each feeling: the same table the face engine uses (configs/mind/expression.toml)
 SHOWS = EXPR_SHOWS
 FUN = {"play", "celebrate", "show_off"}

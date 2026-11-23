@@ -165,7 +165,10 @@ from pinch.mind.expression import BRIGHT as POS_SOUNDS  # noqa: E402  (one table
 from pinch.mind.expression import DARK as NEG_SOUNDS  # noqa: E402
 from pinch.mind.expression import NEGATIVE as NEG_FEELINGS  # noqa: E402
 from pinch.mind.expression import POSITIVE as POS_FEELINGS  # noqa: E402
-from pinch.mind.expression import SLEEPY_SOUNDS  # noqa: E402
+from pinch.mind.expression import (
+    SLEEPY_SOUNDS,  # noqa: E402
+    STATE_FACES,  # noqa: E402
+)
 
 REACTIONS = {"startle", "react_touch", "hide"}
 TARGETED = {"investigate", "watch", "orient", "startle", "tidy", "play", "greet", "comfort", "seek_attention"}
@@ -173,6 +176,7 @@ TARGETED = {"investigate", "watch", "orient", "startle", "tidy", "play", "greet"
 # thresholds (see the module docstring)
 EXPRESSION_HOLD_S = 6.0        # a face against the feeling for this long
 GAZE_ERR, GAZE_HOLD_S = 0.5, 3.0
+GAZE_WALK_HOLD_S = 4.0         # walking: the eyes may glance about a little longer before it counts
 IDLE_JITTER_RAD_S = 1.0        # rms joint-target speed while idle (the breathing layer is far below)
 IDLE_SLIDE_M_S, IDLE_SLIDE_S = 0.01, 2.0
 JUMP_RAD = 0.35                # one tick's target jump (the leg servos follow 0.16 rad per tick)
@@ -312,6 +316,16 @@ def _inconsistent_expression(ev, sm):
                            f"face '{face[i0]}' while feeling '{feel[i0]}' for {t1 - t0:.0f} s (during {act[i0]})",
                            "let the face follow the feeling once the activity's own expression has played",
                            dict(face=face[i0], feeling=feel[i0])))
+    if "state" in sm:                                    # OBS-003: the face against the state (an independent check:
+        st = _strs(sm, "state")                          # the face is made from the feeling, not from the state)
+        off = np.array([f not in STATE_FACES.get(s_, {f}) for f, s_ in zip(face, st)])
+        for t0, t1, i0, _ in _runs(off, t, EXPRESSION_HOLD_S):
+            out.append(Finding("inconsistent_expression", "warn", t0, t1,
+                               f"face '{face[i0]}' doesn't fit the state '{st[i0]}' for {t1 - t0:.0f} s "
+                               f"(during {act[i0]})",
+                               "the feeling and the state disagree: check what raised the feeling, or the state's "
+                               "faces (configs/mind/expression.toml [state_faces])",
+                               dict(face=face[i0], state=st[i0])))
     for t0, t1, i0, _ in _runs((face == "asleep") & (act != "rest"), t, 2.0):
         out.append(Finding("inconsistent_expression", "warn", t0, t1,
                            f"asleep face during '{act[i0]}' for {t1 - t0:.0f} s",
@@ -375,29 +389,33 @@ def _excessive_reactions(ev, sm):
     return []
 
 
-def gaze_judged(sm):
-    """(mask of samples where the gaze is judged, |gaze - where it should be|)."""
+def gaze_judged(sm, walking=False):
+    """(mask of samples where the gaze is judged, |gaze - where it should be|). walking=False: standing samples;
+    walking=True: samples while it walks, with the target within the eyes' reach (OBS-011: eyes on the target
+    while walking; the mind re-aims them from the pose every tick, pinch/mind/core.py outputs)."""
     want = sm["gaze_want"].astype(float)
-    judged = np.isfinite(want) & ~np.isin(_strs(sm, "status"), list(LOCOMOTION)) \
-        & np.isin(_strs(sm, "activity"), list(TARGETED))
+    moving = np.isin(_strs(sm, "status"), list(LOCOMOTION))
+    judged = np.isfinite(want) & (moving if walking else ~moving) & np.isin(_strs(sm, "activity"), list(TARGETED))
+    if walking:
+        judged &= np.abs(np.nan_to_num(want, nan=9.0)) < 1.0
     return judged, np.abs(np.nan_to_num(sm["gaze_x"].astype(float) - want))
 
 
 def _gaze_mismatch(ev, sm):
     if "gaze_want" not in sm:
         return []
-    judged, err = gaze_judged(sm)
     act, tgt, st = _strs(sm, "activity"), _strs(sm, "gaze_target"), _strs(sm, "status")
     out = []
-    for t0, t1, i0, i1 in _runs(judged & (err > GAZE_ERR), sm["t"], GAZE_HOLD_S):
-        s = Counter(st[i0:i1 + 1]).most_common(1)[0][0]       # what the body was mostly doing meanwhile
-        # (during a pick or drop the mind aims the eyes down ahead on purpose: reported, but only as info)
-        out.append(Finding("gaze_mismatch", "info" if s in MANIPULATION else "warn", t0, t1,
-                           f"eyes at {float(sm['gaze_x'][i0]):+.2f}, {tgt[i0] or 'target'} at "
-                           f"{float(sm['gaze_want'][i0]):+.2f} during {act[i0]}{' (' + s + ')' if s else ''} for "
-                           f"{t1 - t0:.1f} s",
-                           "look_at the target again after turning (an aimed gaze holds 3 s, then attention takes over)",
-                           dict(activity=str(act[i0]), status=str(s))))
+    for walking, hold in ((False, GAZE_HOLD_S), (True, GAZE_WALK_HOLD_S)):
+        judged, err = gaze_judged(sm, walking)
+        for t0, t1, i0, i1 in _runs(judged & (err > GAZE_ERR), sm["t"], hold):
+            s = Counter(st[i0:i1 + 1]).most_common(1)[0][0]   # what the body was mostly doing meanwhile
+            out.append(Finding("gaze_mismatch", "warn", t0, t1,
+                               f"eyes at {float(sm['gaze_x'][i0]):+.2f}, {tgt[i0] or 'target'} at "
+                               f"{float(sm['gaze_want'][i0]):+.2f} during {act[i0]}{' (' + s + ')' if s else ''} "
+                               f"{'while walking ' if walking else ''}for {t1 - t0:.1f} s",
+                               "re-aim the eyes on the target (an aimed gaze holds 3 s, then attention takes over)",
+                               dict(activity=str(act[i0]), status=str(s), walking=walking)))
     return out
 
 

@@ -179,8 +179,12 @@ def test_it_catches_gaze_mismatch():
     assert "gaze_mismatch" in _kinds(s)
     s["samples"]["gaze_x"][m] = 0.7                                               # looking at it: fine
     assert "gaze_mismatch" not in _kinds(s)
-    s["samples"]["gaze_x"][m], s["samples"]["status"][m] = -0.4, "goto"           # walking: eyes ahead, fine
-    assert "gaze_mismatch" not in _kinds(s)
+    s["samples"]["gaze_x"][m], s["samples"]["status"][m] = -0.4, "goto"           # walking, eyes off it for 6 s:
+    assert "gaze_mismatch" in _kinds(s)                                           # caught too (OBS-011)
+    short = _span(s["samples"], 20.0, 23.0)
+    s["samples"]["gaze_x"][m] = 0.7
+    s["samples"]["gaze_x"][short] = -0.4                                          # a 3 s glance away while walking:
+    assert "gaze_mismatch" not in _kinds(s)                                       # fine
 
 
 def test_it_catches_sound_mismatch():
@@ -323,3 +327,15 @@ def test_ambient_life_is_visible_almost_all_awake_time():
     body = dict(sm, eye=np.zeros(len(sm["t"])), blink=np.zeros(len(sm["t"]), bool))
     b_share, _, _ = aliveness(body)
     assert b_share >= 0.65, f"the body alone is alive {100 * b_share:.1f} % of the time"
+
+
+def test_it_catches_a_face_that_doesnt_fit_the_state():
+    """OBS-003, checked independently of the feeling: a joyful face while hiding is wrong even if it feels joy."""
+    s = _calm()
+    m = _span(s["samples"], 20.0, 30.0)                   # (10 s: past the 6 s hold)
+    for k in ("face", "state"):
+        s["samples"][k] = s["samples"][k].astype(object)          # (room for longer names)
+    s["samples"]["face"][m], s["samples"]["state"][m] = "joy", "defensive"
+    assert any("doesn't fit the state" in f.evidence for f in observe_session(s))
+    s["samples"]["face"][m] = "scared"
+    assert not any("doesn't fit the state" in f.evidence for f in observe_session(s))

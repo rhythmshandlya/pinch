@@ -39,6 +39,7 @@ def face_now(mind):
     return FEELING_FACE.get(feeling, feeling)
 
 
+STATE_FACES = {k: set(v) | {"neutral"} for k, v in EXPR["state_faces"].items()}   # faces that fit each state
 SND = EXPR["sound"]
 BRIGHT, DARK, SLEEPY_SOUNDS = set(SND["bright"]), set(SND["dark"]), set(SND["sleepy"])
 POSITIVE, NEGATIVE = set(EXPR["valence"]["positive"]), set(EXPR["valence"]["negative"])
