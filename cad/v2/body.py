@@ -281,10 +281,29 @@ def _bottom_chamfer(d=0.0):
 
 
 @cache
+def _notch(d=0.0):
+    """The chin's notch in front of the camera grown by d (configs/layout_v2.toml chassis.plan notch): the wedge
+    |y| < y + d, x > x - d, from the chin's top (shrunk by d) down to the plane falling at deg from the lens's lower
+    edge (lowered by d)."""
+    n = _PLAN.get("notch")
+    if not n:
+        return None
+    t = math.tan(math.radians(n["deg"]))
+    drop = d / math.cos(math.radians(n["deg"]))
+    x0, x1, ztop = n["x"] - d, 200.0, CHIN_Z - d
+    zp = lambda x: n["z"] - (x - n["x"]) * t - drop                      # noqa: E731
+    face = make_face(Polyline((x0, ztop), (x1, ztop), (x1, zp(x1)), (x0, zp(x0)), close=True))
+    w = n["y"] + d
+    return Plane.XZ.offset(-w) * extrude(face, amount=2 * w)
+
+
+@cache
 def _inset(d):
     """The body's solid shrunk by d: the pill shrunk by d, inside the plan prisms shrunk by d, its belly edge
-    chamfered at 45 deg."""
-    return SHELL._solid(d) & plan_prism(d) & _bottom_chamfer(d)
+    chamfered at 45 deg, the camera's notch cut from the chin."""
+    s = SHELL._solid(d) & plan_prism(d) & _bottom_chamfer(d)
+    n = _notch(d)
+    return s - n if n is not None else s
 
 
 def below(z):

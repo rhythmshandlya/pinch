@@ -30,7 +30,9 @@ wall_mm = 2.0
 # between the arms (the face plate: camera, front ToF) and a chin under the arms (front cliff sensors, arm servo seats);
 # the legs and arms swing outside it. Boxes: main x <= front_x, |y| <= body_y; nose x <= nose_x, |y| <= nose_y; chin
 # |y| <= chin_y, z <= chin_z (crab/shapes.py BodyPlan, cad/v2/body.py).
-plan = {body_y = 58.5, front_x = 48.0, nose_x = 60.0, nose_y = 18.0, chin_y = 50.0, chin_z = -25.0}
+plan = {body_y = 58.5, front_x = 48.0, nose_x = 60.0, nose_y = 18.0, chin_y = 50.0, chin_z = -25.0, notch = {x = 60.0, z = -28.0, y = 28.0, deg = 35.0}}
+# notch (owner, 2026-11-23): the chin cut away in front of the camera, |y| < y, from the face plate (x) forward, above a
+# plane falling at deg from the lens's lower edge (z): the camera sees the desk from ~10 cm ahead (the chin hid 15-45 cm)
 wall_source = "estimate"
 wall_why = "design choice: a 2 mm printed PETG shell: 4-5 perimeters of a 0.4 mm nozzle; the CAD does not exist yet"
 # The face lid: hinged at the top-front of the shell, standing 0.35 rad back from vertical (a friction hinge set by hand: in

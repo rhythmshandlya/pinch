@@ -69,9 +69,22 @@ class BodyPlan:
     """The body's outline in plan (mm, body frame): boxes (x0, x1, y0, y1, z0, z1) whose union, inside the pill, is the
     body: the main body between the leg bays, a nose between the arms, a chin under the arms (configs: chassis.plan)."""
 
-    def __init__(self, body_y, front_x, nose_x, nose_y, chin_y, chin_z):
+    def __init__(self, body_y, front_x, nose_x, nose_y, chin_y, chin_z, notch=None):
         self.body_y, self.front_x, self.nose_x, self.nose_y = body_y, front_x, nose_x, nose_y
         self.chin_y, self.chin_z = chin_y, chin_z
+        self.notch = dict(notch) if notch else None      # a cut in the chin in front of the camera (configs)
+
+    def notch_depth(self, p, d=0.0):
+        """How far a point lies inside the notch grown by d (mm; negative outside, -inf without a notch): the notch is
+        |y| < y, x > x, above the plane falling at deg from (x, z), and below the chin's top."""
+        n = self.notch
+        if not n:
+            return np.full(np.shape(p)[:-1], -np.inf)
+        p = np.asarray(p, float)
+        x, y, z = p[..., 0], p[..., 1], p[..., 2]
+        t = np.tan(np.radians(n["deg"]))
+        above = (z - (n["z"] - (x - n["x"]) * t)) * np.cos(np.radians(n["deg"]))   # distance above the sloping plane
+        return np.minimum.reduce([n["y"] + d - np.abs(y), x - n["x"] + d, above + d, self.chin_z - d - z + 1e-9])
 
     def boxes(self, d=0.0):
         big = 500.0
@@ -85,7 +98,7 @@ class BodyPlan:
         out = np.zeros(x.shape, bool)
         for x0, x1, y0, y1, z0, z1 in self.boxes(d):
             out |= (x >= x0) & (x <= x1) & (y >= y0) & (y <= y1) & (z >= z0) & (z <= z1)
-        return out
+        return out & ~(self.notch_depth(p, d) > 0)
 
     def depth(self, p):
         """How far a point lies inside the plan's walls (mm; negative outside): the deepest of its boxes."""
@@ -94,7 +107,7 @@ class BodyPlan:
         for x0, x1, y0, y1, z0, z1 in self.boxes():
             inner = min(p[0] - x0, x1 - p[0], p[1] - y0, y1 - p[1], p[2] - z0, z1 - p[2])
             best = max(best, inner)
-        return best
+        return min(best, -float(self.notch_depth(p)))
 
 
 class Shell:

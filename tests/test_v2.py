@@ -92,3 +92,35 @@ def test_the_electronics_file_has_the_measured_sts3215_block():
     from crab.servo_model import measured_parameters
     mp = measured_parameters(d)
     assert all(mp[k] == sizing[k] for k in sizing if k not in ("model", "actuator", "q_offset")), "toml != BAM json"
+
+
+def test_the_camera_sees_the_desk_in_front():
+    """The robot's own body must not hide the desk ahead from its camera (the chin once hid 15-45 cm: the notch in
+    configs/layout_v2.toml chassis.plan). Sight lines from the camera, standing, to the desk 15-60 cm ahead across
+    +-40 deg, against the visible geometry only (the camera sees meshes, not the invisible collision shapes)."""
+    import mujoco
+    import numpy as np
+
+    from crab.params import PARAMS
+    m = mujoco.MjModel.from_xml_path(str(ROOT / "sim" / "models" / PARAMS.model_file))
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, m.key("stand").id)
+    d.qpos[2] = PARAMS.stand_body_z                     # standing on the desk (z = 0)
+    mujoco.mj_forward(m, d)
+    cam = d.cam_xpos[m.camera("eye_cam").id].copy()
+    body = m.body("body").id
+    groups = np.array([1, 1, 1, 0, 0, 0], dtype=np.uint8)
+    blocked, total = [], 0
+    for dist in (0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60):
+        for ang in np.radians(np.linspace(-40, 40, 9)):
+            p = np.array([d.xpos[body][0] + dist * np.cos(ang), d.xpos[body][1] + dist * np.sin(ang), 0.005])
+            v = p - cam
+            L = float(np.linalg.norm(v))
+            gid = np.array([-1], dtype=np.int32)
+            h = mujoco.mj_ray(m, d, cam, v / L, groups, 1, -1, gid)
+            total += 1
+            if gid[0] >= 0 and h < L - 0.01:            # (the floor itself at the end of the ray is not a block)
+                b = int(m.geom_bodyid[gid[0]])
+                if b != 0:
+                    blocked.append((dist, round(float(np.degrees(ang))), m.body(b).name))
+    assert len(blocked) <= 0.05 * total, f"{len(blocked)}/{total} sight lines to the desk blocked: {blocked[:6]}"
