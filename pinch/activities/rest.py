@@ -58,3 +58,27 @@ class Rest(Activity):
         yield ("phase", "wake")
         yield ("face", "sleepy")
         yield ("emote", "stretch")
+
+
+class CoolDown(Activity):
+    """Warm legs: sit down where it is and let the motors cool (no walk home first: walking is what heats them).
+    The drive is the heat need (servo temperature, pinch/mind/selfcare.py): it outweighs most activities near 50 C and
+    is urgent from about 55 C. It sits until the hottest leg servo is back to about 43 C; touch, its person and real
+    hazards can still interrupt it, and it comes back while the heat lasts."""
+    state, max_s = "rest", 1800.0
+    name, min_s, quiet_ok, own_jitter = "cool_down", 20.0, True, "cool_down"
+    START, GAIN, DONE = 0.25, 3.0, 0.15          # heat need: drive starts (45 C), slope, cooled enough (43 C)
+
+    def utility(self, m):
+        return self.GAIN * max(0.0, m.affect.needs.heat - self.START)
+
+    def run(self, m):
+        yield ("phase", "settle")
+        yield ("face", "sleepy")
+        yield ("pose", "nap", 1.5)                       # down on its belly: the legs carry nothing
+        yield ("phase", "relax")
+        while m.affect.needs.heat > self.DONE:
+            yield ("face", m.affect.feeling() if m.affect.feeling() != "neutral" else "content")
+            yield ("pose", "nap", 10.0)
+        yield ("phase", "low_activity")
+        yield ("emote", "stretch")

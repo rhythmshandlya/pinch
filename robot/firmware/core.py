@@ -171,6 +171,7 @@ class FirmwareCore:
             m = self.mind
             m.world.pose = self.loc.pose()
             m.world.battery = self._safe("battery", self.hw.battery_fraction, m.world.battery)
+            m.world.servo_temp = self.body.servo_temp = self.crab.hottest_leg_c    # the servos' present_temperature
             if self.autonomous:
                 motion, cancel = m.tick(DT * 5, self.body.busy, self.body.ok)
                 if cancel:

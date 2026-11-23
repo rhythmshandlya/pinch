@@ -59,7 +59,7 @@ class SimBackend:
 
     def __init__(self, mount_offsets=None, render=False, voltage=None, pwm_travel=1.0, model=None,
                  realism="ideal", seed=0, soc=1.0, servo_model="first_order", power_model="circuit",
-                 enforce_module_min=None):
+                 enforce_module_min=None, ambient_c=None):
         """realism: "ideal" (exact sensors, no delay, constant power: the default) or "datasheet" (the electronics
         of configs/electronics.toml: command delay, encoder steps, IMU noise and lag, distance-beam noise and
         dropouts, a battery that drains and sags; crab/electronics.py). Seeded: same seed, same numbers.
@@ -71,7 +71,9 @@ class SimBackend:
         power_model (design v2, datasheet realism): "circuit" (the default: the netlist of configs/wiring_v2.toml solved every
         control tick, crab/wiring.py: wire drops, both regulators, the fuse, brown-out, the INA219 where it is wired, the
         IMU at its mount) or "lumped" (the earlier battery + one regulator model, kept for comparison).
-        enforce_module_min: the regulator modules stop below their listed 7 V input (None: the data file's choice)."""
+        enforce_module_min: the regulator modules stop below their listed 7 V input (None: the data file's choice).
+        ambient_c: the room's temperature for the servos' heat model (None: configs/electronics.toml servo_heat.ambient_c).
+        Every bus servo's present temperature comes from crab.servo_model.ServoHeat, driven by its motor's torque."""
         from crab.params import JOINT_SPECS, PARAMS
         if realism not in ("ideal", "datasheet"):
             raise ValueError(f"realism must be 'ideal' or 'datasheet', not {realism!r}")
@@ -115,6 +117,7 @@ class SimBackend:
         self.battery = PARAMS.battery_nominal       # 2S pack voltage, as the INA219 would read it
         self.held = None          # joint vector: "a person holds the robot in this pose" (calibration rehearsal)
         self.realism, self.elec, self.circuit, self._imu_mount = realism, None, None, None
+        self._setup_heat(ambient_c, bam=servo_model == "bam" and self.drive is not None)
         if realism == "datasheet" or self.drive is not None:
             self._act_idx = np.array([self.act[j] for j in JOINT_NAMES])
             self._target = self.d.ctrl[self._act_idx].copy()          # what the servos have been told (undelayed)
@@ -133,6 +136,30 @@ class SimBackend:
         if render:
             import mujoco.viewer
             self.viewer = mujoco.viewer.launch_passive(self.m, self.d)
+
+    def _setup_heat(self, ambient_c, bam):
+        """The bus servos' temperatures (crab/servo_model.py ServoHeat). The copper current makes the motor's own torque:
+        the position actuator's force less the back-EMF the joint damping stands in for, or the full BAM model's torque."""
+        from crab.params import servo_for
+        from crab.servo_model import LEG_KINDS, ServoHeat
+        fb = [j for j in JOINT_NAMES if j not in self.no_feedback]
+        self.heat_joints = fb
+        self._heat_act = np.array([self.act[j] for j in fb])
+        self._heat_vadr = np.array([self.vadr[j] for j in fb])
+        self._heat_bemf = np.array([0.0 if bam and j.split("_", 1)[1] in LEG_KINDS else servo_for(j).back_emf
+                                    for j in fb])
+        self._heat_fric = np.array([servo_for(j).frictionloss for j in fb])
+        self._heat_visc = np.array([servo_for(j).viscous for j in fb])
+        self.heat = ServoHeat([servo_for(j) for j in fb], ambient=ambient_c)
+        self._heat_index = {j: i for i, j in enumerate(fb)}
+
+    def _heat_acc(self, acc):
+        """Add this physics step's squared motor torque (acc[0]) and gear friction loss (acc[1], W) per bus servo."""
+        w = self.d.qvel[self._heat_vadr]
+        tau = self.d.actuator_force[self._heat_act] - self._heat_bemf * w
+        aw = np.abs(w)
+        acc[0] += tau * tau
+        acc[1] += aw * (self._heat_fric + self._heat_visc * aw)
 
     # -- design v2: the circuit and the sensors at their mounts ---------------------------------------------------------
     def _setup_mounts(self, data):
@@ -214,7 +241,8 @@ class SimBackend:
             out[sid] = ServoState(position=float(pos if self.elec is None else self.elec.encoder(pos)),
                                   speed=float(self.sign[j] * self.link_speed(j)),
                                   load=float(np.clip(self.sign[j] * f / self._flim[j], -1, 1)),
-                                  voltage=self._servo_report(j), temperature=35.0)
+                                  voltage=self._servo_report(j),
+                                  temperature=float(np.round(self.heat.T[self._heat_index[j]])))
         return out
 
     def _servo_report(self, j):
@@ -254,6 +282,7 @@ class SimBackend:
             self.mj.mj_forward(self.m, self.d)
             return
         n = max(1, int(round(dt / self.m.opt.timestep)))
+        heat = np.zeros((2, len(self._heat_act)))
         cir = self.circuit
         if cir is not None:
             acc_dd, acc_dw, acc_arm = np.zeros(len(self._leg_act)), np.zeros(len(self._leg_act)), np.zeros(len(self._arm_act))
@@ -262,6 +291,7 @@ class SimBackend:
         if self.elec is None and self.drive is None:
             for _ in range(n):
                 self.mj.mj_step(self.m, self.d)
+                self._heat_acc(heat)
         else:
             for _ in range(n):
                 tgt = self._target if self.elec is None else self.elec.delay.push(self._target)
@@ -271,6 +301,7 @@ class SimBackend:
                     self.drive.command(tgt)
                     self.drive.step()
                 self.mj.mj_step(self.m, self.d)
+                self._heat_acc(heat)
                 if cir is not None:                  # what each servo's motor model drew this step
                     duty = self.drive.duty if bam else np.clip(self.d.actuator_force[self._leg_act] / stall, -1.0, 1.0)
                     acc_dd += duty * duty
@@ -288,6 +319,7 @@ class SimBackend:
                 self._sync_power()
                 if self.drive is not None:
                     self.drive.set_supply(self.voltage)         # the full servo model's torque follows the supply
+        self.heat.step(n * self.m.opt.timestep, heat[0] / n, self.torque_on, heat[1] / n)
         if self.viewer is not None:
             self.viewer.sync()
             time.sleep(dt)

@@ -1,6 +1,6 @@
 # Pinch's behaviour settings (phase 4): the declared priority order and each activity's place in it.
 # Read by pinch/mind/behaviour.py; its version is recorded in every session (pinch/recorder.py).
-version = "4.1"
+version = "4.2"
 
 [priority]
 # highest first (the PRD's behaviour priority hierarchy). "current_activity" is the commitment rule: an activity
@@ -18,6 +18,7 @@ unstick = "hazard"                 # a foot over the edge, caught on something
 hide = "hazard"                    # someone it fears is here
 guard_edge = "hazard"              # something is about to fall off the desk
 head_home = "hazard"               # battery low: reach the dock before it runs out
+cool_down = "hazard"               # its leg motors are hot: sit down and let them cool
 obey = "human"                     # something its person asked
 react_touch = "human"
 comfort = "human"

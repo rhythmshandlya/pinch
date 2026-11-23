@@ -59,6 +59,8 @@ class BodyCore:
         self.cliff_blocked = []                 # unit vectors (body frame) the cliff ring can't vouch for
         self.pose_sigma_fn = None               # () -> how far off pose_fn() may be (m); widens the edge margin
         self.cliff_trimmed = 0                  # walking commands the cliff ring trimmed
+        self.servo_temp = None                  # C, the hottest leg servo (set each mind tick); walking derates when hot
+        self.heat_trimmed = 0                   # walking commands the heat limit slowed or stopped
         self.claim = None                       # the running step's claim on the body parts (arbiter.Claim)
         self.ambient_amp = 0.0
         self._src, self._seam, self._seam_k, self._seam_n = None, None, 0, 1     # handover blend (tick)

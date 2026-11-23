@@ -52,17 +52,39 @@ class Selection:
             r = self._own_jitter_rng = np.random.default_rng(0x9E3779B9)
         return r
 
+    def _jitter(self, a):
+        """The tie-break jitter of activity a, from the stream it draws from (see Activity.own_jitter)."""
+        if isinstance(a.own_jitter, str):
+            streams = self.__dict__.setdefault("_named_jitter", {})
+            if a.own_jitter not in streams:
+                streams[a.own_jitter] = np.random.default_rng(np.random.SeedSequence([0x9E3779B9, *a.own_jitter.encode()]))
+            return streams[a.own_jitter].random()
+        return self._own_jitter.random() if a.own_jitter else self.rng.random()
+
+    EFFORT_FROM_RANK = 4                 # activities ranked this or lower (human .. idle) pay the heat's walking cost
+
+    def _effort(self, a):
+        """How much of its wish an activity keeps when the legs are warm: walking is what heats them, so an activity
+        whose state walks (configs/mind/states.toml allow: goto / walk) is worth (1 - heat) of itself, even what its
+        person asks (a hot pet is slow to come when called). Physical safety, emergencies and hazards are exempt (the
+        body still refuses to walk at 60 C, pinch/body/locomotion.py)."""
+        h = self.affect.needs.heat
+        if h <= 0.0 or rank(a.name) < self.EFFORT_FROM_RANK:
+            return 1.0
+        allow = states()[a.state]["allow"]
+        return 1.0 - h if ("goto" in allow or "walk" in allow) else 1.0
+
     RESUME_S, RESUME_BONUS = 60.0, 0.1   # an activity cut short by something urgent is preferred back for 60 s
 
     def _choose(self):
         scores = {}
         for a in LIBRARY:
-            u = a.utility(self)
+            u = a.utility(self) * self._effort(a)
             if self.affect.quiet and not a.quiet_ok:
                 u = 0.0
             if u > 0 and self.suspended and self.suspended[0] == a.name and self.t - self.suspended[1] < self.RESUME_S:
                 u += self.RESUME_BONUS
-            scores[a.name] = u + 0.02 * (self._own_jitter.random() if a.own_jitter else self.rng.random())
+            scores[a.name] = u + 0.02 * self._jitter(a)
         cur = self.activity
         # commitment: an activity under way keeps most of the priority it started with, so a job doesn't
         # evaporate halfway (e.g. a pushed cap stops counting as "settled" the moment Pinch moves it)

@@ -13,6 +13,17 @@ class SelfCare:
     def hunger(self):
         return hunger(self.world.battery)
 
+    # the servos' heat (crab/servo_model.py on the twin, the present_temperature registers on the robot): warm from
+    # 40 C, the need is half-way at 50 C, where the cool-down drive outweighs most of what it does; at 60 C the body
+    # refuses to walk at all (pinch/body/locomotion.py), at 65 C the firmware cuts the torque, at 70 C the servo would
+    HEAT_WARM_C, HEAT_FULL_C = 40.0, 60.0
+
+    def _body_heat(self):
+        """The heat need, like the energy need from the battery: read off the hottest leg servo each tick."""
+        T = self.world.servo_temp
+        self.affect.needs.heat = 0.0 if T is None else float(min(1.0, max(0.0, (T - self.HEAT_WARM_C)
+                                                                          / (self.HEAT_FULL_C - self.HEAT_WARM_C))))
+
     def learn_danger(self, xy, what):
         spot = self.danger_map.learn(xy, what)
         self.danger_map.cap(self.world.desk)

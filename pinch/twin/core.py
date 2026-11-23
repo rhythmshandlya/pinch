@@ -157,6 +157,8 @@ class TwinCore:
             self.perceive()
             if self.hw.elec is not None:                       # the battery monitor feeds the mind's hunger
                 self.mind.world.battery = self.hw.battery_fraction()
+            # the servos' temperatures (crab/servo_model.py heat model) feed its heat need and the body's heat limit
+            self.mind.world.servo_temp = self.body.servo_temp = self.crab.hottest_leg_c
             motion, cancel = self.mind.tick(DT * MIND_EVERY, self.body.busy, self.body.ok)
             if cancel:
                 self.body.cancel()
