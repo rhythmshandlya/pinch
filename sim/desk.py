@@ -1,10 +1,9 @@
 """Pinch's desk: the digital twin's world.
 
-A 70 x 45 cm desk top (z = 0) a metre above the room floor, so walking off the edge is a real fall;
-a low desk tray (Pinch's tidy target, printed with the robot); desk things Pinch can pick up or push
-(a pen, an eraser, a bottle cap, a ball); two downward distance sensors on Pinch's front corners
-(the VL53L0X cliff sensors); and the face screen on Pinch's forehead, a texture the app redraws
-with the live eyes.
+A 1.20 x 0.60 m desk top (z = 0, pinch/world.py Desk) 75 cm above the room floor, so walking off the edge is a
+real fall; a low desk tray (Pinch's tidy target, printed with the robot); desk things Pinch can pick up or push (a pen,
+an eraser, a bottle cap, a ball); the five downward VL53L0X cliff sensors; and the face screen on Pinch's face lid
+(the model's own face_tex texture), which the app redraws with the live eyes.
 
     m = build_desk_model()           # mujoco.MjModel
     set_face(m, rgb)                 # (H, W, 3) uint8 face image -> the screen texture
@@ -26,7 +25,6 @@ from crab.params import (
 from pinch.world import Desk  # noqa: E402
 
 CRAB_XML = ROOT / "sim" / "models" / PARAMS.model_file
-FACE_TEX = (256, 128)                 # 2x the OLED's 128 x 64
 
 # name: (shape, size, mass kg, rgba, graspable)
 OBJECTS = {
@@ -46,7 +44,7 @@ PROP_PARK = (3.0, 3.0, -0.5)          # where a hidden prop waits (far off the d
 START = {"pen": (-0.22, -0.16, 0.6), "eraser": (0.25, -0.18, 0.3), "cap": (-0.18, 0.20, 0.0), "ball": (0.12, 0.21, 0.0)}   # clear of the v2.1 legs
 
 
-def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True, extras=()) -> mujoco.MjModel:
+def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, extras=()) -> mujoco.MjModel:
     """extras: fixed things on the desk for tests, e.g. dict(name="cable", type="cylinder", size=[r, half_len],
     pos=[x, y, r], euler=[...]) - geoms of the desk top."""
     desk = desk or Desk()
@@ -137,7 +135,7 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True,
             g.priority = 2       # legs and shell keep MuJoCo's default (soft) contact, even against small things:
                                  # a stiff foot-pen contact squeezes a pen against the desk and shoots it off
     body = next(b for b in spec.bodies if b.name == "body")
-    # the five VL53L0X cliff beams, exactly where cad/parts.py CLIFF_BEAMS puts their windows (decision 30).
+    # the five VL53L0X cliff beams, exactly where configs/layout_v2.toml puts their windows (crab/params.py CLIFF_BEAMS).
     # The front pair keep their old names (cliff_left / cliff_right); the beam is each site's +z axis.
     names = {"front_left": "left", "front_right": "right", "rear": "rear",
              "side_left": "side_left", "side_right": "side_right"}
@@ -154,18 +152,6 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, face=True,
                               objtype=mujoco.mjtObj.mjOBJ_SITE, objname=s.name)
         sen.cutoff = 1.2                                 # the VL53L0X reaches ~1.2 m (also: how high it is lifted)
         sen.intprm[0] = 1                                 # report the distance
-    if face and not any(t.name == "face_tex" for t in spec.textures):    # v2's model already has its own screen
-        spec.add_texture(name="face_tex", type=mujoco.mjtTexture.mjTEXTURE_2D, builtin=mujoco.mjtBuiltin.mjBUILTIN_FLAT,
-                         rgb1=[0.02, 0.02, 0.03], width=FACE_TEX[0], height=FACE_TEX[1])
-        mat = spec.add_material(name="face_mat", emission=0.9, specular=0.3)
-        mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = "face_tex"
-        # the 2.42" OLED: 55 x 27.5 mm active area, in the forehead visor (cad/parts.py FACE_CENTRE, FACE_TILT),
-        # glass 1.8 mm in front of the module's centre, behind the visor's window (the visor is in the shell mesh)
-        n = np.array([np.cos(np.radians(25)), 0, np.sin(np.radians(25))])
-        centre = np.array([0.036, 0.0, 0.036]) + (0.0018 - 0.0012) * n
-        body.add_geom(name="face_screen", type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.0012, 0.0275, 0.01375],
-                      pos=list(centre), euler=[0, np.radians(-25), 0], material="face_mat",
-                      contype=0, conaffinity=0, group=2, mass=0.0)
     for c in spec.cameras:                                  # the wide-angle face camera (decision 16)
         if c.name == "eye_cam":
             c.fovy = EYE_FOVY
