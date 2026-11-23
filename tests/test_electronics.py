@@ -1,5 +1,7 @@
 """The electronics model (configs/electronics.toml, crab/electronics.py, SimBackend realism="datasheet"): the data
-file is well formed, and every model does what the file says. The default realism="ideal" is pinned by test_golden."""
+file is well formed, and every model does what the file says. The default realism="ideal" is pinned by test_golden.
+Datasheet realism runs the circuit (crab/wiring.py, tests/test_circuit.py) by default; the lumped Power model is kept
+for comparison and tested on its own here."""
 
 import math
 import tempfile
@@ -59,40 +61,42 @@ def test_ideal_is_the_default_and_changes_nothing():
         raise AssertionError("an unknown realism must be refused")
 
 
-def test_a_step_command_reaches_the_joint_after_the_configured_delay():
+def test_a_step_command_reaches_the_servo_after_the_configured_delay():
+    """Every servo (legs and arms) is on the one bus: its new target reaches it after the servo's own delay plus the
+    SYNC_WRITE's time on the wire. What reaches it is the servo's target (the firmware's slew limit then moves the joint)."""
     hw = SimBackend(realism="datasheet", seed=0)
     data, dt = hw.elec.data, hw.m.opt.timestep
     leg, arm = "FL_femur", "L_shoulder_pitch"
-    for j, key in ((leg, "leg_servo"), (arm, "arm_servo")):
+    for j in (leg, arm):
         i = JOINT_NAMES.index(j)
         hw.write_positions({SERVO_IDS[j]: hw.cmd.get(j, 0.0) + 0.3})
         new = float(hw._target[i])                                 # the joint-frame target behind that command
+        told = (lambda i=i: hw.drive.target[i]) if hw.drive is not None else (lambda j=j: hw.d.ctrl[hw.act[j]])
         seen = None
         for k in range(1, 40):
             hw.wait(dt)
-            if abs(hw.d.ctrl[hw.act[j]] - new) < 1e-9:
+            if abs(told() - new) < 1e-9:
                 seen = k
                 break
         assert seen is not None
         assert seen == hw.elec.delay.n[i] + 1, (j, seen, hw.elec.delay.n[i])
-        configured = data(f"{key}.command_delay_s")
+        configured = data("leg_servo.command_delay_s")
         late = (seen - 1) * dt
         assert abs(late - hw.elec.delays[i]) <= dt / 2 + 1e-9
-        assert hw.elec.delays[i] >= configured, f"{j}: file says {configured * 1000:.1f} ms, the bus only adds to it"
-    assert hw.elec.delays[JOINT_NAMES.index(arm)] > hw.elec.delays[JOINT_NAMES.index(leg)]
+        assert hw.elec.delays[i] > configured, f"{j}: file says {configured * 1000:.1f} ms, the bus adds to it"
+    assert hw.elec.delays[JOINT_NAMES.index(arm)] == hw.elec.delays[JOINT_NAMES.index(leg)]   # one packet for all
 
 
-def test_leg_encoder_readings_are_multiples_of_the_step():
+def test_every_servos_encoder_readings_are_multiples_of_the_step():
     hw = SimBackend(realism="datasheet", seed=0)
     hw.wait(0.1)
     step = 2 * math.pi / hw.elec.data("leg_servo.encoder_steps_per_rev")
-    legs = [s for s in hw.read_state().values() if s.feedback]
-    assert len(legs) == 12
-    for s in legs:
+    states = list(hw.read_state().values())
+    assert len(states) == len(JOINT_NAMES) == 18                  # 12 legs and 6 arms, every one reports
+    for s in states:
         assert abs(s.position / step - round(s.position / step)) < 1e-6
     ideal = SimBackend()
-    assert not all(abs(s.position / step - round(s.position / step)) < 1e-6
-                   for s in ideal.read_state().values() if s.feedback)
+    assert not all(abs(s.position / step - round(s.position / step)) < 1e-6 for s in ideal.read_state().values())
 
 
 def test_imu_noise_bias_rate_and_lag():
@@ -148,33 +152,35 @@ def test_a_long_walk_lowers_the_battery_and_the_ina219_reads_it():
     hw = SimBackend(realism="datasheet", seed=3)
     crab = Crab(hw)
     crab.start()
-    soc0 = hw.elec.power.soc
+    c = hw.circuit
+    soc0 = c.soc
     crab.walk((0.05, 0.0, 0.0), 8.0)
-    p = hw.elec.power
-    assert p.soc < soc0 - 0.003
+    assert c.soc < soc0 - 0.001, (soc0, c.soc)
     assert hw.battery_current() > 0.5, "walking draws amps from the pack"
-    assert p.v_pack < p.open_circuit() - 0.05, "the pack sags under load by I x internal resistance"
+    assert c.v_pack < c.open_circuit() - 0.02, "the pack sags under load by I x internal resistance"
     volts, amps = hw.battery_voltage(), hw.battery_current()
-    assert 6.0 < volts < 8.5
-    assert abs(amps / 0.001 - round(amps / 0.001)) < 1e-6, "current in 10 uV / 10 mOhm = 1 mA steps"
+    assert 6.4 < volts < 8.5
+    step = c.q_shunt / float(c.d("shunt.ohm"))                     # 10 uV / 2 mOhm = 5 mA
+    assert abs(amps / step - round(amps / step)) < 1e-6, "current in the INA219's shunt-voltage steps"
     assert 0 <= hw.battery_fraction() <= 1
     ideal = SimBackend()
     assert ideal.battery_current() is None and ideal.battery_voltage() == ideal.battery
 
 
-def test_bus_voltage_sags_with_servo_current_and_the_regulator_limit():
+def test_the_lumped_rail_sags_with_servo_current_and_the_regulator_limit():
     data = Data()
     p = Power(data, _rng(0))
+    v_set, limit = float(data("regulator.output_v")), float(data("regulator.current_limit_a"))
     p.step(0.0, 0.2)
     light = p.v_bus
     p.step(0.0, 3.0)
     heavy = p.v_bus
-    assert light > heavy > 4.5, (light, heavy)
-    p.step(0.0, 8.0)                                           # past the regulator's 5 A
+    assert v_set >= light > heavy > 0.95 * v_set, (light, heavy)
+    p.step(0.0, limit + 3.0)                                   # past the regulator's limit
     assert p.v_bus < heavy - 2.0
     low = Power(data, _rng(0), soc=0.0)
     low.step(0.0, 1.0)
-    assert low.v_bus < 5.0 - 0.3 or low.v_pack < 6.8, "an empty pack cannot hold the 5 V bus"
+    assert low.v_bus < v_set - 0.3 and low.v_pack < 6.8, "an empty 2S pack cannot hold the 7.4 V rail"
     s = Power(data, _rng(0), soc=1.0)
     for _ in range(100):
         s.step(10.0, 1.0)
@@ -204,7 +210,7 @@ def _run(realism, seed=3, seconds=20.0):
 def test_datasheet_realism_replays_exactly():
     a, b = _run("datasheet"), _run("datasheet")
     assert np.array_equal(a.d.qpos, b.d.qpos)
-    assert a.hw.elec.power.soc == b.hw.elec.power.soc
+    assert a.hw.circuit.soc == b.hw.circuit.soc
     assert [str(m) for _, m in a.motions] == [str(m) for _, m in b.motions]
     assert a.cliff_mm() == b.cliff_mm()
     c = _run("datasheet", seed=4)
@@ -214,7 +220,7 @@ def test_datasheet_realism_replays_exactly():
 def test_datasheet_differs_from_ideal_and_drains_the_battery_in_the_twin():
     d, i = _run("datasheet"), _run("ideal")
     assert not np.array_equal(d.d.qpos, i.d.qpos)
-    assert d.hw.elec.power.soc < 1.0 and d.mind.world.battery < 1.0
+    assert d.hw.circuit.soc < 1.0 and d.mind.world.battery < 1.0
     assert i.mind.world.battery == 1.0 and i.hw.elec is None
     beams = d.cliff_mm()
     assert all(v == 9999 or v is None or abs(v - round(v)) < 1e-6 for v in beams.values()), "beams read whole mm"
