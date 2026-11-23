@@ -51,6 +51,11 @@ class Life:
                 self.faceid = FaceID()
         self._next_cam = 0.0
         self._prev_xy = None
+        self.voices = []                  # [person index, audio, position] someone talking (speak())
+        self.heard_dirs = []              # (t, estimated direction, true direction) of voices
+        from pinch.hearing import AudioDirection
+        self._dir = AudioDirection()
+        self._audio_t = 0.0
 
     def crab(self):
         q = self.sim.d.qpos
@@ -66,6 +71,9 @@ class Life:
             if g is not None:
                 self.touches.append((round(sim.t, 2), p.i, g))
                 sim.touch(g)
+        if self.voices and sim.t - self._audio_t >= 0.5 - 1e-9:
+            self._audio_t = sim.t
+            self.hear(sim, 0.5)
         if sim.t + 1e-9 >= self._next_cam:
             self._next_cam = sim.t + 1.0 / CAMERA_HZ
             self.look(sim)
@@ -97,6 +105,51 @@ class Life:
                 sim.mind.world.owner.present, sim.mind.world.owner.last_seen = True, sim.mind.t
                 self.seen.append((round(sim.t, 2), pid, conf))
                 sim.mind.see_person(pid, conf, owner=p.p["role"] == "sitter")
+
+    def speak(self, i, seconds=4.0, seed=0, talk=0.6):
+        """Person i talks for a while: their voice reaches Pinch's two microphones from where their head is."""
+        from pinch.hearing import synth_speech
+        p = self.people[i]
+        pitch = 230.0 if p.p["child"] else (120.0 if p.p.get("male", True) else 200.0)
+        self.voices.append([i, synth_speech(seconds, pitch=pitch, talk=talk, seed=seed), 0])
+
+    def hear(self, sim, dt):
+        """Half a second of the voices, as the two microphones (~70 mm apart, pinch/hearing.py) would hear them:
+        the far microphone hears each voice a little later. The robot's own hearing then estimates the direction
+        (GCC-PHAT) and the mind gets the summary with it, as on the robot (robot/firmware/senses.py)."""
+        from pinch.hearing import RATE
+        n = int(dt * RATE)
+        x, y, h = sim.pose()
+        left, right, best = np.zeros(n), np.zeros(n), None
+        for v in list(self.voices):
+            i, audio, k = v
+            chunk = audio[k:k + n]
+            v[2] += n
+            if len(chunk) < n:                             # (the end of what they said)
+                self.voices.remove(v)
+                continue
+            f = self.people[i].face_xyz()
+            if f is None:
+                continue
+            bearing = (np.arctan2(f[1] - y, f[0] - x) - h + np.pi) % (2 * np.pi) - np.pi
+            d = float(np.hypot(f[0] - x, f[1] - y))
+            lag = int(round(self._dir.spacing * np.sin(bearing) / 343.0 * RATE))     # + : the left mic first
+            g = 1.0 / max(d, 0.3)                          # (louder when closer)
+
+            def late(a, k):
+                return np.concatenate([np.zeros(k), a[:n - k]]) if k > 0 else a
+            left += g * late(chunk, max(-lag, 0))          # to the right: the left mic hears it later
+            right += g * late(chunk, max(lag, 0))          # to the left: the right mic hears it later
+            best = bearing if best is None else best
+        if best is None:
+            return
+        est = self._dir.angle(left, right)
+        mono = (left + right) / 2
+        for s in sim.hearing.feed(mono * 0.5):
+            sim.mind.hear_summary(s, voice_dir=est)
+            self.heard_dirs.append((round(sim.t, 2), est, best))
+        for kind, _ in sim.hearing.take_events():
+            sim.mind.hear_event(kind)
 
     def run(self, seconds):
         self.sim.run(seconds, every=self.step)

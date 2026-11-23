@@ -243,7 +243,7 @@ class Person:
             target = crab_top + np.array([0, 0, 0.0 if self.insist else self.st["hover"]])
             if crab_moving_toward and self.p["style"] == "fearful":
                 self.hand_state = "withdraw"
-            elif np.linalg.norm(self.hand - target) < 0.012 or self.hand_t > 8.0:
+            elif np.linalg.norm(self.hand - target) < 0.012 or self.hand_t > (15.0 if self.insist else 8.0):
                 self.hand_state, self.hand_t = "touch", 0.0
         elif self.hand_state == "touch":
             self.hand_t += dt
@@ -269,7 +269,7 @@ class Person:
             self.hand = self.hand + d / n * min(n, speed * dt)
         sh = self._shoulder(face_yaw, right=True)              # a hand stays within arm's reach (+ a lean)
         r = np.linalg.norm(self.hand - sh)
-        lim = self.D["uarm"] + self.D["farm"] + 0.12
+        lim = self.D["uarm"] + self.D["farm"] + (0.25 if self.insist else 0.12)   # (leaning over the desk)
         if r > lim:
             self.hand = sh + (self.hand - sh) * lim / r
         if touch is not None and np.linalg.norm(self.hand - crab_top) > 0.06:

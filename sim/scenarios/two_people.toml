@@ -1,0 +1,21 @@
+# New in phase 5 (SIM-017): two people around Pinch - one sitting with it, one walking through. It should tell them
+# apart (two people in its memory) and greet someone.
+[scenario]
+name = "two_people"
+title = "two people around it: it notices both and greets"
+seconds = 60
+kinds = ["desk", "table"]
+people = true
+require_people = ["sitter", "walker"]
+
+[[assert]]
+name = "knows there are two people"
+at_end = { people_known = { count = 2 } }
+
+[[assert]]
+name = "greets someone"
+eventually = { activity = "greet" }
+
+[[assert]]
+name = "never falls"
+always = { no_fall = true }

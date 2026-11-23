@@ -67,6 +67,7 @@ class Scenario:
     people: bool = False
     memory: str = "none"
     max_things: int = 10
+    require_people: tuple = ()          # roles the world must have (sitter, walker)
     vars: dict = field(default_factory=dict)
     events: list = field(default_factory=list)
     asserts: list = field(default_factory=list)
@@ -80,7 +81,8 @@ def load(path):
     return Scenario(name=s["name"], title=s.get("title", s["name"]), seconds=float(s["seconds"]),
                     split=s.get("split", "test"), kinds=tuple(s.get("kinds", ("desk", "table", "floor"))),
                     props=tuple(s.get("props", ())), people=bool(s.get("people", False)),
-                    memory=s.get("memory", "none"), max_things=int(s.get("max_things", 10)), vars=d.get("vars", {}),
+                    memory=s.get("memory", "none"), max_things=int(s.get("max_things", 10)),
+                    require_people=tuple(s.get("require_people", ())), vars=d.get("vars", {}),
                     events=d.get("event", []), asserts=d.get("assert", []), path=str(path))
 
 
@@ -113,7 +115,8 @@ def pick_world(sc, seed):
     start = (seed * 37) % n
     for k in range(n):
         w = world(sc.split, (start + k) % n)
-        if w.kind in sc.kinds and len(w.things) <= sc.max_things:
+        roles = [p["role"] for p in w.people]
+        if w.kind in sc.kinds and len(w.things) <= sc.max_things and all(r in roles for r in sc.require_people):
             return w
     raise RuntimeError(f"no {sc.split} world fits {sc.name}")
 
@@ -235,6 +238,15 @@ def _act(sim, life, ev, rng, ctx):
             if p.p["role"] == k.get("role", "sitter") and p.enabled:
                 p.reach_now(k.get("gesture"))
                 break
+    elif a == "speak":                                   # a person talks: their voice comes from where they are
+        for p in life.people if life else ():
+            if p.p["role"] == k.get("role", "sitter"):
+                p.enabled = True                         # (someone walking in, if nobody was there)
+                life.speak(p.i, _sample(k.get("seconds", 4.0), rng), seed=int(rng.integers(1 << 30)))
+                ctx["speaker"] = p.i
+                break
+        else:
+            raise Unplaceable(f"nobody ({k.get('role', 'sitter')}) there to speak")
     elif a == "save_memory":
         sim.mind.memory.save()
     else:
@@ -279,6 +291,9 @@ TRACE = {
     "help_asked": lambda sim, ctx, t0, t1: any(e["kind"] == "help" for e in sim.mind.memory.data["episodes"]),
     "touched_by_person": lambda sim, ctx, t0, t1, count=1: sum(t0 <= t <= t1 for t, *_ in ctx["life"].touches) >= count
     if ctx["life"] else False,
+    "hears_direction": lambda sim, ctx, t0, t1, within=35.0: bool(ctx["life"]) and any(
+        t0 <= t <= t1 and abs(np.degrees(e - np.arcsin(np.sin(b)))) <= within for t, e, b in ctx["life"].heard_dirs),
+    # (two microphones side by side can't tell front from back: what they can know is the left-right angle)
     "person_seen": lambda sim, ctx, t0, t1: any(t0 <= t <= t1 for t, *_ in ctx["life"].seen) if ctx["life"] else False,
 }
 STATE = {
@@ -292,6 +307,7 @@ STATE = {
     "likes_below": lambda sim, ctx, thing, value=0.0: sim.mind.memory.data["likes"].get(thing, 0) < value,
     "remembers_name": lambda sim, ctx, name: _reload_name(sim) == name,
     "novelty_familiar_closer": lambda sim, ctx: _familiar_closer(sim),
+    "people_known": lambda sim, ctx, count=1: len(sim.mind.people.people) >= count,
 }
 
 
