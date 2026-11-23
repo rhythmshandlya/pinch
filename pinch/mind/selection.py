@@ -1,6 +1,6 @@
 """Choosing what to do: utility scores, the state layer (timeouts, resume), stepping through the activity, and the decision log."""
 
-from pinch.mind.behaviour import allowed, category, overrides_uninterruptible, rank, states
+from pinch.mind.behaviour import allowed, category, overrides_uninterruptible, rank, states, substate
 from pinch.mind.common import (  # noqa: F401
     LIBRARY,
     MOOD_REPLY,
@@ -274,6 +274,11 @@ class Selection:
         if self.activity.state == "rest" and self.phase == "asleep":
             return "sleep"
         return self.activity.state
+
+    @property
+    def substate(self):
+        """Where it is inside the state (configs/mind/states.toml sub): from the activity's own step name."""
+        return substate(self.state, self.phase) or states()[self.state]["sub"][0]
 
     start_score = 0.0
 

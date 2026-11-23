@@ -3,6 +3,7 @@
 from pinch.activities.base import (  # noqa: F401
     Activity,
     _owner_near,
+    disengage,
     math,
 )
 
@@ -14,6 +15,7 @@ class Obey(Activity):
     """Do what my person just asked (tricks, come, sleep, ...)."""
     state, max_s = "social", 120.0
     name, interruptible, min_s = "obey", False, 0.5
+    closes = False                                         # (many requests hand over to another activity)
     exact_emotes = True                                    # a trick asked for by name plays as asked
 
     def utility(self, m):
@@ -34,12 +36,14 @@ class Obey(Activity):
             m.last_trick = (arg, m.t)
             yield ("face", "happy")
             yield ("praise_wait", 6.0)
+            yield from disengage(m)
         elif kind == "come":
             yield ("face", "happy")
             yield ("sound", "curious_chirp")
             yield ("goto", _owner_near(m), 0.04)
             yield ("turn_to", m.world.desk.owner_xy)
             yield ("emote", "wave")
+            yield from disengage(m)
         elif kind == "go_away":
             m.suspended, m.resume_stack = None, []        # (told to go: it doesn't go back to what it was doing)
             yield ("face", "sad")
@@ -80,10 +84,12 @@ class Obey(Activity):
             yield ("sound", "greeting_beep")
             yield ("turn_to", m.world.desk.owner_xy)
             yield ("emote", "wave")
+            yield from disengage(m)
         elif kind == "goodbye":
             yield ("face", "sad")
             yield ("sound", "sad_tone")
             yield ("emote", "wave")
+            yield from disengage(m)
         elif kind == "teach_home":
             yield ("face", "curious")
             yield ("sound", "curious_chirp")
@@ -114,8 +120,10 @@ class Greet(Activity):
         yield ("face", "excited" if warm < 0.6 else "love")
         yield ("sound", "greeting_beep")
         yield ("turn_to", m.world.desk.owner_xy)
+        yield ("phase", "greet")
         if away_h < 1.0:                                     # only just gone: a glance and a chirp
             yield ("emote", "curious")
+            yield from disengage(m)
             return
         if warm >= 0.6 and away_h >= 4.0:                    # missed them a lot: go to them first
             yield ("goto", _owner_near(m), 0.06)
@@ -126,6 +134,7 @@ class Greet(Activity):
             yield ("emote", "dance")
         if away_h >= 24.0:                                   # a day or more: something you two share
             yield from self._callback(m)
+        yield from disengage(m)
 
     @staticmethod
     def _callback(m):
@@ -171,6 +180,7 @@ class Comfort(Activity):
         elif mood == "stressed":
             yield ("emote", "beg")                             # "take a break?"
         yield ("pose", "low", 6.0)
+        yield from disengage(m)
         if reached:                                            # (only what happened: no false memories)
             m.memory.remember("comfort", f"my person was {mood}, so I stayed close")
         else:
@@ -215,6 +225,7 @@ class SeekAttention(Activity):
             yield ("sound", "whimper")
             yield ("emote", "sad")
         yield ("wait", 4.0)
+        yield from disengage(m)
 
 
 class Celebrate(Activity):
@@ -230,6 +241,7 @@ class Celebrate(Activity):
         yield ("face", "joy")
         yield ("sound", "fanfare")
         yield ("emote", m.rng.choice(["dance", "applause", "excited"]))
+        yield from disengage(m)
 
 
 class Sulk(Activity):
@@ -246,12 +258,14 @@ class Sulk(Activity):
         yield ("emote", "sad")
         yield ("face", "shy")
         yield ("wait", 3.0)
+        yield from disengage(m)
 
 
 class GoQuiet(Activity):
     """My person is in a meeting: shh, then keep busy silently nearby."""
     state, max_s = "social", 7200.0
     name, min_s, quiet_ok = "go_quiet", 10.0, True
+    closes = False                                         # (the meeting's end hands over to after_meeting)
 
     def utility(self, m):
         return 2.0 if m.situation("owner_in_meeting") or m.t < m.quiet_until else 0.0
@@ -292,6 +306,7 @@ class AfterMeeting(Activity):
         yield ("emote", "excited")
         yield ("goto", _owner_near(m), 0.05)
         yield ("emote", "beg")
+        yield from disengage(m)
 
 
 class ReactTouch(Activity):
@@ -300,6 +315,7 @@ class ReactTouch(Activity):
     touch sharpens everything again). Asleep, only some touches wake it (WAKE_RULES, the owner's setting)."""
     state, max_s = "social", 60.0
     name, interruptible, min_s, quiet_ok = "react_touch", False, 1.0, True
+    closes = False                                         # (a reaction, not an exchange)
 
     @staticmethod
     def touch_state(m):

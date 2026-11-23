@@ -57,10 +57,28 @@ def states():
         if bad:
             raise ValueError(f"states.toml [{name}]: unknown timeout_do {sorted(bad)} (known: {sorted(TIMEOUT_DO)})")
     for name, st in s.items():
+        bad = {k: v for k, v in st.get("phases", {}).items() if v not in st["sub"]}
+        if bad or st.get("close", st["sub"][0]) not in st["sub"]:
+            raise ValueError(f"states.toml [{name}]: phases / close name sub-states it doesn't have: {bad or st['close']}")
+    for name, st in s.items():
         missing = [k for k in ("sub", "allow", "intent", "interrupt", "on_timeout") if k not in st]
         if missing or set(st["intent"]) != set(CHANNELS):
             raise ValueError(f"{STATES_PATH.name} [{name}]: missing {missing or 'intent for ' + str(CHANNELS)}")
     return s
+
+
+def substate(state, phase):
+    """The sub-state an activity's own step name belongs to (configs/mind/states.toml sub / phases): no step said
+    yet -> the state's first; a name it doesn't know -> None (tests/test_state_rules checks every activity's)."""
+    st = states()[state]
+    if not phase:
+        return st["sub"][0]
+    if phase in st["sub"]:
+        return phase
+    ph = st.get("phases", {})
+    if phase in ph:
+        return ph[phase]
+    return next((v for k, v in ph.items() if k.endswith("*") and phase.startswith(k[:-1])), None)
 
 
 def allowed(state, step_kind):

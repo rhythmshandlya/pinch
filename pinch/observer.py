@@ -12,6 +12,7 @@ Checks:
   state_lock        one top-level state holding more than its share of a long run (e.g. 90 % "idle")
   repetition        an identical sequence of activities repeating like an animation loop
   timeouts          activities ending by their time limit (each one is a design smell)
+  no_closing        a social exchange that finished without its closing sub-state (it just stops)
 Each finding has an id, the time interval, evidence, a severity and a suggested next step, so it can be
 turned into a regression test.
 
@@ -76,6 +77,30 @@ def observe_records(decisions, phases, log, duration_s):
     out += _state_lock(decisions, duration_s)
     out += _repetition(decisions)
     out += _timeouts(log)
+    out += _no_closing(decisions, phases)
+    return out
+
+
+def _no_closing(decs, phases):
+    """OBS-005: an exchange that finished on its own without its state's closing sub-state (configs/mind/states.toml
+    close): it should end, not just stop."""
+    from pinch.activities import LIBRARY
+    from pinch.mind.behaviour import states, substate
+    closing = {a.name: states()[a.state]["close"] for a in LIBRARY if a.closes and "close" in states()[a.state]}
+    out = []
+    for i, d in enumerate(decs):
+        if not d["reason"].startswith("previous activity finished") or d["prev"] not in closing or i == 0:
+            continue
+        start = decs[i - 1]["t"]
+        if decs[i - 1]["to"] != d["prev"]:
+            continue
+        st = next(a.state for a in LIBRARY if a.name == d["prev"])
+        seen = {substate(st, p) for t, a, p in phases if a == d["prev"] and start <= t <= d["t"]}
+        if closing[d["prev"]] not in seen:
+            out.append(Finding("no_closing", "warn", start, d["t"],
+                               f"{d['prev']} finished without '{closing[d['prev']]}'",
+                               "end the exchange (yield from disengage(m)) or mark the activity closes = False",
+                               dict(activity=d["prev"])))
     return out
 
 

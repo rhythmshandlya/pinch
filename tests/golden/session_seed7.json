@@ -16,10 +16,10 @@ null,
 12.6,
 "greet",
 "obey",
-"previous activity finished"
+"urgent than greet (after an interrupt)"
 ],
 [
-22.7,
+24.2,
 "obey",
 "tidy",
 "previous activity finished"
@@ -37,34 +37,46 @@ null,
 "previous activity finished (resumed)"
 ],
 [
-64.1,
+70.1,
 "tidy",
-"unstick",
+"react_touch",
 "urgent than tidy (after an interrupt)"
 ],
 [
-74.7,
-"unstick",
+76.7,
+"react_touch",
 "tidy",
 "previous activity finished (resumed)"
 ],
 [
-90.9,
+91.1,
 "tidy",
 "comfort",
 "clearly better than tidy"
 ],
 [
-110.7,
+111.5,
 "comfort",
+"idle",
+"previous activity finished"
+],
+[
+115.1,
+"idle",
 "tidy",
+"clearly better than idle"
+],
+[
+116.5,
+"tidy",
+"idle",
 "previous activity finished (resumed)"
 ],
 [
-112.1,
+118.3,
+"idle",
 "tidy",
-"tidy",
-"previous activity finished"
+"clearly better than idle"
 ]
 ],
 "motions": [
@@ -81,11 +93,19 @@ null,
 "('emote', 'excited')"
 ],
 [
+12.4,
+"('pose', 'stand', 0.8)"
+],
+[
 12.6,
 "('emote', 'dance')"
 ],
 [
-23.1,
+22.5,
+"('pose', 'stand', 0.8)"
+],
+[
+24.6,
 "('pick', 'pen')"
 ],
 [
@@ -93,44 +113,60 @@ null,
 "('push', 'cap', (0.18, 0.08))"
 ],
 [
-64.1,
-"('recover',)"
+70.1,
+"('emote', 'fidget', {'gain': 1.0, 'arousal': 0.1901432547799768, 'valence': 0.8228333356038978, 'sleepy': 0.10974999999999568})"
 ],
 [
-75.2,
+74.8,
+"('pose', 'low', 1.0)"
+],
+[
+77.2,
 "('pick', 'pen')"
 ],
 [
-75.8,
+82.4,
 "('push', 'pen', (0.18, 0.08))"
 ],
 [
-91.4,
+91.6,
 "('goto', (0.0, 0.044999999999999984), 0.05)"
 ],
 [
-96.0,
+93.8,
 "('turn_to', (0.0, -0.3))"
 ],
 [
-100.0,
+99.1,
 "('emote', 'handshake')"
 ],
 [
-103.8,
+103.1,
 "('pose', 'low', 6.0)"
 ],
 [
-111.2,
+109.8,
+"('pose', 'stand', 0.8)"
+],
+[
+111.5,
+"('emote', 'look_around')"
+],
+[
+115.6,
 "('pick', 'eraser')"
 ],
 [
-111.8,
+116.2,
 "('push', 'eraser', (0.14, 0.08))"
 ],
 [
-112.6,
-"('push', 'cap', (0.18, 0.08))"
+116.5,
+"('emote', 'curious')"
+],
+[
+118.8,
+"('pick', 'pen')"
 ]
 ],
 "sounds": [
@@ -139,50 +175,42 @@ null,
 "greeting_beep"
 ],
 [
-64.1,
-"angry_buzz"
-],
-[
-74.5,
-"happy_trill"
-],
-[
-75.3,
-"uh_oh"
-],
-[
-96.0,
-"happy_trill"
-],
-[
-100.0,
+70.1,
 "purr"
 ],
 [
-111.3,
+81.9,
 "uh_oh"
 ],
 [
-111.9,
+99.1,
+"sad_tone"
+],
+[
+115.7,
 "uh_oh"
 ],
 [
-111.9,
+116.3,
+"uh_oh"
+],
+[
+116.3,
 "uh_oh"
 ]
 ],
 "pose": [
-0.175239579,
--0.099897807,
-0.045612991,
-0.996881883,
--0.001155323,
-0.001091695,
-0.078892235
+0.020749169,
+0.0067188,
+0.047321814,
+0.801160935,
+-0.016668517,
+-0.011886838,
+-0.59809867
 ],
 "cap": [
-0.163843771,
-0.023205853
+0.186169221,
+0.043461749
 ],
 "platform": "Windows"
 }

@@ -2,6 +2,10 @@
 # Entry: a state is entered when the mind starts an activity that belongs to it (pinch/activities: `state`), or, for
 # sleep, when a resting activity reaches its asleep phase. Exit: the activity ends, runs past its max_s (reason
 # "timeout", then the mind chooses again), or a higher priority interrupts it (configs/mind/behaviour.toml).
+# sub: the state's sub-states, in their usual order (every activity of the state starts in the first); phases: an
+# activity's own step names ("phase" steps in pinch/activities) -> the sub-state they belong to ("x_*" matches any
+# name starting "x_"; a name that is itself a sub-state needs no entry); close: the sub-state an exchange ends in
+# when it finishes on its own (the observer flags one that just stops, OBS-005).
 # allow: the motion steps the state may run; any other is refused and logged (the step counts as failed).
 # intent: what each body part is for in this state (the body-part owners of phase 4 follow it).
 # interrupt: the lowest priority rank that may cut it short when urgent (1 = physical safety .. 8 = idle).
@@ -9,10 +13,11 @@
 # (pinch/mind/selection.py _timeout): resume_ok (an activity it was pulled away from may come back), wake_slowly
 # (calm, low arousal), ask_help (a plea and a memory: it couldn't manage), drop_object (leave that thing alone a while).
 
-version = "4.4"
+version = "4.5"
 
 [idle]
 sub = ["observe", "micro_adjust", "settle"]
+phases = {}
 allow = ["emote", "pose", "turn_to"]
 intent = { legs = "settle and shift weight", claws = "small flexes", gaze = "wander, follow attention", face = "the feeling", sound = "rare, soft" }
 interrupt = 8
@@ -21,6 +26,7 @@ timeout_do = []
 
 [explore]
 sub = ["select_target", "approach", "inspect", "circle", "retreat", "resume"]
+phases = { notice = "select_target", go_look = "approach", approach = "approach", pause = "approach", watch_from_afar = "inspect", inspect = "inspect", take_in = "inspect", retreat = "retreat" }
 allow = ["goto", "walk", "turn_to", "emote", "pose"]
 intent = { legs = "cautious approach", claws = "ready, low", gaze = "on the target", face = "curious", sound = "small curious chirps" }
 interrupt = 6
@@ -29,6 +35,8 @@ timeout_do = ["resume_ok"]
 
 [social]
 sub = ["notice_person", "recognize", "greet", "interact", "disengage"]
+close = "disengage"
+phases = { greet = "greet", remember = "interact", interact = "interact", disengage = "disengage" }
 allow = ["goto", "walk", "turn_to", "emote", "pose"]
 intent = { legs = "face the person", claws = "gesture", gaze = "on the person", face = "the feeling toward them", sound = "chirps and purrs" }
 interrupt = 4
@@ -37,6 +45,7 @@ timeout_do = []
 
 [play]
 sub = ["invite", "engage", "chase_inspect", "pause", "resume", "finish"]
+phases = { push_to = "engage", carry_to = "engage", show = "engage", sneeze = "engage", solo_dance = "engage", play_dead_pop = "engage", applause_self = "engage", claw_chase = "engage", big_stretch = "engage" }
 allow = ["goto", "walk", "turn_to", "emote", "pose", "pick", "push", "drop", "release"]
 intent = { legs = "bouncy", claws = "handle the toy", gaze = "on the toy or the person", face = "playful", sound = "giggles" }
 interrupt = 6
@@ -45,6 +54,7 @@ timeout_do = []
 
 [alert]
 sub = ["orient", "focus", "assess", "resolve"]
+phases = { "orient_*" = "orient", watch = "focus" }
 allow = ["turn_to", "walk", "emote"]
 intent = { legs = "still or turning to face it", claws = "still", gaze = "fixed on the stimulus", face = "alert", sound = "none or one alarm chirp" }
 interrupt = 3
@@ -53,6 +63,7 @@ timeout_do = ["resume_ok"]
 
 [defensive]
 sub = ["startle", "assess", "posture", "retreat", "recover"]
+phases = {}
 allow = ["goto", "walk", "turn_to", "pose"]
 intent = { legs = "back away, crouch", claws = "raised as a shield", gaze = "on the threat", face = "scared", sound = "low warning" }
 interrupt = 3
@@ -61,6 +72,7 @@ timeout_do = []
 
 [rest]
 sub = ["settle", "relax", "low_activity"]
+phases = { wake = "low_activity" }
 allow = ["goto", "pose", "emote"]
 intent = { legs = "settle low", claws = "folded", gaze = "drowsy, slow", face = "sleepy", sound = "soft or none" }
 interrupt = 5
@@ -69,6 +81,7 @@ timeout_do = []
 
 [sleep]
 sub = ["enter", "asleep", "wake"]
+phases = { asleep = "asleep" }
 allow = ["pose", "emote"]
 intent = { legs = "still, breathing only", claws = "folded", gaze = "closed", face = "asleep", sound = "none (a snore at most)" }
 interrupt = 4
@@ -77,6 +90,7 @@ timeout_do = ["wake_slowly"]
 
 [recover]
 sub = ["detect_failure", "stop", "reorient", "retry", "abandon", "resume"]
+phases = { roll = "retry", work_free = "retry", ask_help = "abandon" }
 allow = ["right_self", "recover", "goto", "walk", "turn_to", "emote", "pose"]
 intent = { legs = "the recovery motion", claws = "help or tucked", gaze = "on the way out", face = "worried or effortful", sound = "grumble, then ask for help" }
 interrupt = 2
@@ -85,6 +99,7 @@ timeout_do = ["ask_help"]
 
 [task]
 sub = ["approach", "act", "check", "report"]
+phases = { pick = "act", carry = "act", push = "act", ask_help = "report" }
 allow = ["goto", "walk", "turn_to", "emote", "pose", "pick", "push", "drop", "release"]
 intent = { legs = "position for the job", claws = "the job", gaze = "on the object", face = "focused", sound = "small effort sounds" }
 interrupt = 5

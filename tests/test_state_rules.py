@@ -80,3 +80,37 @@ def test_the_state_decides_who_may_cut_in_urgently():
     finally:
         for a in LIBRARY:
             a.utility = old[a.name]
+
+
+def test_every_step_name_belongs_to_a_sub_state():
+    """Each ("phase", name) an activity yields maps to one of its state's sub-states (states.toml phases), so the
+    sub-states are what the mind reports, not just a list (dynamic names: game verbs, quirks, orient_<kind>)."""
+    from pinch.activities.play import Quirk
+    from pinch.mind.behaviour import substate
+    from pinch.play import VERBS
+    for a in LIBRARY:
+        names = set(re.findall(r'\("phase", "([a-z_]+)"\)', inspect.getsource(type(a))))
+        names |= set(VERBS) if a.name == "play" else set(Quirk.QUIRKS) if a.name == "quirk" else set()
+        if a.name == "orient":
+            names.add("orient_loud")
+        if "disengage" in inspect.getsource(type(a)):
+            names.add("disengage")
+        for n in names:
+            st = "sleep" if (a.state, n) == ("rest", "asleep") else a.state
+            assert substate(st, n) is not None, f"{a.name}: step '{n}' is no sub-state of {st}"
+
+
+def test_the_mind_reports_its_sub_state_and_social_exchanges_close():
+    from pinch.activities.social import Celebrate
+    from pinch.observer import _no_closing
+    m = Mind(memory=Memory(path=None), llm=False, seed=0, clock=lambda: 1.8e9)
+    m._start("celebrate", "test")
+    assert m.substate == "notice_person"                  # every activity starts in its state's first sub-state
+    steps = list(Celebrate().run(m))
+    assert ("phase", "disengage") in steps and steps.index(("phase", "disengage")) == len(steps) - 3
+    m.phase = "disengage"
+    assert m.substate == "disengage"
+    decs = [dict(t=0.0, prev="idle", to="celebrate", reason="x"),
+            dict(t=9.0, prev="celebrate", to="idle", reason="previous activity finished")]
+    assert _no_closing(decs, [(8.0, "celebrate", "disengage")]) == []
+    assert [f.kind for f in _no_closing(decs, [])] == ["no_closing"]

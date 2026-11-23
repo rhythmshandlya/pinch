@@ -24,6 +24,7 @@ class Activity:
     min_s = 2.0
     max_s = 300.0
     quiet_ok = False
+    closes = True              # ends in its state's closing sub-state when it finishes (states.toml close), if any
     own_jitter = False         # True: its tie-break jitter comes from its own random stream (Selection._own_jitter)
 
     def prepare(self, m):
@@ -37,6 +38,18 @@ class Activity:
 
     def run(self, m):
         yield ("wait", 1.0)
+
+def disengage(m):
+    """The close of a social exchange: the eyes drift off the person to one side and the body settles (engagement
+    with a person has an explicit end, not a cut: Sidner et al. 2005, Bohus & Horvitz 2009). Steps to yield from."""
+    yield ("phase", "disengage")
+    x, y, h = m.world.pose
+    ox, oy = m.world.desk.owner_xy
+    to_owner = math.atan2(oy - y, ox - x)
+    off = to_owner + (0.9 if math.sin(to_owner - h) <= 0 else -0.9)     # away to the side it isn't already facing
+    yield ("look_at", (x + 0.25 * math.cos(off), y + 0.25 * math.sin(off)))
+    yield ("pose", "stand", 0.8)
+
 
 def _owner_near(m):
     """A spot on the desk near its person, nearer the more it likes and knows them, further if it fears them
