@@ -17,41 +17,25 @@ sys.path.insert(0, str(ROOT))
 from crab.gait import _S, _T  # noqa: E402
 from crab.params import JOINT_NAMES, servo_for  # noqa: E402
 from robot.crab_robot import Crab, SafetyStop  # noqa: E402
-from robot.servos import PWM_CHANNEL, SERVO_IDS  # noqa: E402
+from robot.servos import SERVO_IDS  # noqa: E402
 
 V, W = _S / _T, 1 / _T          # demo speeds scaled to this robot's size
 
 
 def hardware_check(hw, out=print):
-    """Ping every servo and read the sensors. Torque is never switched on. Returns True if all is well."""
+    """Ping all 18 bus servos and read the sensors. Torque is never switched on. Returns True if all is well."""
     ok = True
     bus = getattr(hw, "bus", None)
     states = None if bus is not None else hw.read_state()
     out(f"{'ID':>3s}  {'joint':18s} {'servo':8s} {'position':>9s} {'volts':>6s} {'temp':>5s}")
     for j in JOINT_NAMES:
         sid = SERVO_IDS[j]
-        if j in PWM_CHANNEL:                             # tiny arm servo: nothing to ask it
-            ch = PWM_CHANNEL[j]
-            pins = getattr(getattr(hw, "pwm", None), "PINS", None)
-            where = f"PWM output {ch}" + (f", header pin {pins[ch]}" if pins else "")
-            out(f"{sid:3d}  {j:18s} {servo_for(j).name:8s}   {where} (can't report - check by eye)")
-            continue
         if bus is not None and not bus.ping(sid):
             out(f"{sid:3d}  {j:18s} {servo_for(j).name:8s}   MISSING - check its cable, ID and the hub")
             ok = False
             continue
         s = bus.state(sid) if bus is not None else vars(states[sid])
         out(f"{sid:3d}  {j:18s} {servo_for(j).name:8s} {s['position']:8.2f}r {s['voltage']:5.1f}V {s['temperature']:4.0f}C")
-    if PWM_CHANNEL:
-        pwm = getattr(hw, "pwm", None)
-        found = bus is None or (pwm is not None and pwm.ping())       # (the simulator has no PWM outputs)
-        if found:
-            out("arm servo PWM outputs: all found")
-        elif pwm is not None and hasattr(pwm, "missing_pins"):
-            out(f"arm servo PWM outputs: MISSING on header pins {pwm.missing_pins()} - enable those PWM overlays in rsetup")
-        else:
-            out("arm servo PWM outputs: MISSING - enable the six PWM overlays in rsetup (or check the PCA9685 wiring)")
-        ok &= found
     gyro, grav = hw.read_imu()
     level = grav[2] < -0.9
     out(f"IMU gravity {grav.round(2)} -> {'level' if level else 'NOT level (or IMU missing / mounted wrong way)'}")
