@@ -44,9 +44,12 @@ PROP_PARK = (3.0, 3.0, -0.5)          # where a hidden prop waits (far off the d
 START = {"pen": (-0.22, -0.16, 0.6), "eraser": (0.25, -0.18, 0.3), "cap": (-0.18, 0.20, 0.0), "ball": (0.12, 0.21, 0.0)}   # clear of the v2.1 legs
 
 
-def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, extras=()) -> mujoco.MjModel:
+def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, extras=(), world=None,
+                     world_opts=None) -> mujoco.MjModel:
     """extras: fixed things on the desk for tests, e.g. dict(name="cable", type="cylinder", size=[r, half_len],
-    pos=[x, y, r], euler=[...]) - geoms of the desk top."""
+    pos=[x, y, r], euler=[...]) - geoms of the desk top.
+    world: a generated world (sim/worlds): its home, surface, things, lights and people are added (sim/worlds/build.py);
+    world_opts: options for that (things, people, visual, fisheye)."""
     desk = desk or Desk()
     spec = mujoco.MjSpec.from_file(str(CRAB_XML))
     spec.option.timestep = 0.002
@@ -72,7 +75,7 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, extras=())
         top.add_geom(name=e["name"], type=getattr(mujoco.mjtGeom, "mjGEOM_" + e["type"].upper()),
                      size=list(e["size"]) + [0] * (3 - len(e["size"])), pos=e["pos"], euler=e.get("euler", [0, 0, 0]),
                      rgba=[0.15, 0.15, 0.15, 1], friction=[0.8, 0.02, 0.001])
-    for sx in (-1, 1):
+    for sx in (-1, 1) if world is None else ():          # (a world brings its own furniture)
         for sy in (-1, 1):
             top.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.02, 0.02, 0.36],
                          pos=[sx * (desk.half_x - 0.03), sy * (desk.half_y - 0.03), -0.39],
@@ -155,8 +158,14 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, extras=())
     for c in spec.cameras:                                  # the wide-angle face camera (decision 16)
         if c.name == "eye_cam":
             c.fovy = EYE_FOVY
+    post = None
+    if world is not None:
+        from sim.worlds.build import decorate
+        post = decorate(spec, world, **(world_opts or {}))
     m = spec.compile()
     set_marker(m)
+    if post is not None:
+        post(m)
     return m
 
 

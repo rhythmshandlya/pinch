@@ -34,7 +34,8 @@ from pinch.twin.common import (  # noqa: F401
 
 class TwinCore:
     def __init__(self, memory=None, llm=False, seed=0, start=None, render=False, policies=True, extras=(),
-                 epoch=SIM_EPOCH, decision_log=None, props=(), record_dir=None, record=None, realism="ideal", soc=1.0):
+                 epoch=SIM_EPOCH, decision_log=None, props=(), record_dir=None, record=None, realism="ideal", soc=1.0,
+                 world=None, world_opts=None):
         """epoch: the wall-clock time the run starts at (what the mind's clock reads at t = 0).
         decision_log: a file to write every activity switch and its reason to (JSON lines).
         props: things Pinch doesn't know (names from sim.desk.PROPS), parked off the desk until shown.
@@ -42,18 +43,32 @@ class TwinCore:
         record: options for the recorder (header=dict(scenario=...), state=False, live_every=60 ...).
         realism: "ideal" (exact sensors, no delay: the default) or "datasheet" (the electronics of
         configs/electronics.toml: command delay, encoder steps, IMU, distance beams, battery; docs/dev/ELECTRONICS.md).
-        soc: the battery's starting state of charge, 0..1 (datasheet realism)."""
+        soc: the battery's starting state of charge, 0..1 (datasheet realism).
+        world: a generated world (sim/worlds: world("test", 7)) instead of the standard desk: its surface, home,
+        things, lights and people, Pinch's desk things and Pinch itself where that world puts them;
+        world_opts: what to build of it (sim/worlds/build.py decorate: things, people, visual, fisheye)."""
         self.t = 0.0
         self.faults = {}                                  # injected failures (inject())
-        self.desk = Desk()
+        self.world = world
+        self.desk = world.desk() if world is not None else Desk()
+        if world is not None and start is None:
+            start = dict(world.named)
         self.props = {p: PROPS[p] for p in props}
         self.prop_paths, self._prop_last = {}, {}
         prop_extras = [dict(name=p, type=sh, size=sz, rgba=c, pos=list(PROP_PARK), mocap=True)
                        for p, (sh, sz, c) in self.props.items()]
-        self.m = build_desk_model(self.desk, start=start or START, extras=tuple(extras) + tuple(prop_extras))
+        self.m = build_desk_model(self.desk, start=start or START, extras=tuple(extras) + tuple(prop_extras),
+                                  world=world, world_opts=world_opts)
         self.hw = SimBackend(model=self.m, render=render, realism=realism, seed=seed, soc=soc)
         self.realism = realism
         self.d = self.hw.d
+        if world is not None:                              # Pinch where the world puts it (on a rug: on top of it)
+            x, y, yaw = world.crab
+            q = self.d.qpos
+            q[0], q[1] = x, y
+            q[2] += world.mat["thick"] if world.mat is not None and abs(x - world.mat["xy"][0]) < world.mat["half"][0] + 0.12                 and abs(y - world.mat["xy"][1]) < world.mat["half"][1] + 0.12 else 0.0
+            q[3:7] = (np.cos(yaw / 2), 0.0, 0.0, np.sin(yaw / 2))
+            mujoco.mj_forward(self.m, self.d)
         self.crab = Crab(self.hw, calibration=Calibration())
         self.crab.start()                                  # ease into the stand pose (2 s)
         self.mind = Mind(memory=memory if memory is not None else Memory(path=None), llm=llm, seed=seed,
