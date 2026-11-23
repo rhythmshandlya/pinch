@@ -124,16 +124,24 @@ class Affect:
     HABITUATING = {"loud_noise": 0.35, "bumped": 0.3, "sudden_motion": 0.25}
     FEAR_TAU_S, FEAR_FLOOR = 600.0, 0.3
 
+    EPISODE_S = 2.0           # the same fright again within this long is the same episode (one approach of a thing
+    #                           comes as several growing steps): it habituates once, at the episode's start
+
     def _habituated(self, event):
         alpha = self.HABITUATING.get(event)
         if alpha is None:
             return 1.0
         h = self.__dict__.setdefault("_fear_h", {})
         t0 = self.__dict__.get("_fear_t", {}).get(event)
+        ep = self.__dict__.setdefault("_fear_episode", {})
+        if t0 is not None and self.t - t0 < self.EPISODE_S and event in ep:
+            self.__dict__["_fear_t"][event] = self.t
+            return ep[event]
         v = h.get(event, 0.0) * (math.exp(-(self.t - t0) / self.FEAR_TAU_S) if t0 is not None else 1.0)
         response = self.FEAR_FLOOR + (1 - self.FEAR_FLOOR) * (1 - v)
         h[event] = v + alpha * (1 - v)
         self.__dict__.setdefault("_fear_t", {})[event] = self.t
+        ep[event] = response
         return response
 
     def feel(self, event: str, strength: float = 1.0):

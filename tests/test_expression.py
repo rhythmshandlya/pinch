@@ -315,3 +315,21 @@ def test_looking_at_whether_a_quirk_is_due_changes_nothing():
     for _ in range(5):
         q.utility(m)
     assert Quirk._rng(m).bit_generator.state == state
+
+
+def test_one_approach_arriving_in_steps_habituates_once():
+    """A thing rushing at it is reported as a few growing steps (pinch/novelty.py: only the growth): together they
+    are one fright, as big as a single full one, not five ever-weaker ones (each step used to dull the next)."""
+    from pinch.affect import Affect
+    whole, steps = Affect(), Affect()
+    whole.feel("sudden_motion", 1.0)
+    for k, s in enumerate((0.1, 0.25, 0.25, 0.2, 0.2)):
+        steps.t = 0.2 * k
+        steps.feel("sudden_motion", s)
+    assert abs(steps.needs.safety - whole.needs.safety) < 0.08, (steps.needs.safety, whole.needs.safety)
+    later = Affect()
+    later.feel("sudden_motion", 1.0)
+    first = later.needs.safety
+    later.needs.safety, later.t = 0.0, 30.0                       # a second, separate fright half a minute on
+    later.feel("sudden_motion", 1.0)
+    assert later.needs.safety < first, "a separate repeat still habituates"

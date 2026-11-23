@@ -84,7 +84,20 @@ class Locomotion:
         self.gait.lower += float(np.clip(lower - self.gait.lower, -0.0004, 0.0004))   # sink / rise smoothly
         for k in range(SUB):                                   # leg IK only once per tick, after the last substep
             q = self.gait.step(DT / SUB, cmd, solve=k == SUB - 1)
-        return self._residual(q, cmd, self._walking_policy(arms))
+        pol = self._walking_policy(arms)
+        # the walking policy is used where it was judged better: walking with little turning. Turning (a turn on
+        # the spot, a curve) is left to the scripted trot: the v2.1 policy holds the body nearly still in yaw
+        # (0.14 of 1.6 rad asked in 4 s, the trot 1.19). It fades in and out over FADE_S, so no joint target jumps.
+        want = 1.0 if (pol is not None and abs(cmd[2]) <= self.POLICY_MAX_TURN) else 0.0
+        self._pgain = float(np.clip(self._pgain + np.sign(want - self._pgain) * DT / self.POLICY_FADE_S, 0.0, 1.0))
+        if self._pgain <= 0.0:
+            return self._residual(q, cmd, None)
+        pq = self._residual(q, cmd, pol)
+        return q + self._pgain * (pq - q)
+
+    POLICY_MAX_TURN = 0.08    # rad/s: above this the scripted trot alone walks (the policy suppresses turning)
+    POLICY_FADE_S = 0.25      # s to fade the policy's corrections in or out
+    _pgain = 0.0
 
     def _walking_policy(self, arms):
         """Which learned corrections run this tick. Plain walking: the walking policy. Crouched pushing: the
