@@ -177,7 +177,7 @@ class SessionRecorder:
         self._rows, self._chunks, self.n_samples = [], 0, 0
         self.findings_seen = set()
         # what was seen last (the mind's logs are polled for what is new)
-        self._last = dict(decision=None, phase=None, log=None)
+        self._last = dict(decision=None, phase=None, log=None, episode=None)
         self._face = self._feeling = self._focus = None
         self._gaze_t = None
         self._mind_t = None
@@ -256,6 +256,8 @@ class SessionRecorder:
     def _poll_mind(self, t, mind):
         for d in self._new("decision", mind.decisions):
             self.event(d["t"], "decision", **{k: v for k, v in d.items() if k != "t"})
+        for e in self._new("episode", getattr(mind, "episodes", ())):
+            self.event(e["t"], "activity_end", **{k: v for k, v in e.items() if k != "t"})
         for pt, act, ph in self._new("phase", getattr(mind, "phases", ())):
             self.event(pt, "phase", activity=act, phase=ph)
         for lt, kind, text in self._new("log", mind.log):

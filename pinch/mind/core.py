@@ -41,6 +41,10 @@ class MindCore:
         self.voice_mood = OwnerVoiceMood()
         self.t = 0.0
         self.decisions = deque(maxlen=1000)  # recent activity switches with reasons (_record_decision)
+        self.episodes = deque(maxlen=1000)   # how each activity went, when it ended (Selection._close_episode)
+        self.episode = None                  # the running activity's record (outcome, feedback, steps)
+        self.decision_id = 0
+        self.choice_log = None               # a list: every 0.5 s choice is kept (opt-in; training data)
         self.phases = deque(maxlen=1000)     # (t, activity, phase): where it is inside an activity
         self.phase = ""                      # the current activity's phase ("" until it says)
         self.suspended = None                # (activity, t): cut short by something urgent, may resume

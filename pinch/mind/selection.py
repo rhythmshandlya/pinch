@@ -26,7 +26,8 @@ class Selection:
         scores = self.scores
         top = sorted(scores.items(), key=lambda kv: -kv[1])[:4]
         nxt = next(x for x in LIBRARY if x.name == name)
-        rec = dict(t=round(self.t, 2), clock=round(self.world.clock(), 2),
+        self.decision_id += 1
+        rec = dict(t=round(self.t, 2), id=self.decision_id, clock=round(self.world.clock(), 2),
                    prev=self.activity.name if self.activity else None, to=name, reason=reason,
                    state=[self.state, nxt.state],
                    priority=[category(self.activity.name) if self.activity else None, category(name)],
@@ -34,7 +35,11 @@ class Selection:
                    why={k: self.score_parts.get(k, {}) for k, _ in top},
                    noticed=[[s.kind, s.target, round(s.strength, 2)] for s in self.situations[:5]],
                    feeling=self.affect.feeling(), valence=round(self.affect.valence, 3),
-                   needs={k: round(v, 2) for k, v in self.affect.needs.as_dict().items()})
+                   needs={k: round(v, 2) for k, v in self.affect.needs.as_dict().items()},
+                   # everything a learned chooser would see (docs/research: behaviour cloning / offline RL from logs)
+                   scores={k: round(v, 3) for k, v in scores.items() if v > 0.005},
+                   parts={k: v for k, v in self.score_parts.items() if v.get("want", 0) > 0},
+                   affect=self.affect_snapshot(), context=self.context_snapshot())
         self.decisions.append(rec)
         if self.decision_log_path:
             import json
@@ -47,6 +52,41 @@ class Selection:
                     fh.write(json.dumps(rec) + "\n")
             except OSError:
                 pass                                         # (a full or read-only disk must not stop the pet)
+
+    def affect_snapshot(self):
+        a = self.affect
+        return dict(arousal=round(a.arousal, 3), mood=round(a.mood if a.mood is not None else a.valence, 3),
+                    emotions={k: round(v, 3) for k, v in a.emotions.items()}, quiet=bool(a.quiet))
+
+    def context_snapshot(self):
+        """The situation around a choice, for explaining it and for learning from it later."""
+        w, now = self.world, self.world.clock()
+        o = w.owner
+        return dict(part_of_day=self.routine.part_of_day(now), owner_here=bool(w.owner_here(120)),
+                    owner_attending=bool(w.owner_attending(60)), owner_busy=o.busy, owner_mood=o.mood,
+                    people={pid: dict(W=round(p.get("W", 0), 2), F=round(p.get("F", 0), 2), R=round(p.get("R", 0), 2))
+                            for pid, p in self.people.people.items() if pid in self.people.present(now)},
+                    battery=None if w.battery is None else round(float(w.battery), 3), flipped=bool(self.flipped),
+                    stuck=bool(self.stuck), request=self.request[0] if self.request else None,
+                    suspended=self.suspended[0] if self.suspended else None, state=self.state)
+
+    def _open_episode(self, rec):
+        a = self.affect
+        self.episode = dict(id=rec["id"], activity=rec["to"], t0=self.t, valence0=a.valence,
+                            needs0=a.needs.as_dict(), steps_ok=0, steps_failed=0, feedback=[])
+
+    def _close_episode(self, end):
+        """How the activity that is ending went: the record a learned chooser is trained on (its outcome)."""
+        e = self.episode
+        if e is None:
+            return
+        a = self.affect
+        self.episodes.append(dict(
+            t=round(self.t, 2), id=e["id"], activity=e["activity"], end=end, seconds=round(self.t - e["t0"], 2),
+            steps_ok=e["steps_ok"], steps_failed=e["steps_failed"], feedback=e["feedback"],
+            dvalence=round(a.valence - e["valence0"], 3),
+            dneeds={k: round(v - e["needs0"][k], 3) for k, v in a.needs.as_dict().items()}))
+        self.episode = None
 
     @property
     def _own_jitter(self):
@@ -121,6 +161,10 @@ class Selection:
             scores[cur.name] = max(scores.get(cur.name, 0.0), 0.9 * self.start_score)
         self.scores, self.score_parts = scores, parts
         best = max(scores, key=scores.get)
+        if self.choice_log is not None:
+            self.choice_log.append(dict(t=round(self.t, 2), current=cur.name if cur else None, best=best,
+                                        scores={k: round(v, 3) for k, v in scores.items() if v > 0.005},
+                                        affect=self.affect_snapshot(), needs=self.affect.needs.as_dict()))
         if cur is None or self.gen is None:
             self._start(best, "first" if cur is None else "previous activity finished")
             return True
@@ -146,6 +190,8 @@ class Selection:
 
     def learn_from(self, event):
         """Its person's feedback (praise, scolding, petting) teaches it about what it is doing or just did."""
+        if self.episode is not None:
+            self.episode["feedback"].append([round(self.t - self.episode["t0"], 2), event])
         person = self.feedback_person()
         if person is None:
             return
@@ -232,7 +278,12 @@ class Selection:
                     self.suspended = (older, self.t)
         if self.timed_out and self.timed_out[0] == name and self.t - self.timed_out[1] < 1.0:
             reason = "restarted after a timeout"
+        timed_out = bool(self.timed_out and self.activity is not None and self.timed_out[0] == self.activity.name
+                         and self.t - self.timed_out[1] < 1.0)
+        self._close_episode("timeout" if timed_out else "finished" if reason.startswith("previous activity finished")
+                            else f"replaced by {name}")
         self._record_decision(name, reason)
+        self._open_episode(self.decisions[-1])
         a = next(x for x in LIBRARY if x.name == name)
         self.phase = ""
         if self.activity is not None:
@@ -254,6 +305,8 @@ class Selection:
                 return None
             self.waiting_motion = False
             self.last_step_ok = body_ok
+            if self.episode is not None:
+                self.episode["steps_ok" if body_ok else "steps_failed"] += 1
             if self._motion_kind in ("goto", "push", "pick", "drop"):
                 self.react_to_outcome(body_ok, self._motion_kind)
         if self.t < self.wait_until or self.t < self.praise_until:
