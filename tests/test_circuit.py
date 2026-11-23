@@ -1,28 +1,21 @@
-"""The v2 robot's circuit simulation in the twin (SimBackend(realism="datasheet") under CRAB_DESIGN=v2): the model is built from the
-layout, the sensors sit at their mounts, the servos run from the voltage at their own terminals, a brown-out resets the
-computer, and everything replays exactly. Design v2 needs its own process (tests/circuit_probe.py)."""
+"""The robot's circuit simulation in the twin (SimBackend(realism="datasheet")): the model is built from the layout, the
+sensors sit at their mounts, the servos run from the voltage at their own terminals, a brown-out resets the computer, and
+everything replays exactly. The measurements are taken once, in this process (tests/circuit_probe.py)."""
 
-import json
-import os
-import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 _CACHE = {}
 
 
 def probe():
     if "r" not in _CACHE:
-        env = dict(os.environ, CRAB_DESIGN="v2")
-        p = subprocess.run([sys.executable, str(ROOT / "tests" / "circuit_probe.py")], env=env, capture_output=True,
-                           text=True, cwd=str(ROOT), timeout=900)
-        line = [ln for ln in p.stdout.splitlines() if ln.startswith("PROBE")]
-        assert line, f"the circuit probe failed:\n{p.stdout[-1500:]}\n{p.stderr[-2500:]}"
-        _CACHE["r"] = json.loads(line[0][5:])
+        from circuit_probe import measure
+        _CACHE["r"] = measure()
     return _CACHE["r"]
 
 
@@ -62,7 +55,7 @@ def test_standing_on_the_circuit_model_numbers():
     assert 0.8 < s["i_mean"] < 1.6 and s["v_servo_min"] > 7.8 and not s["fuse_blown"] and s["resets"] == 0
     assert abs(r["ina"][1] - r["i_pack"]) < 0.06                                 # the INA219 reads the shunt current
     assert abs(r["ina"][0] - 8.3) < 0.2
-    legs, arms = r["v_servo_report"][:12], r["v_servo_report"][12:]               # style B: the six arm servos (STS3032 placeholder) report too, from rail B
+    legs, arms = r["v_servo_report"][:12], r["v_servo_report"][12:]               # the six arm servos (STS3032) report rail B
     assert all(7.8 < v < 8.5 for v in legs) and len(legs) == 12 and len(arms) == 6 and all(4.5 < v < 5.5 for v in arms)
     assert r["grav"][2] < -0.99                                                  # the IMU, in body axes, feels gravity down
 
@@ -93,7 +86,7 @@ def test_the_twin_restarts_the_mind_from_memory_after_a_brown_out():
     from pinch.twin import PinchSim
     sim = PinchSim(memory=Memory(path=None), seed=1)
     old_mind, mem = sim.mind, sim.mind.memory
-    sim.hw.circuit = SimpleNamespace(restarts=0, computer_up=True)      # a stand-in for the circuit of design v2
+    sim.hw.circuit = SimpleNamespace(restarts=0, computer_up=True)      # a stand-in for the circuit
     try:
         assert sim._computer_down() is False and sim.mind is old_mind        # nothing happened
         sim.hw.circuit.computer_up = False

@@ -18,7 +18,7 @@ and the instant keyword rules otherwise.
 
 Hardware hiccups (a NACK on I2C, a garbled servo reply) are counted and ridden out (stats["errors"]);
 only a fault that persists becomes a safety stop. `systemctl stop` (SIGTERM) sits Pinch down, turns the
-servos and the arm pulses off and saves its memory; the memory is also saved every minute.
+servos' torque off and saves its memory; the memory is also saved every minute.
 
 The code lives in robot/firmware/ (the firmware), robot/localizer.py and robot/http_api.py; this file is
 the entry point systemd runs.

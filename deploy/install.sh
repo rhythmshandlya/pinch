@@ -12,7 +12,8 @@ apt-get install -y python3-venv python3-libgpiod alsa-utils i2c-tools      # (no
 
 echo "== code -> $DEST"
 mkdir -p "$DEST"
-cp -r crab pinch robot policies sim "$DEST"/
+# configs/: crab/params.py and the mind read their .toml files when they start
+cp -r crab pinch robot policies sim configs "$DEST"/
 rm -f "$DEST/robot/calibration.json"                 # calibration lives in /var/lib/pinch, never in the code folder
 python3 -m venv --system-site-packages "$DEST/venv"
 "$DEST/venv/bin/pip" install --quiet numpy pyserial smbus2 pillow mujoco "opencv-python-headless>=4.8,<5"   # aarch64 wheels; ArucoDetector needs >= 4.7, OpenCV 5 drops CascadeClassifier
@@ -46,7 +47,6 @@ i2cdetect -y 3 || true          # expect 0x28 (IMU), 0x40 (battery), 0x5A (touch
 i2cdetect -y 5 || true          # cliff sensors: 0x29 after a power-up (all five wake there), 0x29-0x33 once the
                                 # firmware has run; nothing at all: check I2C5-M0 in rsetup and the wiring
 i2cdetect -y 4 || true          # expect 0x3C (face screen)
-ls /sys/class/pwm/ || true      # expect six pwmchipN (arm servos)
 aplay -l | grep -i crab || echo "  ! crab-audio card not found: install hardware/radxa/crab-audio.dts in rsetup"
 
 echo "== service"
@@ -55,6 +55,6 @@ systemctl daemon-reload
 systemctl enable pinch.service
 echo "Done. Calibrate first, with the firmware's own Python (it saves /var/lib/pinch/calibration.json;"
 echo "the firmware refuses to start without it):"
-echo "    sudo $DEST/venv/bin/python $DEST/robot/calibrate.py                    (then --check-directions, --trim-arms)"
+echo "    sudo $DEST/venv/bin/python $DEST/robot/calibrate.py                    (then --check-directions)"
 echo "    sudo $DEST/venv/bin/python $DEST/robot/calibrate_camera.py             (the fisheye camera, with the printed checkerboard)"
 echo "then: sudo systemctl start pinch    (logs: journalctl -u pinch -f;  status: curl localhost:8080/status)"

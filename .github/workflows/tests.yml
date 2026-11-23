@@ -35,7 +35,7 @@ jobs:
       - run: ruff check .
       - name: Tests
         run: xvfb-run -a -s "-screen 0 1280x1024x24" python tests/run.py
-      - name: Robot self-test (emulated bus, PWM and sensors)
+      - name: Robot self-test (emulated servo bus and sensors)
         run: xvfb-run -a -s "-screen 0 1280x1024x24" python robot/selftest.py
       - name: Robot firmware test (emulated hardware, camera pipeline)
         run: xvfb-run -a -s "-screen 0 1280x1024x24" python robot/firmware_test.py

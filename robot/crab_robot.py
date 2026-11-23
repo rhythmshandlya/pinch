@@ -18,7 +18,7 @@ import numpy as np
 from crab.emotes import EMOTES, STAND
 from crab.gait import GAITS, Gait
 from crab.kinematics import arms_clear
-from crab.params import JOINT_NAMES, JOINT_SPECS, PARAMS
+from crab.params import JOINT_NAMES, JOINT_SPECS, PARAMS, servo_for
 from robot.servos import SERVO_IDS, Calibration
 
 log = logging.getLogger("crab")
@@ -27,10 +27,12 @@ DT = 0.02                                   # 50 Hz control loop
 MAX_STEP = np.array([s.max_cmd_speed for s in JOINT_SPECS]) * DT     # per-joint max target change per tick
 # Two independent low-power checks:
 #  * the 2S pack itself (INA219 battery monitor): warn at 3.4 V/cell, stop at 3.2 V/cell under load
-#  * the servo bus: the servos sit behind the 5 V regulator and report the *bus* voltage; if it
-#    sags, the regulator has dropped out (empty pack, or a fault) and the robot must stop
+#  * the servo supplies: every servo reports the voltage at its own terminals, measured against the supply it runs on
+#    (legs: the 7.4 V servo rail; arms: the 5 V rail B). A sag means a rail has dropped out (empty pack, a regulator
+#    or wiring fault) and the robot must stop
 BATT_WARN, BATT_STOP = PARAMS.battery_warn, PARAMS.battery_stop
-V_WARN, V_STOP = 0.95 * PARAMS.bus_voltage, 0.92 * PARAMS.bus_voltage
+V_NOMINAL = {SERVO_IDS[j]: servo_for(j).vin for j in JOINT_NAMES}     # servo ID -> the supply it runs on, V
+V_WARN, V_STOP = 0.95, 0.92                 # fractions of each servo's own supply
 TEMP_STOP = 65.0                            # C
 ARM_L = [JOINT_NAMES.index(f"L_{j}") for j in ("shoulder_yaw", "shoulder_pitch")]
 ARM_R = [JOINT_NAMES.index(f"R_{j}") for j in ("shoulder_yaw", "shoulder_pitch")]
@@ -89,14 +91,9 @@ class Crab:
         return self._state
 
     def read_joints(self):
-        """Joint angles: measured for the bus servos; the PWM arm servos can't report, so for
-        them it's where they were last sent (q_cmd)."""
+        """Joint angles, as every servo measures them."""
         st = self.state()
-        q = self.q_cmd.copy()
-        for i, j in enumerate(JOINT_NAMES):
-            s = st[SERVO_IDS[j]]
-            if s.feedback:
-                q[i] = self.cal.servo_to_joint(j, s.position)
+        q = np.array([self.cal.servo_to_joint(j, st[SERVO_IDS[j]].position) for j in JOINT_NAMES])
         return q, st
 
     def _send(self, q):
@@ -179,23 +176,22 @@ class Crab:
         if int(round(self.t / DT)) % 10:                   # every 0.2 s is plenty
             return
         _, st = self.read_joints()
-        self.servo_temp = {JOINT_NAMES[i]: float(st[SERVO_IDS[j]].temperature) for i, j in enumerate(JOINT_NAMES)
-                           if st[SERVO_IDS[j]].feedback}       # C, what each bus servo reports (the mind reads it)
-        st = [s for s in st.values() if s.feedback]          # only bus servos report volts and heat
-        volts = min(s.voltage for s in st)
-        temp = max(s.temperature for s in st)
+        self.servo_temp = {j: float(st[SERVO_IDS[j]].temperature) for j in JOINT_NAMES}   # C (the mind reads it)
+        low = min(st, key=lambda i: st[i].voltage / V_NOMINAL[i])     # the servo furthest below its own supply
+        volts, frac = st[low].voltage, st[low].voltage / V_NOMINAL[low]
+        temp = max(s.temperature for s in st.values())
         batt = self.hw.battery_voltage() if hasattr(self.hw, "battery_voltage") else None
         if temp > TEMP_STOP:
             self.emergency_stop(f"servo temperature {temp:.0f} C", "temperature")
         pack_low = batt is not None and batt < BATT_STOP
-        if volts < V_STOP or pack_low:
+        if frac < V_STOP or pack_low:
             self.low_v_since = self.low_v_since or self.t
             if self.t - self.low_v_since > 1.0:          # ignore brief sags while a leg pushes off
                 self.emergency_stop(f"battery {batt:.2f} V" if pack_low else f"servo bus {volts:.2f} V",
                                     "battery" if pack_low else "bus_voltage")
         else:
             self.low_v_since = None
-            if volts < V_WARN or (batt is not None and batt < BATT_WARN):
+            if frac < V_WARN or (batt is not None and batt < BATT_WARN):
                 log.warning("battery low (pack %s V, bus %.2f V) - finish up and recharge",
                             "?" if batt is None else f"{batt:.2f}", volts)
 
@@ -252,7 +248,7 @@ class Crab:
 
     def shutdown(self):
         """Sit down gently, then release the servos. After a safety stop it doesn't move at all (and so
-        never re-enables the arm servos' pulses): it only makes sure torque is off."""
+        never re-enables torque): it only makes sure torque is off."""
         try:
             if not self.stopped:
                 self.move_to(REST, 1.5)

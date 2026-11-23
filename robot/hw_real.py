@@ -1,5 +1,5 @@
 """The real robot's hardware for the firmware (Radxa ZERO 3W). See hardware/ASSEMBLY.md stage 1 for the
-overlays this needs (I2C3-M0, I2C4-M0, the six PWMs, the camera, crab-audio).
+overlays this needs (I2C3-M0, I2C4-M0, I2C5-M0, the camera, crab-audio; no PWM: every servo is on the bus).
 
 Each I2C device gets its own bus handle: smbus2 sets the device address and then talks to it in two
 separate system calls, so two threads sharing one handle (the cliff thread and the touch reads) could

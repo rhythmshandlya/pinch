@@ -1,12 +1,13 @@
 """Prepare ONE new servo at a time, before it goes into the robot.
 
     python robot/setup_servo.py --id 2                 # real servo on the Waveshare bus servo adapter (COM3 / /dev/ttyUSB0)
-                                                       # (leg servos, IDs 1-12; arm servos need no setup)
+                                                       # (all 18: legs IDs 1-12, arms IDs 13-18)
     python robot/setup_servo.py --id 2 --rehearse      # same steps against an emulated new servo
 
-1. Connect only this servo to the Waveshare bus servo adapter (new servos are all ID 1). An arm servo (STS3032)
-   runs from the 5 V regulator, never from the 2S pack.
-2. The script sets its ID, writes the settings below, and moves it to the centre
+1. Connect only this servo to the Waveshare bus servo adapter (new servos are all ID 1). A leg servo (STS3215)
+   runs from the 2S pack (6.4-8.4 V); an arm servo (STS3032) runs from the 5 V regulator, NEVER from the pack.
+2. The script sets its ID, writes the settings below (its voltage limits, and for an arm servo its torque limit),
+   and moves it to the centre
    position (0 rad). Keep it powered while you fit the horn and link in the "straight"
    calibration orientation, so offsets stay small.
 3. Put a sticker with the ID on the servo.
@@ -37,9 +38,28 @@ CLAW_SETTINGS = {"overload_torque": 25}
 # read back from every servo and logged: the dead band feeds the simulator's servo model, the protection values tell
 # whether a leg can lose torque in a long hard hold (the get-up)
 REPORT = ("cw_dead_zone", "ccw_dead_zone", "overload_torque", "protection_time", "protective_torque")
-# max / min input voltage, 0.1 V units. The bus is a regulated 5 V; the STS3032 is rated 4.8-6 V, so a
-# reading above 6.5 V means a regulator fault and the servo should refuse rather than cook (hardware audit)
-VOLTAGE_LIMITS = {"sts3215": (65, 40), "scs0009": (65, 40)}
+# Max / min input voltage (registers 14 / 15, 0.1 V units), per servo, for the rail it runs on. Outside them the servo
+# cuts its torque and flags a voltage error; the firmware's own supply check (robot/crab_robot.py V_STOP, 92 % of the
+# rail) stops the robot first, so these only catch a real fault.
+#   legs, STS3215 (7.4 V part) straight on the 2S pack, 6.4 V (empty, firmware stop) to 8.4 V (full charge). Feetech
+#     rates it at 7.4 V (19.5 kg*cm @ 7.4 V, https://www.feetechrc.com/en/2020-05-13_56655.html); its factory limits are
+#     80 / 40 = 8.0 V / 4.0 V (STS memory table, register 14 "if set to 80 the maximum working voltage is limited to
+#     8.0 V", https://docs.rs/crate/st3215/latest/source/src/registers.rs; register 15 default 40 also in
+#     https://docs.waveshare.com/Memory_Map_Explanation/ST_Servo_Memory_Map_Explanation), so a fresh servo would refuse
+#     a fully charged pack. 8.6 V: just above a full 2S pack; 5.5 V: well under the firmware's stop.
+#   arms, STS3032 on the 5 V rail B: rated 4.8-6 V ("Operating Voltage Range: 4.8-6V",
+#     https://evelta.com/sts3032-6v-4-5kg-360deg-serial-bus-servo-motor). 6.0 V max: above it rail B has failed (the
+#     pack is 6.4-8.4 V), and the servo refuses rather than cooks; 4.5 V min, a little under the rated 4.8 V so that a
+#     brief sag on the wires does not drop an arm, still under the firmware's 4.6 V stop.
+VOLTAGE_LIMITS = {"STS3215M6": (86, 55), "STS3032T": (60, 45)}
+
+
+def voltage_limits(sid):
+    """(max, min) input voltage in 0.1 V for the servo that gets this ID (robot/servos.py SERVO_IDS)."""
+    joint = {v: k for k, v in SERVO_IDS.items()}.get(sid)
+    if joint is None:
+        raise SystemExit(f"ID {sid} is not one of the robot's servos (1-{len(SERVO_IDS)})")
+    return VOLTAGE_LIMITS[servo_for(joint).name]
 
 
 def setup(bus: FeetechBus, target_id: int, current_id: int = 1, log=print, torque_permille=None, claw=False):
@@ -57,7 +77,7 @@ def setup(bus: FeetechBus, target_id: int, current_id: int = 1, log=print, torqu
     bus.write(sid, "lock", 0)
     for reg, val in {**SETTINGS, **(CLAW_SETTINGS if claw else {})}.items():
         bus.write(sid, reg, val)
-    vmax, vmin = VOLTAGE_LIMITS[bus.m.name]
+    vmax, vmin = voltage_limits(sid)
     bus.write(sid, "max_voltage", vmax)
     bus.write(sid, "min_voltage", vmin)
     if torque_permille is not None:
@@ -88,12 +108,8 @@ def main():
     ap.add_argument("--rehearse", action="store_true", help="run against an emulated brand-new servo")
     a = ap.parse_args()
     from robot.backends import bus_models
-    from robot.servos import PWM_CHANNEL
     joint = {v: k for k, v in SERVO_IDS.items()}.get(a.id)
-    if joint in PWM_CHANNEL:
-        raise SystemExit(f"ID {a.id} is {joint}: a tiny PWM arm servo. It has no ID to set - plug it into "
-                         f"output {PWM_CHANNEL[joint]} of the PCA9685 board and use calibrate.py --trim-arms.")
-    model = bus_models().get(a.id, MODELS[PARAMS.servo.bus_model])     # legs: STS3032 (STS protocol)
+    model = bus_models().get(a.id, MODELS[PARAMS.servo.bus_model])     # every servo speaks the STS protocol
     print(f"servo ID {a.id}: {model.name} protocol")
     tl = None
     if joint and servo_for(joint).name == "STS3032T":                 # v2 arm servos: the 40 % torque limit
