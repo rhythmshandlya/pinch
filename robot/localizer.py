@@ -42,8 +42,24 @@ class Localizer:
         self.yaw += self.tracking * wz * dt
         self.drift += k * np.hypot(vx, vy) * dt
 
+    GATE_M, GATE_YAW = 0.05, 0.5             # a fix further than max(this, 3 sigma) / this many rad from the estimate ...
+    CONFIRM, AGREE_M = 3, 0.03               # ... is believed only once this many in a row agree within this (gating:
+    #                                          a far, small marker has a second, mirrored pose solution that can jump the
+    #                                          estimate 30 cm; the robot then guards the wrong edge)
+
     def fix(self, pose, t, weight=0.6):
+        """A camera fix. Returns False when it was held back as an outlier (see GATE_M)."""
         x, y, yaw = pose
+        far = (np.hypot(x - self.x, y - self.y) > max(self.GATE_M, 3.0 * self.sigma())
+               or abs((yaw - self.yaw + np.pi) % (2 * np.pi) - np.pi) > self.GATE_YAW)
+        if far and self.fixes:
+            c = self._cands = [q for q in getattr(self, "_cands", []) if t - q[2] < 2.0] + [(x, y, t)]
+            agree = len(c) >= self.CONFIRM and all(np.hypot(q[0] - x, q[1] - y) < self.AGREE_M for q in c[-self.CONFIRM:])
+            if not agree:
+                self.rejected = getattr(self, "rejected", 0) + 1
+                return False
+            weight = 1.0                                     # (several fixes agree: it really is somewhere else)
+        self._cands = []
         self.x += weight * (x - self.x)
         self.y += weight * (y - self.y)
         self.yaw += weight * ((yaw - self.yaw + np.pi) % (2 * np.pi) - np.pi)
@@ -51,6 +67,7 @@ class Localizer:
         self.fixes += 1
         self.drift = 0.0
         self.meas, self.meas_t = (float(x), float(y)), t
+        return True
 
     FLOW_MAX = 0.1                           # m/s: faster than Pinch walks = a bad flow reading (a claw moving)
 

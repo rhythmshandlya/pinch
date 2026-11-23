@@ -160,7 +160,7 @@ def build_desk_model(desk: Desk = None, objects=OBJECTS, start=START, extras=())
     return m
 
 
-MARKER_ID, MARKER_M, MARKER_PX = 7, 0.040, 240     # ArUco 4x4 #7, 40 mm (30 mm black), on the tray tab
+MARKER_ID, MARKER_M, MARKER_PX = 7, 0.060, 240     # ArUco 4x4 #7, 60 mm (45 mm black), on the tray tab (robot/vision.py)
 EYE_FOVY = 80.0
 
 

@@ -35,7 +35,7 @@ from robot.localizer import Localizer  # noqa: F401
 
 
 class FirmwareCore:
-    def __init__(self, hw, llm=True, memory_path=None, record_dir=None, mind_seed=None):
+    def __init__(self, hw, llm=True, memory_path=None, record_dir=None, mind_seed=None, clock=None):
         self.hw = hw
         self.desk = hw.desk if hasattr(hw, "desk") else Desk()
         self.crab = Crab(hw.backend, calibration=hw.calibration if hasattr(hw, "calibration") else Calibration.load())
@@ -47,7 +47,7 @@ class FirmwareCore:
             import secrets
             mind_seed = secrets.randbits(31)
         self.mind_seed = mind_seed
-        self.mind = Mind(memory=memory, llm=llm, seed=mind_seed)
+        self.mind = Mind(memory=memory, llm=llm, seed=mind_seed, clock=clock)   # clock: wall time unless a test fixes it
         self.mind._say("boot", f"mind seed {mind_seed}")
         if getattr(memory, "path", None):                    # why it did what it did, next to its memory
             self.mind.decision_log_path = str(Path(memory.path).parent / "decisions.jsonl")

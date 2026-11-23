@@ -39,6 +39,16 @@ from robot.pinch_main import PinchFirmware, serve  # noqa: E402
 results = []
 
 
+# the self-test runs at 13:00 today, whenever it is started: Pinch's day (asleep at night, quiet hours) would
+# otherwise change what it does, and with it what the checks see
+_NOON = time.mktime(time.localtime()[:3] + (13, 0, 0, 0, 0, -1))
+_OFFSET = _NOON - time.time()
+
+
+def CLOCK():
+    return time.time() + _OFFSET
+
+
 def check(name, ok, detail=""):
     results.append(ok)
     print(f"  [{'PASS' if ok else 'FAIL'}] {name}" + (f"  ({detail})" if detail else ""), flush=True)
@@ -54,7 +64,7 @@ def main():
     print("Pinch firmware self-test (emulated hardware)")
     # Pinch starts turned a little toward the tray, so its claws don't hide the marker from the camera
     hw = EmulatedHardware(start=START, pose=(0.0, 0.0, 0.4))
-    fw = PinchFirmware(hw, llm=False, memory_path=False)
+    fw = PinchFirmware(hw, llm=False, memory_path=False, clock=CLOCK)
     port = 18080
     srv = serve(fw, port)
     fw.crab.start()
@@ -94,7 +104,7 @@ def main():
     check("touch pads (MPR121 driver): a stroke -> purr", "purr" in fw.stats["sounds"][n:],
           f"sounds {fw.stats['sounds'][n:]}")
 
-    h = time.localtime().tm_hour                      # quiet hours around now, set over HTTP, then cleared
+    h = time.localtime(CLOCK()).tm_hour               # quiet hours around now, set over HTTP, then cleared
     post(port, "/quiet_hours", {"start": (h - 1) % 24, "end": (h + 2) % 24})
     run(1.0)
     st = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=5).read())
@@ -155,14 +165,14 @@ def main():
     return 0 if all(results) else 1
 
 
-START = {"pen": (-0.18, -0.02, 0.6), "eraser": (0.10, -0.12, 0.3), "cap": (-0.12, 0.13, 0.0),
-         "ball": (0.16, 0.0, 0.0)}                                         # the ball in front of Pinch
+START = {"pen": (-0.22, -0.16, 0.6), "eraser": (0.25, -0.18, 0.3), "cap": (-0.18, 0.20, 0.0),
+         "ball": (0.28, 0.0, 0.0)}                     # clear of the v2.1 legs; the ball in front of Pinch
 
 
 def quiet_firmware(pose=(0.0, 0.0, 0.4), memory_path=False):
     """A firmware whose mind doesn't move the body: the test drives it."""
     hw = EmulatedHardware(start=START, pose=pose)
-    fw = PinchFirmware(hw, llm=False, memory_path=memory_path)
+    fw = PinchFirmware(hw, llm=False, memory_path=memory_path, clock=CLOCK)
     fw.autonomous = False
     fw.crab.start()
     return hw, fw
@@ -307,7 +317,7 @@ def reflexes_and_errors():
 
     # an empty pack: safety stop, a beep, the computer shuts down (or the Radxa drains the cells)
     hw5 = EmulatedHardware(start=START, pose=(0.0, 0.0, 0.4))
-    fw5 = PinchFirmware(hw5, llm=False, memory_path=False)
+    fw5 = PinchFirmware(hw5, llm=False, memory_path=False, clock=CLOCK)
     hw5.backend.battery = 6.2
     fw5.run(seconds=30, realtime=False)
     check("battery empty -> safety stop, low-battery beep, computer powered off",
@@ -363,7 +373,7 @@ def stuck_from_measured_motion():
 
     # the edge guard keeps the uncertainty further from the edge
     hw2, fw2 = quiet_firmware(pose=(0.0, 0.0, 0.0))
-    fw2.loc.x, fw2.loc.drift = fw2.desk.half_x - 0.11, 0.0       # (front feet ~6 cm from the edge)
+    fw2.loc.x, fw2.loc.drift = fw2.desk.half_x - max(f[0] for f in fw2.desk.FEET) - 0.06, 0.0   # (front feet 6 cm from the edge)
     a = fw2.body._edge_guard((0.04, 0.0, 0.0))
     fw2.loc.drift = 0.06
     b = fw2.body._edge_guard((0.04, 0.0, 0.0))
@@ -433,7 +443,7 @@ def sigterm_and_memory():
     with tempfile.TemporaryDirectory() as tmp:
         mem = Path(tmp) / "memory.json"
         hw = EmulatedHardware(start=START, pose=(0.0, 0.0, 0.4))
-        fw = PinchFirmware(hw, llm=False, memory_path=mem)
+        fw = PinchFirmware(hw, llm=False, memory_path=mem, clock=CLOCK)
         fw.mind.memory.remember("test", "the firmware test was here")
         timer = threading.Timer(4.0, signal.raise_signal, [signal.SIGTERM])
         timer.start()

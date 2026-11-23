@@ -25,7 +25,11 @@ import numpy as np
 CAMERA_FILE = Path(__file__).resolve().parent / "camera.json"
 INTRINSICS_FILE = Path(os.environ.get("PINCH_CAMERA_INTRINSICS", "/var/lib/pinch/camera_intrinsics.json"))
 MARKER_ID = 7
-MARKER_TAB_M = 0.040                    # printed marker incl. its white border (sim/desk.py MARKER_M)
+from crab.params import PARAMS as _P  # noqa: E402
+
+STAND_Z = _P.stand_body_z                 # m: the body above the desk when standing (crab/params.py)
+MARKER_TAB_M = 0.060                    # printed marker incl. its white border (sim/desk.py MARKER_M): 60 mm, so it
+                                        # still spans enough pixels from across the 1.2 m desk (40 mm: 24-34 mm pose error)
 MARKER_BLACK_M = MARKER_TAB_M * 0.75    # the black square ArUco measures
 COLOURS = {                      # HSV ranges (OpenCV: H 0..180)
     "pen": [((100, 120, 60), (125, 255, 255))],
@@ -104,12 +108,13 @@ class Camera:
         d = np.linalg.solve(self.K, np.array([u, v, 1.0]))
         return self.R @ (d / np.linalg.norm(d))
 
-    def to_desk(self, u, v, pose, z=0.0, body_z=0.045, body_R=None):
+    def to_desk(self, u, v, pose, z=0.0, body_z=None, body_R=None):
         """Pixel -> point on the plane at height z, in the desk frame. pose = (x, y, yaw) of the body;
         body_R: the body's full orientation (from the IMU) if it's tilted."""
         x, y, yaw = pose
         R = body_R if body_R is not None else np.array([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0],
                                                          [0, 0, 1.0]])
+        body_z = STAND_Z if body_z is None else body_z
         o = np.array([x, y, body_z]) + R @ self.pos
         r = R @ self.ray_body(u, v)
         if r[2] > -1e-3:
@@ -162,7 +167,7 @@ class Vision:
         p_body = p_cam - Rz @ self.cam.pos
         return float(p_body[0]), float(p_body[1]), yaw
 
-    def things(self, bgr, pose, body_z=0.045):
+    def things(self, bgr, pose, body_z=None):
         """Desk things by colour: {name: (x, y) on the desk}."""
         hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
         out = {}
