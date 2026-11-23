@@ -572,7 +572,9 @@ def _stuck(ev, sm):
 
 
 GRASP_CAUSES = (       # body trace -> why a pick failed (pinch/body/manipulation.py traces)
-    ("pick_unreachable", lambda kw: "too near the desk edge to stand and reach it"),
+    ("pick_unreachable", lambda kw: "too near the desk edge to stand and reach it" if kw.get("why") != "blocked"
+     else "the only spots to stand and reach it were blocked"),
+    ("pick_blocked", lambda kw: "something was in the way of the spot to stand"),
     ("unreachable", lambda kw: "it couldn't line up with it (no room)"),
     ("lineup_failed", lambda kw: "it couldn't line up with it"),
     ("pick_at", lambda kw: None if kw.get("ok") else f"didn't reach the grab spot ({1000 * kw.get('err', 0):.0f} mm off)"),

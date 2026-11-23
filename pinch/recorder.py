@@ -381,9 +381,10 @@ class SessionRecorder:
         if kind == "push":
             ob = mind.world.objects.get(val)
             return float(math.dist(ob.xy, self.goal[2])) if ob is not None else np.nan
-        if kind == "obj":
+        if kind == "obj":                                   # a pick walks to a stance from which the claw reaches,
+            nav = getattr(body, "nav_goal", None) or getattr(body, "step_goal", None)   # not onto the thing
             ob = mind.world.objects.get(val)
-            val = ob.xy if ob is not None else None
+            val = nav if nav is not None else (ob.xy if ob is not None else None)
         return float(math.dist(pose[:2], val[:2])) if val is not None else np.nan
 
     @staticmethod

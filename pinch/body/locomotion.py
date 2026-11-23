@@ -24,6 +24,10 @@ MOTION = _load_settings("expression")["motion"]
 
 
 class Locomotion:
+    nav_goal = None                                         # (x, y) the walk under way is heading for, else None
+    step_goal = None                                        # (x, y) where the whole step needs it (a pick: its stance)
+    blocked = False                                         # the last walk gave up: no progress (see NO_PROGRESS_S)
+    NO_PROGRESS_S = 4.0       # a walk that gets no nearer (by 1 cm) for this long gives up: blocked (edge, tray, a leg)
     FEET_EDGE = 0.02          # m: no walking or turning that brings a foot closer than this to the desk edge
                               # (the gait swings each foot ~2 cm, and the desk position is good to ~1 cm)
 
@@ -119,7 +123,10 @@ class Locomotion:
             self.trace("goto_fitted", asked=tuple(np.round(xy, 3)), to=tuple(np.round(fitted, 3)))
             xy = fitted
         settle_n = 0
+        self.blocked = False
+        best_d, best_k = float("inf"), 0                    # progress watchdog (ROS move_base: planner patience)
         tempo = self.walk_tempo()
+        self.nav_goal = (float(xy[0]), float(xy[1]))         # where it is walking right now (the recorder's goal)
         for k in range(int(timeout / DT)):
             if self.held and self.grip_fn is not None and k % 10 == 0 and not self.grip_fn(*self.held):
                 self.trace("lost_hold", obj=self.held[0])         # it slipped out on the way: say so, and stop
@@ -130,6 +137,12 @@ class Locomotion:
             dx, dy = xy[0] - x, xy[1] - y
             dist = np.hypot(dx, dy)
             herr = 0.0 if heading is None else _wrap(heading - h)
+            if dist < best_d - 0.01:
+                best_d, best_k = dist, k
+            elif dist > tol and k - best_k > int(self.NO_PROGRESS_S / DT):   # walking, getting no nearer
+                self.trace("goto_no_progress", to=tuple(np.round(xy, 3)), d=round(float(dist), 3))
+                self.blocked = True
+                break
             if dist < tol and abs(herr) < htol:
                 settle_n += 1
                 if settle_n > 3:
@@ -151,6 +164,7 @@ class Locomotion:
             if abs(herr) < htol * 0.7 and dist < tol:
                 wz = 0.0
             yield self._gait_q((float(v[0]), float(v[1]), wz), self._arms())
+        self.nav_goal = None
         yield from self._settle()
         x, y, h = self.pose_fn()
         ok = np.hypot(xy[0] - x, xy[1] - y) < tol * 1.6 and (heading is None or abs(_wrap(heading - h)) < 0.3)

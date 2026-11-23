@@ -105,18 +105,33 @@ class Explore(Activity):
         return 0.65 * max(0.0, m.affect.needs.curiosity - 0.35) * (1 - m.affect.needs.sleep) * (1 - m.hunger())
 
     def run(self, m):
+        """A bout, not a single hop: one to three spots by how curious it is, a pause at each to take it in (a look
+        here and there, now and then a look-around), ending early once the curiosity is spent (animal
+        exploration comes in bouts of several stops; the rhythm bench measured one-hop explores at ~8 s)."""
         d = m.world.desk
-        for _ in range(8):                                    # somewhere it isn't afraid of
-            target = d.clamp((m.rng.uniform(-d.half_x, d.half_x), m.rng.uniform(-d.half_y, d.half_y)), 0.1)
-            if m.danger(target) < 0.15:
-                break
-        else:                                                 # everywhere it drew is scary: look near home instead
-            target = m.memory.home_of("pinch") or d.home_xy
+        stops = 1 + min(2, int(2.5 * max(0.0, m.affect.needs.curiosity - 0.35) / 0.65 + 0.5))
+        last = m.world.pose[:2]
         yield ("face", "curious")
-        yield ("phase", "go_look")
-        yield ("goto", target, 0.05)
-        yield ("emote", "look_around")
-        m.affect.feel("novelty", 0.6)
+        for k in range(stops):
+            for _ in range(8):                                # somewhere it isn't afraid of, not where it just was
+                target = d.clamp((m.rng.uniform(-d.half_x, d.half_x), m.rng.uniform(-d.half_y, d.half_y)), 0.1)
+                if m.danger(target) < 0.15 and math.dist(target, last) > 0.08:
+                    break
+            else:                                             # everywhere it drew is scary: look near home instead
+                target = m.memory.home_of("pinch") or d.home_xy
+            yield ("phase", "go_look")
+            yield ("goto", target, 0.05)
+            last = target
+            yield ("phase", "take_in")
+            x, y, h = m.world.pose
+            for side in ((-1, 1) if m.rng.random() < 0.5 else (1, -1)):
+                yield ("look_at", (x + 0.2 * math.cos(h + 0.6 * side), y + 0.2 * math.sin(h + 0.6 * side)))
+                yield ("wait", 0.8 + 1.2 * m.rng.random())
+            if k == stops - 1 or m.rng.random() < 0.4:
+                yield ("emote", "look_around")
+            m.affect.feel("novelty", 0.6 / stops)
+            if m.affect.needs.curiosity < 0.3:
+                break
 
 
 class Quirk(Activity):

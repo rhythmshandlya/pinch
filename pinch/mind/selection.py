@@ -229,6 +229,8 @@ class Selection:
             return None
         if self.waiting_motion:
             if body_busy:
+                if self._motion_kind in ("pick", "drop") and self.gaze_target_xy is not None:
+                    self.gaze_set_t = self.t                 # eyes stay on the thing / the spot the whole time
                 return None
             self.waiting_motion = False
             self.last_step_ok = body_ok
@@ -328,7 +330,10 @@ class Selection:
         if kind == "emote" and len(step) > 1 and not getattr(self.activity, "exact_emotes", False):
             step = self._vary_emote(step)                   # (a trick asked for by name plays as asked)
         if kind in ("pick", "drop"):
-            self.gaze = (0.0, 0.3)                       # (looks down at the claw's work)
+            goal = self._goal_xy(step)                   # watches the thing it picks up, or where it puts it down
+            if goal is not None:
+                self.gaze_target_xy, self.gaze_set_t = tuple(goal), self.t
+                self.gaze = self._gaze_to(goal)
         self.waiting_motion = True
         self._motion_kind = kind
         return step

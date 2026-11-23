@@ -130,6 +130,7 @@ class Manipulation:
     def _pick(self, name, timeout=60.0):
         """Line a claw up with the thing (a pen lies along the finger), reach down, close, lift."""
         t_end = self.t + timeout
+        failed = []                                      # stances it couldn't reach: the next try picks another
         for _attempt in range(3):
             if self.t > t_end:
                 break
@@ -172,11 +173,16 @@ class Manipulation:
                         cost = ((100.0 if room < 0 else 0.0) + 3 * max(0.0, 0.03 - room) / 0.03
                                 + self._bystander_cost(st, hd, exclude=(name,), arm_tip=tp)
                                 + np.hypot(st[0] - x, st[1] - y) / 0.10 + 0.3 * abs(_wrap(hd - h)) + 0.3 * si
-                                + abs(yw - 0.12))
+                                + abs(yw - 0.12)
+                                + sum(50.0 for f in failed if np.hypot(st[0] - f[0], st[1] - f[1]) < 0.03))
                         if best is None or cost < best[0]:
                             best = (cost, sd, rq, tp, hd, st, g)
             _, side, reach, tip, heading, stand_xy, grab = best
+            if any(np.hypot(stand_xy[0] - f[0], stand_xy[1] - f[1]) < 0.03 for f in failed):
+                self.trace("pick_unreachable", why="blocked")      # the only good spot is one it couldn't reach
+                return False                                       # (no path planning yet: ARC-007, phase 10)
             self._use_claw(side)                         # the other claw goes back to ambient life
+            self.step_goal = (float(stand_xy[0]), float(stand_xy[1]))   # (where it must stand: the recorder's goal)
             self.trace("pick_plan", side=side, tip=tuple(np.round(tip, 3)), stand=tuple(np.round(stand_xy, 3)),
                        heading=round(float(heading), 2), obj=(round(ox, 3), round(oy, 3), round(oyaw, 2)))
             fwd = np.array((np.cos(heading), np.sin(heading)))
@@ -191,6 +197,10 @@ class Manipulation:
             if self.desk.edge_distance(pre) >= 0.066:                # (no room for it near an edge: walk straight in)
                 yield from self._detour((x, y), pre, (ox, oy), clear=0.12, half=half, yaw=oyaw)
                 yield from self._goto(pre, tol=0.015, heading=heading, timeout=30.0, slow=0.8, htol=0.08)
+                if self.blocked:                                  # couldn't even get near: try another stance
+                    failed.append((float(stand_xy[0]), float(stand_xy[1])))
+                    self.trace("pick_blocked", stand=tuple(np.round(stand_xy, 3)))
+                    continue
             else:
                 yield from self._detour((x, y), stand_xy, (ox, oy), clear=0.12, half=half, yaw=oyaw)
             ok = yield from self._goto(stand_xy, tol=0.010, heading=heading, timeout=30.0, slow=0.6, htol=0.06)
@@ -198,6 +208,7 @@ class Manipulation:
             self.trace("pick_at", ok=ok, err=round(float(np.hypot(xx - stand_xy[0], yy - stand_xy[1])), 4),
                        herr=round(float(_wrap(heading - hh)), 3))
             if not ok:
+                failed.append((float(stand_xy[0]), float(stand_xy[1])))
                 continue
             yaw = yield from self._align(name, side, grab, reach)
             if abs(self.last_miss) > 0.004:
@@ -385,8 +396,8 @@ class Manipulation:
         if not self.held:                                    # it slipped out on the way (traced in _goto)
             return False
         yield from self._blend_to(reach, 0.8)
-        yield from self._blend_to(arm_pose(reach, side, claw=0.9), 0.4)
-        self.held = None
+        self.held = None                                     # (before opening: while held, every tick keeps the claw
+        yield from self._blend_to(arm_pose(reach, side, claw=0.9), 0.4)   # shut, and it snapped open after)
         yield from self._let_go(reach, side)
         self.hold = STAND.copy()
         o = self._obj(name)

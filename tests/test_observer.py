@@ -270,7 +270,7 @@ def test_realism_metrics():
 # Real problems this session shows today, which the observer must keep finding until they are fixed (then remove
 # them here): wedged against the tray for 20 s while lining up to pick the eraser, walking further from it, until a
 # foot goes over the edge (the owner saw it in the review videos, 2026-11-20; pinch/body/manipulation.py).
-KNOWN_PROBLEMS = {"stuck"}           # (a pick that gets no nearer to its goal; timing-dependent, under investigation)
+KNOWN_PROBLEMS = set()             # ("stuck" was here: a pick walking into a blocked stance; fixed in phase 4 part 3)
 
 
 def test_recorded_pet_life_has_few_findings():

@@ -79,6 +79,7 @@ class BodyCore:
         if make is None:
             self.busy, self.ok = False, False
             return
+        self.step_goal = None
         self.task = make(*args)
         self.busy, self.ok, self.status = True, True, kind
         self.claim = claim_for(kind, owner or kind, layer, self.t)

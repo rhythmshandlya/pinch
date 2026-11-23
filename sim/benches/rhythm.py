@@ -6,8 +6,9 @@ not random, and not wearing thin over days?
 
 The mind alone with a stand-in body (sim/benches/learning.py), its person around for two hours a day with a few
 words and touches at random moments. Measured on the sequence of activities:
-  flicker       share of its own switches that come back to the previous activity within 10 s (A -> B -> A;
-                a reaction to a touch, a word or a scare in between is not flicker)                    < 5 %
+  flicker       share of its own switches where it drops what it just started (cut short, not finished)
+                and goes straight back to what it was doing within 10 s (A -> B -> A; a reaction to a
+                touch, a word or a scare in between is not flicker, nor a short activity that finished) < 5 %
   dwell         median time in an activity it chose itself, s                                         20 - 90
   switches      activity switches per minute                                                           <= 3
   next_entropy  how unpredictable the next activity is given the current one, bits                    1.0 - 2.0
@@ -68,7 +69,8 @@ def run(seed, days):
             clock["t"] += DT
             a = m.activity.name if m.activity else "idle"
             if not seq or seq[-1][0] != a:
-                seq.append([a, m.t, m.t])
+                why = m.decisions[-1]["reason"] if m.decisions else ""
+                seq.append([a, m.t, m.t, why])
             seq[-1][2] = m.t
         out.append(seq)
     return out
@@ -92,7 +94,8 @@ def run_twin(seed, days, hours=1.0):
             sim.run(DT)
             a = m.activity.name if m.activity else "idle"
             if not seq or seq[-1][0] != a:
-                seq.append([a, sim.t, sim.t])
+                why = m.decisions[-1]["reason"] if m.decisions else ""
+                seq.append([a, sim.t, sim.t, why])
             seq[-1][2] = sim.t
         out.append(seq)
     return out
@@ -113,16 +116,17 @@ def measures(days):
     dwell, minutes, nxt, rep4, ent = [], 0.0, Counter(), [], []
     pair = Counter()
     for seq in days:
-        names = [a for a, _, _ in seq]
+        names = [r[0] for r in seq]
         minutes += (seq[-1][2] - seq[0][1]) / 60.0
         sw += len(seq) - 1
         for i in range(2, len(seq)):
             if _reactive(names[i - 1]) or _reactive(names[i - 2]):
                 continue
             own_sw += 1
-            if names[i] == names[i - 2] and seq[i - 1][2] - seq[i - 1][1] < 10.0:
-                flick += 1
-        dwell += [e - s for a, s, e in seq if not _reactive(a)]
+            cut_short = not str(seq[i][3]).startswith("previous activity finished")
+            if names[i] == names[i - 2] and seq[i - 1][2] - seq[i - 1][1] < 10.0 and cut_short:
+                flick += 1                                   # (B cut short and straight back: dithering)
+        dwell += [r[2] - r[1] for r in seq if not _reactive(r[0])]
         for i in range(1, len(seq)):
             pair[(names[i - 1], names[i])] += 1
             nxt[names[i - 1]] += 1
@@ -166,8 +170,8 @@ def main():
     if os.environ.get("BENCH_VERBOSE"):
         dw = Counter()
         for seq in all_days:
-            for nm, s, e in seq:
-                dw[nm] += e - s
+            for r_ in seq:
+                dw[r_[0]] += r_[2] - r_[1]
         tot = sum(dw.values())
         print({k: round(100 * v / tot, 1) for k, v in dw.most_common(12)})
     return 0 if ok else 1
