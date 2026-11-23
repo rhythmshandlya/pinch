@@ -37,18 +37,19 @@ def test_robot_spec_has_the_names_the_task_needs():
 
 
 def test_servo_numbers_are_the_models_own():
-    """The plain position actuators use today's numbers: they must equal what sim/models/crab.xml was built with."""
+    """The plain position actuators use today's numbers: they must equal what sim/models/crab_v2.xml was built with
+    (the model file writes them to 4-5 significant digits, hence the relative tolerance)."""
     m = mujoco.MjModel.from_xml_path(str(robot_spec.MODEL))
     for names, nums in ((layout.LEG_JOINT_NAMES, robot_spec.leg_servo_numbers()),
                         (layout.ARM_JOINT_NAMES, robot_spec.arm_servo_numbers())):
         for n in names:
             a = m.actuator(n)
-            assert abs(m.actuator_gainprm[a.id, 0] - nums["stiffness"]) < 1e-9, n
-            assert abs(m.actuator_forcerange[a.id, 1] - nums["effort_limit"]) < 1e-9, n
+            assert abs(m.actuator_gainprm[a.id, 0] - nums["stiffness"]) < 1e-3 * abs(nums["stiffness"]) + 1e-9, n
+            assert abs(m.actuator_forcerange[a.id, 1] - nums["effort_limit"]) < 1e-3 * abs(nums["effort_limit"]) + 1e-9, n
             j = m.joint(n)
-            assert abs(m.dof_armature[j.dofadr[0]] - nums["armature"]) < 1e-9, n
-            assert abs(m.dof_damping[j.dofadr[0]] - nums["viscous_damping"]) < 1e-6, n
-            assert abs(m.dof_frictionloss[j.dofadr[0]] - nums["frictionloss"]) < 1e-9, n
+            assert abs(m.dof_armature[j.dofadr[0]] - nums["armature"]) < 1e-3 * abs(nums["armature"]) + 1e-9, n
+            assert abs(m.dof_damping[j.dofadr[0]] - nums["viscous_damping"]) < 1e-3 * nums["viscous_damping"] + 1e-9, n
+            assert abs(m.dof_frictionloss[j.dofadr[0]] - nums["frictionloss"]) < 1e-3 * abs(nums["frictionloss"]) + 1e-9, n
 
 
 def test_stand_pose_is_the_projects():
@@ -58,7 +59,7 @@ def test_stand_pose_is_the_projects():
     d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, m.key("stand").id)
     for n in layout.LEG_JOINT_NAMES + layout.ARM_JOINT_NAMES:
-        assert abs(d.qpos[m.jnt_qposadr[m.joint(n).id]] - layout.STAND_POSE[n]) < 1e-9, n
+        assert abs(d.qpos[m.jnt_qposadr[m.joint(n).id]] - layout.STAND_POSE[n]) < 1e-3, n     # (the file writes 4 significant digits)
 
 
 def test_observation_layout_sizes_and_order():

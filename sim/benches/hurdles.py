@@ -133,11 +133,14 @@ def main():
     ap.add_argument("--policy", default="gait")
     ap.add_argument("--json", default=None, help="also write the results here")
     a = ap.parse_args()
+    ctrls = ["scripted"] + (["policy"] if (POLICY_DIR / f"{a.policy}.npz").exists() else [])
+    if "policy" not in ctrls:
+        print(f"no policies/{a.policy}.npz - the scripted trot only")
     jobs = []
     for kind, sizes in (("hurdle", HURDLES_MM), ("ramp", RAMPS_DEG)):
         for size in sizes:
             for way in ("forward", "sideways"):
-                for ctrl in ("scripted", "policy"):
+                for ctrl in ctrls:
                     for seed in (0, 1, 2):
                         jobs.append((kind, size, way, ctrl, seed, a.policy))
     res = run_parallel(case, jobs, 14)
@@ -149,7 +152,7 @@ def main():
         lines += [f"| {kind} | " + " | ".join(f"{s} {unit}" for s in sizes) + " |",
                   "|---|" + "---|" * len(sizes)]
         for way in ("forward", "sideways"):
-            for ctrl in ("scripted", "policy"):
+            for ctrl in ctrls:
                 cells = []
                 for s in sizes:
                     r = [x for x in res if x["kind"] == kind and x["size"] == s and x["way"] == way and x["ctrl"] == ctrl]
