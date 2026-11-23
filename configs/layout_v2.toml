@@ -136,7 +136,7 @@ size_source = "estimate"
 size_ref = "https://www.18650batterystore.com/products/samsung-25r-18650"
 mass_g = 100.0
 mass_source = "estimate"
-mass_ref = "https://www.18650batterystore.com/products/samsung-25r-18650"
+mass_ref = "https://www.18650batterystore.com/products/samsung-25r-18650"     # the seller's listing says 125 g (unconfirmed): weigh the pack from order 1
 why = "needs bench: two Samsung INR18650-25R cells side by side (18.33 mm x 64.85 mm, 43.5 g typical each, max 45 g, Samsung SDI spec sheet p.3 (https://www.akkuman.de/shop/mediafiles/PDF/18650%20Lithium/samsung%20inr18650-25r%2036v%202550mah%208c%2020a.pdf); the first draft said 43.8 g from a reseller) plus the BMS board folded on one end, the nickel strips and the wrap: the BOM's prebuilt pack was not measured"
 pos_mm = [-12, -35, -26]   # 172 mm shell: 2 mm up to stay inside the narrower floor
 connectors = [{name = "leads", side = "+x", reach_mm = 12.0, width_mm = 20.0}]
@@ -244,9 +244,9 @@ connectors = [{name = "usb_host", side = "-x", reach_mm = 14.0, width_mm = 10.0}
 
 [part.imu]
 kind = "sensor"
-size_mm = [20.0, 27.0, 4.0]
-size_source = "estimate"
-size_ref = "https://www.adafruit.com/product/2472"
+size_mm = [21.0, 27.0, 4.0]     # 7Semi BNO055 breakout, the board we buy (Evelta 004-ES-12149): 27 x 21 x 4 mm
+size_source = "datasheet"
+size_ref = "https://evelta.com/7semi-bno055-9-dof-absolute-orientation-sensor-breakout-i2c-qwiic/"
 mass_g = 3.0
 mass_source = "estimate"
 mass_ref = "https://www.adafruit.com/product/2472"
@@ -331,14 +331,14 @@ connectors = [{name = "qwiic", side = "-x", reach_mm = 8.0, width_mm = 8.0}]
 
 [part.tof_fl]
 kind = "sensor"
-size_mm = [25.0, 10.7, 3.5]
+size_mm = [25.0, 13.0, 3.5]    # room for the wider of the clone's published sizes (25 x 10 and 25 x 13 mm): measure the first board
 size_source = "estimate"
 size_ref = "hardware/BOM.md"
 mass_g = 1.4
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
-pos_mm = [51.91, 17.61, -45.24]
+pos_mm = [51.91, 17.61, -44.24]   # 1 mm up for the board's wider published size (was -45.24)
 rpy_deg = [130.76, -10.05, 101.44]
 wall_mounted = true
 window = {pos_mm = [-6.5, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
@@ -347,14 +347,14 @@ proud_mm = 3.5
 
 [part.tof_fr]
 kind = "sensor"
-size_mm = [25.0, 10.7, 3.5]
+size_mm = [25.0, 13.0, 3.5]    # room for the wider of the clone's published sizes (25 x 10 and 25 x 13 mm): measure the first board
 size_source = "estimate"
 size_ref = "hardware/BOM.md"
 mass_g = 1.4
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: GY-VL53L0XV2 board, 25 x 10.7 mm as the BOM row says (seller listing, not measured); about 1.4 g Pololu's genuine carrier for the same chip is 13 x 18 x 2 mm and 0.5 g (https://www.pololu.com/product/2490), smaller than this clone, whose seller prints no drawing."
-pos_mm = [51.91, -17.61, -45.24]
+pos_mm = [51.91, -17.61, -44.24]   # 1 mm up for the board's wider published size (was -45.24)
 rpy_deg = [-130.76, -10.05, -101.44]
 wall_mounted = true
 window = {pos_mm = [-6.5, 0.0, 1.75], dir = [0.0, 0.0, 1.0], cone_deg = 12.5, clear_mm = 300.0}
@@ -363,7 +363,7 @@ proud_mm = 3.5
 
 [part.tof_rear]
 kind = "sensor"
-size_mm = [25.0, 10.7, 3.5]
+size_mm = [25.0, 13.0, 3.5]    # room for the wider of the clone's published sizes (25 x 10 and 25 x 13 mm): measure the first board
 size_source = "estimate"
 size_ref = "hardware/BOM.md"
 mass_g = 1.4
@@ -379,7 +379,7 @@ proud_mm = 3.5
 
 [part.tof_left]
 kind = "sensor"
-size_mm = [25.0, 10.7, 3.5]
+size_mm = [25.0, 13.0, 3.5]    # room for the wider of the clone's published sizes (25 x 10 and 25 x 13 mm): measure the first board
 size_source = "estimate"
 size_ref = "hardware/BOM.md"
 mass_g = 1.4
@@ -397,7 +397,7 @@ proud_mm = 3.5
 
 [part.tof_right]
 kind = "sensor"
-size_mm = [25.0, 10.7, 3.5]
+size_mm = [25.0, 13.0, 3.5]    # room for the wider of the clone's published sizes (25 x 10 and 25 x 13 mm): measure the first board
 size_source = "estimate"
 size_ref = "hardware/BOM.md"
 mass_g = 1.4

@@ -300,7 +300,7 @@
       <camera name="track" mode="trackcom" pos="0.336 -0.4 0.24" xyaxes="0.7657 0.6432 -0 -0.2685 0.3197 0.9087"/>
       <camera name="eye_cam" pos="0.0611 0 -0.0195" xyaxes="0 -1 0 -0 0 1" fovy="102"/>
       <site name="imu" pos="-0.02 0 0.01" quat="1 0 0 0" size="0.0080" rgba="0 0 0 0"/>
-      <inertial pos="1.363897e-02 -3.287804e-03 2.106749e-02" mass="1.307625" fullinertia="6.387089e-03 5.185189e-03 4.618996e-03 -1.038607e-04 -1.131298e-03 -1.501757e-04"/>
+      <inertial pos="1.394637e-02 -3.339470e-03 2.107739e-02" mass="1.308145" fullinertia="6.387385e-03 5.180672e-03 4.615860e-03 -8.627162e-05 -1.131321e-03 -1.499973e-04"/>
         <geom class="visual" type="mesh" mesh="v2_body_tray" material="shell"/>
         <geom class="visual" type="mesh" mesh="v2_body_cover" material="shell"/>
         <geom class="visual" type="mesh" mesh="v2_body_battery_door" material="shell"/>
@@ -505,18 +505,18 @@
       <geom name="part_hub" class="visual" type="box" size="0.0275 0.018 0.007" pos="-0.0275 0.034 -0.023" quat="1 0 0 0" mass="0.024" rgba="0 0 0 0"/>
       <geom name="part_driver" class="visual" type="box" size="0.021 0.017 0.0075" pos="0.019 0.014 -0.0245" quat="0.7071 0 0 0.7071" mass="0.015" rgba="0 0 0 0"/>
       <geom name="part_radxa" class="visual" type="box" size="0.0325 0.016 0.0065" pos="0.002 -0.0005 -0.0065" quat="1 0 0 0" mass="0.0125" rgba="0 0 0 0"/>
-      <geom name="part_imu" class="visual" type="box" size="0.01 0.0135 0.002" pos="-0.02 0 0.01" quat="1 0 0 0" mass="0.003" rgba="0 0 0 0"/>
+      <geom name="part_imu" class="visual" type="box" size="0.0105 0.0135 0.002" pos="-0.02 0 0.01" quat="1 0 0 0" mass="0.003" rgba="0 0 0 0"/>
       <geom name="part_mpr121" class="visual" type="box" size="0.0105 0.009 0.0015" pos="0.016 -0.032 -0.008" quat="1 0 0 0" mass="0.002" rgba="0 0 0 0"/>
       <geom name="part_amp" class="visual" type="box" size="0.0097 0.0089 0.0015" pos="-0.038 0.04 0" quat="1 0 0 0" mass="0.0012" rgba="0 0 0 0"/>
       <geom name="part_radxa_heatsink" class="visual" type="box" size="0.007 0.007 0.003" pos="-0.0023 -0.0023 -0.0047" quat="1 0 0 0" mass="0.003" rgba="0 0 0 0"/>
       <geom name="part_camera" class="visual" type="box" size="0.0008 0.0125 0.012" pos="0.0483 0 -0.0195" quat="1 0 0 0" mass="0.004" rgba="0 0 0 0"/>
       <geom name="part_camera_lens" class="visual" type="box" size="0.006 0.0085 0.0085" pos="0.0551 0 -0.0195" quat="1 0 0 0" mass="0.006" rgba="0 0 0 0"/>
       <geom name="part_tof8" class="visual" type="box" size="0.002 0.0127 0.0127" pos="0.058 0 0.006" quat="1 0 0 0" mass="0.003" rgba="0 0 0 0"/>
-      <geom name="part_tof_fl" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0.05191 0.01761 -0.04524" quat="0.2011 0.6016 0.6779 0.3716" mass="0.0014" rgba="0 0 0 0"/>
-      <geom name="part_tof_fr" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0.05191 -0.01761 -0.04524" quat="0.2011 -0.6016 0.6779 -0.3716" mass="0.0014" rgba="0 0 0 0"/>
-      <geom name="part_tof_rear" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="-0.06652 0 -0.03207" quat="-0.2988 0.6409 0.6409 -0.2988" mass="0.0014" rgba="0 0 0 0"/>
-      <geom name="part_tof_left" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0 0.055 0.035" quat="-0.4695 0.8829 0 0" mass="0.0014" rgba="0 0 0 0"/>
-      <geom name="part_tof_right" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0 -0.055 0.035" quat="0.4695 0.8829 0 0" mass="0.0014" rgba="0 0 0 0"/>
+      <geom name="part_tof_fl" class="visual" type="box" size="0.0125 0.0065 0.00175" pos="0.05191 0.01761 -0.04424" quat="0.2011 0.6016 0.6779 0.3716" mass="0.0014" rgba="0 0 0 0"/>
+      <geom name="part_tof_fr" class="visual" type="box" size="0.0125 0.0065 0.00175" pos="0.05191 -0.01761 -0.04424" quat="0.2011 -0.6016 0.6779 -0.3716" mass="0.0014" rgba="0 0 0 0"/>
+      <geom name="part_tof_rear" class="visual" type="box" size="0.0125 0.0065 0.00175" pos="-0.06652 0 -0.03207" quat="-0.2988 0.6409 0.6409 -0.2988" mass="0.0014" rgba="0 0 0 0"/>
+      <geom name="part_tof_left" class="visual" type="box" size="0.0125 0.0065 0.00175" pos="0 0.055 0.035" quat="-0.4695 0.8829 0 0" mass="0.0014" rgba="0 0 0 0"/>
+      <geom name="part_tof_right" class="visual" type="box" size="0.0125 0.0065 0.00175" pos="0 -0.055 0.035" quat="0.4695 0.8829 0 0" mass="0.0014" rgba="0 0 0 0"/>
       <geom name="part_oled" class="visual" type="box" size="0.038 0.079 0.004" pos="0.04962 0 0.08889" quat="0.8194 0 0.5732 0" mass="0.3" rgba="0 0 0 0"/>
       <geom name="part_visor" class="visual" type="box" size="0.041 0.0825 0.005" pos="0.04962 0 0.08889" quat="0.8194 0 0.5732 0" mass="0.061" rgba="0 0 0 0"/>
       <geom name="part_mic_l" class="visual" type="box" size="0.008 0.0055 0.0015" pos="-0.00984 0.03459 0.04764" quat="0.9988 -0.04832 -0.009501 -0.0004597" mass="0.0015" rgba="0 0 0 0"/>
