@@ -276,7 +276,7 @@ Type each SKU into the store's search box and set the quantity. Rows marked UNVE
 
 ## 3D printed parts
 
-Upload the STL files from cad/out/print/ to robu.in's 3D printing service (https://robu.in/product/3d-printing-service1/, SKU 901845) and set the quantities from cad/out/print_sheet.csv. Choose PETG, and TPU for the foot tips and jaw pads. The CAD is being redesigned for the bigger robot (about 30 cm), so the old file list is stale: do not order prints until the new CAD is done. robu shows the price after the upload; there is no published per-gram rate.
+The CAD scripts in cad/v2/ write the printable parts to cad/out/v2/print/ (python cad/v2/body.py: the body tray and cover; python cad/v2/coupon.py: a small fit-test coupon to print first). Upload the STL files to robu.in's 3D printing service (https://robu.in/product/3d-printing-service1/, SKU 901845). Choose PETG, and TPU for the foot tips and jaw pads. The full print set is finished with the build, so do not order the whole set before then. robu shows the price after the upload; there is no published per-gram rate.
 
 ## Not in the list on purpose
 

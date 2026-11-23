@@ -1,15 +1,15 @@
-# Electronics design (Pinch v2 style B: 12 x STS3215 legs, 6 x STS3032 arms, HDMI face)
+# Electronics design (Pinch: 12 x STS3215 legs, 6 x STS3032 arms, HDMI face)
 
 > **Agrees with the netlist since 2026-11-21.** The wiring below is `configs/wiring_v2.toml`, checked by `python -m crab.wiring`
 > (pins, I2C addresses, current ratings, every part wired); where each part sits is `configs/layout_v2.toml`, checked by
 > `python sim/fit_check.py`; `wiring.svg` is drawn from the netlist (`python hardware/wiring_diagram.py`). If this page and
 > those files disagree, the files win: edit them, run the checks, then fix this page. Currents here are the twin's circuit
-> simulation (`docs/dev/ELECTRONICS.md`, "Design v2"), **estimates until measured on the bench**.
+> simulation (`docs/dev/ELECTRONICS.md`, "Every part inside the body"), **estimates until measured on the bench**.
 > The legs run from the pack at 6.4-8.4 V, not a 5 V regulator: reasons and sources in
 > [../docs/research/BOM_CHANGE.md](../docs/research/BOM_CHANGE.md).
 
-Every board lives inside the pill-shaped shell (about 168 x 216 x 104 mm, about 2 kg with everything). Parts and prices are
-in [BOM.md](BOM.md). The CAD for v2 does not exist yet; the placement below is the layout file's, with real outlines where a datasheet gave
+Every board lives inside the pill-shaped shell (about 168 x 172 x 104 mm; the robot is about 2.28 kg with everything). Parts and prices are
+in [BOM.md](BOM.md). The body CAD is in `cad/v2/`; the placement below is the layout file's, with real outlines where a datasheet gave
 one and estimates (marked in the file) where not. **Owner's decisions of 2026-11-21 applied here:** the six arm servos are Feetech
 STS3032 bus servos (IDs 13-18) on the same bus as the legs, powered from regulator B with a torque limit; the face is a Waveshare 6.25 inch
 720 x 1560 colour IPS panel over micro-HDMI in a hinged lid (the 2.42 inch OLED is gone); the computer is the Radxa ZERO 3W plus a home
@@ -115,7 +115,7 @@ Pack 2S 2500 mAh (18.5 Wh), camera on, servos at the measured STS3215 model, scr
 Regulator A carries about 0.9 A in practice with the HDMI panel on (1.55 A worst case, the netlist check), regulator B up to 2.9 A with all six arm servos
 stalled at the 40 % torque limit (7.2 A without it; the twin's old arm figures were for PWM servos).
 Mixed day (50 % standing with the camera on, 20 % walking forward, 10 % sideways, 20 % standing with the computer idle): **92 minutes** to the
-pack's usable 80 %, mean 1.26 A. The old table (the STS3032 at 5 V, `python sim/power.py`) described another robot; `python sim/power.py --v2` runs this one.
+pack's usable 80 %, mean 1.26 A. `python sim/power.py` (the same as `python sim/circuit_check.py`) runs these cases.
 
 ## Wiring table (the netlist, `configs/wiring_v2.toml`)
 
