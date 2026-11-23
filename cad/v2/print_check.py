@@ -5,6 +5,11 @@ still overhangs past 45 deg there, and whether it fits the bed. Reads the meshes
 
 Overhang: a downward-facing triangle steeper than 45 deg from vertical that is not on the bed needs support (Hubs and
 Prusa design rules: overhangs <= 45 deg print cleanly; bridges < 5 mm are fine, so small faces are ignored).
+
+The tray's and cover's overhang is spread thinly over the rounded shell (2026-11-23: no 20 x 20 x 10 mm region of the
+tray holds more than 9 cm2 of its 196), so it is a support style, not a feature, that fixes it: organic (tree) supports
+touching the build plate only, as PrusaSlicer's and Bambu Studio's organic supports do; everything else is flat or
+nearly support-free.
 """
 
 import struct

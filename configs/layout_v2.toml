@@ -164,7 +164,7 @@ mass_g = 14.0
 mass_source = "estimate"
 mass_ref = "hardware/BOM.md"
 why = "needs bench: the BOM's add-a-circuit holder with a 15 A ATC blade fuse (a blade is 19 x 5 x 18.5 mm, ISO 8820) and its short leads; the holder was not measured"
-pos_mm = [31, -44, 13.5]   # right front, near the battery and its plug: the shortest main power path
+pos_mm = [16, -30, 13.5]   # right front, near the battery and its plug; 14 mm in from the wall so the front-right leg and arm liners close the body in front of it (closure check: the fuse was 30 % of what showed)
 connectors = [{name = "in", side = "-x", reach_mm = 8.0}, {name = "out", side = "+x", reach_mm = 8.0}]
 
 [part.ina]

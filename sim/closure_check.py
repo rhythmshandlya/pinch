@@ -20,7 +20,8 @@ mujoco.mj_resetDataKeyframe(m, d, m.key("stand").id)
 mujoco.mj_forward(m, d)
 body = m.body("body").id
 c = d.xpos[body].copy()
-OK = ("tray", "cover", "lid", "battery_door", "panel", "hip_servo", "yaw_servo", "camera", "tof", "pad", "mic",
+# printed in the body's colour like the shell: the electronics deck under the boards (cad/v2/assembly.py "shell")
+OK = ("tray", "cover", "lid", "battery_door", "deck", "panel", "hip_servo", "yaw_servo", "camera", "tof", "pad", "mic",
       "speaker", "switch", "pogo", "xt60", "face")
 GROUPS = np.array([1, 1, 1, 0, 0, 0], np.uint8)          # what the viewer shows by default
 
