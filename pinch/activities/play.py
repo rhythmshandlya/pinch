@@ -17,7 +17,7 @@ class Play(Activity):
         if m.affect.quiet or m.world.owner.busy == "meeting":
             return 0.0
         n = m.affect.needs
-        asked = 1.0 if m.t - getattr(m, "play_request_t", -1e9) < self.ASKED_S else 0.0   # "pinch, play!"
+        asked = 1.0 if m.t - m.play_request_t < self.ASKED_S else 0.0   # "pinch, play!"
         return (0.8 * m.affect.personality.playfulness * max(0.0, n.play - 0.35) + asked) * (1 - n.sleep) * (1 - m.hunger())
 
     ASKED_S = 60.0                                   # an invitation to play stands this long
@@ -153,14 +153,15 @@ class Quirk(Activity):
             r = m.__dict__["_quirk_rng"] = np.random.default_rng(m.memory.data.get("stats", {}).get("boots", 0) + 0x9C1)
         return r
 
-    def utility(self, m):
-        now = m.world.clock()
+    def prepare(self, m):
         d = m.memory.data
-        if "quirk_due" not in d:                             # (drawn once, not on every look)
-            d["quirk_due"] = now + 3600.0 * self._rng(m).uniform(1.0, self.GAP_H[0])
+        if "quirk_due" not in d:                             # the first one: some hours from now
+            d["quirk_due"] = m.world.clock() + 3600.0 * self._rng(m).uniform(1.0, self.GAP_H[0])
             m.memory.changed()
-        due = d["quirk_due"]
-        if now < due or m.affect.quiet or m.state == "sleep":
+
+    def utility(self, m):
+        due = m.memory.data.get("quirk_due")
+        if due is None or m.world.clock() < due or m.affect.quiet or m.state == "sleep":
             return 0.0
         return 0.6
 

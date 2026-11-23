@@ -26,7 +26,13 @@ class Activity:
     quiet_ok = False
     own_jitter = False         # True: its tie-break jitter comes from its own random stream (Selection._own_jitter)
 
+    def prepare(self, m):
+        """Book-keeping before this choice (resetting a counter, drawing a due time): runs for every activity before
+        any is scored. utility() itself must not change anything, so a choice can be scored again, compared or
+        learned from (docs/research/v2_1: a learned scorer needs pure scores)."""
+
     def utility(self, m) -> float:
+        """How much it wants this now (0 = not at all). Reads the mind; changes nothing."""
         return 0.0
 
     def run(self, m):

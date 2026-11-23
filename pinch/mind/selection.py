@@ -23,7 +23,7 @@ class Selection:
     def _record_decision(self, name, reason):
         """One line per activity switch: from what, to what, why, the strongest candidates, what it noticed
         and how it felt - so any choice can be explained after the fact."""
-        scores = getattr(self, "scores", {})
+        scores = self.scores
         top = sorted(scores.items(), key=lambda kv: -kv[1])[:4]
         nxt = next(x for x in LIBRARY if x.name == name)
         rec = dict(t=round(self.t, 2), clock=round(self.world.clock(), 2),
@@ -31,7 +31,7 @@ class Selection:
                    state=[self.state, nxt.state],
                    priority=[category(self.activity.name) if self.activity else None, category(name)],
                    top=[[k, round(v, 3)] for k, v in top],
-                   why={k: getattr(self, "score_parts", {}).get(k, {}) for k, _ in top},
+                   why={k: self.score_parts.get(k, {}) for k, _ in top},
                    noticed=[[s.kind, s.target, round(s.strength, 2)] for s in self.situations[:5]],
                    feeling=self.affect.feeling(), valence=round(self.affect.valence, 3),
                    needs={k: round(v, 2) for k, v in self.affect.needs.as_dict().items()})
@@ -87,6 +87,8 @@ class Selection:
         ctx, person, clock = self.learn_context(), self.feedback_person(), self.world.clock()
         daytime = EXPR.get("daytime", {}).get(self.routine.part_of_day(clock), {})
         parts = {}
+        for a in LIBRARY:                                         # book-keeping first: scoring changes nothing
+            a.prepare(self)
         for a in LIBRARY:
             u = a.utility(self)
             why = dict(want=round(u, 3))                          # what made the score (the decision log keeps it)
@@ -236,7 +238,7 @@ class Selection:
         if self.activity is not None:
             self.learner.ended(self.t, self.activity.name)            # (it can still be praised for it a moment)
 
-        self.start_score = getattr(self, "scores", {}).get(name, 0.0)
+        self.start_score = self.scores.get(name, 0.0)
         self.activity, self.gen, self.started = a, a.run(self), self.t
         self.waiting_motion, self.wait_until, self._lead_step, self._motion_kind = False, -1.0, None, None
         self._say("activity", name)
@@ -247,7 +249,7 @@ class Selection:
         if self.waiting_motion:
             if body_busy:
                 if self._motion_kind in ("pick", "drop") and self.gaze_target_xy is not None \
-                        and not getattr(self, "body_reflex", False):
+                        and not self.body_reflex:
                     self.gaze_set_t = self.t                 # eyes stay on the thing / the spot (not through a reflex)
                 return None
             self.waiting_motion = False
@@ -375,4 +377,5 @@ class Selection:
     def _eyes_on(self, xy):
         """Were the eyes already aimed at xy (an activity looked there in the last 3 s)?"""
         g = self.gaze_target_xy
-        return g is not None and self.t - self.gaze_set_t <= 3.0 and self.t - self.gaze_set_t >= self.LEAD_S - 0.05             and (g[0] - xy[0]) ** 2 + (g[1] - xy[1]) ** 2 < 0.03 ** 2
+        age = self.t - self.gaze_set_t
+        return g is not None and self.LEAD_S - 0.05 <= age <= 3.0 and (g[0] - xy[0]) ** 2 + (g[1] - xy[1]) ** 2 < 0.03 ** 2

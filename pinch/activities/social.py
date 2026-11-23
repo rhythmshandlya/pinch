@@ -106,7 +106,7 @@ class Greet(Activity):
         import zlib
         m.owner_returned_t = -1e9
         warm, m.greet_warmth = m.greet_warmth, 0.0
-        who, away_h = getattr(m, "greet_who", None), getattr(m, "greet_away_h", 8.0)
+        who, away_h = m.greet_who, m.greet_away_h
         m.greet_who, m.greet_away_h = None, 8.0              # (used once: the next return brings its own)
         sig = self.SIGNATURES[zlib.crc32(str(who).encode()) % len(self.SIGNATURES)] if who else "wave"
         yield ("face", "excited" if warm < 0.6 else "love")
@@ -185,16 +185,18 @@ class SeekAttention(Activity):
         if not m.world.owner_here() or m.affect.quiet or m.world.owner.busy == "meeting":
             return 0.0
         ignored = m.affect.ignored_s
-        if ignored < 30:                       # you just paid attention: the next bid starts patient again
-            m.seek_tries = 0
-        if m.t < getattr(m, "seek_next", 0.0):     # backing off after bids that got no answer (decision 94)
+        if m.t < m.seek_next:     # backing off after bids that got no answer (decision 94)
             return 0.0
         return 0.9 * max(0.0, n - 0.45) * m.affect.personality.neediness + 0.25 * (ignored > 180)
 
     BACKOFF_S, BACKOFF_MAX_S = 90.0, 1200.0     # wait 90 s, 3, 6, 12 ... up to 20 min between unanswered bids
 
+    def prepare(self, m):
+        if m.affect.ignored_s < 30:               # you just paid attention: the next bid starts patient again
+            m.seek_tries = 0
+
     def run(self, m):
-        m.seek_tries = getattr(m, "seek_tries", 0) + 1
+        m.seek_tries = m.seek_tries + 1
         m.seek_next = m.t + min(self.BACKOFF_MAX_S, self.BACKOFF_S * 2 ** (m.seek_tries - 1))
         level = min(4, int(m.affect.ignored_s / 120))
         yield ("turn_to", m.world.desk.owner_xy)
@@ -314,14 +316,20 @@ class ReactTouch(Activity):
         ev = m.touch_event
         if not ev or m.t - ev[1] >= 1.0:
             return 0.0
-        if self.asleep(m):
-            from pinch.touch import WAKE_DEFAULT
-            st = self.touch_state(m)
-            mode = m.memory.data.get("settings", {}).get("wake_on_touch", WAKE_DEFAULT)
-            if not st["wake"].wakes(ev, mode):
-                return 0.0                                  # (felt in its sleep: the mood still took it in)
-            st["woke"] = ev
+        if self.asleep(m) and self.touch_state(m).get("woke") != ev:
+            return 0.0                                      # (felt in its sleep: the mood still took it in)
         return 1.7
+
+    def prepare(self, m):
+        """Asleep: does this touch wake it (pinch/touch.py WakeRules counts touches, so it is asked once here)?"""
+        ev = m.touch_event
+        if not ev or m.t - ev[1] >= 1.0 or not self.asleep(m):
+            return
+        from pinch.touch import WAKE_DEFAULT
+        st = self.touch_state(m)
+        mode = m.memory.data.get("settings", {}).get("wake_on_touch", WAKE_DEFAULT)
+        if st["wake"].wakes(ev, mode):
+            st["woke"] = ev
 
     def run(self, m):
         from pinch.touch import touch_place
@@ -343,8 +351,8 @@ class ReactTouch(Activity):
         if woken:
             yield ("face", "sleepy")
         feel = a.feeling()
-        unwanted = (getattr(m, "touch_from", "known") == "feared"
-                    or (getattr(m, "touch_from", "known") == "stranger" and a.personality.timidity > 0.5
+        unwanted = (m.touch_from == "feared"
+                    or (m.touch_from == "stranger" and a.personality.timidity > 0.5
                         and g not in ("stroke", "hold"))
                     or (g in ("tickle", "boop", "tap", "double_tap") and feel in ("grumpy", "angry", "scared")))
         if unwanted and g in HAND_TOUCHES:

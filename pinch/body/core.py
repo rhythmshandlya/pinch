@@ -63,12 +63,13 @@ class BodyCore:
         self.claim = None                       # the running step's claim on the body parts (arbiter.Claim)
         self.ambient_amp = 0.0
         self._src, self._seam, self._seam_k, self._seam_n = None, None, 0, 1     # handover blend (tick)
+        self.log = []                           # (t, what, details): the body's trace (this body's own)
 
     def trace(self, what, **kw):
         self.log.append((round(self.t, 2), what, kw))
         self.log = self.log[-200:]
 
-    log = []
+    log = None                                          # (per body: set in __init__)
 
     # -- interface for the mind --------------------------------------------------------
     def start(self, step, owner=None, layer="activity"):

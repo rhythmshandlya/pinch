@@ -79,7 +79,16 @@ class MindCore:
         from pinch.attention import Attention
         self.attention = Attention()             # what it is paying attention to (pinch/attention.py)
         self.gaze_set_t = -1e9                   # when an activity last aimed the eyes (attention waits)
-        self.estop_request = False               # someone said "freeze": the firmware acts on it                   # last time BodySense said "upside down" (it says so every tick)
+        self.estop_request = False               # someone said "freeze": the firmware acts on it
+        # -- state the activities and the hosts share (declared here so the whole of the mind's state is one list)
+        self.seek_tries, self.seek_next = 0, 0.0          # attention bids without an answer, and the back-off
+        self.play_request_t = -1e9                         # "pinch, play!" (an invitation stands ASKED_S)
+        self.greet_who, self.greet_away_h = None, 8.0      # the person to greet, and how long they were away
+        self.touch_from = "known"                          # who touched it last: known / stranger / feared
+        self.body_reflex = False                           # a body reflex is running (set by the host each tick)
+        self.face_intent = self.outcome_intent = None      # (face, t, activity start) asked for by an activity
+        self.scores, self.score_parts = {}, {}             # the last choice's scores and what made them
+        self._danger_saved_t = -1e9
         self.next_choice = 0.0
         self.log = []                        # (t, kind, text) for the app's diary and tests
         self._was_present = False

@@ -161,11 +161,12 @@ EXPRESSIVE = {"emote", "pose"}
 MANIPULATION = {"pick", "drop", "release"}
 POS_FACES = {"happy", "joy", "excited", "love", "content", "proud", "music", "squeeze"}
 NEG_FACES = {"sad", "lonely", "angry", "grumpy", "scared"}
-POS_FEELINGS = {"happy", "excited", "love", "content", "proud", "squeeze"}
-NEG_FEELINGS = {"sad", "lonely", "angry", "grumpy", "scared"}
-POS_SOUNDS = {"happy_trill", "giggle", "purr", "fanfare"}
-NEG_SOUNDS = {"sad_tone", "whimper", "angry_buzz"}
-SLEEPY_SOUNDS = {"sleepy_hum", "yawn"}
+from pinch.mind.expression import BRIGHT as POS_SOUNDS  # noqa: E402  (one table: configs/mind/expression.toml)
+from pinch.mind.expression import DARK as NEG_SOUNDS  # noqa: E402
+from pinch.mind.expression import NEGATIVE as NEG_FEELINGS  # noqa: E402
+from pinch.mind.expression import POSITIVE as POS_FEELINGS  # noqa: E402
+from pinch.mind.expression import SLEEPY_SOUNDS  # noqa: E402
+
 REACTIONS = {"startle", "react_touch", "hide"}
 TARGETED = {"investigate", "watch", "orient", "startle", "tidy", "play", "greet", "comfort", "seek_attention"}
 

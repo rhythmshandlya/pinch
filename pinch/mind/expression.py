@@ -25,11 +25,11 @@ def face_now(mind):
     if mind.state == "sleep":
         return "asleep"
     feeling = mind.affect.feeling()
-    out = getattr(mind, "outcome_intent", None)       # how the move it just made went: shown first, briefly
+    out = mind.outcome_intent       # how the move it just made went: shown first, briefly
     fresh = out is not None and out[2] == mind.started and mind.t - out[1] <= EXPR["face"]["outcome_hold_s"]
     if fresh and fits(out[0], feeling):
         return out[0]
-    intent = getattr(mind, "face_intent", None)
+    intent = mind.face_intent
     if intent is not None and intent[2] == mind.started and mind.activity is not None:   # this activity asked
         face, t0, _ = intent
         if face in PERFORM:                            # a body state or a trick: shown while the activity lasts
@@ -40,8 +40,9 @@ def face_now(mind):
 
 
 SND = EXPR["sound"]
-BRIGHT, DARK = set(SND["bright"]), set(SND["dark"])
-GOOD, BAD = set(SND["good_feelings"]), set(SND["bad_feelings"])
+BRIGHT, DARK, SLEEPY_SOUNDS = set(SND["bright"]), set(SND["dark"]), set(SND["sleepy"])
+POSITIVE, NEGATIVE = set(EXPR["valence"]["positive"]), set(EXPR["valence"]["negative"])
+GOOD, BAD = POSITIVE, NEGATIVE                     # (feelings a sound must not contradict)
 
 
 def sound_ok(sound, feeling):

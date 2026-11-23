@@ -25,11 +25,13 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from pinch.memory import Memory  # noqa: E402
+from pinch.mind.expression import BRIGHT as POS_SOUNDS  # noqa: E402  (one table: configs/mind/expression.toml)
+from pinch.mind.expression import DARK as NEG_SOUNDS  # noqa: E402
+from pinch.mind.expression import NEGATIVE as NEG  # noqa: E402
+from pinch.mind.expression import POSITIVE as POS  # noqa: E402
 from pinch.mind.expression import SHOWS as EXPR_SHOWS  # noqa: E402
 from pinch.twin import PinchSim  # noqa: E402
 
-POS = {"happy", "joy", "excited", "love", "content", "proud", "squeeze"}
-NEG = {"sad", "lonely", "angry", "grumpy", "scared"}
 FAMILY = {                                     # faces that fit each state (besides "neutral")
     "idle": POS | NEG | {"curious", "bored", "sleepy", "thinking", "quiet", "shy", "focused", "surprised"},
     "explore": {"curious", "focused", "surprised", "thinking", "happy", "excited", "content", "scared", "shy"},
@@ -47,8 +49,6 @@ FAMILY = {                                     # faces that fit each state (besi
 SHOWS = EXPR_SHOWS
 FUN = {"play", "celebrate", "show_off"}
 COWER = {"hide", "startle", "shy"}
-POS_SOUNDS = {"happy_trill", "giggle", "purr", "fanfare"}
-NEG_SOUNDS = {"sad_tone", "whimper", "angry_buzz"}
 
 
 def scenario(name, seed):

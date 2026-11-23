@@ -125,8 +125,13 @@ gain = 1.2
 [sound]
 bright = ["happy_trill", "giggle", "purr", "fanfare"]
 dark = ["sad_tone", "whimper", "angry_buzz"]
-good_feelings = ["happy", "excited", "love", "content", "proud", "squeeze"]
-bad_feelings = ["sad", "lonely", "scared", "angry", "grumpy"]
+sleepy = ["sleepy_hum", "yawn"]
+
+# which feelings and faces are positive and which negative: the one table the face and sound rules, the observer
+# (pinch/observer.py) and the congruence bench all use
+[valence]
+positive = ["happy", "joy", "excited", "love", "content", "proud", "squeeze"]
+negative = ["sad", "lonely", "angry", "grumpy", "scared"]
 
 [sound.of]
 happy = "happy_trill"

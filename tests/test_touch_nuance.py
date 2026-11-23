@@ -114,37 +114,43 @@ def _asleep_mind(mode=None):
     return m
 
 
+def _felt(react, m):
+    """The mind's order: book-keeping (does this touch wake it?), then the score."""
+    react.prepare(m)
+    return react.utility(m)
+
+
 def test_sleep_wake_rules():
     m = _asleep_mind()                                 # default "gentle"
     react = ReactTouch()
     m.touch_event = ("stroke", m.t)
-    assert react.utility(m) == 0.0, "a stroke while asleep doesn't wake it"
+    assert _felt(react, m) == 0.0, "a stroke while asleep doesn't wake it"
     m.touch_event = ("boop", m.t)
-    assert react.utility(m) > 1.5, "a boop does"
+    assert _felt(react, m) > 1.5, "a boop does"
     taps = []
     for _ in range(3):
         m.t += 2.0
         m.touch_event = ("tap", m.t)
-        taps.append(react.utility(m) > 0)
+        taps.append(_felt(react, m) > 0)
         assert react.utility(m) == (taps[-1] and 1.7 or 0.0), "asked twice, the same answer"
     assert taps == [False, False, True], "one tap doesn't wake it, a few in a row do"
     m.touch_event = ("lifted", m.t)
-    assert react.utility(m) > 0
+    assert _felt(react, m) > 0
     any_m = _asleep_mind("any")
     any_m.touch_event = ("stroke", any_m.t)
-    assert react.utility(any_m) > 0, "'any': the old behaviour"
+    assert _felt(react, any_m) > 0, "'any': the old behaviour"
     deep = _asleep_mind("deep")
     deep.touch_event = ("boop", deep.t)
-    assert react.utility(deep) == 0.0
+    assert _felt(react, deep) == 0.0
     deep.touch_event = ("shaken", deep.t + 1)
     deep.t += 1
-    assert react.utility(deep) > 0
+    assert _felt(react, deep) > 0
 
 
 def test_woken_by_touch_is_groggy_and_wake_pressure_fades():
     m = _asleep_mind()
     m.touch_event = ("boop", m.t)
-    assert ReactTouch().utility(m) > 0
+    assert _felt(ReactTouch(), m) > 0
     steps = list(ReactTouch().run(m))
     assert steps[0] == ("face", "sleepy")
     w = WakeRules()

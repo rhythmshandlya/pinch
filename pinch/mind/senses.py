@@ -5,7 +5,8 @@ from pinch.mind.common import (  # noqa: F401
     understand_rules,
 )
 
-KIND_TOUCH = ("petted", "stroked", "tickled", "booped")   # touches meant kindly (a feared person's are unwelcome)
+KIND_TOUCH = ("petted", "stroked", "tickled", "booped")   # touch EVENTS meant kindly (a feared person's are unwelcome;
+                                                          # the gestures that cause them: social.HAND_TOUCHES)
 
 
 class Senses:
