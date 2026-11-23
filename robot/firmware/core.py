@@ -1,5 +1,6 @@
 """The firmware's frame: start-up, the 50 Hz loop, emergency stop, saving, status."""
 
+from pinch import runtime
 from robot.firmware.common import (  # noqa: F401
     DT,
     SAVE_EVERY,
@@ -152,6 +153,12 @@ class FirmwareCore:
             self._error(source, e)
             return default
 
+    def _play(self, s):
+        self.hw.play(s)
+        self.stats["sounds"].append(s)
+        if self.recorder is not None:
+            self.recorder.event(self.t, "sound", name=s, activity=self.mind.activity.name if self.mind.activity else None)
+
     def estop(self, why="user"):
         """Emergency stop (HTTP /stop, or "freeze" said aloud): cancel what the body is doing, go limp, and do
         nothing that moves until resume(). Senses, memory and the face keep working."""
@@ -180,21 +187,10 @@ class FirmwareCore:
             m.world.pose = self.loc.pose()
             m.world.battery = self._safe("battery", self.hw.battery_fraction, m.world.battery)
             if self.autonomous:
-                motion, cancel = m.tick(DT * 5, self.body.busy, self.body.ok)
-                if cancel:
-                    self.body.cancel()
-                    if self.recorder is not None:
-                        self.recorder.step_cancelled(self.t, "mind")
-                if motion is not None:
-                    self.body.start(motion, *m.motion_owner())
-                    self.stats["motions"].append((round(self.t, 1), motion[0], motion[1] if len(motion) > 1 else ""))
-                    if self.recorder is not None:
-                        self.recorder.step_started(self.t, motion, "mind")
-                for s in m.outputs()[2]:
-                    self.hw.play(s)
-                    self.stats["sounds"].append(s)
-                    if self.recorder is not None:
-                        self.recorder.event(self.t, "sound", name=s, activity=m.activity.name if m.activity else None)
+                runtime.mind_step(m, self.body, DT * 5, self.t, self.recorder,
+                                  on_motion=lambda mo: self.stats["motions"].append(
+                                      (round(self.t, 1), mo[0], mo[1] if len(mo) > 1 else "")),
+                                  on_sound=self._play)
             # reflex: a beam sees no desk while walking toward its side -> back off away from it (latched,
             # so its own backing-off can't re-trigger it); a beam missing or stale -> no walking that way
             now = self._now()
@@ -215,12 +211,8 @@ class FirmwareCore:
             x, y, h = self.loc.pose()
             margin = self.desk.feet_margin((x, y), h)
             # reflex: a foot over the desk edge (from the marker position + leg layout) -> shuffle back in
-            if margin < -0.003 and not self.bodysense.lifted and self.body.status != "recover" \
-                    and self.t - self.last_recover > 3.0:
-                self.body.reflex(("recover",))
-                self.last_recover = self.t
-                if self.recorder is not None:
-                    self.recorder.step_started(self.t, ("recover",), "edge reflex")
+            self.last_recover = runtime.foot_over_edge(self.body, margin, self.bodysense.lifted, self.t,
+                                                       self.last_recover, self.recorder)
             # stuck: judged on what the camera measured, never on the integrated command
             for ev in self.stuck_sense.update(DT * 5, grav, feet, self.loc.measured_xy(self.t),
                                               float(np.hypot(*self.body.cmd_vel[:2])),
@@ -242,16 +234,7 @@ class FirmwareCore:
             self.face_frame = self.face.ssd1309_pages()
         if self.t - self.last_save >= SAVE_EVERY:
             self.save_memory()
-        self.body.life.liveliness = self.mind.affect.arousal
-        self.body.life.asleep = self.mind.state == "sleep"
-        self.mind.body_reflex = self.body.claim is not None and self.body.claim.layer == "reflex"
-        o = self.mind.world.owner                             # nothing happening for a while: idle life settles
-        self.body.life.quiet_s = self.mind.t - max(o.last_attention, o.last_voice, o.last_touch, 0.0)
-        self.body.life.mood_in = (self.mind.affect.needs.safety, self.mind.affect.valence)
-        if self.body.mood_fn is None:          # the emote style follows the whole mood (decision 92)
-            a = self.mind.affect
-            self.body.mood_fn = lambda: dict(arousal=a.arousal, valence=a.valence, sleepy=a.needs.sleep,
-                                              fear=a.needs.safety, fatigue=a.needs.fatigue)
+        runtime.sync(self.mind, self.body)                 # the mind's state that styles the body, and back
         q = self.body.tick()                                 # 20 ms: servos (and physics when emulated)
         if self.recorder is not None:
             self.recorder.tick(self.t + DT, self.k, self.mind, self.body, q, self.crab.q_cmd, self._rec_sample)

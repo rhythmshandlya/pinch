@@ -1,5 +1,6 @@
 """The twin's frame: building the world, robot, body and mind, and the 50 Hz loop."""
 
+from pinch import runtime
 from pinch.twin.common import (  # noqa: F401
     DT,
     FACE_EVERY,
@@ -157,19 +158,9 @@ class TwinCore:
             self.perceive()
             if self.hw.elec is not None:                       # the battery monitor feeds the mind's hunger
                 self.mind.world.battery = self.hw.battery_fraction()
-            motion, cancel = self.mind.tick(DT * MIND_EVERY, self.body.busy, self.body.ok)
-            if cancel:
-                self.body.cancel()
-                if self.recorder is not None:
-                    self.recorder.step_cancelled(self.t, "mind")
-            if motion is not None:
-                self.body.start(motion, *self.mind.motion_owner())
-                self.motions.append((round(self.t, 2), motion))
-                if self.recorder is not None:
-                    self.recorder.step_started(self.t, motion, "mind")
-            for s in self.mind.outputs()[2]:
-                self.sounds_played.append((round(self.t, 2), s))
-                self._rec("sound", name=s, activity=self.mind.activity.name if self.mind.activity else None)
+            runtime.mind_step(self.mind, self.body, DT * MIND_EVERY, self.t, self.recorder,
+                              on_motion=lambda mo: self.motions.append((round(self.t, 2), mo)),
+                              on_sound=self._play)
             # reflex: a cliff beam sees no desk while walking toward its side -> back off (latched)
             back = self.cliff.update(self.t, self.cliff_mm(), 0.0, self.body.cmd_vel)
             self.body.cliff_blocked = self.cliff.blocked
@@ -184,14 +175,11 @@ class TwinCore:
             walking = self.body.busy and self.body.status in ("goto", "walk", "push", "recover", "turn_to")
             x, y, h = self.pose()
             margin = self.desk.feet_margin((x, y), h)
-            # reflex: a foot over the desk edge -> drop everything and shuffle back in (before anything else)
-            if margin < -0.003 and not self.senses.lifted and self.body.status != "recover" \
-                    and self.t - self.last_recover > 3.0:
-                self.body.reflex(("recover",))
-                self.last_recover = self.t
+            started = runtime.foot_over_edge(self.body, margin, self.senses.lifted, self.t, self.last_recover,
+                                             self.recorder)
+            if started != self.last_recover:
+                self.last_recover = started
                 self.edge_recovers += 1
-                if self.recorder is not None:
-                    self.recorder.step_started(self.t, ("recover",), "edge reflex")
             for ev in self.stuck_sense.update(DT * MIND_EVERY, grav, self.feet_down(any_surface=True), (x, y),
                                               float(np.hypot(*self.body.cmd_vel[:2])), lifted=self.senses.lifted,
                                               standing=not self.body.busy, walking=walking, feet_margin=margin):
@@ -204,21 +192,16 @@ class TwinCore:
             expr, gaze, _ = self.mind.face_expr, self.mind.gaze, None
             self.face.update(DT * FACE_EVERY, expr, gaze)
             set_face(self.m, self.face.rgb(scale=2))
-        self.body.life.liveliness = self.mind.affect.arousal
-        self.body.life.asleep = self.mind.state == "sleep"
-        self.mind.body_reflex = self.body.claim is not None and self.body.claim.layer == "reflex"
-        o = self.mind.world.owner                             # nothing happening for a while: idle life settles
-        self.body.life.quiet_s = self.mind.t - max(o.last_attention, o.last_voice, o.last_touch, 0.0)
-        self.body.life.mood_in = (self.mind.affect.needs.safety, self.mind.affect.valence)
-        if self.body.mood_fn is None:          # the emote style follows the whole mood (decision 92)
-            a = self.mind.affect
-            self.body.mood_fn = lambda: dict(arousal=a.arousal, valence=a.valence, sleepy=a.needs.sleep,
-                                              fear=a.needs.safety, fatigue=a.needs.fatigue)
+        runtime.sync(self.mind, self.body)                 # the mind's state that styles the body, and back
         q_req = self.body.tick()                           # 20 ms of physics through the robot runtime
         if self.recorder is not None:
             self.recorder.tick(self.t + DT, self.k, self.mind, self.body, q_req, self.crab.q_cmd, self._rec_sample)
         self.k += 1
         self.t += DT
+
+    def _play(self, s):
+        self.sounds_played.append((round(self.t, 2), s))
+        self._rec("sound", name=s, activity=self.mind.activity.name if self.mind.activity else None)
 
     def run(self, seconds, every=None):
         for _ in range(int(seconds / DT)):
