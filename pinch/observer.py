@@ -28,6 +28,8 @@ Over a recorded session (pinch/recorder.py) it also judges the body, face, eyes 
   gaze_mismatch          the eyes not on what the activity is about (while standing, not walking)
   sound_mismatch         a sound that doesn't fit the feeling or the moment (a giggle when scared, chirps asleep)
   recovery_failure       on its back or stuck for long, or the same step failing again and again
+  late_reaction          a touch, bang, voice or person with no visible answer within 1.5 s (awake)
+  dragging_step          an emote, held pose or timed walk running past twice its own length
   stuck                  trying to walk inside a step but getting no nearer its goal for 8 s (e.g. wedged by the tray)
   failed_grasp           a pick that failed, with the cause from the body's trace (missed, slipped, too wide ...)
   activity_mix           tasks (tidy) over 30 % of awake time, or pet behaviour (idle life, play, social,
@@ -216,6 +218,10 @@ TASK_MAX_SHARE = 0.30          # of awake time: more and it looks like a tidying
 PET_STATES = ("idle", "play", "social", "explore", "alert")
 PET_MIN_SHARE = 0.50           # idle life, play, social and curiosity together
 MIX_MIN_S = 60.0               # (shorter sessions don't say much about the mix)
+SUDDEN = {"touch", "loud", "voice", "person"}   # stimuli an animal answers at once (pinch/attention.py kinds)
+LATE_S = 1.5                   # no visible answer to one of them within this long: late (orienting takes 0.1-0.5 s)
+EYE_ANSWER = 0.08              # the eyes moving this far counts as an answer
+DRAG_FACTOR, DRAG_SLACK_S = 2.0, 1.0   # a timed step running past 2x its own length + 1 s drags
 
 
 def observe_session(session):
@@ -228,7 +234,7 @@ def observe_session(session):
     out = observe_records(decisions, phases, log, dur) if decisions else []
     for check in (_repetitive_motion, _unnecessary_movement, _inconsistent_expression, _conflicting_movement,
                   _abrupt_transitions, _excessive_reactions, _gaze_mismatch, _sound_mismatch, _recovery_failure,
-                  _stuck, _failed_grasp, _activity_mix, _aliveness):
+                  _stuck, _failed_grasp, _activity_mix, _aliveness, _late_reactions, _dragging_steps):
         out += check(ev, sm)
     return sorted(out, key=lambda f: f.t0)
 
@@ -401,6 +407,73 @@ def _abrupt_transitions(ev, sm):
                            "blend into the new step's first pose (BodyCore._blend_to) instead of jumping",
                            dict(jump=j, joint=joint, status=str(st[k]))))
     return out[:20]
+
+
+def _late_reactions(ev, sm):
+    """OBS-007: a sudden stimulus (a touch, a bang, a voice, a person) with no visible answer - eyes, face, a look,
+    a new activity - within LATE_S, while awake. Animals orient within a fraction of a second; a late answer reads
+    as not noticing (the liveliness bench measures the same on staged trials, sim/benches/liveliness.py)."""
+    if "t" not in sm or not len(sm["t"]):
+        return []
+    t = np.asarray(sm["t"], float)
+    eye = np.asarray(sm["eye"] if "eye" in sm else sm.get("gaze_x", np.zeros(len(t))), float)
+    st = _strs(sm, "state") if "state" in sm else np.array([""] * len(t), dtype=object)
+    answers = sorted(e["t"] for e in ev if e["kind"] in ("face", "look", "decision"))
+    late = []
+    for e in ev:
+        if e["kind"] != "attend" or e.get("stimulus") not in SUDDEN or e["t"] + LATE_S > t[-1]:
+            continue
+        sel = (t >= e["t"]) & (t <= e["t"] + LATE_S)
+        if not sel.any() or (st[sel] == "sleep").any() or (st[sel] == "recover").any():
+            continue                                     # (asleep or righting itself: not answering is right)
+        i = np.searchsorted(answers, e["t"])
+        if np.ptp(eye[sel]) >= EYE_ANSWER or (i < len(answers) and answers[i] <= e["t"] + LATE_S):
+            continue
+        late.append(e)
+    if not late:
+        return []
+    return [Finding("late_reaction", "warn", late[0]["t"], late[-1]["t"],
+                    f"{len(late)} sudden stimuli with no answer within {LATE_S:.1f} s "
+                    f"({', '.join(sorted({e['stimulus'] for e in late}))}; first at {late[0]['t']:.1f} s)",
+                    "check the attention focus reaches the eyes (pinch/mind/core.py outputs) and the reaction's utility",
+                    dict(n=len(late), kinds=sorted({e["stimulus"] for e in late})))]
+
+
+def _step_length(motion, args):
+    """A timed step's own length in s (pose / walk say it; an emote has its clip's length), else None."""
+    try:
+        if motion == "pose" and len(args) >= 2:
+            return float(args[1])
+        if motion == "walk" and len(args) >= 4:
+            return float(args[3])
+        if motion == "emote" and args:
+            from crab.emotes import EMOTES
+            e = EMOTES.get(str(args[0]))
+            return None if e is None or e.loop else float(e.duration)
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def _dragging_steps(ev, sm):
+    """OBS-007: a timed step (an emote, a pose held, a timed walk) that ran far past its own length: the motion
+    drags (a slow servo, a stalled clip, a tempo gone wrong)."""
+    starts, out = {}, []
+    for e in ev:
+        if e["kind"] == "step_start":
+            starts[e["step"]] = e
+        elif e["kind"] == "step_end" and e.get("end") == "done" and e["step"] in starts:
+            s = starts.pop(e["step"])
+            want = _step_length(e["motion"], s.get("args", []))
+            if want is not None and e["dur"] > DRAG_FACTOR * want + DRAG_SLACK_S:
+                out.append((s["t"], e["t"], e["step"], want, e["dur"]))
+    if not out:
+        return []
+    t0, t1, step, want, dur = max(out, key=lambda x: x[4] / max(x[3], 0.1))
+    return [Finding("dragging_step", "warn", out[0][0], out[-1][1],
+                    f"{len(out)} steps ran past {DRAG_FACTOR:.0f}x their length (worst: {step} {dur:.1f} s for "
+                    f"{want:.1f} s)", "check the step's tempo (Style.tempo, walk_tempo) and what held it up",
+                    dict(n=len(out), step=step, want=want, dur=dur))]
 
 
 def _excessive_reactions(ev, sm):

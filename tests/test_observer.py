@@ -339,3 +339,25 @@ def test_it_catches_a_face_that_doesnt_fit_the_state():
     assert any("doesn't fit the state" in f.evidence for f in observe_session(s))
     s["samples"]["face"][m] = "scared"
     assert not any("doesn't fit the state" in f.evidence for f in observe_session(s))
+
+
+def test_it_catches_late_reactions_and_dragging_steps():
+    """OBS-007: a bang nobody answers (eyes, face, a look or a new activity) within 1.5 s while awake, and a wave
+    that took three times its length; the same answered in time, or asleep, or on time, is fine."""
+    from crab.emotes import EMOTES
+    from pinch.observer import _dragging_steps, _late_reactions
+    t = np.arange(0.0, 10.0, 0.06)
+    sm = dict(t=t, eye=np.zeros(len(t)), state=np.array(["idle"] * len(t), dtype=object))
+    ev = [dict(t=3.0, kind="attend", stimulus="loud", key="loud:left")]
+    assert [f.kind for f in _late_reactions(ev, sm)] == ["late_reaction"]
+    assert _late_reactions(ev + [dict(t=3.4, kind="face", face="surprised")], sm) == []
+    moved = dict(sm, eye=np.where(t > 3.3, 0.4, 0.0))
+    assert _late_reactions(ev, moved) == []
+    asleep = dict(sm, state=np.array(["sleep"] * len(t), dtype=object))
+    assert _late_reactions(ev, asleep) == []
+    n = EMOTES["wave"].duration
+    steps = [dict(t=1.0, kind="step_start", step="emote:wave", motion="emote", args=["wave"]),
+             dict(t=1.0 + 3 * n + 1.5, kind="step_end", step="emote:wave", motion="emote", end="done", dur=3 * n + 1.5)]
+    assert [f.kind for f in _dragging_steps(steps, sm)] == ["dragging_step"]
+    steps[1].update(t=1.0 + n, dur=n)
+    assert _dragging_steps(steps, sm) == []
