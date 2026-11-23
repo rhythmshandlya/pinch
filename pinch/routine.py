@@ -16,7 +16,8 @@ import time
 NIGHT = (22.0, 6.0)               # local hours
 NIGHT_SLEEP_DRIVE = 3.0           # sleepiness builds this much faster at night
 PARTS = ((6.0, "morning"), (12.0, "afternoon"), (18.0, "evening"), (22.0, "night"))
-DEFAULT_SETTINGS = dict(utc_offset_h=None, quiet_hours=None, face_recognition=True)
+DEFAULT_SETTINGS = dict(utc_offset_h=None, quiet_hours=None, face_recognition=True,
+                        ask_before_remembering=True)      # facts about its person wait for their yes (ARC-014)
 
 _WORDS = {w: i + 1 for i, w in enumerate("one two three four five six seven eight nine ten eleven twelve".split())}
 _HOUR = r"(\d{1,2}|" + "|".join(_WORDS) + r")(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?"

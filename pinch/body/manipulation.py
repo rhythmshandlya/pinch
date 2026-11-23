@@ -176,6 +176,7 @@ class Manipulation:
                         if best is None or cost < best[0]:
                             best = (cost, sd, rq, tp, hd, st, g)
             _, side, reach, tip, heading, stand_xy, grab = best
+            self._use_claw(side)                         # the other claw goes back to ambient life
             self.trace("pick_plan", side=side, tip=tuple(np.round(tip, 3)), stand=tuple(np.round(stand_xy, 3)),
                        heading=round(float(heading), 2), obj=(round(ox, 3), round(oy, 3), round(oyaw, 2)))
             fwd = np.array((np.cos(heading), np.sin(heading)))
@@ -316,6 +317,7 @@ class Manipulation:
         if not self.held:
             return False
         name, side = self.held
+        self._use_claw(side)                             # the other claw goes back to ambient life
         down = arm_pose(pose(crouch(REACH_LOW["crouch"], "F?"), crouch(-0.20, "R?")), side,
                         pitch=REACH_LOW["pitch"] + 0.12, claw=0.0)
         yield from self._blend_to(down, 0.7)
@@ -354,6 +356,7 @@ class Manipulation:
         if not self.held:
             return False
         name, side = self.held
+        self._use_claw(side)                             # the other claw goes back to ambient life
         goal = np.array(goal, float)
         x, y, h = self.pose_fn()
         reach = arm_pose(pose(crouch(REACH_LOW["crouch"])), side, pitch=REACH_LOW["pitch"] + 0.15, yaw=0.12, claw=0.0)

@@ -1416,3 +1416,31 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       the hardware requirements are kept locally by the owner (guard and .gitignore). Three task branches that belong
       to later phases were archived with tags instead of merged: `archive/navigation` (phase 10), `archive/grab-fit`
       (phase 8/11), `archive/activity-mix` (phase 4/11).
+
+107. **Phase 4: the mind's architecture as data, body parts with owners, ambient life always on.**
+    - **Why:** interruption rules were score thresholds plus two hard-coded activity names; states were names only;
+      one motion program drove all 18 joints and the idle-life layer stopped whenever anything ran, so Pinch went
+      still during activities (ambient life in 52-65 % of awake seconds, still gaps up to a minute); the eyes kept the
+      direction a stimulus had when first noticed, so they drifted off it while walking (gaze error 0.29-0.34).
+    - **Evidence:** Anki Vector's engine (digital-dream-labs/vector, 119 stars, frozen 2022): an AnimationStreamer
+      with locked animation tracks and procedural layers under canned animation (KeepFaceAlive blinks and eye darts);
+      the Cozmo SDK (anki/cozmo-python-sdk, 728 stars): actions that want a locked track fail with TRACKS_LOCKED.
+      Recording: the existing session recorder already holds one timeline; MCAP (`mcap`, 1.15k stars) noted as a
+      viewer export, not adopted yet. Observer thresholds partly from HRI literature (Leite et al. 2013 long-term
+      HRI survey), partly calibrated on Pinch's own sessions.
+    - **Change:** `configs/mind/behaviour.toml` (the nine priority categories, every activity placed; only the top
+      three cut short a non-interruptible activity), `configs/mind/states.toml` (sub-states, allowed motions,
+      intent for every body part, interruption rank, timeout rule; a sleep state; disallowed motions refused and
+      logged), `pinch/body/arbiter.py` + `configs/mind/channels.toml` (one owner per body part, the higher layer
+      wins, claims all or nothing), ambient life on every part no one uses (`configs/mind/ambient.toml`), a fade over
+      0.24 s when the joint targets would snap between motions, eyes re-aimed from the current pose every tick,
+      fatigue, facts about its person kept only after their yes, the recording naming body-part owners and every
+      behaviour file's version and hash, an aliveness check in the observer.
+    - **Measured:** ambient life in 96.3 % of awake seconds on two 10-minute sessions (seeds 5, 11; body alone ~71 %;
+      longest still gap 2-3 s); gaze error while walking 0.11-0.14 on six seeds (limit 0.15); 22/22 moves within the
+      torque limits; full test suite green.
+    - **Golden trace re-recorded:** behaviour changed on purpose: ambient life during activities, the handover fade
+      and each state's interrupt rank change which activity follows a touch reaction at 77 s of the seed-7 session.
+    - **Rejected:** a behaviour-tree library (py_trees, 655 stars) - the arbiter is about 100 lines and the selection
+      already works; ambient motion on the legs under a walk (it would fight the gait); a recording-format switch
+      to MCAP or Rerun now (the existing recorder covers the timeline; an exporter can come later).

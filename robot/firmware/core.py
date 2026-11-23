@@ -117,6 +117,10 @@ class FirmwareCore:
         """Make Pinch forget something (pinch/mind/privacy.py FORGETTABLE, or "person:<id>"); applied in the loop."""
         self.inbox.put(("forget", what))
 
+    def approve_facts(self, which=None, keep=True):
+        """The person's yes or no to facts it heard about them (pinch/memory.py approve_facts); applied in the loop."""
+        self.inbox.put(("approve", (which, keep)))
+
     def set_face_recognition(self, on):
         self.inbox.put(("face_recognition", bool(on)))
 
@@ -167,6 +171,7 @@ class FirmwareCore:
             m = self.mind
             m.world.pose = self.loc.pose()
             m.world.battery = self._safe("battery", self.hw.battery_fraction, m.world.battery)
+            m.world.servo_temp = self.body.servo_temp = self.crab.hottest_leg_c    # the servos' present_temperature
             if self.autonomous:
                 motion, cancel = m.tick(DT * 5, self.body.busy, self.body.ok)
                 if cancel:
@@ -174,7 +179,7 @@ class FirmwareCore:
                     if self.recorder is not None:
                         self.recorder.step_cancelled(self.t, "mind")
                 if motion is not None:
-                    self.body.start(motion)
+                    self.body.start(motion, *m.motion_owner())
                     self.stats["motions"].append((round(self.t, 1), motion[0], motion[1] if len(motion) > 1 else ""))
                     if self.recorder is not None:
                         self.recorder.step_started(self.t, motion, "mind")
@@ -332,7 +337,8 @@ class FirmwareCore:
 
     def _rec_sample(self):
         g = self._grav
-        return dict(pose=self.loc.pose(), up=float(-g[2]) if g is not None else float("nan"))
+        return dict(pose=self.loc.pose(), up=float(-g[2]) if g is not None else float("nan"),
+                    eye=float(self.face.gaze[0]), blink=bool(self.face.blink_t >= 0))
 
     def _cpu_temp(self):
         return self.hw.cpu_temp() if hasattr(self.hw, "cpu_temp") else None

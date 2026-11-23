@@ -123,7 +123,8 @@ class TwinCore:
         q = self.d.qpos
         R = self.d.xmat[1].reshape(3, 3)
         out = dict(pose=self.pose(), z=float(q[2]), up=float(R[2, 2]),
-                   q_meas=[q[a] + (q[b] if b is not None else 0.0) for a, b in self._qadr])
+                   q_meas=[q[a] + (q[b] if b is not None else 0.0) for a, b in self._qadr],
+                   eye=float(self.face.gaze[0]), blink=bool(self.face.blink_t >= 0))                 # the face's eyes: saccades and blinks (ambient life)
         if self.recorder.state:
             out["qpos"] = q
             if self.m.nmocap:
@@ -156,13 +157,15 @@ class TwinCore:
             self.perceive()
             if self.hw.elec is not None:                       # the battery monitor feeds the mind's hunger
                 self.mind.world.battery = self.hw.battery_fraction()
+            # the servos' temperatures (crab/servo_model.py heat model) feed its heat need and the body's heat limit
+            self.mind.world.servo_temp = self.body.servo_temp = self.crab.hottest_leg_c
             motion, cancel = self.mind.tick(DT * MIND_EVERY, self.body.busy, self.body.ok)
             if cancel:
                 self.body.cancel()
                 if self.recorder is not None:
                     self.recorder.step_cancelled(self.t, "mind")
             if motion is not None:
-                self.body.start(motion)
+                self.body.start(motion, *self.mind.motion_owner())
                 self.motions.append((round(self.t, 2), motion))
                 if self.recorder is not None:
                     self.recorder.step_started(self.t, motion, "mind")

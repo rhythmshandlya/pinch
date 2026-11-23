@@ -1,0 +1,40 @@
+# Pinch's behaviour settings (phase 4): the declared priority order and each activity's place in it.
+# Read by pinch/mind/behaviour.py; its version is recorded in every session (pinch/recorder.py).
+version = "4.2"
+
+[priority]
+# highest first (the PRD's behaviour priority hierarchy). "current_activity" is the commitment rule: an activity
+# under way keeps its place over anything ranked below it; "background" is the ambient life layer, not an activity.
+order = ["physical_safety", "emergency", "hazard", "human", "social", "current_activity", "exploration", "idle",
+         "background"]
+# a non-interruptible activity gives way only to categories this high or higher (rank 1 = highest)
+overrides_uninterruptible = 3
+
+[activity]
+right_self = "physical_safety"     # on its back
+low_power = "emergency"            # battery almost empty: stop and save memory
+startle = "hazard"
+unstick = "hazard"                 # a foot over the edge, caught on something
+hide = "hazard"                    # someone it fears is here
+guard_edge = "hazard"              # something is about to fall off the desk
+head_home = "hazard"               # battery low: reach the dock before it runs out
+cool_down = "hazard"               # its leg motors are hot: sit down and let them cool
+obey = "human"                     # something its person asked
+react_touch = "human"
+comfort = "human"
+go_quiet = "human"                 # its person is in a meeting
+greet = "social"
+seek_attention = "social"
+after_meeting = "social"
+celebrate = "social"
+sulk = "social"
+shy = "social"
+explore = "exploration"
+investigate = "exploration"
+orient = "exploration"
+watch = "exploration"
+play = "exploration"
+show_off = "exploration"
+tidy = "exploration"
+idle = "idle"
+rest = "idle"

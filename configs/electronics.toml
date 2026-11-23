@@ -67,6 +67,18 @@ stall_current_a = {value = 1.2, unit = "A", source = "datasheet", ref = "https:/
 # (register torque_limit, address 48, robot/feetech_bus.py; 0-1000 per mille of the maximum torque)
 torque_limit_permille = {value = 400, unit = "per mille", source = "estimate", why = "design choice: a motor's current follows its torque, so a 40 % torque limit caps a stalled arm servo at about 0.48 A and all six at 2.9 A, inside the 5 A regulator with room for idle currents. The parts decision's torque model needs 0.69 kg*cm (46 % of RATED, 15 % of stall) at the 2x margin, so 40 % of stall (1.8 kg*cm) still lifts the toy. Register units not yet confirmed on a servo: bench order 1", ref = "configs/wiring_v2.toml"}
 
+# ---- servo heat: the one-node thermal model of every bus servo (crab/servo_model.py ServoHeat) --------------------
+# Feetech prints no thermal resistance or time constant. These estimates come from SO-ARM100 users' STS3215 tests
+# (issue 134: holding about 15 kg*cm it read 48 C after 10 min and stayed there for an hour; lifting 1.5 kg at 10 cm it
+# rose 15 C in 10 min) and are replaced when the phase-3 bench step `heat` fits a real servo (crab.servo_model.fit_heat).
+# Another servo (the STS3032) scales the thermal resistance by its case's surface area; tau stays the same.
+[servo_heat]
+protection_c = {value = 70, unit = "C", source = "datasheet", ref = "https://docs.waveshare.com/Memory_Map_Explanation/ST_Servo_Memory_Map_Explanation", why = "register 13 (maximum temperature limit), factory default 70 C, 1 C steps; the reading is register 63"}
+ambient_c = {value = 25, unit = "C", source = "estimate", why = "design choice: the twin's room. A summer room in India reaches 35 C or more; the model takes the room's temperature as a parameter (SimBackend(ambient_c=...))", ref = "crab/servo_model.py"}
+sts3215_thermal_resistance_k_per_w = {value = 10.0, unit = "K/W", source = "estimate", why = "needs bench: the SO-ARM100 hold (about 1.47 N*m at the horn; the motor makes 1.06-1.47 N*m of it, BAM's load friction holds the rest: 0.8-1.15 A through 2.75 ohm, 2.3-4 W with the idle draw) settled 23 K above an assumed 25 C room: 6-10 K/W. The upper end is taken, since the board sensor lags the winding", ref = "https://github.com/TheRobotStudio/SO-ARM100/issues/134"}
+time_constant_s = {value = 240.0, unit = "s", source = "estimate", why = "needs bench: the SO-ARM100 hold was already steady at 10 min (about 2.5 time constants or more), so tau is at most about 4 min; maxon's small motors of similar mass have 260-500 s whole-motor constants", ref = "https://github.com/TheRobotStudio/SO-ARM100/issues/134"}
+copper_tempco_per_k = {value = 0.00393, unit = "1/K", source = "estimate", why = "physical constant: annealed copper's resistance rises 0.393 %/K near 20 C (IACS); Ben Katz's Mini Cheetah temperature observer uses the same coefficient", ref = "https://build-its-inprogress.blogspot.com/2019/10/motor-temperature-estimation-without.html"}
+
 # ---- IMU: Bosch BNO055 in IMU fusion mode (gyro + accelerometer, no magnetometer) ----------------------------
 [imu]
 fusion_rate_hz = {value = 100, unit = "Hz", source = "datasheet", ref = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf"}

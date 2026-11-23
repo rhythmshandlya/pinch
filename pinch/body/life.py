@@ -16,6 +16,10 @@ import math
 import numpy as np
 
 from crab.params import JOINT_NAMES
+from pinch.settings import load
+
+A = load("ambient")                                   # configs/mind/ambient.toml
+BR, SW, FI = A["breath"], A["sway"], A["fidget"]
 
 J = {n: i for i, n in enumerate(JOINT_NAMES)}
 LEGS = ("FL", "FR", "RL", "RR")
@@ -23,7 +27,7 @@ ACTIONS = ("claw_flex_L", "claw_flex_R", "shoulder_L", "shoulder_R", "leg_settle
 
 
 class IdleLife:
-    def __init__(self, rng, period_breath=3.5):
+    def __init__(self, rng, period_breath=BR["period_s"]):
         self.rng = rng
         self.period_breath = period_breath
         self.liveliness = 0.4                       # 0 drowsy .. 1 excited (set by the mind)
@@ -43,17 +47,21 @@ class IdleLife:
         """Joint offsets (18) for this tick."""
         lv = max(0.05, min(1.0, self.liveliness)) * (0.5 if self.quiet_s > 300 else 1.0)
         q = np.zeros(len(JOINT_NAMES))
-        b = 0.015 * math.sin(2 * math.pi * t / self.period_breath)          # breathing (unchanged)
+        b = BR["legs_rad"] * math.sin(2 * math.pi * t / self.period_breath)          # breathing
         for lg in LEGS:
             q[J[f"{lg}_femur"]] += b
-        s = 0.012 * lv * math.sin(2 * math.pi * t / 9.0 + self.sway_phase)    # weight shift, left <-> right
+        cb = BR["claws_rad"] * math.sin(2 * math.pi * t / self.period_breath + BR["claws_lag_rad"])   # the claws too
+        for side in "LR":
+            q[J[f"{side}_claw"]] += cb
+            q[J[f"{side}_shoulder_pitch"]] += BR["shoulders_share"] * cb
+        s = SW["legs_rad"] * lv * math.sin(2 * math.pi * t / SW["period_s"] + self.sway_phase)   # weight shift
         for lg in ("FL", "RL"):
             q[J[f"{lg}_femur"]] += s
         for lg in ("FR", "RR"):
             q[J[f"{lg}_femur"]] -= s
         if self.current is None and t >= self.next_t:
             a = self._pick()
-            dur = float(self.rng.uniform(0.5, 1.2))
+            dur = float(self.rng.uniform(*FI["duration_s"]))
             amp = float(self.rng.uniform(0.5, 1.0))
             leg = LEGS[self.rng.integers(4)]
             self.current = (a, t, dur, amp, leg)
@@ -64,15 +72,15 @@ class IdleLife:
             u = (t - t0) / dur
             if u >= 1.0:
                 self.current = None
-                gap = float(self.rng.exponential(8.0 / (0.4 + lv)))          # livelier: more often
-                self.next_t = t + max(1.5, gap)
+                gap = float(self.rng.exponential(FI["mean_gap_s"] / (0.4 + lv)))          # livelier: more often
+                self.next_t = t + max(FI["min_gap_s"], gap)
             else:
                 bump = math.sin(math.pi * u) ** 2 * amp
                 if a.startswith("claw_flex"):
-                    q[J[f"{a[-1]}_claw"]] += 0.15 * lv * bump
+                    q[J[f"{a[-1]}_claw"]] += FI["claw_rad"] * lv * bump
                 elif a.startswith("shoulder"):
-                    q[J[f"{a[-1]}_shoulder_pitch"]] += 0.12 * lv * bump
+                    q[J[f"{a[-1]}_shoulder_pitch"]] += FI["shoulder_rad"] * lv * bump
                 elif a == "leg_settle":
-                    q[J[f"{leg}_femur"]] += 0.03 * bump
-                    q[J[f"{leg}_tibia"]] -= 0.02 * bump
+                    q[J[f"{leg}_femur"]] += FI["leg_femur_rad"] * bump
+                    q[J[f"{leg}_tibia"]] -= FI["leg_tibia_rad"] * bump
         return q

@@ -4,13 +4,13 @@ import math
 
 import numpy as np
 
-QUIET_OK = {"go_quiet", "rest", "react_touch", "comfort", "idle", "startle", "tidy", "guard_edge"}
+QUIET_OK = {"go_quiet", "rest", "cool_down", "react_touch", "comfort", "idle", "startle", "tidy", "guard_edge"}
 
 GRASP_ENABLED = True       # the redesigned claw picks up sticks and blocks (decision 24); pushing is the fallback
 
 # Top-level behaviour states (decision 63). Every activity belongs to one; the mind reports the current one
 # and logs every change. "task" (desk work you asked for) is Pinch's addition to the usual animal set.
-STATES = ("idle", "explore", "social", "play", "alert", "defensive", "rest", "recover", "task")
+STATES = ("idle", "explore", "social", "play", "alert", "defensive", "rest", "sleep", "recover", "task")   # sleep: rest in its asleep phase
 
 
 class Activity:
@@ -24,7 +24,8 @@ class Activity:
     min_s = 2.0
     max_s = 300.0
     quiet_ok = False
-    own_jitter = False         # True: its tie-break jitter comes from its own random stream (Selection._own_jitter)
+    own_jitter = False         # True: its tie-break jitter comes from its own random stream (Selection._own_jitter);
+                               # a name: a stream of its own, so adding it reshuffles no other activity's draws
 
     def utility(self, m) -> float:
         return 0.0

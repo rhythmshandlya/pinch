@@ -31,6 +31,9 @@ Over a recorded session (pinch/recorder.py) it also judges the body, face, eyes 
   failed_grasp           a pick that failed, with the cause from the body's trace (missed, slipped, too wide ...)
   activity_mix           tasks (tidy) over 30 % of awake time, or pet behaviour (idle life, play, social,
                          curiosity) under half of it
+  aliveness              ambient life (breathing, sway, claw flexes, glances: pinch/body/life.py, the eyes) visible
+                         in under 95 % of awake 1 s windows, or a still gap over 3 s while awake (phase 4 exit check;
+                         docs/research/v2_1/observer/notes.md)
 The thresholds come from recordings of normal pet life (the tests plant each problem and check a normal session
 stays quiet); the numbers behind them are in the realism report (pinch/realism.py).
 """
@@ -195,7 +198,7 @@ def observe_session(session):
     out = observe_records(decisions, phases, log, dur) if decisions else []
     for check in (_repetitive_motion, _unnecessary_movement, _inconsistent_expression, _conflicting_movement,
                   _abrupt_transitions, _excessive_reactions, _gaze_mismatch, _sound_mismatch, _recovery_failure,
-                  _stuck, _failed_grasp, _activity_mix):
+                  _stuck, _failed_grasp, _activity_mix, _aliveness):
         out += check(ev, sm)
     return sorted(out, key=lambda f: f.t0)
 
@@ -394,6 +397,56 @@ def _gaze_mismatch(ev, sm):
                            f"{t1 - t0:.1f} s",
                            "look_at the target again after turning (an aimed gaze holds 3 s, then attention takes over)",
                            dict(activity=str(act[i0]), status=str(s))))
+    return out
+
+
+ALIVE_MIN, ALIVE_GAP_S = 0.95, 3.0     # share of awake 1 s windows with ambient life; longest still gap
+AMBIENT_FLOOR_RAD = 0.004               # an ambient offset this big is visible (breathing peaks at 0.015)
+GLANCE_FLOOR = 0.03                     # a gaze change this big in a window counts as a glance
+
+
+def aliveness(sm, window=1.0):
+    """(share of awake windows with ambient life, longest still gap in s, number of awake windows), or None when the
+    session has no ambient record. A window is alive if the body's ambient layer moved visibly or the eyes moved."""
+    if "ambient" not in sm or not len(sm["t"]):
+        return None
+    t = np.asarray(sm["t"], float)
+    awake = _strs(sm, "state") != "sleep" if "state" in sm else np.ones(len(t), bool)
+    amb = np.asarray(sm["ambient"], float)
+    gaze = np.asarray(sm["eye"] if "eye" in sm else sm.get("gaze_x", np.zeros(len(t))), float)   # the eyes as drawn
+    blink = np.asarray(sm["blink"], bool) if "blink" in sm else np.zeros(len(t), bool)
+    idx = np.floor((t - t[0]) / window).astype(int)
+    alive, gaps, run, n = [], [], 0.0, 0
+    for w in range(idx.max() + 1):
+        sel = idx == w
+        if not sel.any() or not awake[sel].all():
+            run = 0.0
+            continue
+        n += 1
+        moved = amb[sel].max() >= AMBIENT_FLOOR_RAD or np.ptp(gaze[sel]) >= GLANCE_FLOOR or blink[sel].any()
+        alive.append(moved)
+        run = 0.0 if moved else run + window
+        gaps.append(run)
+    if not n:
+        return None
+    return float(np.mean(alive)), float(max(gaps or [0.0])), n
+
+
+def _aliveness(ev, sm):
+    a = aliveness(sm)
+    if a is None or a[2] < 30:
+        return []
+    share, gap, n = a
+    out = []
+    if share < ALIVE_MIN:
+        out.append(Finding("aliveness", "warn", float(sm["t"][0]), float(sm["t"][-1]),
+                           f"ambient life visible in {100 * share:.1f} % of {n} awake seconds (want >= {100 * ALIVE_MIN:.0f} %)",
+                           "let ambient life run on the parts the current motion does not use (configs/mind/channels.toml)",
+                           dict(share=share, gap=gap)))
+    if gap > ALIVE_GAP_S:
+        out.append(Finding("aliveness", "info", float(sm["t"][0]), float(sm["t"][-1]),
+                           f"a still gap of {gap:.0f} s while awake", "check which motion holds every part with no ambient",
+                           dict(share=share, gap=gap)))
     return out
 
 

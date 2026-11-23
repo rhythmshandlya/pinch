@@ -9,6 +9,7 @@ def _mind_that_knows_things():
     m = Mind(memory=Memory(path=None), llm=False, seed=1, clock=lambda: 1795059000.0 + m.t)
     m.hear_text("my name is Sam")
     m.memory.add_fact("likes tea")
+    m.memory.approve_facts(["likes tea"])           # (facts about its person wait for their yes)
     m.see_person("p1", 0.9, name="Sam", owner=True)
     m.see_person("p2", 0.8)
     m.memory.teach_home("pen", (0.05, 0.10))
@@ -47,7 +48,7 @@ def test_forget_everything_keeps_settings():
     faces = m.forget("everything")
     s = m.memory_summary()
     assert sorted(faces) == ["p1", "p2"]
-    assert s["owner"] == {"name": "", "facts": []} and s["people"] == [] and s["episodes"] == 0
+    assert s["owner"] == {"name": "", "facts": [], "pending": []} and s["people"] == [] and s["episodes"] == 0
     assert s["homes"] == [] and s["danger_spots"] == 0 and sum(s["routines"].values()) == 0
     assert s["settings"]["quiet_hours"] == [22.0, 7.0], "the owner's settings must survive a forget"
 
@@ -57,3 +58,18 @@ def test_face_recognition_switch():
     assert m.face_recognition
     m.set_face_recognition(False)
     assert not m.face_recognition and m.memory.data["settings"]["face_recognition"] is False
+
+
+def test_facts_about_its_person_wait_for_their_yes():
+    m = Mind(memory=Memory(path=None), llm=False, seed=1, clock=lambda: 1795059000.0)
+    m.memory.add_fact("likes tea")
+    m.memory.add_fact("has a cat")
+    s = m.memory_summary()["owner"]
+    assert s["facts"] == [] and s["pending"] == ["likes tea", "has a cat"]
+    assert m.memory.approve_facts(["has a cat"]) == ["has a cat"]
+    m.memory.approve_facts(["likes tea"], keep=False)            # "no, don't keep that"
+    s = m.memory_summary()["owner"]
+    assert s["facts"] == ["has a cat"] and s["pending"] == []
+    m.memory.data["settings"]["ask_before_remembering"] = False   # the person trusts it: kept at once
+    m.memory.add_fact("works from home")
+    assert "works from home" in m.memory_summary()["owner"]["facts"]

@@ -1,5 +1,6 @@
 """Choosing what to do: utility scores, the state layer (timeouts, resume), stepping through the activity, and the decision log."""
 
+from pinch.mind.behaviour import allowed, category, overrides_uninterruptible, rank, states
 from pinch.mind.common import (  # noqa: F401
     LIBRARY,
     MOOD_REPLY,
@@ -24,6 +25,7 @@ class Selection:
         rec = dict(t=round(self.t, 2), clock=round(self.world.clock(), 2),
                    prev=self.activity.name if self.activity else None, to=name, reason=reason,
                    state=[self.state, nxt.state],
+                   priority=[category(self.activity.name) if self.activity else None, category(name)],
                    top=[[k, round(v, 3)] for k, v in top],
                    noticed=[[s.kind, s.target, round(s.strength, 2)] for s in self.situations[:5]],
                    feeling=self.affect.feeling(), valence=round(self.affect.valence, 3),
@@ -50,17 +52,39 @@ class Selection:
             r = self._own_jitter_rng = np.random.default_rng(0x9E3779B9)
         return r
 
+    def _jitter(self, a):
+        """The tie-break jitter of activity a, from the stream it draws from (see Activity.own_jitter)."""
+        if isinstance(a.own_jitter, str):
+            streams = self.__dict__.setdefault("_named_jitter", {})
+            if a.own_jitter not in streams:
+                streams[a.own_jitter] = np.random.default_rng(np.random.SeedSequence([0x9E3779B9, *a.own_jitter.encode()]))
+            return streams[a.own_jitter].random()
+        return self._own_jitter.random() if a.own_jitter else self.rng.random()
+
+    EFFORT_FROM_RANK = 4                 # activities ranked this or lower (human .. idle) pay the heat's walking cost
+
+    def _effort(self, a):
+        """How much of its wish an activity keeps when the legs are warm: walking is what heats them, so an activity
+        whose state walks (configs/mind/states.toml allow: goto / walk) is worth (1 - heat) of itself, even what its
+        person asks (a hot pet is slow to come when called). Physical safety, emergencies and hazards are exempt (the
+        body still refuses to walk at 60 C, pinch/body/locomotion.py)."""
+        h = self.affect.needs.heat
+        if h <= 0.0 or rank(a.name) < self.EFFORT_FROM_RANK:
+            return 1.0
+        allow = states()[a.state]["allow"]
+        return 1.0 - h if ("goto" in allow or "walk" in allow) else 1.0
+
     RESUME_S, RESUME_BONUS = 60.0, 0.1   # an activity cut short by something urgent is preferred back for 60 s
 
     def _choose(self):
         scores = {}
         for a in LIBRARY:
-            u = a.utility(self)
+            u = a.utility(self) * self._effort(a)
             if self.affect.quiet and not a.quiet_ok:
                 u = 0.0
             if u > 0 and self.suspended and self.suspended[0] == a.name and self.t - self.suspended[1] < self.RESUME_S:
                 u += self.RESUME_BONUS
-            scores[a.name] = u + 0.02 * (self._own_jitter.random() if a.own_jitter else self.rng.random())
+            scores[a.name] = u + 0.02 * self._jitter(a)
         cur = self.activity
         # commitment: an activity under way keeps most of the priority it started with, so a job doesn't
         # evaporate halfway (e.g. a pushed cap stops counting as "settled" the moment Pinch moves it)
@@ -75,8 +99,12 @@ class Selection:
             return False
         elapsed = self.t - self.started
         urgent = scores[best] >= 1.5 and scores[best] > scores.get(cur.name, 0) + 0.1
-        better = scores[best] > scores.get(cur.name, 0) + 0.15 and elapsed > cur.min_s
-        if (cur.interruptible and (urgent or better)) or (not cur.interruptible and urgent and best in ("startle", "right_self")):
+        # the current state says how important an urgent newcomer must be (configs/mind/states.toml interrupt):
+        # e.g. a greeting doesn't wake it from sleep, a touch or its person's request does
+        may_cut_in = rank(best) <= states()[self.state]["interrupt"]
+        urgent = urgent and may_cut_in
+        better = scores[best] > scores.get(cur.name, 0) + 0.15 and elapsed > cur.min_s and may_cut_in
+        if (cur.interruptible and (urgent or better)) or (not cur.interruptible and urgent and overrides_uninterruptible(best)):
             if urgent and cur.name != best:
                 self._suspend(cur.name)                          # (it may come back to it afterwards)
             self._start(best, ("urgent" if urgent else "clearly better") + f" than {cur.name}"
@@ -97,10 +125,36 @@ class Selection:
 
     @property
     def state(self):
-        """The top-level behaviour state now (activities/base.py STATES)."""
-        return self.activity.state if self.activity is not None else "idle"
+        """The top-level behaviour state now (activities/base.py STATES; configs/mind/states.toml): the activity's,
+        or "sleep" while a resting activity is in its asleep phase."""
+        if self.activity is None:
+            return "idle"
+        if self.activity.state == "rest" and self.phase == "asleep":
+            return "sleep"
+        return self.activity.state
 
     start_score = 0.0
+
+    def motion_owner(self):
+        """(owner, layer) for the motion the mind hands the body (pinch/body/arbiter.py layers): the top two
+        priority categories as reflexes, what its person asked as a command, hazards and human contact as
+        reactions, everything else as the activity."""
+        a = self.activity
+        if a is None:
+            return "mind", "activity"
+        r = rank(a.name)
+        layer = "reflex" if r <= 2 else "command" if a.name == "obey" else "reaction" if r <= 4 else "activity"
+        return a.name, layer
+
+    def channel_owners(self):
+        """Who drives the eyes, the face and the sound now: the activity when it set them recently, else ambient
+        life (the attention focus, the feeling, silence)."""
+        name = self.activity.name if self.activity else None
+        return {"gaze": name if name and self.t - self.gaze_set_t <= 3.0 else "ambient:attention",
+                "face": name if name and self.t - self.face_set_t <= 3.0 else "ambient:feeling",
+                "sound": name if name and self.t - self.sound_set_t <= 1.0 else "ambient"}
+
+    face_set_t = sound_set_t = -1e9
 
     RESUME_DEPTH = 3                     # interruptions remembered at once (explore -> investigate -> guard_edge)
 
@@ -149,11 +203,14 @@ class Selection:
             kind = step[0]
             if kind == "face":
                 self.face_expr = step[1]
+                self.face_set_t = self.t
             elif kind == "sound":
                 if not self.affect.quiet:
                     self.sounds.append(step[1])
+                    self.sound_set_t = self.t
             elif kind == "look_at":
                 self.gaze = self._gaze_to(step[1])
+                self.gaze_target_xy = tuple(step[1])        # re-aimed every tick as the body moves (outputs)
                 self.gaze_set_t = self.t
             elif kind == "wait":
                 self.wait_until = self.t + step[1]
@@ -178,6 +235,10 @@ class Selection:
                 self.waiting_motion = True
                 return ("emote", emote)
             elif kind in MOTION_STEPS:
+                if not allowed(self.state, kind):            # the state's rules (configs/mind/states.toml)
+                    self._say("refused", f"{kind} is not allowed in {self.state} ({self.activity.name})")
+                    self.last_step_ok = False
+                    continue
                 if kind in ("goto", "push", "pick", "drop"):
                     self.gaze = (0.0, 0.3)
                 self.waiting_motion = True

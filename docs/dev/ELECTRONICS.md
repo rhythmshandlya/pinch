@@ -47,6 +47,7 @@ quotes ST, and the page is the ref. Today's (v1) STS3032 torque and speed number
 | Regulator | The 5 V bus holds until the pack drops within 0.5 V of it, sags by the wire resistance times the servo current, and droops steeply past the 5 A limit. |
 | INA219 | Reads pack voltage and current in its 4 mV and 10 uV steps, with a gain error (0.5 % max) and a little noise. |
 | Low battery | In the twin the mind's battery level comes from the INA219 reading, so hunger, the low-battery warning and the safety stop (6.4 V under load) happen by themselves. A pack at 0 % trips the stop within seconds. |
+| Servo temperature | Every bus servo reports the temperature of a one-node heat model (`crab/servo_model.py` `ServoHeat`), in every realism: the copper loss of its motor torque (BAM's measured winding resistance, rising 0.393 %/K), the gearbox's friction loss and the electronics' idle draw, into a thermal resistance to the room with a time constant (`[servo_heat]`: STS3215 10 K/W and 240 s, estimated from SO-ARM100 users' hold tests; a smaller servo scales by its case area). The mind's heat need and cool-down drive, and the body's walking limit (slower from 55 C, stopped at 60 C), read it. `fit_heat` fits the two constants to a logged bench run. |
 
 Everything is seeded: the same seed and the same calls give the same numbers (`test_datasheet_realism_replays_exactly`).
 The models draw from their own random streams, so the twin's other random choices do not change.
@@ -61,7 +62,8 @@ The models draw from their own random streams, so the twin's other random choice
   generated from them.
 - **The servo's torque limit following the bus voltage.** The battery sags and the bus voltage is reported, but
   the torque model does not weaken with it (that belongs to the servo model being redesigned).
-- **Servo speed, load and temperature feedback** are still exact (temperature is a constant 35 C).
+- **Servo speed and load feedback** are still exact. Temperature is modelled (above) but its two thermal constants
+  are estimates until a real servo is logged; the sensor's lag behind the winding is not modelled.
 - **Bus transmission errors** (garbled replies) and I2C NACKs.
 - **Real current of the STS3032 legs**: current comes from torque divided by `kt_current` in `crab/params.py`, so
   it follows whichever servo is configured. When the servo model changes the current, the power budget follows.

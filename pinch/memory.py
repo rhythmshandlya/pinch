@@ -92,11 +92,32 @@ class Memory:
             self.remember("owner", f"my person's name is {name}")
 
     def add_fact(self, fact):
+        """Something it heard about its person. With the setting ask_before_remembering (on by default) it waits in
+        `pending` until the person approves it (approve_facts; the app and HTTP /approve); otherwise it is kept."""
+        fact = (fact or "")[:120]
         facts = self.data["owner"]["facts"]
-        if fact and fact not in facts:
-            facts.append(fact[:120])
+        pending = self.data["owner"].setdefault("pending", [])
+        if not fact or fact in facts or fact in pending:
+            return
+        if self.data["settings"].get("ask_before_remembering", True):
+            pending.append(fact)
+            self.data["owner"]["pending"] = pending[-40:]
+        else:
+            facts.append(fact)
             self.data["owner"]["facts"] = facts[-40:]
-            self._dirty = True
+        self._dirty = True
+
+    def approve_facts(self, which=None, keep=True):
+        """The person's answer about pending facts (all of them, or the ones named): keep them, or drop them."""
+        pending = self.data["owner"].setdefault("pending", [])
+        chosen = list(pending) if which is None else [f for f in pending if f in which]
+        self.data["owner"]["pending"] = [f for f in pending if f not in chosen]
+        if keep:
+            facts = self.data["owner"]["facts"]
+            facts += [f for f in chosen if f not in facts]
+            self.data["owner"]["facts"] = facts[-40:]
+        self._dirty = True
+        return chosen
 
     def mark_routine(self, kind, hour=None):
         hour = self.hour() if hour is None else hour

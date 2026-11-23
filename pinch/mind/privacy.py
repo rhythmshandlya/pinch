@@ -9,7 +9,8 @@ class Privacy:
         """What Pinch remembers, readable: names and counts, never face fingerprints or raw episodes."""
         d = self.memory.data
         return dict(
-            owner=dict(name=d["owner"]["name"], facts=list(d["owner"]["facts"])),
+            owner=dict(name=d["owner"]["name"], facts=list(d["owner"]["facts"]),
+                       pending=list(d["owner"].get("pending", []))),       # waiting for the person's yes
             people=[dict(id=pid, name=p.get("name", ""), owner=bool(p.get("owner")),
                          feeling=self.people.describe(pid)) for pid, p in list(self.people.people.items())],
             homes=sorted(d["homes"]), episodes=len(d["episodes"]), likes=dict(d["likes"]),
@@ -39,8 +40,10 @@ class Privacy:
         if what in ("owner", "everything"):
             d["owner"]["name"] = ""
             d["owner"]["facts"] = []
+            d["owner"]["pending"] = []
         if what == "facts":
             d["owner"]["facts"] = []
+            d["owner"]["pending"] = []
         if what in ("episodes", "everything"):
             d["episodes"] = []
         if what in ("homes", "everything"):

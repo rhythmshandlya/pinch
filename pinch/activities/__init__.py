@@ -19,7 +19,7 @@ from pinch.activities.curiosity import Investigate, Watch
 from pinch.activities.defensive import Hide, Orient, Shy, Startle
 from pinch.activities.play import Explore, Play, ShowOff
 from pinch.activities.recovery import HeadHome, LowPower, RightSelf, Unstick
-from pinch.activities.rest import Idle, Rest
+from pinch.activities.rest import CoolDown, Idle, Rest
 from pinch.activities.social import (
            AfterMeeting,
            Celebrate,
@@ -35,4 +35,4 @@ from pinch.activities.tasks import GuardEdge, Tidy
 
 LIBRARY = [Idle(), Obey(), GoQuiet(), AfterMeeting(), SeekAttention(), Comfort(), Celebrate(), ReactTouch(),
            Startle(), Orient(), RightSelf(), Unstick(), Hide(), Shy(), HeadHome(), LowPower(), Tidy(), GuardEdge(), Play(), ShowOff(), Explore(), Rest(), Sulk(), Greet(),
-           Watch(), Investigate()]
+           Watch(), Investigate(), CoolDown()]

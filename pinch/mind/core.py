@@ -139,6 +139,8 @@ class MindCore:
         self.affect.tick(dt, owner_present=present, owner_attending=self.world.owner_attending(60),
                          battery=self.world.battery, sleep_drive=self.routine.sleep_drive(now))
         self._self_preservation(dt)
+        self._body_heat()
+        self._fatigue(dt, body_busy)
         timed_out = self._timeout()
         if self.t >= self.next_choice or self._force:
             self.situations = situations(self.world, self.affect, self.memory)
@@ -151,20 +153,41 @@ class MindCore:
                 return None, True
         return self._advance(body_busy, body_ok), False
 
+    FATIGUE_UP_S, FATIGUE_DOWN_S, FATIGUE_REST_S = 4500.0, 1800.0, 600.0   # s to go 0 -> 1 working, 1 -> 0 idle / resting
+
+    def _fatigue(self, dt, body_busy):
+        """ARC-002: physical tiredness builds while the body works (about an hour of non-stop motion to the top) and
+        drains when still, three times faster while resting or asleep; it makes rest more attractive."""
+        n = self.affect.needs
+        if body_busy:
+            n.fatigue = min(1.0, n.fatigue + dt / self.FATIGUE_UP_S)
+        else:
+            resting = self.activity is not None and self.activity.state == "rest"
+            n.fatigue = max(0.0, n.fatigue - dt / (self.FATIGUE_REST_S if resting else self.FATIGUE_DOWN_S))
+        n.fatigue = max(n.fatigue, n.heat)          # warm motors feel like tired legs: tiredness is at least the heat
+
     def _gaze_to(self, xy):
         x, y, h = self.world.pose
         ang = np.arctan2(xy[1] - y, xy[0] - x) - h
         ang = (ang + np.pi) % (2 * np.pi) - np.pi
         return (float(np.clip(-ang / 0.8, -1, 1)), 0.2)
 
+    gaze_target_xy = None
+
     def outputs(self):
         """Face expression (the feeling unless an activity set one recently), gaze, sounds to play. Gaze: where
-        an activity aimed it in the last 3 s, otherwise the focus of attention, otherwise ahead."""
+        an activity aimed it in the last 3 s, otherwise the focus of attention, otherwise ahead. A target with a
+        place on the desk is re-aimed from the current pose every tick, so the eyes stay on it while it walks."""
+        from pinch.attention import direction_of
         s, self.sounds = self.sounds, []
-        if self.t - self.gaze_set_t > 3.0:
+        if self.t - self.gaze_set_t <= 3.0:
+            if self.gaze_target_xy is not None:
+                self.gaze = self._gaze_to(self.gaze_target_xy)
+        else:
             f, sal = self.attention.update(self.t)
-            if f is not None and f.direction is not None and sal > 0.1:
-                self.gaze = (float(max(-1.0, min(1.0, -f.direction / 0.8))), 0.2)
+            if f is not None and sal > 0.1 and (f.xy is not None or f.direction is not None):
+                d = direction_of(f.xy, self.world.pose) if f.xy is not None else f.direction
+                self.gaze = (float(max(-1.0, min(1.0, -d / 0.8))), 0.2)
             elif f is None:
                 self.gaze = (0.0, 0.0)
         return self.face_expr, self.gaze, s

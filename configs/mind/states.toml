@@ -1,0 +1,80 @@
+# The top-level behaviour states (PRD hierarchical behaviour states), as data: read by pinch/mind/behaviour.py.
+# Entry: a state is entered when the mind starts an activity that belongs to it (pinch/activities: `state`), or, for
+# sleep, when a resting activity reaches its asleep phase. Exit: the activity ends, runs past its max_s (reason
+# "timeout", then the mind chooses again), or a higher priority interrupts it (configs/mind/behaviour.toml).
+# allow: the motion steps the state may run; any other is refused and logged (the step counts as failed).
+# intent: what each body part is for in this state (the body-part owners of phase 4 follow it).
+# interrupt: the lowest priority rank that may cut it short when urgent (1 = physical safety .. 8 = idle).
+# on_timeout: what follows a timeout.
+
+version = "4.1"
+
+[idle]
+sub = ["observe", "micro_adjust", "settle"]
+allow = ["emote", "pose", "turn_to"]
+intent = { legs = "settle and shift weight", claws = "small flexes", gaze = "wander, follow attention", face = "the feeling", sound = "rare, soft" }
+interrupt = 8
+on_timeout = "choose again"
+
+[explore]
+sub = ["select_target", "approach", "inspect", "circle", "retreat", "resume"]
+allow = ["goto", "walk", "turn_to", "emote", "pose"]
+intent = { legs = "cautious approach", claws = "ready, low", gaze = "on the target", face = "curious", sound = "small curious chirps" }
+interrupt = 6
+on_timeout = "choose again; the interrupted activity may resume"
+
+[social]
+sub = ["notice_person", "recognize", "greet", "interact", "disengage"]
+allow = ["goto", "walk", "turn_to", "emote", "pose"]
+intent = { legs = "face the person", claws = "gesture", gaze = "on the person", face = "the feeling toward them", sound = "chirps and purrs" }
+interrupt = 4
+on_timeout = "choose again"
+
+[play]
+sub = ["invite", "engage", "chase_inspect", "pause", "resume", "finish"]
+allow = ["goto", "walk", "turn_to", "emote", "pose", "pick", "push", "drop", "release"]
+intent = { legs = "bouncy", claws = "handle the toy", gaze = "on the toy or the person", face = "playful", sound = "giggles" }
+interrupt = 6
+on_timeout = "choose again"
+
+[alert]
+sub = ["orient", "focus", "assess", "resolve"]
+allow = ["turn_to", "walk", "emote"]
+intent = { legs = "still or turning to face it", claws = "still", gaze = "fixed on the stimulus", face = "alert", sound = "none or one alarm chirp" }
+interrupt = 3
+on_timeout = "choose again; the interrupted activity may resume"
+
+[defensive]
+sub = ["startle", "assess", "posture", "retreat", "recover"]
+allow = ["goto", "walk", "turn_to", "pose"]
+intent = { legs = "back away, crouch", claws = "raised as a shield", gaze = "on the threat", face = "scared", sound = "low warning" }
+interrupt = 3
+on_timeout = "choose again"
+
+[rest]
+sub = ["settle", "relax", "low_activity"]
+allow = ["goto", "pose", "emote"]
+intent = { legs = "settle low", claws = "folded", gaze = "drowsy, slow", face = "sleepy", sound = "soft or none" }
+interrupt = 5
+on_timeout = "choose again"
+
+[sleep]
+sub = ["enter", "asleep", "wake"]
+allow = ["pose", "emote"]
+intent = { legs = "still, breathing only", claws = "folded", gaze = "closed", face = "asleep", sound = "none (a snore at most)" }
+interrupt = 4
+on_timeout = "wake slowly, then choose again"
+
+[recover]
+sub = ["detect_failure", "stop", "reorient", "retry", "abandon", "resume"]
+allow = ["right_self", "recover", "goto", "walk", "turn_to", "emote", "pose"]
+intent = { legs = "the recovery motion", claws = "help or tucked", gaze = "on the way out", face = "worried or effortful", sound = "grumble, then ask for help" }
+interrupt = 2
+on_timeout = "abandon, ask for help, choose again"
+
+[task]
+sub = ["approach", "act", "check", "report"]
+allow = ["goto", "walk", "turn_to", "emote", "pose", "pick", "push", "drop", "release"]
+intent = { legs = "position for the job", claws = "the job", gaze = "on the object", face = "focused", sound = "small effort sounds" }
+interrupt = 5
+on_timeout = "choose again; give up on that object for a while"

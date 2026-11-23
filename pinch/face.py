@@ -15,6 +15,10 @@ from dataclasses import dataclass
 import numpy as np
 from PIL import Image, ImageDraw
 
+from pinch.settings import load as _load_settings
+
+EYES = _load_settings("ambient")["eyes"]          # blinks and eye darts (configs/mind/ambient.toml)
+
 W, H = 128, 64
 EYE_CX = (36, 92)                  # eye centres (x)
 EYE_CY = 32
@@ -106,15 +110,15 @@ class Face:
                                else getattr(tg, f)) for f in c.__dataclass_fields__})
         # gaze: small saccades around the target, like a living eye
         if self.t > self.next_saccade:
-            jitter = self.rng.normal(0, 0.08, 2)
+            jitter = self.rng.normal(0, EYES["saccade_sd"], 2)
             self.gaze = np.clip(self.gaze_target + jitter, -1, 1)
-            self.next_saccade = self.t + self.rng.uniform(0.4, 2.2)
+            self.next_saccade = self.t + self.rng.uniform(*EYES["saccade_gap_s"])   # configs/mind/ambient.toml
         else:
             self.gaze += (self.gaze_target - self.gaze) * (1 - np.exp(-dt / 0.15)) * 0.3
         # blinking: every 2-6 s, sometimes twice
         if self.blink_t < 0 and self.t > self.next_blink and not self.cur.glyph:
-            self.blink_t, self.double = 0.0, self.rng.random() < 0.25
-            self.next_blink = self.t + self.rng.uniform(2.0, 6.0)
+            self.blink_t, self.double = 0.0, self.rng.random() < EYES["double_blink"]
+            self.next_blink = self.t + self.rng.uniform(*EYES["blink_gap_s"])
         blink_open = 1.0
         if self.blink_t >= 0:
             self.blink_t += dt

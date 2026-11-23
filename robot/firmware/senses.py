@@ -99,6 +99,8 @@ class FirmwareSenses:
                 for pid in faces:
                     self.faceid.forget(pid)
                 self.faceid.save()
+        elif kind == "approve":
+            m.memory.approve_facts(*data)
         elif kind == "face_recognition":
             m.set_face_recognition(data)
         elif kind == "quiet_hours":

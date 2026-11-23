@@ -21,6 +21,10 @@ from pinch.body.common import (  # noqa: F401
 
 
 class Locomotion:
+    # the legs' heat limit (a protection under the mind's cool-down drive, like the edge guard): walking slows from
+    # 55 C and stops at 60 C on the hottest leg servo; the firmware cuts the torque at 65 C (robot/crab_robot.py), the
+    # servo's own protection is 70 C. Standing and sitting down stay allowed: they are how it cools.
+    HOT_SLOW_C, HOT_STOP_C = 55.0, 60.0
     FEET_EDGE = 0.02          # m: no walking or turning that brings a foot closer than this to the desk edge
                               # (the gait swings each foot ~2 cm, and the desk position is good to ~1 cm)
 
@@ -55,8 +59,17 @@ class Locomotion:
                 return alt
         return (0.0, 0.0, 0.0)
 
+    def _heat_limit(self, cmd):
+        T = self.servo_temp
+        if T is None or T <= self.HOT_SLOW_C:
+            return cmd
+        k = max(0.0, (self.HOT_STOP_C - T) / (self.HOT_STOP_C - self.HOT_SLOW_C))
+        if any(abs(c) > 1e-6 for c in cmd):
+            self.heat_trimmed += 1
+        return tuple(float(c * k) for c in cmd)
+
     def _gait_q(self, cmd, arms=None, lower=0.0):
-        cmd = self._edge_guard(cmd)
+        cmd = self._heat_limit(self._edge_guard(cmd))
         if np.hypot(cmd[0], cmd[1]) > 0.005:                    # where it was trying to go (for a climb)
             self.walk_dir = np.array(cmd[:2]) / np.hypot(cmd[0], cmd[1])
         self.cmd_vel = tuple(float(c) for c in cmd)          # what the localizer integrates on the robot
