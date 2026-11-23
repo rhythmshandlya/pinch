@@ -68,6 +68,11 @@ class Desk:
 
     TRAY_ALLOW = 0.015
 
+    @classmethod
+    def body_radius(cls):
+        """How far Pinch's feet reach from its centre standing (m): its personal-space unit (BODY_SCALE)."""
+        return max(float(np.hypot(*f)) for f in cls.FEET)
+
     def tray_gap(self, p):
         """Distance from p to the tray's footprint (negative inside it)."""
         dx = abs(p[0] - self.tray_xy[0]) - self.tray_half[0]
@@ -188,3 +193,8 @@ def situations(world: WorldModel, affect, memory) -> list:
         out.append(Situation("scared", affect.needs.safety))
     out.sort(key=lambda s: -s.strength)
     return out
+
+
+# Distances the mind keeps from things (curiosity's standoff, a startle's radius, a step back) were tuned on the first,
+# smaller body (feet 0.101 m from its centre); they scale with the body so a bigger crab keeps the same room around it.
+BODY_SCALE = Desk.body_radius() / 0.101

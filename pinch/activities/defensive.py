@@ -7,6 +7,7 @@ from pinch.activities.base import (  # noqa: F401
 )
 from pinch.affect import EMO
 from pinch.attention import bearing
+from pinch.world import BODY_SCALE
 
 FEAR = EMO["fear_threshold"]                 # configs/mind/expression.toml: one line for fear
 
@@ -22,11 +23,12 @@ class Startle(Activity):
         yield ("face", "scared")
         if not m.affect.quiet:
             yield ("sound", "startled_squeak")
-        yield ("emote", "scared")
         f = m.attention.focus                                 # where the fright came from, if it knows
         d = bearing(f, m.world.pose) if f is not None and m.t - f.t < 3.0 else None
         d = 0.0 if d is None else d
-        yield ("walk", -0.04 * np.cos(d), -0.04 * np.sin(d), 0.0, 1.0)   # away from it (straight back if unknown)
+        b = 0.04 * BODY_SCALE                                 # (a bigger crab backs off further)
+        yield ("walk", -b * np.cos(d), -b * np.sin(d), 0.0, 1.0)   # first a flinch away from it (straight back if
+        yield ("emote", "scared")                             # unknown), then it cowers: the startle reflex's order
 
 
 class Orient(Activity):

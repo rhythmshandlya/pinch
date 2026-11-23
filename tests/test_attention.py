@@ -56,10 +56,12 @@ def test_voice_from_the_left_turns_it_and_it_goes_back():
 
 def test_a_voice_doesnt_interrupt_a_job_you_asked_for():
     sim = PinchSim(memory=Memory(path=None), seed=2)
-    sim.place("cap", (-0.06, 0.0))
-    sim.mind.world.see("cap", (-0.06, 0.0), graspable=False)
+    sim.place("cap", (-0.17, 0.0))                       # just behind it (clear of the shell and the rear legs)
+    sim.mind.world.see("cap", (-0.17, 0.0), graspable=False)
     sim.mind.memory.teach_home("cap", sim.desk.tray_xy)
     sim.run(2.0)
+    sim.say("hi pinch")                                  # its person arrives first: the greeting is over before the job
+    sim.run(12.0)
     sim.say("pinch, put the cap away")
     sim.run(6.0)
     assert sim.mind.activity.name == "tidy"

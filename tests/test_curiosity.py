@@ -10,6 +10,7 @@ from pinch.memory import Memory
 from pinch.novelty import NoveltyTracker, Observation, interest
 from pinch.safety import CAREFUL
 from pinch.twin import PinchSim
+from pinch.world import BODY_SCALE as S  # distances relative to the body (pinch/world.py)
 
 POSE0 = (0.0, 0.0, 0.0)
 
@@ -87,10 +88,10 @@ def test_startle_is_proportionate():
 def test_new_thing_cautious_look_and_habituation():
     sim = _sim(["box"])
     t_show = sim.t
-    sim.show_prop("box", (0.15, 0.0))                    # 15 cm in front: closer than it likes at first
+    sim.show_prop("box", (0.15 * S, 0.0))                # just in front: closer than it likes at first
     speeds, near_edge = [], 1.0
     n_mo, slows, hist = len(sim.motions), [], []
-    while sim.t < t_show + 200.0:
+    while sim.t < t_show + 320.0:                        # (v2.1: each look and retreat walks further)
         sim.run(0.2)
         p = sim.pose()
         for mo in sim.motions[n_mo:]:
@@ -112,9 +113,9 @@ def test_new_thing_cautious_look_and_habituation():
     order = [p for p in ("notice", "approach", "pause", "inspect", "retreat") if p in phases]
     assert order == ["notice", "approach", "pause", "inspect", "retreat"], f"phases {phases}"
     assert slows and max(slows) <= 0.7, f"approach should be slow: {slows}"
-    assert speeds and max(speeds) < 0.045, f"crept at up to {max(speeds):.3f} m/s"
+    assert speeds and max(speeds) < 0.045 * S, f"crept at up to {max(speeds):.3f} m/s"
     th = next(iter(sim.mind.novelty.things.values()))
-    assert th.closest[0] >= 0.15, f"first look from {th.closest[0]:.3f} m: it should keep its distance"
+    assert th.closest[0] >= 0.15 * S, f"first look from {th.closest[0]:.3f} m: it should keep its distance"
     assert th.bouts >= 3 and th.familiar, f"{th.bouts} looks, novelty {th.novelty:.2f}"
     assert th.closest[-1] < th.closest[0] - 0.02, f"closer as it gets used to it: {th.closest}"
     sides = max(int(s.split(" side")[0].split()[-1]) for _, _, s in _bouts(sim))
@@ -168,7 +169,7 @@ def test_eyes_follow_a_moving_thing():
 
 def test_sudden_motion_close_startles_slow_far_does_not():
     sim = _sim(["toy"])
-    sim.move_prop("toy", [(0.33, -0.15), (0.33, 0.15)], speed=0.04)       # slow, far
+    sim.move_prop("toy", [(0.30 * S, -0.12 * S), (0.30 * S, 0.12 * S)], speed=0.04)   # slow, far
     sim.run(8.0)
     assert "startle" not in [r["to"] for r in sim.mind.decisions]
     assert sim.mind.affect.needs.safety < 0.2
@@ -176,15 +177,15 @@ def test_sudden_motion_close_startles_slow_far_does_not():
     sim.run(8.0)
     p = sim.pose()
     c, s = math.cos(p[2]), math.sin(p[2])
-    start = sim.desk.clamp((p[0] + 0.32 * c, p[1] + 0.32 * s), 0.03)
+    start = sim.desk.clamp((p[0] + 0.32 * S * c, p[1] + 0.32 * S * s), 0.03)
     t0 = sim.t
-    sim.move_prop("toy", [start, (p[0] + 0.12 * c, p[1] + 0.12 * s)], speed=0.45)   # rushes at it
+    sim.move_prop("toy", [start, (p[0] + 0.12 * S * c, p[1] + 0.12 * S * s)], speed=0.45)   # rushes at it
     sim.run(1.2)
     d_after_rush = _dist(sim, "toy")
     sim.run(4.0)
     recs = [r["to"] for r in sim.mind.decisions if r["t"] >= t0]
     assert "startle" in recs, f"no startle: {recs}, safety {sim.mind.affect.needs.safety:.2f}"
-    assert _dist(sim, "toy") > d_after_rush + 0.02, "it should back away from it"
+    assert _dist(sim, "toy") > d_after_rush + 0.02 * S, "it should back away from it"
     th = max(sim.mind.novelty.things.values(), key=lambda t: t.id)
     assert th.threat > sim.mind.novelty.threat0, "the thing that scared it is more worrying now"
 

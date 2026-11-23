@@ -16,6 +16,7 @@ from pinch.activities.base import (  # noqa: F401
 from pinch.attention import direction_of
 from pinch.novelty import MOVE_V
 from pinch.safety import CAREFUL
+from pinch.world import BODY_SCALE
 
 SIDE_ANGLES = (1.05, 0.85, 0.7)   # rad round the thing to the next viewpoint: 60 deg, less where the desk is tight
 SIDE_SEP = 0.5               # rad: viewpoints this far apart (seen from the thing) count as different sides
@@ -220,7 +221,7 @@ class Investigate(Activity):
         x, y, _ = m.world.pose
         a = math.atan2(y - where[1], x - where[0])
         back = next((s for da in (0.0, 0.5, -0.5, 1.0, -1.0)
-                     if (s := _spot(m, where, _dist(m, where) + 0.10, a + da)) is not None), None)
+                     if (s := _spot(m, where, _dist(m, where) + 0.10 * BODY_SCALE, a + da)) is not None), None)
         if back is not None:
             yield ("goto", back[0], 0.03, back[1], 15.0, 1.0 if why else 0.8)
         yield ("look_at", where)

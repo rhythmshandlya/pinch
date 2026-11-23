@@ -37,14 +37,16 @@ FOV_HALF, FOV_RANGE = 0.9, 0.6   # the camera's useful field (rad either side, m
 MOVE_V = 0.03               # m/s: moving (the camera's position noise is ~5 mm per fix at 10 Hz)
 VEL_SMOOTH = 0.5
 SUDDEN_V, SUDDEN_V_FULL = 0.10, 0.35     # m/s: startle starts / is full
-STARTLE_R, STARTLE_R_FULL = 0.25, 0.12   # m: startle starts / is full (Pinch's centre to the thing)
+from pinch.world import BODY_SCALE  # noqa: E402
+
+STARTLE_R, STARTLE_R_FULL = 0.25 * BODY_SCALE, 0.12 * BODY_SCALE   # m: startle starts / is full (centre to the thing)
 NOVELTY_PER_BOUT = 0.55     # novelty kept after a safe close look: familiar after ~3-4 looks
 NOVELTY_AFAR = 0.8          # ... after a look from a distance only
-NOVELTY_VIEW_HALF_S = 240.0  # just having it in view habituates slowly
+NOVELTY_VIEW_HALF_S = 240.0 * BODY_SCALE  # just having it in view habituates slowly  (x BODY_SCALE: a bigger body takes longer over each look)
 FAMILIAR_N = 0.2
 THREAT_SAFE_ALPHA = 0.4     # Rescorla-Wagner steps toward 0 (safe look) / toward 1 (scare)
 THREAT_BAD_ALPHA = 0.5
-D_NEAR, D_FAR = 0.09, 0.25  # m: standoff (centre to the thing's edge) when trusted / when wary
+D_NEAR, D_FAR = 0.09 * BODY_SCALE, 0.25 * BODY_SCALE  # m: standoff (centre to the thing's edge) trusted / wary
 REVISIT_S = 15.0
 FAMILIAR_HALF_DAYS = 3.0    # remembered familiarity halves every 3 days
 
