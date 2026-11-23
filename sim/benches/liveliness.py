@@ -10,7 +10,8 @@ just move? Real stimuli go in through its senses in the twin; what it does back 
   3 meaningful gaze       share of looking time spent on something real - what it attends to, a voice it just
                           heard, a moving thing, the goal of what it is doing, its person, the things on the desk -
                           when one is in the eyes' reach (>= 70 %, and >= 25 points above eyes pointed at random)
-  4 forethought           goal-directed moves (walk to, push, pick) start with the eyes already on the goal
+  4 forethought           goal-directed moves (walk to, push, pick) start with the eyes already on the goal (hazard
+                          moves - guarding an edge, fleeing - go at once by design and are not judged here)
                           (>= 95 %, the eyes there >= 0.1 s before the legs move)
   5 outcome reaction      a face or sound change within 1 s after a pick, push or drop, or a failed walk, in a task, play,
                           explore, social or idle state (never while hiding or fleeing) (>= 90 %)
@@ -176,7 +177,9 @@ def session(seed, seconds=360.0, tidy=False):
             if goal is not None:
                 a = math.atan2(goal[1] - y, goal[0] - x) - h
                 a = (a + math.pi) % (2 * math.pi) - math.pi
-                if 0.25 < abs(a) < 1.0:                             # off to a side, within the eyes' reach
+                from pinch.mind.behaviour import rank as _rank
+                if 0.25 < abs(a) < 1.0 and _rank(task_act or "idle") > 3:   # off to a side, in reach; not urgent
+                                                                    # (hazard moves go at once, by design)
                     lead = [e for t, e in eye_hist if sim.t - 0.35 <= t <= sim.t - 0.05]
                     goal_starts.append(any(abs(e - eye_dir(a)) < GAZE_TOL for e in lead))
                     ahead_info.append((round(sim.t, 1), sim.body.status, round(a, 2), round(eye_dir(a), 2),

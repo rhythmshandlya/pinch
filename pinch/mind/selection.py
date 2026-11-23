@@ -307,7 +307,10 @@ class Selection:
                     self.last_step_ok = False
                     continue
                 goal = self._goal_xy(step)
-                if goal is not None and rank(self.activity.name) > 3 and not self._eyes_on(goal):
+                if goal is not None and rank(self.activity.name) <= 3:   # urgent (a hazard): eyes there at once, no pause
+                    self.gaze_target_xy, self.gaze_set_t = tuple(goal), self.t
+                    self.gaze = self._gaze_to(goal)
+                elif goal is not None and not self._eyes_on(goal):
                     # forethought (Takayama et al. 2011): eyes to the goal first, the legs a moment later
                     self.gaze_target_xy, self.gaze_set_t = tuple(goal), self.t
                     self.gaze = self._gaze_to(goal)
