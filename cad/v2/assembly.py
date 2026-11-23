@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 
 from build123d import Box, Location, Plane, Pos, mirror  # noqa: E402
 
-from cad.v2 import arms, legs, lid, servos  # noqa: E402
+from cad.v2 import arms, legs, lid, parts, servos  # noqa: E402
 from crab.params import ARM_IDS, LEG_IDS, PARAMS  # noqa: E402
 
 PETG, TPU = 1.27, 1.21          # g/cm3
@@ -59,7 +59,8 @@ def shoulder_servo_location(arm):
 
 @cache
 def electronics():
-    """(label, solid, mass kg) for every layout part that is not a servo, in the body frame."""
+    """(label, solid, mass kg, material or None) for every layout part that is not a servo, in the body frame: each
+    part in its real shape (several pieces, the mass on the first) where cad/v2/parts.py has one, else its box."""
     from crab.electronics import Layout
     out = []
     for p in Layout().parts.values():
@@ -70,7 +71,12 @@ def electronics():
             continue
         R = p.R
         loc = Location(Plane(origin=tuple(p.pos), x_dir=tuple(R[:, 0]), z_dir=tuple(R[:, 2])))
-        out.append((p.name, loc * Box(*size), p.mass_g / 1000.0))
+        real = parts.shapes(p.name, size)                  # the part's real shape (cad/v2/parts.py), inside its box
+        if not real:
+            out.append((p.name, loc * Box(*size), p.mass_g / 1000.0, None))
+            continue
+        for k, (suffix, solid, mat) in enumerate(real):  # its mass rides on the first piece
+            out.append((f"{p.name}_{suffix}", loc * solid, p.mass_g / 1000.0 if k == 0 else 0.0, mat))
     return out
 
 
@@ -81,18 +87,21 @@ def groups(proxy=False):
     sts = servos.sts3215_proxy if proxy else servos.sts3215
     from cad.v2 import body
     g = {"body": []}
-    for name, part in (("tray", body.tray()), ("cover", body.cover()), ("battery_door", body.battery_door())):
+    for name, part in (("tray", body.tray()), ("cover", body.cover()), ("battery_door", body.battery_door()),
+                       ("deck", body.deck())):
         g["body"].append((name, part, printed(part, "shell"), "shell"))        # the printed shell, mounts, the hatch door
     lf = lid.hinge_location() * lid.lid_frame()
-    g["body"].append(("lid", lf, printed(lf, "lid"), "dark"))
+    g["body"].append(("lid", lf, printed(lf, "lid"), "shell"))        # the screen frame in the body's colour (owner)
+    lb = lid.hinge_location() * lid.lid_back()
+    g["body"].append(("lid_back", lb, printed(lb, "lid"), "shell"))   # holds the panel in (audit B6)
     panel = lid.hinge_location() * Pos(lid.MOD_T / 2, 0, lid.PANEL_Z) * Box(lid.MOD_T, lid.MOD_W, lid.MOD_H)
     g["body"].append(("panel", panel, 0.0, "screen"))                 # its mass is the layout's `oled`
     for leg in LEG_IDS:
         g["body"].append((f"{leg}_hip_servo", hip_servo_location(leg) * sts(), servos.STS3215["mass"], "servo"))
     for arm in ARM_IDS:
         g["body"].append((f"{arm}_yaw_servo", shoulder_servo_location(arm) * servos.sts3032(), 0.020, "servo"))
-    for name, solid, mass in electronics():
-        g["body"].append((name, solid, mass, "dark" if name in ("camera_lens", "pack", "speaker") else "pcb"))
+    for name, solid, mass, mat in electronics():
+        g["body"].append((name, solid, mass, mat or ("dark" if name in ("camera_lens", "pack", "speaker") else "pcb")))
     from build123d import Compound
 
     from cad.v2 import wiring

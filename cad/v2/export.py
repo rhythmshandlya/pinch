@@ -33,7 +33,7 @@ MESH_DIR = ROOT / "sim" / "models" / "meshes" / "v2"
 OUT = ROOT / "sim" / "models" / "v2_cad.json"
 MATERIAL = {"shell": "shell", "printed": "printed", "servo": "servo", "pcb": "pcb", "dark": "servo", "screen": "servo",
             "wire_power": "wire_power", "wire_servo": "wire_servo", "wire_signal": "wire_signal",
-            "tip": "tip"}
+            "tip": "tip", "metal": "horn", "battery": "battery", "white": "connector"}
 
 
 def inertia_about_com(solid, mass):
@@ -148,6 +148,23 @@ def face_pose():
     return dict(up=lid.PANEL_Z / 1000.0, out=(lid.LID_T + 0.5) / 1000.0, size=[lid.LIT_W / 1000.0, lid.LIT_H / 1000.0])
 
 
+def dump_features(out=ROOT / ".ops" / "cad_parts"):
+    """Save the body's built features (BRep + manifest.json) so cad/v2/bisect_shell.py can find a failing one."""
+    from build123d import export_brep
+
+    from cad.v2 import body as B
+    out.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for k, f in enumerate(B.features()):
+        if f.solid is None or getattr(f.solid, "_wrapped", None) is None:
+            continue
+        fn = f"f{k}.brep"
+        export_brep(f.solid, str(out / fn))
+        rows.append((f.name, f.owner, f.half, f.op, f.clip, f.trimmed, fn))
+    (out / "manifest.json").write_text(json.dumps({"features": rows}))
+    print(f"features saved to {out} ({len(rows)})", file=sys.stderr)
+
+
 def export_meshes():
     MESH_DIR.mkdir(parents=True, exist_ok=True)
     vis, written = {}, set()
@@ -157,10 +174,26 @@ def export_meshes():
             name = re.sub(r"[^a-zA-Z0-9]+", "_", f"{body}__{label}").strip("_")
             fn = MESH_DIR / f"{name}.stl"
             tol = 0.25 if mat == "servo" else 0.15
-            export_stl(solid, str(fn), tolerance=tol, angular_tolerance=0.35)
+            if solid is None or getattr(solid, "_wrapped", None) is None:
+                if label in ("tray", "cover"):
+                    dump_features()
+                raise ValueError(f"{body}/{label}: the CAD produced an empty solid (a boolean failed upstream); "
+                                 f"its features are in .ops/cad_parts: python cad/v2/bisect_shell.py --half {label}")
+            write_stl(solid, fn, tol)
             written.add(fn.name)
             vis[body].append(dict(mesh=f"v2_{name}", file=f"v2/{name}.stl", material=MATERIAL[mat]))
     return vis, written
+
+
+MAX_STL_BYTES = 4_000_000     # the repository refuses files over 5 MB; a maker's board model can mesh finer than that
+
+
+def write_stl(solid, fn, tol, angular=0.35):
+    """Mesh at tol; a very detailed part (a maker's STEP with every SMD part) is re-meshed coarser until it fits."""
+    export_stl(solid, str(fn), tolerance=tol, angular_tolerance=angular)
+    while fn.stat().st_size > MAX_STL_BYTES and tol < 2.0:
+        tol, angular = tol * 2, min(angular * 1.6, 1.0)
+        export_stl(solid, str(fn), tolerance=tol, angular_tolerance=angular)
 
 
 def main():

@@ -26,7 +26,7 @@ sys.path.insert(0, str(ROOT))
 
 from crab import policy_io as pio  # noqa: E402
 from crab.params import JOINT_NAMES  # noqa: E402
-from training.robot_model import load_training_model  # noqa: E402
+from training.robot_model import lagged_physics, load_training_model  # noqa: E402
 
 REWARD_SCALES = dict(upright=1.0, height=1.0, stood=2.0, action_rate=-0.01, energy=-0.0005, termination=0.0)
 
@@ -101,11 +101,10 @@ class CrabRightingEnv(Env):
             new = info["steps"] == 0
             info.update(step=jp.where(new, 0, info["step"]), last_act=jp.where(new, 0.0, info["last_act"]),
                         up_steps=jp.where(new, 0, info["up_steps"]))
-        rng, k_noise = jax.random.split(info["rng"])
+        rng, k_noise, k_lag = jax.random.split(info["rng"], 3)
         action = jp.clip(action, -1, 1)
         target = pio.righting_targets(jp, action, self.lo, self.hi)
-        data = state.pipeline_state.replace(ctrl=target)
-        data = jax.lax.fori_loop(0, self.n_phys, lambda _, d: mjx.step(self.sys, d), data)
+        data = lagged_physics(self.sys, state.pipeline_state, target, self.n_phys, k_lag)
         R = data.xmat[self.body_id]
         z_up = R[2, 2]                                        # body z axis . world z (1 = upright)
         h = data.qpos[2]

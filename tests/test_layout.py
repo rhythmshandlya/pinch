@@ -110,8 +110,9 @@ def test_the_shell_is_a_pill_and_the_windows_are_on_it():
     assert sh.f(np.array([6.9, 0.0, 0.3])) < 0.01 and sh.f(np.array([6.9 + 84.0, 0.0, 0.3])) == 1.0
     for name in ("tof_fl", "tof_fr", "tof_rear", "tof_left", "tof_right", "camera_lens", "tof8"):
         pos, _ = L[name].window_pose()
-        assert -2.5 <= sh.depth(pos) <= 4.5, (name, sh.depth(pos))
-    assert 0.09 < sh.area_m2() < 0.12
+        deep = float(L[name].window.get("max_depth_mm", 4.5))       # a sensor in a bay's inner wall sits deeper
+        assert -2.5 <= sh.depth(pos) <= deep, (name, sh.depth(pos))
+    assert 0.08 < sh.area_m2() < 0.12                    # the v2.1 172 mm pill: 0.087 m2
 
 
 def test_masses_and_the_centre_of_mass_are_sane():

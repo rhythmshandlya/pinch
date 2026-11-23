@@ -9,7 +9,7 @@
     add --rehearse to heat / delay to run against an emulated servo (no hardware)
 
 Recording the pendulum logs and fitting the servo model use Rhoban's BAM, the tool our servo model comes from
-(github.com/Rhoban/bam, Apache-2.0): `python -m bam.feetech.all_record ...`, `python -m bam.process ...`,
+(github.com/Rhoban/bam, Apache-2.0, 630 stars; better-actuator-models 1.0.3, Python 3.12 only: step 0 of `plan`): `python -m bam.feetech.all_record ...`, `python -m bam.process ...`,
 `python -m bam.fit ...` (`plan` prints them with our numbers). This script adds only what BAM does not: the hour at
 8.4 V, the delay, the regulator and the pass/fail against the checks. Results go to .ops/bench/phase3.json; the
 measured delay is also written to configs/electronics.toml [measured].
@@ -30,6 +30,9 @@ from robot.feetech_bus import MODELS, FeetechBus  # noqa: E402
 RESULTS = ROOT / ".ops" / "bench" / "phase3.json"
 ELECTRONICS = ROOT / "configs" / "electronics.toml"
 PENDULUM = dict(mass=0.5, length=0.10)      # kg, m: PLACEHOLDER: weigh and measure the printed arm + weights on the horn (order 1 row)
+# the arm servo's pendulum: STS3032 4.5 kg.cm stall at 6 V, about 3.7 at 5 V, 1.5 at its 40 % torque limit; the load
+# should reach about 60 % of that: 0.1 kg at 8 cm = 0.8 kg.cm (the leg servo's 0.5 kg at 10 cm would stall it)
+PENDULUM_ARM = dict(mass=0.10, length=0.08)
 CHECKS = dict(track_deg_rms=2.0, surface_c=48.0, rail_v_min=4.75, rail_input_v=6.5)
 
 
@@ -74,15 +77,18 @@ def open_bus(a):
 
 
 def plan(_a):
-    p = PENDULUM
-    print(f"""(pendulum: weigh it and measure the horn-to-weight length, then edit PENDULUM in this file)
+    p, q = PENDULUM, PENDULUM_ARM
+    print(f"""(pendulums: weigh each and measure the horn-to-weight length, then edit PENDULUM / PENDULUM_ARM in this file)
 Phase 3 bench, in order (the owner does the hands-on steps; each takes 5-60 minutes):
- 1. One servo on the FE-URT-1 board, 2S pack (8.4 V full) through the fuse:
-      python robot/setup_servo.py --id 1          (leg servo; the arm servo gets --id 13)
- 2. Pendulum on the horn ({p['mass']} kg at {p['length'] * 100:.0f} cm, weighed and measured), record and fit with BAM:
-      python -m bam.feetech.all_record --mass {p['mass']} --length {p['length']} --motor sts3215 --id 1 --logdir bench/raw --vin 8.4
-      python -m bam.process --raw bench/raw --logdir bench/logs
-      python -m bam.fit --logdir bench/logs --actuator sts3215 --model m6 --output bench/sts3215.json --workers 4
+ 0. Once: the bench environment (Rhoban BAM needs Python 3.12; its recorder also needs pypot):
+      python3.12 -m venv .venv-bam
+      .venv-bam/Scripts/pip install "better-actuator-models[identification]==1.0.3" pypot pyserial
+ 1. One LEG servo on the Waveshare bus servo adapter, 2S pack (8.4 V full) through the 15 A fuse:
+      python robot/setup_servo.py --id 1
+ 2. Leg pendulum on the horn ({p['mass']} kg at {p['length'] * 100:.0f} cm, weighed and measured), record and fit with BAM:
+      .venv-bam/Scripts/python -m bam.feetech.all_record --mass {p['mass']} --length {p['length']} --motor sts3215 --id 1 --port COM3 --logdir bench/raw --vin 8.4
+      .venv-bam/Scripts/python -m bam.process --raw bench/raw --logdir bench/logs
+      .venv-bam/Scripts/python -m bam.fit --logdir bench/logs --actuator sts3215 --model m6 --output bench/sts3215.json --workers 4
  3. Model against measurement (check: <= {CHECKS['track_deg_rms']} deg RMS; ToddlerBot reached 1.3):
       python robot/bench.py track --logdir bench/logs --params bench/sts3215.json
  4. One hour holding the pendulum level at 8.4 V (check: below the servo's own limit; surface <= {CHECKS['surface_c']} C):
@@ -91,8 +97,19 @@ Phase 3 bench, in order (the owner does the hands-on steps; each takes 5-60 minu
       python robot/bench.py regulator
  6. Command delay (recorded in configs/electronics.toml):
       python robot/bench.py delay --id 1
- 7. Repeat 2-4 for the arm servo (STS3032 at its 40 % torque limit, --id 13), then:
-      python robot/bench.py report""")
+ 7. The ARM servo (STS3032): power it from the 5 V regulator's output, NEVER from the pack (4.8-6 V part).
+    Unplug the leg servo first. Set it up (it gets ID 13 and its 40 % torque limit):
+      python robot/setup_servo.py --id 13
+    Its own, lighter pendulum ({q['mass']} kg at {q['length'] * 100:.0f} cm), recorded at 5 V and fitted with BAM's
+    Feetech model (BAM ships only the STS3215's; the same firmware and electronics, fitted to this servo's own data):
+      .venv-bam/Scripts/python -m bam.feetech.all_record --mass {q['mass']} --length {q['length']} --motor sts3215 --id 13 --port COM3 --logdir bench/raw_arm --vin 5.0
+      .venv-bam/Scripts/python -m bam.process --raw bench/raw_arm --logdir bench/logs_arm
+      .venv-bam/Scripts/python -m bam.fit --logdir bench/logs_arm --actuator sts3215 --model m6 --output bench/sts3032.json --workers 4
+      python robot/bench.py track --logdir bench/logs_arm --params bench/sts3032.json
+      python robot/bench.py heat --id 13 --minutes 60
+ 8. Everything against the phase 3 checks:
+      python robot/bench.py report
+(COM3: the adapter's port in Device Manager > Ports; on Linux /dev/ttyUSB0.)""")
 
 
 def heat(a):

@@ -3,12 +3,12 @@ name = "terrain-v21"
 env = "terrain_hard"
 preset = "gait_v2"
 design = "v2"
-init_from = "/mnt/c/Users/armaa/pinch-init/terrain-hard-v1.pkl"   # warm start: the terrain_hard walker trained earlier (used if its sizes match)
+init_from = "/home/armaan/pinch-jobs/terrain-v21b/out/terrain-v21b/params.pkl"   # warm start: the 20 M-step check on the CAD body (sideways bars to 20 mm, forward to 10-12 mm)
 description = "quick check of design v2.1 (design sweep winner): can a learned walker cross bars to 15 mm and ramps to 21 deg on this body (R-04)"
 
 [overrides]
-num_timesteps = 20_000_000     # quick check from the warm start (msi-1: about 2-3 h)
-num_evals = 6
+num_timesteps = 60_000_000     # forward bars to 15 mm (msi-1: about 3 500 steps/s, ~5 h)
+num_evals = 10
 
 [compute]
 min_vram_gb = 6

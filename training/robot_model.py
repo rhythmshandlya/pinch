@@ -105,6 +105,22 @@ def _actuated_dofs():
 _ACT_DOFS, _ACT_IDS = _actuated_dofs()
 
 
+# Command latency. Tan et al. (RSS 2018, arXiv:1804.10332) measured 15-19 ms on Minitaur and found policies trained
+# without it failed on the robot; ours is the USB adapter, the 1 Mbps bus (a full read cycle 5.4 ms, crab/wiring.py)
+# and the servo's own 5 ms command delay. Each control step's new targets reach the servos a random 0..LAG_MAX_S
+# late, the previous targets held until then (the mjlab env randomises the same, training/mjlab_pinch/env_cfg.py).
+LAG_MAX_S = 0.02
+
+
+def lagged_physics(sys: mjx.Model, data: mjx.Data, ctrl, n_phys: int, key, ctrl_dt: float = 0.02):
+    """n_phys physics steps of one control period (ctrl_dt): the old data.ctrl for the first k steps, then ctrl.
+    (The step count comes from plain numbers: under the domain-randomisation vmap sys's fields are traced.)"""
+    k = jax.random.randint(key, (), 0, int(round(LAG_MAX_S * n_phys / ctrl_dt)) + 1)
+    prev = data.ctrl
+    data = jax.lax.fori_loop(0, n_phys, lambda i, d: mjx.step(sys, d.replace(ctrl=jp.where(i < k, prev, ctrl))), data)
+    return data.replace(ctrl=ctrl)        # the next period's "previous" targets are these, even if they never landed
+
+
 def domain_randomize(sys: mjx.Model, rng: jax.Array):
     """Per-environment physics variations so the policy can't overfit one exact robot.
 

@@ -23,7 +23,7 @@ os.environ.setdefault("CRAB_DESIGN", "v2")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from build123d import Align, Box, Cylinder, Location, Pos, Rot, Sphere  # noqa: E402
+from build123d import Align, Axis, Box, Cylinder, Location, Pos, Rot, fillet  # noqa: E402
 
 from cad.v2.finish import RBox  # noqa: E402
 from cad.v2.servos import STS3215  # noqa: E402
@@ -70,6 +70,25 @@ def hub_plate(t, outward):
     return disc
 
 
+CAP_H = 2.5                 # the knuckle cap's height over its plate
+
+
+def horn_cap(outward):
+    """A smooth domed knuckle cap over a hub plate's outer face (servo frame): it hides the horn screws and holes, so
+    each joint reads as one round knuckle. Pressed on over the plate's centre hole, removed for servicing."""
+    h, r = CAP_H, HUB_R - 0.5
+    cap = Cylinder(r, h, align=(Align.CENTER, Align.CENTER, Align.MIN))
+    cap = fillet(cap.edges().sort_by(Axis.Z)[-1], h * 0.9)
+    if outward > 0:
+        return Pos(0, 0, HORN_FACE + PLATE) * cap
+    return Pos(0, 0, IDLER_FACE - PLATE) * Rot(180, 0, 0) * cap
+
+
+def knuckles():
+    """Both caps of a joint's hub plates (servo frame)."""
+    return horn_cap(+1) + horn_cap(-1)
+
+
 def sleeve():
     """A rectangular tube round the STS3215 case (its four sides parallel to the shaft), screwed to the side faces
     (y = +-12.4), in the servo frame. Open at the horn and idler faces so the next bracket turns freely."""
@@ -108,14 +127,17 @@ def coxa_link():
     arm_top = Pos(th_x0 / 2, 0, HIP_HORN_Z + PLATE / 2) * RBox(th_x0, 26.0, PLATE)
     arm_bot = Pos((w0 + WALL) / 2, 0, HIP_IDLER_Z - PLATE / 2) * RBox(w0 + WALL, 26.0, PLATE)
     wall = Pos(w0 + WALL / 2, 0, (HIP_IDLER_Z + HIP_HORN_Z) / 2) * RBox(WALL, 26.0, HIP_HORN_Z - HIP_IDLER_Z + 2 * PLATE)
-    return top + bot + arm_top + arm_bot + wall + THIGH_SERVO * sleeve()
+    cap = Cylinder(HUB_R - 0.5, CAP_H, align=(Align.CENTER, Align.CENTER, Align.MIN))
+    cap = fillet(cap.edges().sort_by(Axis.Z)[-1], CAP_H * 0.9)
+    caps = Pos(0, 0, HIP_HORN_Z + PLATE) * cap + Pos(0, 0, HIP_IDLER_Z - PLATE) * Rot(180, 0, 0) * cap   # hip knuckles
+    return top + bot + caps + arm_top + arm_bot + wall + THIGH_SERVO * sleeve()
 
 
 @cache
 def femur_link():
     """Thigh: plates on the thigh servo's horn (-y side) and idler (+y side), straps along the thigh above the knee hub,
     a web across to the back wall of the knee servo's sleeve. Femur frame (thigh axis at the origin, knee at x = LF)."""
-    plates = HUB_FRAME * hub_plate(PLATE, +1) + HUB_FRAME * hub_plate(PLATE, -1)
+    plates = HUB_FRAME * (hub_plate(PLATE, +1) + hub_plate(PLATE, -1) + knuckles())
     y_h, y_i = -(HORN_FACE + PLATE / 2), -(IDLER_FACE - PLATE / 2)
     x0, x1 = LF - STS3215["half_w"] - WALL, LF - STS3215["half_w"] - 0.4    # the sleeve's back wall (femur x)
     z0, z1 = STRAP_Z
@@ -125,14 +147,18 @@ def femur_link():
     return plates + straps + web + KNEE_SERVO * sleeve()
 
 
-# the crab shin (owner, 2026-11-22: no round tube and ball foot): a flattened, tapering segment, broad in the plane it
-# swings in and thinner across, with a slight outward belly, ending in a blunt point under a TPU tip cap. Its reach
-# (tip cap's far side 94 mm from the knee) is the old shin + ball's, so the kinematics and stand height are unchanged.
-# Sections along the shin: (x, half width across y, half height in z, centre z), mm, tibia frame.
-SHIN_SECTIONS = ((22.0, 8.5, 12.5, 0.0), (40.0, 7.5, 10.5, 1.0), (58.0, 6.2, 8.0, 1.2), (74.0, 4.8, 5.6, 0.6),
-                 (86.0, 3.4, 3.8, 0.0))
-TIP_R = 5.0                                          # TPU tip cap (child-safe: a blunt 10 mm dome)
-TIP_X = LT + FOOT_R - TIP_R                          # 89 mm: same reach as the 80 mm shin + 14 mm ball
+# the shin (owner, 2026-11-23: "do not make legs chicken like ... it does not get smaller and smaller radius wise"):
+# a straight oval segment of near-constant section, broad in the plane it swings in, easing only slightly towards the
+# foot, into a replaceable TPU sole boot. Reach (the sole's far side 94 mm from the knee) is the old shin + ball's, so
+# the kinematics and stand height are unchanged. Sections: (x, half width across y, half height in z, centre z), mm.
+SHIN_SECTIONS = ((22.0, 8.5, 12.0, 0.0), (40.0, 8.2, 11.4, 0.6), (58.0, 7.9, 10.8, 0.6), (74.0, 7.6, 10.2, 0.3),
+                 (80.0, 6.6, 8.6, 0.0), (85.0, 6.4, 8.2, 0.0))   # the last two hide inside the sole boot (its socket)
+SOLE_R = 8.0                                         # the sole's contact radius (the model's foot sphere)
+SOLE_X = LT + FOOT_R - SOLE_R                        # 86 mm: the sole's centre; its far side at 94 mm as before
+SOLE_TOP = 76.0                                      # where the boot starts up the shin
+SOLE_WALL = 1.6                                      # TPU round the socket
+SOLE_FLAT = 1.0                                      # the toe's flat contact patch: 1 mm off the round
+TIP_R, TIP_X = SOLE_R, SOLE_X - SOLE_FLAT            # (the model's foot sphere: its far side on the flat)
 
 
 def _shin():
@@ -145,18 +171,45 @@ def _shin():
 @cache
 def tibia():
     """Shin: plates on the knee servo's horn and idler, a yoke past the hub, the crab shin to the tip. Tibia frame."""
-    plates = HUB_FRAME * hub_plate(PLATE, +1) + HUB_FRAME * hub_plate(PLATE, -1)
-    y_h, y_i = PLATE_Y
+    plates = HUB_FRAME * (hub_plate(PLATE, +1) + hub_plate(PLATE, -1) + knuckles())
+    y_h, y_i = PLATE_Y                                   # (the sole's pin hole goes through the shin's end: below)
     yoke_x = YOKE_X
     arms = (Pos(yoke_x / 2, y_h, 0) * RBox(yoke_x, PLATE, 2 * HUB_R) + Pos(yoke_x / 2, y_i, 0) * RBox(yoke_x, PLATE, 2 * HUB_R))
     yoke = Pos(yoke_x, (y_h + y_i) / 2, 0) * RBox(6.0, y_i - y_h + PLATE, 2 * HUB_R)
-    return plates + arms + yoke + _shin()
+    return plates + arms + yoke + _shin() - sole_pin()
 
 
 @cache
 def foot():
-    """The TPU tip cap over the shin's point, with the point's socket (tibia frame)."""
-    return Pos(TIP_X, sum(PLATE_Y) / 2, 0) * Sphere(TIP_R) - tibia()
+    """The TPU sole boot over the shin's end (tibia frame): an oval sleeve that continues the shin's outline from
+    SOLE_TOP, closed by a rounded oval toe whose bottom is the sole, three 0.6 mm grip grooves round it; the shin's end
+    is its socket (a press fit, a drop of glue: pulls off to replace)."""
+    from build123d import Ellipse, Plane, extrude, loft
+    y0 = sum(PLATE_Y) / 2
+    hy, hz = SHIN_SECTIONS[3][1] + 0.9, SHIN_SECTIONS[3][2] + 0.6          # flush with the shin above it
+    sleeve = extrude(Plane(origin=(SOLE_TOP, y0, 0), x_dir=(0, 1, 0), z_dir=(1, 0, 0)) * Ellipse(hy, hz), SOLE_X - SOLE_TOP)
+    for k in range(3):                                   # grip grooves round the sleeve, cut before the toe joins
+        x = SOLE_X - 2.0 - 2.5 * k
+        ring = extrude(Plane(origin=(x - 0.4, y0, 0), x_dir=(0, 1, 0), z_dir=(1, 0, 0)) * Ellipse(hy + 2, hz + 2), 0.8)
+        core = extrude(Plane(origin=(x - 0.4, y0, 0), x_dir=(0, 1, 0), z_dir=(1, 0, 0)) * Ellipse(hy - 0.6, hz - 0.6), 0.8)
+        sleeve = sleeve - (ring - core)
+    # the rounded toe: an oval dome lofted through shrinking sections (a scaled sphere does not fuse reliably), its tip
+    # cut flat for the contact patch (about 8 x 10 mm)
+    import math
+    secs = []
+    for t in (0.0, 20.0, 40.0, 55.0, 67.0, 75.0):
+        k = math.cos(math.radians(t))
+        x = min(SOLE_X + SOLE_R * math.sin(math.radians(t)), SOLE_X + SOLE_R - SOLE_FLAT)
+        secs.append(Plane(origin=(x, y0, 0), x_dir=(0, 1, 0), z_dir=(1, 0, 0)) * Ellipse(hy * k, hz * k))
+    toe = loft(secs)
+    return sleeve + toe - tibia() - sole_pin()
+
+
+def sole_pin():
+    """An M2 pin (a screw) across the boot and the shin's end: the boot cannot pull off, and comes off to replace
+    (audit I7: glue alone)."""
+    y0 = sum(PLATE_Y) / 2
+    return Pos(SOLE_TOP + 4.5, y0, 0) * Rot(90, 0, 0) * Cylinder(1.1, 40.0)
 
 
 def _bbox(solid, x_max=None):

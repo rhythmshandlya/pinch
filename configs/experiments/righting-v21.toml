@@ -3,12 +3,12 @@ name = "righting-v21"
 env = "righting"
 preset = "righting"
 design = "v2"
-init_from = "/mnt/c/Users/armaa/pinch-init/righting-v1.pkl"   # warm start: the adopted get-up policy (100 % on design v2 before)
+init_from = "/home/armaan/pinch-jobs/righting-v21e/out/righting-v21e/params.pkl"   # warm start: the 12 M-step check (80 % on the CAD body), itself from the adopted righting-v1
 description = "quick check of design v2.1 (design sweep winner): get up from any orientation within 2 s on this body (R-07)"
 
 [overrides]
-num_timesteps = 12_000_000     # quick check from the warm start (about 1 000 steps/s on msi-1: ~3.5 h)
-num_evals = 6
+num_timesteps = 40_000_000     # as the adopted righting-v1 (msi-1: about 2 900 steps/s, ~4 h)
+num_evals = 10
 
 [compute]
 min_vram_gb = 6

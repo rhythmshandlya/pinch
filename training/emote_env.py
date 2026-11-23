@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 
 from crab import policy_io as pio  # noqa: E402
 from crab.params import LEG_IDS  # noqa: E402
-from training.robot_model import MODEL, load_training_model  # noqa: E402
+from training.robot_model import MODEL, lagged_physics, load_training_model  # noqa: E402
 
 REWARD_SCALES = dict(
     track_legs=2.0,
@@ -151,7 +151,7 @@ class CrabEmoteEnv(Env):
 
     def step(self, state, action):
         info = dict(state.info)
-        rng, k_noise, k_push, k_e = jax.random.split(info["rng"], 4)
+        rng, k_noise, k_push, k_e, k_lag = jax.random.split(info["rng"], 5)
         action = jp.clip(action, -1.0, 1.0)
         e, k = info["emote"], info["k"]
         ref_q, ref_g, ref_h = self._ref(e, k + 1)
@@ -160,8 +160,8 @@ class CrabEmoteEnv(Env):
         data = state.pipeline_state
         push = (info["step"] % self.push_steps == 0) & (info["step"] > 0)
         kick = jax.random.uniform(k_push, (2,), minval=-self.push_vel, maxval=self.push_vel)
-        data = data.replace(qvel=data.qvel.at[0:2].add(jp.where(push, kick, 0.0)), ctrl=ctrl)
-        data = jax.lax.fori_loop(0, self.n_substeps, lambda _, d: mjx.step(self.sys, d), data)
+        data = data.replace(qvel=data.qvel.at[0:2].add(jp.where(push, kick, 0.0)))
+        data = lagged_physics(self.sys, data, ctrl, self.n_substeps, k_lag)
 
         R = data.xmat[self.body_id]
         gravity = R.T @ jp.array([0.0, 0.0, -1.0])

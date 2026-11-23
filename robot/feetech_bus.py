@@ -45,8 +45,13 @@ _COMMON = {
     "present_position": (56, 2), "present_speed": (58, 2), "present_load": (60, 2),
     "present_voltage": (62, 1), "present_temperature": (63, 1), "moving": (66, 1), "present_current": (69, 2),
 }
+# STS memory table addresses 8 and 24-38 as in Pollen's rustypot (src/servo/feetech/sts3215.rs) and LeRobot's
+# SO-101 setup: the dead zones (position steps either side of the goal where the motor stays off) and the overload
+# protection (above overload_torque % for protection_time x 10 ms, the output drops to protective_torque %).
 STS3215 = Model("sts3215", True, 4096, 2 * pi, 2048,
-                {**_COMMON, "p_gain": (21, 1), "d_gain": (22, 1), "i_gain": (23, 1),
+                {**_COMMON, "response_level": (8, 1), "p_gain": (21, 1), "d_gain": (22, 1), "i_gain": (23, 1),
+                 "cw_dead_zone": (26, 1), "ccw_dead_zone": (27, 1), "protection_current": (28, 2),
+                 "protective_torque": (34, 1), "protection_time": (35, 1), "overload_torque": (36, 1),
                  "acceleration": (41, 1), "torque_limit": (48, 2), "lock": (55, 1)}, True)
 SCS0009 = Model("scs0009", False, 1024, radians(300), 511,
                 {**_COMMON, "p_gain": (21, 1), "d_gain": (22, 1), "i_gain": (23, 1), "lock": (48, 1)}, False)

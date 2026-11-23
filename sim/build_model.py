@@ -694,6 +694,8 @@ def build() -> str:
     <material name="printed" rgba="0.92 0.40 0.22 1" specular="0.25" shininess="0.3"/>
     <material name="horn" rgba="0.75 0.76 0.78 1" specular="0.6" shininess="0.8"/>
     <material name="pcb" rgba="0.10 0.45 0.25 1"/>
+    <material name="battery" rgba="0.16 0.40 0.78 1" specular="0.4"/>
+    <material name="connector" rgba="0.92 0.92 0.88 1" specular="0.2"/>
     <material name="wire_power" rgba="0.80 0.12 0.10 1"/>
     <material name="wire_servo" rgba="0.15 0.15 0.15 1"/>
     <material name="wire_signal" rgba="0.20 0.35 0.75 1"/>

@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import numpy as np  # noqa: E402
-from build123d import Align, Box, Cylinder, Location, Plane, Pos  # noqa: E402
+from build123d import Align, Axis, Box, Cylinder, Location, Plane, Pos, fillet  # noqa: E402
 
 from cad.servo import STS3032 as SP  # noqa: E402
 from cad.v2.finish import RBox  # noqa: E402
@@ -35,6 +35,7 @@ from crab.params import PARAMS  # noqa: E402
 LS, LU = PARAMS.arm.shoulder_offset * 1000, PARAMS.arm.upper_len * 1000      # 24, 45
 PLATE, WALL = 3.0, 2.5
 HUB_R = 11.0
+CAP_H = 2.5                 # the knuckle caps over the lift joint's plates
 HORN_PCD, HORN_HOLE = SP.horn_pcd_r, 2.2
 # the arm yaw servo stands horn up, its case hanging below the arm (design sweep 2026-11-22: upside down, its case
 # pokes through the shell top once the arm axis is above 44 % of the shell); YAW_UP = False is the old upside-down one
@@ -142,7 +143,10 @@ def upper_arm():
     above_horn = TILT_UPPER * Pos(LU, 0, CLAW_Z + SP.horn_face - 1.0 + 50.0) * Box(100, 100, 100)
     neck = neck - above_horn                                             # below the horn plane: the moving jaw turns there
     bridge = bridge - (above_horn & Pos(LU, 0, 0) * Cylinder(HUB_R * 2.2, 200))      # where the jaw's web swings
-    return horn + boss + straps + bridge + TILT_UPPER * palm + neck + pollex + beam
+    cap = Cylinder(HUB_R - 0.5, CAP_H, align=(Align.CENTER, Align.CENTER, Align.MIN))
+    cap = fillet(cap.edges().sort_by(Axis.Z)[-1], CAP_H * 0.9)               # the shoulder's round knuckles (as the legs')
+    caps = Location((0, horn_y - PLATE, 0), (90, 0, 0)) * cap + Location((0, boss_y + PLATE, 0), (-90, 0, 0)) * cap
+    return horn + boss + caps + straps + bridge + TILT_UPPER * palm + neck + pollex + beam
 
 
 def _quat_y(a):

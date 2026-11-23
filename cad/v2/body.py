@@ -37,7 +37,7 @@ from cad.v2 import legs as LEGS_CAD  # noqa: E402
 from cad.v2 import lid as LID  # noqa: E402
 from cad.v2 import shell as SHELL  # noqa: E402
 from crab.electronics import Layout  # noqa: E402
-from crab.shapes import Shell  # noqa: E402
+from crab.shapes import BodyPlan, Shell  # noqa: E402
 
 OUT = ROOT / "cad" / "out" / "v2" / "print"
 RENDER = ROOT / "media" / "review" / "phase-02" / "cad_body.png"
@@ -58,7 +58,8 @@ PETG_G_CM3 = 1.27
 
 M2_PILOT, M2_CLEAR = 1.7, 2.2              # self-tapping M2 into PETG / clearance (cad/servo.py)
 M25_PILOT, M25_CLEAR = 2.1, 2.7            # thread-forming M2.5 into PETG / clearance
-M25_INSERT, M25_INSERT_L = 3.6, 5.0        # ESTIMATE: hole for an M2.5 x 5 brass heat-set insert (check the insert)
+M25_INSERT, M25_INSERT_L = 3.6, 5.0        # hole for an M2.5 x 4 brass heat-set insert (4.0 OD - 0.3, deeper than the insert:
+#                                            uwisc ME design lab rule); print a test coupon first
 M25_HEAD = 5.0                             # counterbore for an M2.5 cap / pan head
 BOSS_R, BOSS_INSET = 4.0, 3.0              # split bosses: radius, centre this far inside the inner wall
 POST_R = {"M2": 2.25, "M2.5": 2.75}
@@ -75,6 +76,7 @@ STEP_SHAFT_MEASURED = 12.5  # where the STEP's horn and idler holes actually cen
 STEP_CASE = (-22.7, 22.7, -12.4, 12.4, -17.7, 14.4)   # main case box (STEP frame): bottom face -17.7, top face 14.4
 STEP_BOTTOM_HOLES = ((4.2, 10.25), (4.2, -10.25), (-20.3, 10.25), (-20.3, -10.25))    # dia 1.5, in recesses
 HIP_KEEPOUT_R = 34.0       # coxa U-bracket swings within this radius ...
+HIP_TAB_T = 5.0            # the hip seat's bottom tab under the case (audit B4: it was 1.5 mm, 0.3 mm under the heads)
 HIP_PLATES = ((15.0, 18.0), (-27.6, -24.6))      # ... as a top plate on the horn and a bottom plate on the idler boss
 # Moving envelope of one coxa (local x along the link from the hip axis, z in the body frame), (name, x0, x1, half
 # width, z0, z1), from the limbs CAD (cad/v2/legs.py coxa_envelope): the coxa bracket with the thigh servo, and the thigh with the
@@ -87,7 +89,8 @@ LEG_ENVELOPE = LEGS_CAD.coxa_envelope()
 ARM_ENVELOPE = ARMS_CAD.arm_envelope(float(Layout()["shoulder_l"].d["joint_mm"][2]))
 
 # Wall-mounted sensor apertures: radius of the window at the sensor face (the cone grows from it)
-APERTURE_R = {"camera_lens": 8.5, "tof8": 4.0, "mic_l": 0.8, "mic_r": 0.8}
+APERTURE_R = {"camera_lens": 8.5, "tof8": 4.0, "mic_l": 0.25, "mic_r": 0.25}   # mics: a 1.1 mm port (+ FIT) through the
+#   2 mm wall over a foam gasket ring (audit I3; MEMS makers: a 1.0-1.2 mm port, short, sealed to the board)
 TOF_APERTURE_R = 3.0       # VL53L0X emitter + receiver (both inside a 6 mm circle on the GY board)
 WINDOW_CHECK_MM = 20.0     # every window is clear this far along its direction
 
@@ -96,12 +99,14 @@ STANDOFFS = {             # board -> (screw, inset of the holes from the board's
     "reg_b": ("M2", 2.5), "ina": ("M2.5", 2.5), "imu": ("M2.5", 2.5), "mpr121": ("M2.5", 2.5),
     "amp": ("M2.5", 2.5), "dock_board": ("M2", 2.0)}
 WALL_BOARDS = ("tof8", "tof_fl", "tof_fr", "tof_rear", "tof_left", "tof_right")
-CRADLES = ("xt60", "fuse")
+CRADLES = ("fuse",)                              # (the XT60 rides in the battery bay on the pack's lead)
 PADS = ("pad_head", "pad_back_left", "pad_back_right", "pad_side_left", "pad_side_right", "pad_face")
 PAD_RECESS = 0.4           # copper tape recess depth
-BOSS_ANGLES = (0.0, 25.0, -25.0, 168.0, -168.0, 180.0)    # split bosses (deg about the shell centre): front
-#                            and rear only, the sides between the legs are joint openings up to z 21
-VENT_X = (16.0, 20.0, 24.0, 28.0, 32.0)                     # side vents by the computer
+BOSS_XY = ((40.0, 50.0), (40.0, -50.0), (-25.0, 51.5), (-25.0, -51.5), (-58.0, 34.0), (-58.0, -34.0))   # the
+#                            cover's six screws (audit B1): in the corners of the boxed body's solid walls at the seam:
+#                            front corners behind the arm ports, mid-sides between the hips, the rear
+VENT_X = (-6.0, -1.0, 4.0, 9.0, 14.0, 19.0)                 # belly intake slots under the computer
+EXHAUST_X = (30.0, 34.0, 38.0, 42.0, 46.0)                  # top exhaust slots behind the lid hinge
 NO_MOUNT = {"radxa_heatsink": "stuck on the radxa", "oled": "in the lid (lid.py)", "visor": "the lid (lid.py)",
             "harness": "mass only"}
 
@@ -203,19 +208,85 @@ LEGS = ("FL", "FR", "RL", "RR")
 ARMS = ("L", "R")
 
 
+# The body in plan (owner, 2026-11-23: a clean front, no jagged cuts; audit B1, B7): the pill's top and bottom curves,
+# cut by vertical walls to a rounded box between the leg bays, a short nose in front between the arms (the face plate:
+# camera and the front ToF), and a chin under the arms (the front cliff sensors, the arm servos' seats). The legs and
+# arms swing outside it, so the shell is no longer notched by their sweeps. Like Mini Pupper's and Petoi Bittle's box
+# bodies and v1's look: legs outside a closed body, a domed lid on top.
+_PLAN = Layout().chassis["plan"]   # the body's outline in plan (configs/layout_v2.toml chassis.plan; crab/shapes.py)
+BODY_Y, FRONT_X = _PLAN["body_y"], _PLAN["front_x"]
+NOSE_X, NOSE_Y = _PLAN["nose_x"], _PLAN["nose_y"]
+CHIN_Y, CHIN_Z = _PLAN["chin_y"], _PLAN["chin_z"]
+PLAN_R = 8.0               # corner radius in plan
+
+
+def plan_box(d=0.0):
+    """The body's plan as boxes (x0, x1, y0, y1, z0, z1), each inset by d: main body, nose, chin."""
+    return BodyPlan(**_PLAN).boxes(d)
+
+
+def plan_contains(P, d=0.0):
+    """Points (..., 3) inside the plan prisms inset by d (numpy; for the cable router)."""
+    return BodyPlan(**_PLAN).contains(P, d)
+
+
+@cache
+def plan_prism(d=0.0):
+    """The plan's prisms inset by d, with rounded vertical edges (corner radius PLAN_R - d)."""
+    from build123d import fillet
+    parts = []
+    for x0, x1, y0, y1, z0, z1 in plan_box(d):
+        b = abox((x0, y0, z0), (x1, y1, z1))
+        r = max(0.5, PLAN_R - d)
+        edges = b.edges().filter_by(Axis.Z)
+        try:
+            b = fillet(edges, r)
+        except Exception:                               # noqa: BLE001 (a thin box: keep it square)
+            pass
+        parts.append(b)
+    return fuse(parts)
+
+
 @cache
 def outer():
-    return SHELL._solid(0.0)
+    return _inset(0.0)
 
 
 @cache
 def inner():
-    return SHELL._solid(WALL)
+    return _inset(WALL)
+
+
+CHAMFER_H = 14.0           # the belly's edge cut at 45 deg up to this height above the flat (printability: the pill's
+#                            belly curves up too gently from the bed to print without support; 45 deg prints clean)
+
+
+@cache
+def _bottom_chamfer(d=0.0):
+    """Everything above a 45 deg chamfer round the flat belly, shrunk by d: per plan box a frustum from the flat (inset
+    by CHAMFER_H + d) to CHAMFER_H above it (inset by d), and the full prism above that."""
+    z0 = -51.7 + 1.0 + d                                   # the flat (Z_FLAT) shrunk by d
+    parts = []
+    for x0, x1, y0, y1, _zb, zt in plan_box(d):
+        zt = min(zt, 300.0)
+        if zt <= z0 + 0.5:
+            continue                                     # the box (the chin, shrunk) ends below the flat
+        h = min(CHAMFER_H, (min(x1 - x0, y1 - y0) - 2.0) / 2, zt - z0 - 0.5)   # narrow or short boxes: smaller
+        if h > 0.5:
+            lo = Polyline((x0 + h, y0 + h, z0), (x1 - h, y0 + h, z0), (x1 - h, y1 - h, z0), (x0 + h, y1 - h, z0), close=True)
+            hi = Polyline((x0, y0, z0 + h), (x1, y0, z0 + h), (x1, y1, z0 + h), (x0, y1, z0 + h), close=True)
+            parts.append(Solid.make_loft([lo, hi], ruled=True))
+        else:
+            h = 0.0
+        parts.append(abox((x0, y0, z0 + h), (x1, y1, zt)))
+    return fuse(parts)
 
 
 @cache
 def _inset(d):
-    return SHELL._solid(d)
+    """The body's solid shrunk by d: the pill shrunk by d, inside the plan prisms shrunk by d, its belly edge
+    chamfered at 45 deg."""
+    return SHELL._solid(d) & plan_prism(d) & _bottom_chamfer(d)
 
 
 def below(z):
@@ -381,9 +452,11 @@ def _revolved(cx, cy, a0, a1, box, tilt=None):
         R = np.array([[c, 0.0, s_], [0.0, 1.0, 0.0], [-s_, 0.0, c]])
         P = P @ R.T + np.array([px, 0.0, pz])
     r, z, phi = np.hypot(P[:, 0], P[:, 1]), P[:, 2], np.arctan2(P[:, 1], P[:, 0])
+    if phi.max() - phi.min() > math.pi:
+        return _revolved_rings(cx, cy, a0, a1, box, tilt)       # it straddles the axis: ring by ring
     outline = _hull2d([(round(float(a), 4), round(float(b), 4)) for a, b in zip(r, z)])
-    if phi.max() - phi.min() > math.pi or (a1 - a0) + (phi.max() - phi.min()) >= 2 * math.pi - 1e-3:
-        start, arc = 0.0, 2 * math.pi                            # it straddles the axis: a full ring
+    if (a1 - a0) + (phi.max() - phi.min()) >= 2 * math.pi - 1e-3:
+        start, arc = 0.0, 2 * math.pi
     else:
         start, arc = a0 + phi.min(), (a1 - a0) + (phi.max() - phi.min())
     # a ruled loft through the outline every <= 10 deg (OpenCascade's booleans of a true revolve against the shell's
@@ -402,10 +475,72 @@ def _revolved(cx, cy, a0, a1, box, tilt=None):
     return Pos(cx, cy, 0) * Solid.make_loft(wires, ruled=True)
 
 
+
+RING_MM = 4.0              # a part straddling its joint's axis is swept ring by ring this wide
+
+
+def _sector(r0, r1, z0, z1, start, arc):
+    """An annular sector (radii r0..r1, heights z0..z1, from angle `start` over `arc`), about the z axis; the outer
+    radius pushed out by the chord's sag (ruled loft every <= 10 deg; a full ring is revolved)."""
+    if arc >= 2 * math.pi - 1e-6:
+        face = make_face(Polyline((r0, 0.0, z0), (r1, 0.0, z0), (r1, 0.0, z1), (r0, 0.0, z1), close=True))
+        return revolve(face, Axis.Z, 360)
+    n = max(2, int(math.ceil(math.degrees(arc) / 10.0)) + 1)
+    r1 = r1 / math.cos(arc / (n - 1) / 2)
+    wires = []
+    for k in range(n):
+        t = start + arc * k / (n - 1)
+        c, s_ = math.cos(t), math.sin(t)
+        wires.append(Polyline(*[(a * c, a * s_, b) for a, b in ((r0, z0), (r1, z0), (r1, z1), (r0, z1))], close=True))
+    return Solid.make_loft(wires, ruled=True)
+
+
+def _revolved_rings(cx, cy, a0, a1, box, tilt=None):
+    """The sweep of a box that straddles the joint's axis (a bracket plate round the shaft, an arm's root): revolving
+    its whole outline would be a full disc out to its far end, so it is cut into rings about the axis, each swept only
+    over its own angular width (sampled through the box's volume) plus the turn."""
+    x0, x1, hw, z0, z1 = box
+    y0, y1 = hw if isinstance(hw, tuple) else (-hw, hw)
+    g = np.linspace(0.0, 1.0, 17)
+    U, V, W = np.meshgrid(g, g, g, indexing="ij")
+    P = np.column_stack([(x0 + (x1 - x0) * U).ravel(), (y0 + (y1 - y0) * V).ravel(), (z0 + (z1 - z0) * W).ravel()])
+    if tilt:
+        deg, px, pz = tilt
+        c, s_ = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+        P = P @ np.array([[c, 0.0, s_], [0.0, 1.0, 0.0], [-s_, 0.0, c]]).T + np.array([px, 0.0, pz])
+    r, z, phi = np.hypot(P[:, 0], P[:, 1]), P[:, 2], np.arctan2(P[:, 1], P[:, 0])
+    step = max(abs(x1 - x0), abs(y1 - y0), abs(z1 - z0)) / 16.0         # the sampling pitch: widen each ring by it
+    edges = np.arange(0.0, r.max() + RING_MM, RING_MM)
+    parts = []
+    for ra, rb in zip(edges[:-1], edges[1:]):
+        k = (r >= ra - step) & (r <= rb + step)
+        if not k.any():
+            continue
+        ph = np.sort(phi[k])
+        gaps = np.diff(np.concatenate([ph, ph[:1] + 2 * math.pi]))        # the band's angular extent: the circle less its
+        j = int(np.argmax(gaps))                                          # largest empty gap
+        width = 2 * math.pi - gaps[j] + 2 * math.asin(min(1.0, step / max(ra, step)))
+        lo = ph[(j + 1) % len(ph)] - math.asin(min(1.0, step / max(ra, step)))
+        arc = (a1 - a0) + width
+        za, zb = float(z[k].min()) - step / 2, float(z[k].max()) + step / 2
+        parts.append(_sector(float(ra), float(rb), za, zb, a0 + lo, min(arc, 2 * math.pi)))
+    return Pos(cx, cy, 0) * fuse(parts)
+
+@cache
 def hip_keepouts(leg, grow=0.0):
-    """The limbs CAD's free zones around a hip: the U-bracket's two plates swing within 34 mm of the shaft."""
-    p = joints()[leg]["pos"]
-    return [zcyl(p[0], p[1], HIP_KEEPOUT_R + grow, z0 - grow, z1 + grow) for z0, z1 in HIP_PLATES]
+    """The free zones around a hip: the volumes the U-bracket's two plates (the limbs CAD's coxa_top and coxa_bottom)
+    sweep over the leg's turn, ring by ring about the shaft. (They were full 36 mm cylinders round the shaft, which
+    cut a slot along the whole flank above and below the hip servos; the plates only turn through the leg's range.)"""
+    j = joints()[leg]
+    cx, cy = j["pos"][:2]
+    a0, a1 = j["world"]
+    out = []
+    for e in LEG_ENVELOPE:
+        if e[0] in ("coxa_top", "coxa_bottom"):
+            _, x0, x1, hw, z0, z1, *tilt = e
+            out.append(_revolved(cx, cy, a0, a1, (x0 - grow, x1 + grow, _grow_y(hw, grow), z0 - grow, z1 + grow),
+                                 tilt or None))
+    return out
 
 
 # ---------------------------------------------------------------------------------------------------- features
@@ -496,6 +631,92 @@ def standoffs(name):
             out.append(Feature(f"{name}_bridge{len(out)}", name, "tray", "add", beam))
     return out, skipped
 
+
+DECK_Z = (-15.5, -14.0)    # the electronics deck: a 1.5 mm plate across the body over the hub, monitor, driver and pack
+DECK_X = (-60.0, 44.0)
+DECK_BOARDS = ("radxa", "imu", "mpr121", "reg_a", "reg_b", "amp", "dock_board")   # screwed to the deck, not the floor
+DECK_SLOT = 6.0            # a cable slot's half size round each crossing
+
+
+@cache
+def deck():
+    """The electronics deck (audit B3: most boards were glued to one rib or held by nothing), a separate part printed
+    flat on the bed with no supports (printability: inside the tray it would be an 80 mm bridge): a plate across the
+    body over the boards on the floor, every board above it screwed to posts printed on it; a slot wherever a routed
+    cable crosses its height (cad/v2/routing.py); a step round any part that passes it; four holes onto the tray's
+    deck posts (M2.5 into heat-set inserts). Body frame, as fitted."""
+    from cad.v2 import wiring
+    plate = abox((DECK_X[0], -BODY_Y, DECK_Z[0]), (DECK_X[1], BODY_Y, DECK_Z[1])) & _inset(WALL + 0.4)
+    slots = []
+    for _name, _kind, pts, dia, *_ in wiring.cables():
+        P = np.asarray(pts, float)
+        for a, b in zip(P[:-1], P[1:]):
+            if min(a[2], b[2]) < DECK_Z[1] and max(a[2], b[2]) > DECK_Z[0]:
+                t = np.clip((sum(DECK_Z) / 2 - a[2]) / (b[2] - a[2]), 0.0, 1.0) if b[2] != a[2] else 0.5
+                q = a + (b - a) * t
+                h = max(DECK_SLOT, dia / 2 + 2.0)
+                slots.append(abox((q[0] - h, q[1] - h, DECK_Z[0] - 1), (q[0] + h, q[1] + h, DECK_Z[1] + 1)))
+    lay = layout()
+    for n, part in lay.parts.items():                   # parts that pass through the deck's height
+        if part.mass_only or n in ("oled", "visor") or part.d.get("in_model") or n in DECK_BOARDS:
+            continue
+        c = part.corners()
+        if c[:, 2].min() < DECK_Z[1] + FIT and c[:, 2].max() > DECK_Z[0] - FIT:
+            slots.append(obox(part.pos, part.size + 2 * (FIT + 0.5), part.R))
+    for leg in LEGS:                                     # and the hip servo cases at the walls
+        lo, hi = hip_case_aabb(leg)
+        slots.append(abox(lo - FIT - 0.5, hi + FIT + 0.5))
+    d = plate - fuse(slots) if slots else plate
+    kept = []
+    for n in DECK_BOARDS:                                # a post stands only where the deck is solid under it
+        ps = [f.solid for f in deck_posts(n) if not _empty(f.solid & d)]
+        if len(ps) < 2:
+            print(f"deck: {n} has {len(ps)} post(s) on solid deck", file=sys.stderr)
+        kept += ps
+    holes = fuse([zcyl(x, y, M25_CLEAR / 2, DECK_Z[0] - 1.0, DECK_Z[1] + 1.0) for x, y in deck_mounts()])
+    return (d + fuse(kept) if kept else d) - holes
+
+
+@cache
+def deck_mounts():
+    """Where the deck screws down: four points spread over it whose columns to the floor are free."""
+    cands = []
+    for x in np.arange(DECK_X[0] + 6.0, DECK_X[1] - 5.0, 2.0):
+        for y in np.arange(-BODY_Y + WALL + 5.0, BODY_Y - WALL - 4.0, 2.0):
+            if _post_ok((x, y), BOSS_R, DECK_Z[0], "deck") and bool(plan_contains(np.array([x, y, DECK_Z[0]]), WALL + BOSS_R)):
+                cands.append((float(x), float(y)))
+    out = []
+    for tx, ty in ((DECK_X[0], -BODY_Y), (DECK_X[0], BODY_Y), (DECK_X[1], -BODY_Y), (DECK_X[1], BODY_Y)):
+        free = [c for c in cands if all(math.hypot(c[0] - o[0], c[1] - o[1]) > 25.0 for o in out)]
+        if free:
+            out.append(min(free, key=lambda c: (c[0] - tx) ** 2 + (c[1] - ty) ** 2))
+    return out
+
+
+def deck_supports():
+    """The tray's four posts under the deck, each with a brass M2.5 heat-set insert at its top."""
+    out = []
+    for k, (x, y) in enumerate(deck_mounts()):
+        post = zcyl(x, y, BOSS_R, -60.0, DECK_Z[0]) - zcyl(x, y, M25_INSERT / 2, DECK_Z[0] - M25_INSERT_L, DECK_Z[0] + 0.1)
+        out.append(Feature(f"deck_post{k}", "", "tray", "add", post))
+    return out
+
+
+def deck_posts(name):
+    """Posts from the deck up to a board's corner holes, with pilots for its screws."""
+    p = layout()[name]
+    screw, inset = STANDOFFS[name]
+    r = POST_R[screw]
+    bottom = p.corners()[:, 2].min()
+    out = []
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            c = p.world((sx * (p.half[0] - inset), sy * (p.half[1] - inset), -p.half[2]))
+            if bottom - DECK_Z[1] < 0.5:
+                continue
+            post = zcyl(c[0], c[1], r, DECK_Z[1] - 0.5, bottom) - zcyl(c[0], c[1], PILOT[screw] / 2, bottom - 6.0, bottom + 0.1)
+            out.append(Feature(f"{name}_deckpost{len(out)}", name, "tray", "add", post))
+    return out
 
 def _bridges(p, name, bottom, depth=2.5, width=3.0, reach=40.0, step=2.0):
     """Up to two beams under a board (depth mm under its bottom face, along one of its axes), each carried by two
@@ -620,13 +841,15 @@ HATCH_BAND, HATCH_GAP, HATCH_FRAME = 4.0, 0.25, 2.0     # rebate width round the
 def _hatch_regions():
     """The battery hatch under the pack: the through opening (small) and the rebate the door's rim sits in (large),
     as boxes below the pack's underside, and the four screw positions in the rebate."""
-    p = layout()["pack"]
-    lo, hi = p.corners().min(0), p.corners().max(0)
-    top = lo[2] - 0.5
+    lay = layout()
+    c = np.vstack([lay["pack"].corners(), lay["xt60"].corners()])   # the pack and its plug come out together
+    lo, hi = c.min(0), c.max(0)
+    top = lay["pack"].corners()[:, 2].min() - 0.5
     small = (lo[0] - 2.0, lo[1] - 2.0, hi[0] + 2.0, hi[1] + 2.0)
     large = (small[0] - HATCH_BAND, small[1] - HATCH_BAND, small[2] + HATCH_BAND, small[3] + HATCH_BAND)
     m = HATCH_BAND / 2
-    screws = [(small[0] - m, small[1] - m), (small[2] + m, small[1] - m), (small[0] - m, small[3] + m), (small[2] + m, small[3] + m)]
+    yc = (small[1] + small[3]) / 2
+    screws = [(small[2] + m, yc)]          # one M2.5 into a heat-set insert at the front end; a hook at the rear end
     return small, large, top, screws
 
 
@@ -651,11 +874,17 @@ def battery_cradle():
     wire = abox((small[2] - 0.1, p.pos[1] - 6.0, hi[2] - 9.0), (small[2] + 2.1, p.pos[1] + 6.0, hi[2] + 1.1))  # the lead out
     strap = abox((p.pos[0] - 11.0, lo[1] - 6.0, hi[2] - 6.0), (p.pos[0] + 11.0, hi[1] + 6.0, hi[2] - 3.0))
     frame = (_inset(WALL) - _inset(WALL + HATCH_FRAME)) & _region(large, top, 1.0) - _region(small, top)
-    holes = fuse([zcyl(x, y, M2_PILOT / 2, -90.0, top) for x, y in screws])
+    # the door's screw: a boss inside the frame with a brass M2.5 heat-set insert pressed in from below (audit B2:
+    # self-tapping M2 into 3 mm of PETG strips after a few swaps)
+    bosses = fuse([zcyl(x, y, BOSS_R, -90.0, top) & _inset(WALL - 0.5) for x, y in screws])
+    holes = fuse([zcyl(x, y, M25_INSERT / 2, -90.0, top - 1.5) for x, y in screws])
+    hook_slot = abox((small[0] - 2.6, (small[1] + small[3]) / 2 - 7.0, top - 0.2),
+                     (small[0] + 0.1, (small[1] + small[3]) / 2 + 7.0, top + 2.2))   # the door's hook passes under the bay wall
     rebate = (outer() - _inset(WALL / 2)) & _region(large, top)
     opening = _region(small, top)
+    walls = [w - hook_slot for w in walls]
     return [Feature("pack_bay", "pack", "tray", "add", fuse(walls) - wire - strap),
-            Feature("pack_hatch_frame", "pack", "tray", "add", frame - holes),
+            Feature("pack_hatch_frame", "pack", "tray", "add", frame + bosses - holes),
             Feature("pack_hatch_rebate", "pack", "tray", "cut", rebate),
             Feature("pack_hatch_opening", "pack", "tray", "cut", opening)]
 
@@ -671,42 +900,47 @@ def battery_door():
     skin = ((outer() - _inset(WALL)) & _region(small, top, g)) + ((outer() - _inset(WALL / 2)) & _region(large, top, g))
     rails = fuse([abox((lo[0] + 4.0, yc - 1.5, -90.0), (hi[0] - 4.0, yc + 1.5, top)) for yc in (p.pos[1] - 12.0, p.pos[1] + 12.0)])
     rails = rails & _inset(WALL / 2)
-    holes = fuse([zcyl(x, y, M2_CLEAR / 2, -90.0, top) for x, y in screws])
-    return skin + rails - holes
+    skin = skin & above(Z_FLAT)                          # flush with the flat belly
+    holes = fuse([zcyl(x, y, M25_CLEAR / 2, -90.0, top) for x, y in screws])
+    # the hook: a tongue at the rear end that goes in first under the frame, then the door swings shut onto its screw
+    yc = (small[1] + small[3]) / 2
+    hook = abox((small[0] - 2.4, yc - 6.0, top - 0.1), (small[0] + 4.0, yc + 6.0, top + 1.8))
+    return skin + rails + hook - holes
 
 
 def speaker_mount():
+    """A ring round the speaker on the cover's inside (it hangs from the cover, face against the skin over a 1 mm foam
+    gasket, glued round its rim): sound goes straight out of the grille instead of a 40 mm box (audit I2)."""
     p = layout()["speaker"]
-    x, y = p.pos[:2]
-    zb = p.corners()[:, 2].min()
     r_in = p.half[0] + FIT
-    ring = zcyl(x, y, r_in + 1.6, zb - 0.9, zb + 3.0) - zcyl(x, y, r_in, zb - 1.0, zb + 3.1)
-    parts = [ring]
-    for a in (0, 90, 180, 270):
-        c, s = math.cos(math.radians(a)), math.sin(math.radians(a))
-        parts.append(Location((x, y, 0), (0, 0, a)) * abox((r_in - 2.5, -2.0, zb - 0.9), (r_in + 0.1, 2.0, zb)))
-        px, py = x + (r_in + 0.8) * c, y + (r_in + 0.8) * s
-        if _post_ok((px, py), 2.25, zb - 0.9, "speaker"):
-            parts.append(zcyl(px, py, 2.25, -60.0, zb - 0.9))
-    return [Feature("speaker_ring", "speaker", "tray", "add", fuse(parts))]
+    n = p.R[:, 2]
+    face = p.pos + n * p.half[2]
+    ring = (axis_cyl(face - n * (p.size[2] + 1.0), n, r_in + 1.6, p.size[2] + 12.0)
+            - axis_cyl(face - n * (p.size[2] + 2.0), n, r_in, p.size[2] + 14.0)) & _inset(WALL - 0.5)
+    return [Feature("speaker_ring", "speaker", "cover", "add", ring)]
 
 
 def grille():
-    """Speaker grille in the cover over the speaker: 2 mm holes on a 4 mm hex grid, kept off the pads and mics."""
+    """Speaker grille in the cover over the speaker, along the speaker's axis: 1.5 mm holes on a 2.2 mm hex grid over
+    the cone (about 40 % open; audit I2 asked >= 25 %), kept off the pads and mics."""
     lay = layout()
-    x0, y0 = lay["speaker"].pos[:2]
-    keep_off = [lay[n].corners() for n in ("pad_back_left", "pad_back_right", "mic_l", "mic_r")]
+    p = lay["speaker"]
+    n, u, v = p.R[:, 2], p.R[:, 0], p.R[:, 1]
+    face = p.pos + n * p.half[2]
+    keep_off = [lay[k].corners() for k in ("pad_back_left", "pad_back_right", "mic_l", "mic_r")]
     holes = []
-    for row in range(-4, 5):
-        for col in range(-4, 5):
-            x = x0 + 4.0 * col + (2.0 if row % 2 else 0.0)
-            y = y0 + 4.0 * row * math.sqrt(3) / 2
-            if math.hypot(x - x0, y - y0) > 13.0:
+    pitch = 2.2
+    for row in range(-8, 9):
+        for col in range(-8, 9):
+            a = pitch * col + (pitch / 2 if row % 2 else 0.0)
+            b = pitch * row * math.sqrt(3) / 2
+            if math.hypot(a, b) > 11.5:
                 continue
-            if any(c[:, 0].min() - 2.5 < x < c[:, 0].max() + 2.5 and c[:, 1].min() - 2.5 < y < c[:, 1].max() + 2.5
-                   for c in keep_off):
+            c = face + a * u + b * v
+            if any(k[:, 0].min() - 2.5 < c[0] < k[:, 0].max() + 2.5 and k[:, 1].min() - 2.5 < c[1] < k[:, 1].max() + 2.5
+                   for k in keep_off):
                 continue
-            holes.append(zcyl(x, y, 1.0, SPLIT_Z + LIP_H + 5.0, 70.0))
+            holes.append(axis_cyl(c - n * 0.5, n, 0.75, 8.0))
     return [Feature("speaker_grille", "speaker", "cover", "cut", fuse(holes))], len(holes)
 
 
@@ -769,15 +1003,20 @@ def hip_seat(leg):
     xe = sorted((x_in - d * FIT, 0.0))
     end = abox((xe[0], ys[0], -60.0), (xe[1], ys[1], 6.0))
     xt = sorted((x_in - d * FIT, x_in + d * 14.0))
-    tab = abox((xt[0], ys[0], -24.4), (xt[1], ys[1], zb))
+    tab = abox((xt[0], ys[0], zb - HIP_TAB_T), (xt[1], ys[1], zb))
     seat = fuse([rail, end, tab]) - abox(lo - FIT, hi + FIT)
+    for n in ("tof_left", "tof_right"):                  # the side cliff sensors stand between the hips
+        q = layout()[n]
+        seat = seat - obox(q.pos, q.size + 2 * (FIT + 1.0), q.R)
     owner = f"hip_{leg.lower()}"
     feats = []
     for hx, hy in STEP_BOTTOM_HOLES[2:]:
-        c = hip_to_body(leg, (hx, hy, 0))
-        seat = seat - zcyl(c[0], c[1], M2_CLEAR / 2, -30.0, zb + 0.1) - zcyl(c[0], c[1], 2.1, -30.0, -24.4 + 1.2)
-        feats.append(Feature(f"{owner}_access{len(feats)}", owner, "tray", "cut", zcyl(c[0], c[1], 3.0, -70.0, -30.0)))
-    return [Feature(f"{owner}_seat", owner, "tray", "add", seat)] + feats
+        c = hip_to_body(leg, (hx, hy, 0))                # the screw heads sit in counterbores with 3 mm under them
+        seat = seat - zcyl(c[0], c[1], M2_CLEAR / 2, -70.0, zb + 0.1) - zcyl(c[0], c[1], 2.1, -70.0, zb - 3.0)
+        feats.append(Feature(f"{owner}_access{len(feats)}", owner, "tray", "cut", zcyl(c[0], c[1], 3.0, -70.0, zb - HIP_TAB_T)))
+    # the seat stands outside the side wall where the servo is (the hip servos stand through the boxed body's walls):
+    # not clipped to the shell; the joint zones still trim it
+    return [Feature(f"{owner}_seat", owner, "tray", "add", seat, clip=False)] + feats
 
 
 def shoulder_seat(arm):
@@ -812,8 +1051,8 @@ def split_bosses():
     """Six joints across the split: a tray boss with an M2.5 heat-set insert at the lip, a cover boss with a
     counterbored clearance hole, the screw from the top."""
     feats = []
-    for k, a in enumerate(BOSS_ANGLES):
-        c = section_point(a, SPLIT_Z, WALL + BOSS_INSET)
+    for k, (bx, by) in enumerate(BOSS_XY):
+        c = (bx, by)
         tray = (zcyl(c[0], c[1], BOSS_R, SPLIT_Z - 10.0, SPLIT_Z + LIP_H)
                 + Pos(c[0], c[1], SPLIT_Z - 10.0) * Cone(0.5, BOSS_R, 8.0, align=(Align.CENTER, Align.CENTER, Align.MAX)))
         tray = tray - zcyl(c[0], c[1], M25_INSERT / 2, SPLIT_Z + LIP_H - M25_INSERT_L, SPLIT_Z + LIP_H + 0.1)
@@ -827,13 +1066,15 @@ def split_bosses():
 
 
 def side_vents():
-    feats = []
-    for s in (-1, 1):
-        slots = [abox((x - 1.0, s * 80.0 - 30.0, -40.0), (x + 1.0, s * 80.0 + 30.0, -33.0)) for x in VENT_X]
-        slots = [Pos(0, 0, 0) * sl for sl in slots]
-        cut = fuse(slots) - _inset(WALL + 0.01)     # through the wall only
-        feats.append(Feature(f"vents_{'l' if s > 0 else 'r'}", "radxa", "tray", "cut", cut))
-    return feats
+    """Cooling (audit B5: the old flank vents cut nothing; the Radxa and two bucks sit in a closed shell): six 2 x 15 mm
+    intake slots in the belly under the computer, clear of the battery hatch and the cliff sensors, and five exhaust
+    slots in the top behind the face lid's hinge, so warm air rises through the body and out."""
+    skin = outer() - _inset(WALL + 0.01)
+    intake = fuse([abox((x - 1.0, -7.5, -90.0), (x + 1.0, 7.5, -20.0)) for x in VENT_X])
+    exhaust = fuse([abox((x - 1.0, -10.0, SPLIT_Z + LIP_H + 4.0), (x + 1.0, 10.0, 90.0)) for x in EXHAUST_X])
+    floor = abox((-200.0, -200.0, Z_FLAT - 1.0), (200.0, 200.0, Z_FLAT + 3.0))      # through the belly pad as well
+    return [Feature("vents_belly", "radxa", "tray", "cut", intake & (skin + floor)),
+            Feature("vents_top", "radxa", "cover", "cut", exhaust & skin)]
 
 
 def lid_knuckle():
@@ -844,96 +1085,109 @@ def lid_knuckle():
             Feature("hdmi_slot", "oled", "cover", "cut", slot)]
 
 
-WAIST_Y, WAIST_T = 56.5, 2.0        # the leg bays' inner walls: inner face |y| = 56.5 mm, 2 mm thick
+WAIST_Y = BODY_Y - WALL    # the side walls' inner face (the cable router's bound)
+LEAD_Z = -8.0              # the limbs' cable ports: height of the lead slots in the walls
+ARM_PORT_Y = 30.0          # the arm servo bundles' ports in the front face, |y|
 
 
-def waist_walls():
-    """The inner wall of each leg bay: the shell's flank is open where the leg roots swing (the hanging thigh servo
-    sweeps a band about 50 mm tall along it), so a wall inside closes the body behind the legs; the hip servos stand
-    through it in pockets, the hip brackets' plates pass in notches, the servo leads pass through a slot by each hip."""
+PORT_W, PORT_H = 12.0, 7.0     # a limb's cable port: three servo leads side by side (3 x 2.6 mm) with room, round ends
+
+
+def cable_port(c, through):
+    """A stadium-shaped cable port centred at c, through a wall along `through` ("x" or "y"): rounded ends so the
+    bundle never rides on a sharp edge (small-robot practice: a guide hole with margin, its entry rounded)."""
+    r = PORT_H / 2
+    L = PORT_W - PORT_H
+    rot = (90, 0, 0) if through == "y" else (0, 90, 0)
+    core = Box(L, 20.0, PORT_H) if through == "y" else Box(20.0, L, PORT_H)
+    ends = [Location((c[0] + (dx if through == "y" else 0), c[1] + (dx if through == "x" else 0), c[2]), rot)
+            * Cylinder(r, 20.0) for dx in (-L / 2, L / 2)]
+    return Pos(*c) * core + ends[0] + ends[1]
+
+
+TIE_SLOT = (4.2, 1.6)          # a 3.6 x 1.2 mm cable tie through each anchor
+
+
+def cable_ties():
+    """A printed tie anchor wherever the harness is tied (cad/v2/routing.py tie_points: within 20 mm of every
+    connector and every 40 mm along a channel): a block from the nearest wall or floor up to the bundle, with a slot
+    for a cable tie across the run."""
+    from cad.v2 import routing, wiring
+    free = routing.grid()[0]
     feats = []
-    for side in (1, -1):
-        y0, y1 = sorted((side * WAIST_Y, side * (WAIST_Y + WAIST_T)))
-        wall = abox((-90.0, y0, -70.0), (90.0, y1, SPLIT_Z + LIP_H)) & _inset(WALL - 0.5)
-        for leg in LEGS:
-            if (joints()[leg]["pos"][1] > 0) != (side > 0):
-                continue
-            lo, hi = hip_case_aabb(leg)
-            wall = wall - abox(lo - FIT, hi + FIT)
-            for k in hip_keepouts(leg, CLEAR):
-                wall = wall - k
-            p = joints()[leg]["pos"]
-            wall = wall - abox((p[0] - 9.0, y0 - 1.0, -12.0), (p[0] + 9.0, y1 + 1.0, -4.0))     # servo leads
-        feats.append(Feature(f"waist_{'left' if side > 0 else 'right'}", "", "tray", "add", wall))
+    for k, (q, d) in enumerate(routing.tie_points([c[2] for c in wiring.cables()])):
+        c0 = routing._cell(q)
+        best = None
+        for axis, sgn in ((2, -1), (1, 1), (1, -1), (2, 1), (0, 1), (0, -1)):
+            for n in range(1, 6):                       # the nearest surface within 10 mm
+                c = list(c0)
+                c[axis] += sgn * n
+                if not (0 <= c[axis] < free.shape[axis]) or not free[tuple(c)]:
+                    if best is None or n < best[2]:
+                        best = (axis, sgn, n)
+                    break
+        if best is None:
+            continue
+        axis, sgn, n = best
+        gap = n * routing.STEP
+        lo, hi = np.array(q, float) - 4.0, np.array(q, float) + 4.0
+        lo[axis], hi[axis] = sorted((q[axis] + sgn * 2.5, q[axis] + sgn * (gap + 1.5)))   # surface to under the bundle
+        block = abox(lo, hi)
+        dd = np.abs(np.asarray(d, float))
+        dd[axis] = -1.0
+        run = int(np.argmax(dd))                        # the slot runs across the cable, parallel to the surface
+        across = [i for i in range(3) if i not in (axis, run)][0]
+        slo, shi = np.array(q, float), np.array(q, float)
+        mid = q[axis] + sgn * (2.5 + min(gap, 6.0) / 2)
+        slo[axis], shi[axis] = mid - TIE_SLOT[1] / 2, mid + TIE_SLOT[1] / 2
+        slo[run], shi[run] = q[run] - TIE_SLOT[0] / 2, q[run] + TIE_SLOT[0] / 2
+        slo[across], shi[across] = q[across] - 6.0, q[across] + 6.0
+        block = block - abox(slo, shi)
+        half = "tray" if q[2] < SPLIT_Z else "cover"
+        feats.append(Feature(f"tie{k}", "", half, "add", block))
     return feats
-
-
-FRONT_X, FRONT_T, FRONT_Y = 46.0, 2.0, 18.0       # the arm bays' inner walls: behind the arm yaw servos, |y| >= 18
-
-
-def front_walls():
-    """The inner wall of each arm bay: the arms' brackets swing through the shell's front corners, so a wall behind
-    them (in front of the computer) closes the body; it meets the leg bay's wall at the side."""
-    feats = []
-    for side in (1, -1):
-        y0, y1 = sorted((side * FRONT_Y, side * (WAIST_Y + WAIST_T)))
-        wall = abox((FRONT_X, y0, -70.0), (FRONT_X + FRONT_T, y1, SPLIT_Z + LIP_H)) & _inset(WALL - 0.5)
-        feats.append(Feature(f"front_{'left' if side > 0 else 'right'}", "", "tray", "add", wall))
-    return feats
-
 
 def joint_openings():
-    """A leg's opening is one smooth cove round its hip (cove): it contains everything the leg sweeps and reads as a
-    designed arch, not a union of every pose; an arm's opening follows its sweep."""
+    """Every joint's exact sweep (2 mm clear) cut where it passes inside the body; the hip servo cases' pockets through
+    the side walls; a rounded cable port for each limb's servo bundle (by each hip in the side wall, beside each arm
+    yaw servo in the front face)."""
     feats = []
     for key in LEGS + ARMS:
-        half = "tray"
-        cut = sweep(key, CLEAR)
-        # the clean cove in the tray, only the true notches in the cover
-        cut = (cove(key, CLEAR) & below(SPLIT_Z + LIP_H)) + (cut & above(SPLIT_Z))
-        feats.append(Feature(f"opening_{key}", key, half, "cut", cut))
+        feats.append(Feature(f"opening_{key}", key, "tray", "cut", sweep(key, CLEAR)))
+    for leg in LEGS:
+        lo, hi = hip_case_aabb(leg)
+        p = joints()[leg]["pos"]
+        s_ = 1.0 if p[1] > 0 else -1.0
+        cut = abox(lo - FIT, hi + FIT) + cable_port((p[0], s_ * (BODY_Y - WALL / 2), LEAD_Z), "y")
+        feats.append(Feature(f"hip_pocket_{leg}", f"hip_{leg.lower()}", "tray", "cut", cut))
+    for side in (1, -1):
+        feats.append(Feature(f"arm_port_{'left' if side > 0 else 'right'}", "", "tray", "cut",
+                             cable_port((FRONT_X - WALL / 2, side * ARM_PORT_Y, LEAD_Z), "x")))
     return feats
 
 
-def _points(e, grow=0.0):
-    """Sample points of one envelope box (joint frame, tilted), as in _revolved."""
-    _, x0, x1, hw, z0, z1, *tilt = e
-    hw = _grow_y(hw, grow)
-    x0, x1, z0, z1 = x0 - grow, x1 + grow, z0 - grow, z1 + grow
-    y0, y1 = hw if isinstance(hw, tuple) else (-hw, hw)
-    g = np.linspace(0.0, 1.0, 7)
-    P = np.array([(x0 + (x1 - x0) * u, y0 + (y1 - y0) * v, z0 + (z1 - z0) * w) for u in g for v in g for w in g
-                  if min(u, 1 - u) == 0 or min(v, 1 - v) == 0 or min(w, 1 - w) == 0])
-    if tilt:
-        deg, px, pz = tilt
-        c, s_ = math.cos(math.radians(deg)), math.sin(math.radians(deg))
-        P = P @ np.array([[c, 0.0, s_], [0.0, 1.0, 0.0], [-s_, 0.0, c]]).T + np.array([px, 0.0, pz])
-    return P
+LINER_T = 1.2              # the bay liners' wall (closing only)
 
 
-@cache
-def cove(key, grow=0.0):
-    """One smooth opening round a leg's hip: the outline (radius, height) of everything the leg sweeps that reaches
-    beyond the hip's servo zone, revolved over the leg's whole turn plus the parts' own angular width."""
-    j = joints()[key]
-    a0, a1 = j["world"]
-    cx, cy = j["pos"][:2]
-    env = LEG_ENVELOPE if key in LEGS else ARM_ENVELOPE
-    rings = ("coxa_top", "coxa_bottom", "bracket_hub")            # parts that only turn round the axis: their own ring
-    pts = np.vstack([_points(e, grow) for e in env if e[1] != "cyl" and not e[0].startswith(rings)])
-    r, z, phi = np.hypot(pts[:, 0], pts[:, 1]), pts[:, 2], np.arctan2(pts[:, 1], pts[:, 0])
-    outline = _hull2d([(round(float(a), 3), round(float(b), 3)) for a, b in zip(r, z)])
-    start, arc = a0 + phi.min(), (a1 - a0) + (phi.max() - phi.min())
-    n = max(2, int(math.ceil(math.degrees(arc) / 6.0)) + 1)
-    sag = 1.0 / math.cos(arc / (n - 1) / 2)
-    wires = []
-    for k in range(n):
-        t = start + arc * k / (n - 1)
-        wires.append(Polyline(*[(a * sag * math.cos(t), a * sag * math.sin(t), b) for a, b in outline], close=True))
-    plates = fuse([_revolved(cx, cy, a0, a1, (e[1] - grow, e[2] + grow, _grow_y(e[3], grow), e[4] - grow, e[5] + grow))
-                   for e in env if e[1] != "cyl" and e[0].startswith(rings)])
-    return Pos(cx, cy, 0) * Solid.make_loft(wires, ruled=True) + plates
+def body_core():
+    """The closed body's inside (within the shell's wall)."""
+    return _inset(WALL - 0.5)
 
+
+def bay_liners():
+    """Where a leg or arm swings inside the body's walls (a front thigh swung forward passes inside the waist line at
+    the body's front corners; the hind thighs at the back), a 2 mm liner follows the swept volume 2 mm clear of it
+    (the joint opening's own cut hollows it), so the body stays closed and nothing inside shows; split at the parting
+    plane between the tray and the cover."""
+    feats = []
+    core = body_core()
+    for key in LEGS + ARMS:
+        liner = sweep(key, CLEAR + LINER_T) & core
+        if liner is None or volume(liner) < 1.0:
+            continue
+        feats.append(Feature(f"liner_{key}_low", "", "tray", "add", liner & below(SPLIT_Z + LIP_H), clip=False))
+        feats.append(Feature(f"liner_{key}_high", "", "cover", "add", liner & above(SPLIT_Z), clip=False))
+    return feats
 
 @cache
 def features():
@@ -944,7 +1198,9 @@ def features():
     for arm in ARMS:
         f += shoulder_seat(arm)
     for name in STANDOFFS:
-        f += standoffs(name)[0]
+        if name not in DECK_BOARDS:                     # (the deck boards' posts are printed on the deck)
+            f += standoffs(name)[0]
+    f += deck_supports()
     for name in WALL_BOARDS:
         f += wall_board(name)
     for name in CRADLES:
@@ -954,8 +1210,11 @@ def features():
     for name in PADS:
         f += pad_recess(name)
     f += switch_cut() + pogo_mount("pogo_l") + pogo_mount("pogo_r")
-    f += split_bosses() + side_vents() + lid_knuckle() + waist_walls() + front_walls()
-    f = [_trim(x) for x in f] + joint_openings()
+    f += split_bosses() + side_vents() + lid_knuckle() + bay_liners() + cable_ties() + belly_pad()
+    dropped = [x.name for x in f if _empty(x.solid)]
+    if dropped:                                          # a feature wholly outside the body's outline (clipped away)
+        print("features outside the body, left out:", ", ".join(dropped), file=sys.stderr)
+    f = [t for t in (_trim(x) for x in f if not _empty(x.solid)) if not _empty(t.solid)] + joint_openings()
     assert all(n in lay.parts for n in {x.owner for x in f} if n and n not in LEGS + ARMS)
     return tuple(f)
 
@@ -990,6 +1249,16 @@ def part_boxes():
     return out
 
 
+def _empty(s):
+    """A solid that is missing or holds no shape (a boolean that removed everything)."""
+    if s is None or getattr(s, "_wrapped", None) is None:
+        return True
+    try:
+        return s.volume < 1e-3
+    except Exception:                                    # noqa: BLE001
+        return True
+
+
 def _trim(f):
     """Shape an added feature around the joint zones and around every other part's room; record what was taken."""
     if f.op != "add":
@@ -1009,9 +1278,18 @@ def _trim(f):
 
 
 # ---------------------------------------------------------------------------------------------------- the two halves
+Z_FLAT = -50.7             # the tray's belly cut flat 1 mm up: a flat datum to print on (audit M2: it rocked)
+
+
+def belly_pad():
+    """Floor stiffening over the flat: the cut leaves 1 mm of wall at the lowest point, the pad brings it to 2.5 mm."""
+    pad = abox((-45.0, -45.0, Z_FLAT), (45.0, 45.0, Z_FLAT + 2.5)) & outer()
+    return [Feature("belly_pad", "", "tray", "add", pad, clip=False)]
+
+
 @cache
 def tray_shell():
-    lower = (outer() - inner()) & below(SPLIT_Z)
+    lower = (outer() - inner()) & below(SPLIT_Z) & above(Z_FLAT)
     lip = (_inset(WALL + LIP_GAP) - _inset(WALL + LIP_GAP + LIP_T)) & above(SPLIT_Z) & below(SPLIT_Z + LIP_H)
     return lower + lip
 

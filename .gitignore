@@ -55,3 +55,6 @@ CLAUDE.local.md
 # agent worktrees created by Claude Code
 .claude/worktrees/
 cad/parts_ext/private/
+
+# makers' 3D models (cad/vendor/fetch.py downloads them)
+cad/vendor/*/

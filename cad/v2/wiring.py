@@ -96,45 +96,127 @@ def length(points):
 
 
 @cache
+def hinge_exit():
+    """The face panel's cables leave the body through the slot in the lid hinge's knuckles (cad/v2/lid.py CABLE_SLOT):
+    (the point inside the body under the slot, the hinge axis), body frame mm."""
+    from cad.v2 import lid
+    h = lid.hinge_location().position
+    return np.array([h.X, h.Y, h.Z - lid.KNUCKLE_R - 6.0]), np.array([h.X, h.Y, h.Z])
+
+
+def _conn(part):
+    """Where a cable plugs into a part: the middle of its first connector's cable room (body frame, mm), else the
+    middle of its top face. The face panel's cables are routed to the hinge's cable slot (hinge_exit)."""
+    if part == "oled":
+        return hinge_exit()[0]
+    p = Layout()[part]
+    if p.connectors:
+        c, _h, _R = p.connector_box(p.connectors[0])
+        return np.asarray(c, float)
+    return _end(part)
+
+
+def port(joint):
+    """Where a limb's servo bundle leaves the body: the lead slot in the leg bay's wall by its hip (cad/v2/body.py
+    joint_openings), or the port in the front face beside its arm yaw servo."""
+    from cad.v2 import body as B
+    if joint[0] in "FR" and joint[1] in "LR":
+        p = B.joints()[joint[:2]]["pos"]
+        s = 1.0 if p[1] > 0 else -1.0
+        return np.array([p[0], s * (B.BODY_Y - B.WALL - 3.0), B.LEAD_Z])
+    s = 1.0 if joint[0] == "L" else -1.0
+    return np.array([B.FRONT_X - B.WALL - 3.0, s * B.ARM_PORT_Y, B.LEAD_Z])
+
+
+def _limb(joint):
+    return joint[:2] if joint[0] in "FR" and joint[1] in "LR" else joint[0]
+
+
+@cache
 def cables():
-    """[(name, kind ('power' | 'servo' | 'signal'), points, bundle dia mm, g/m, bought length mm or None)]."""
+    """[(name, kind ('power' | 'servo' | 'signal'), points, bundle dia mm, g/m, bought length mm or None)]: every
+    cable path-found through the body (cad/v2/routing.py); a limb's servo cables share one path (a bundle)."""
+    from cad.v2 import routing
     w = _wiring()
-    out = []
-    lane = 0
+    rows, spec = [], []
     for e in w.get("edge", []):
         parts = e.get("parts", [])
         if e.get("element") or len(parts) != 2 and not e["id"].startswith("cable_"):
             continue                                            # a fuse / switch / shunt element, not a wire
         awg = int(e.get("awg", 22))
         dia1, gm1 = WIRE.get(awg, WIRE[22])
-        if e["id"].startswith("cable_"):                        # a servo cable: hub header -> the servo
+        if e["id"].startswith("cable_"):                        # a servo cable: hub header -> its limb's port
             joint = e["id"][len("cable_"):]
-            pts = route(_end("hub"), _servo_end(joint), lane=0.0)
+            key = "bundle_" + _limb(joint)
+            if key not in {k for k, *_ in spec}:
+                spec.append((key, "servo", tuple(_conn("hub")), tuple(port(joint))))
             dia, gm = SERVO_CABLE
-            out.append((e["id"], "servo", pts, dia, gm, float(e["length_mm"]) if e.get("length_mm") != "auto" else None))
+            rows.append((e["id"], "servo", key, dia, gm, float(e["length_mm"]) if e.get("length_mm") != "auto" else None))
             continue
         a, b = parts
-        pts = route(_end(a), _end(b), lane=2.5 * (lane % 3))
-        lane += 1
         n = 2                                                   # supply and return
         if b.startswith("tof") or b in ("imu", "ina", "mpr121", "tof8") or b.startswith("mic"):
             n = 4 if not b.startswith("mic") else 2             # an I2C device: VCC, GND, SDA, SCL
-        out.append((e["id"], "power" if awg <= 20 else "signal", pts, dia1 * sqrt(n), gm1 * n, None))
+        kind = "power" if awg <= 20 else "signal"
+        spec.append((e["id"], kind, tuple(_conn(a)), tuple(_conn(b))))
+        rows.append((e["id"], kind, e["id"], dia1 * sqrt(n), gm1 * n, None))
     for lk in w.get("link", []):
         dia, gm = LINK.get(lk["kind"], (1.5, 2.0))
-        pts = route(_end(lk["from_part"]), _end(lk["to_part"]), lane=2.5 * (lane % 3))
-        lane += 1
-        out.append((lk["id"], "signal", pts, dia, gm, None))
+        spec.append((lk["id"], "signal", tuple(_conn(lk["from_part"])), tuple(_conn(lk["to_part"]))))
+        rows.append((lk["id"], "signal", lk["id"], dia, gm, None))
+    paths = routing.routes(tuple((n, k, tuple(map(float, a)), tuple(map(float, b))) for n, k, a, b in spec))
+    out = []
+    lid_parts = {r[2] for r in rows if any(x[0] == r[2] and x[3] == tuple(map(float, hinge_exit()[0])) for x in spec)}
+    for name, kind, key, dia, gm, bought in rows:
+        pts = paths.get(key)
+        if pts is not None and key in lid_parts:                # on through the hinge slot, up the lid to the panel
+            p = Layout()["oled"]
+            pts = list(pts) + [hinge_exit()[1], np.asarray(p.pos, float) - p.R @ np.array([0.0, 0.0, p.half[2]])]
+        if pts is None:                                         # no free path: the old straight route, flagged
+            print(f"wiring: no free path for {name}", file=sys.stderr)
+            continue
+        out.append((name, kind, pts, dia, gm, bought))
     return out
 
 
 @cache
 def solids():
     """(name, kind, solid, mass inside the body kg) per cable."""
-    out = []
+    out, bundles = [], {}
     for name, kind, pts, dia, gm, _bought in cables():
         inside = length(pts)
+        key = id(pts)
+        if kind == "servo":                                     # one tube per bundle, its cables' masses summed
+            b = bundles.setdefault(key, [name, pts, 0, 0.0])
+            b[2] += 1
+            b[3] += inside / 1000 * gm / 1000
+            continue
         out.append((name, kind, tube(pts, dia), inside / 1000 * gm / 1000))
+    for name, pts, n, mass in bundles.values():
+        out.append((name, "servo", tube(pts, SERVO_CABLE[0] * sqrt(n) + 0.4), mass))
+    out += seam_connectors()
+    return out
+
+
+SEAM_JST = (6.0, 4.5, 6.0, 0.0004)   # a JST-PH plug and socket pair (mm, kg): the cover's wires unplug at the seam
+
+
+def seam_connectors():
+    """Where a wire crosses the cover's seam (a part in the cover, wired to one in the tray), a JST-PH pair 5 mm below
+    the split, so the cover lifts off without cutting a wire."""
+    from build123d import Box as _Box
+
+    from cad.v2 import body as B
+    out = []
+    for name, kind, pts, _dia, _gm, _b in cables():
+        P = np.asarray(pts, float)
+        for a, b in zip(P[:-1], P[1:]):
+            if (a[2] - B.SPLIT_Z) * (b[2] - B.SPLIT_Z) < 0:
+                t = (B.SPLIT_Z - 5.0 - a[2]) / (b[2] - a[2]) if b[2] != a[2] else 0.0
+                q = a + (b - a) * min(max(t, 0.0), 1.0)
+                lx, ly, lz, m = SEAM_JST
+                out.append((f"{name}_seam", kind, Pos(*q) * _Box(lx, ly, lz), m))
+                break
     return out
 
 

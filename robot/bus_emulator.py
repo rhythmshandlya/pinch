@@ -19,6 +19,10 @@ class EmulatedServo:
         self._put("goal_position", model.centre)
         self._put("present_voltage", 50)                    # 5.0 V bus
         self._put("present_temperature", 32)
+        for name, value in (("max_temp", 70), ("min_angle", 0), ("max_angle", 4095), ("overload_torque", 80),
+                            ("protection_time", 200), ("protective_torque", 20)):   # STS factory EEPROM
+            if name in self.m.reg:                    # (memory table: 70 C limit, full travel, 80 % for 2 s -> 20 %)
+                self._put(name, value)
         self.mem[self.m.reg["lock"][0]] = 1
 
     @property
