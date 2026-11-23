@@ -87,9 +87,7 @@ def test_the_electronics_file_has_the_measured_sts3215_block():
     assert abs(d("leg_servo.stall_torque_nm") - vin * kt / R) < 1e-9          # stall from vin * kt / R
     assert abs(d("leg_servo.stall_torque_nm") - 3.4275) < 1e-3
     assert d("leg_servo.max_velocity_rad_s") == 5.095754044445978
-    assert d.for_design("v1") is d
-    v2 = d.for_design("v2")
-    assert v2("regulator.output_v") == 7.4 and v2("battery.capacity_ah") == 2.5 and d("regulator.output_v") == 5.0
+    assert d("regulator.output_v") == 7.4 and d("battery.capacity_ah") == 2.5
     sizing = json.loads((ROOT / "sim" / "sizing" / "bam_sts3215_m6.json").read_text())      # the BAM file's copy
     from crab.servo_model import measured_parameters
     mp = measured_parameters(d)

@@ -140,8 +140,7 @@ def episode(args):
     elec = None
     if realism == "datasheet":
         from crab.electronics import Realism
-        from robot.servos import PWM_JOINTS
-        elec = Realism(seed=seed, pwm=[j in PWM_JOINTS for j in JOINT_NAMES], dt=m.opt.timestep, initial=d.ctrl[act])
+        elec = Realism(seed=seed, dt=m.opt.timestep, initial=d.ctrl[act])
     stand_h = float(m.key("stand").qpos[2])
     pol = None
     if ctrl == "policy":                         # the emote balance policy (or a candidate)

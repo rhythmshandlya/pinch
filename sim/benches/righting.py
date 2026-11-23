@@ -7,8 +7,7 @@ from the same random starts on its back, in the CPU twin's physics (sim/models/c
 
 Each start: rolled 180 +- 30 deg, pitched +- 25 deg, any heading, joints +-0.2 rad around the stand pose,
 dropped from 8 cm; floor friction x0.4-1.2, masses +-15 %, servo strength x0.7-1.1. Both controllers are
-sensed as on the robot (the PWM arm servos report nothing: their angle is the last command, their speed 0;
---true-arms gives the policy the true values) and handled like Body._right_self: once upright for 0.2 s they blend to the stand pose; success is still
+sensed as on the robot and handled like Body._right_self: once upright for 0.2 s they blend to the stand pose; success is still
 upright 2 s later. Reports the success rate, the time to upright (mean, 90th percentile) and how hard it drives
 the servos while getting up: the 95th percentile of the commanded joint speed (rad/s) and its peak (decision 85).
 --realism datasheet adds the electronics of configs/electronics.toml: servo targets arrive late (bus + servo delay),
@@ -33,11 +32,8 @@ from crab.params import (
     PARAMS,  # noqa: E402
 )
 from crab.policy_np import POLICY_DIR, NumpyPolicy  # noqa: E402
-from robot.servos import PWM_JOINTS  # noqa: E402
 from sim.benches.common import run_parallel, save_json  # noqa: E402
 from sim.benches.stats import rate  # noqa: E402
-
-PWM = np.array([JOINT_NAMES.index(j) for j in PWM_JOINTS], dtype=int)     # the PWM arm servos (v1): they report nothing; v2 has none
 
 MODEL = ROOT / "sim" / "models" / PARAMS.model_file   # the robot model, generated from the CAD
 DT, CTRL_DT, TIMEOUT = 0.002, pio.CTRL_DT, 8.0
@@ -51,7 +47,7 @@ def _quat(roll, pitch, yaw):
 
 
 def episode(args):
-    ctrl, seed, policy, robot_sensing, *more = args
+    ctrl, seed, policy, *more = args
     realism = more[0] if more else "ideal"
     rng = np.random.default_rng(seed)
     m = mujoco.MjModel.from_xml_path(str(MODEL))
@@ -74,7 +70,7 @@ def episode(args):
     elec = None
     if realism == "datasheet":
         from crab.electronics import Realism
-        elec = Realism(seed=seed, pwm=[j in PWM_JOINTS for j in JOINT_NAMES], dt=DT, initial=d.ctrl)
+        elec = Realism(seed=seed, dt=DT, initial=d.ctrl)
     body = m.body("body").id
     sub = int(round(CTRL_DT / DT))
     last = np.zeros(len(JOINT_NAMES))
@@ -84,8 +80,6 @@ def episode(args):
         if pol is not None:
             R = d.xmat[body].reshape(3, 3)
             q, qd = d.qpos[qadr].copy(), d.qvel[vadr].copy()
-            if robot_sensing:                            # as the firmware reads them: arms = last command, speed 0
-                q[PWM], qd[PWM] = d.ctrl[PWM], 0.0
             grav, gyro = R.T @ np.array([0.0, 0.0, -1.0]), d.qvel[3:6]
             if elec is not None:
                 q = elec.encoder(q)
@@ -126,8 +120,6 @@ def main():
     ap.add_argument("--policy", default="righting", help="policies/<name>.npz")
     ap.add_argument("--starts", type=int, default=100)
     ap.add_argument("--jobs", type=int, default=12)
-    ap.add_argument("--true-arms", action="store_true",
-                    help="give the policy the arm servos' true angles and speeds (the robot can't read them)")
     ap.add_argument("--json", default=None, help="also write the results here")
     ap.add_argument("--realism", default="ideal", choices=["ideal", "datasheet"],
                     help="datasheet: command delay, encoder steps and the IMU of configs/electronics.toml")
@@ -135,7 +127,7 @@ def main():
     ctrls = ["swing"] + (["policy"] if (POLICY_DIR / f"{a.policy}.npz").exists() else [])
     if "policy" not in ctrls:
         print(f"no policies/{a.policy}.npz - the swing only")
-    jobs = [(c, 5000 + s, a.policy, not a.true_arms, a.realism) for c in ctrls for s in range(a.starts)]
+    jobs = [(c, 5000 + s, a.policy, a.realism) for c in ctrls for s in range(a.starts)]
     rows = run_parallel(episode, jobs, a.jobs, chunksize=4)
     save_json(a.json, rows)
     for c in ctrls:

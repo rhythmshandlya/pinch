@@ -2,7 +2,6 @@
 name = "righting-v21"
 env = "righting"
 preset = "righting"
-design = "v2"
 init_from = "/home/armaan/pinch-jobs/righting-v21e/out/righting-v21e/params.pkl"   # warm start: the 12 M-step check (80 % on the CAD body), itself from the adopted righting-v1
 description = "quick check of design v2.1 (design sweep winner): get up from any orientation within 2 s on this body (R-07)"
 
