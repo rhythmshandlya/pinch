@@ -229,9 +229,9 @@ class MindCore:
                  and s.salience0 >= self.ORIENT_SALIENCE and (s.xy is not None or s.direction is not None)]
         if not fresh:
             return None
-        from pinch.attention import direction_of
+        from pinch.attention import bearing
         s = max(fresh, key=lambda x: x.t0)
-        d = direction_of(s.xy, self.world.pose) if s.xy is not None else s.direction
+        d = bearing(s, self.world.pose)
         return (float(max(-1.0, min(1.0, -d / 0.8))), 0.2)
 
     OUTCOME_STATES = ("task", "play", "explore", "social", "idle")
@@ -281,7 +281,8 @@ class MindCore:
         """Face expression (the feeling unless an activity set one recently), gaze, sounds to play. Gaze: where
         an activity aimed it in the last 3 s, otherwise the focus of attention, otherwise ahead. A target with a
         place on the desk is re-aimed from the current pose every tick, so the eyes stay on it while it walks."""
-        from pinch.attention import direction_of
+        from pinch.attention import bearing
+        from pinch.mind.behaviour import states
         s, self.sounds = self.sounds, []
         self.face_expr = face_now(self)
         new = self._orienting()
@@ -293,9 +294,14 @@ class MindCore:
                 self.gaze = self._gaze_to(self.gaze_target_xy)
         else:
             f, sal = self.attention.update(self.t)
-            if f is not None and sal > 0.1 and (f.xy is not None or f.direction is not None):
-                d = direction_of(f.xy, self.world.pose) if f.xy is not None else f.direction
-                self.gaze = (float(max(-1.0, min(1.0, -d / 0.8))), 0.2)
+            hold = states()[self.state].get("gaze_hold", 0.0)    # the task's target against a weaker pull
+            if hold and self.gaze_target_xy is not None and self.activity is not None \
+                    and self.gaze_set_t >= self.started and sal < hold \
+                    and not (f is not None and f.kind == "motion"):
+                self.gaze = self._gaze_to(self.gaze_target_xy)   # (a moving thing still pulls the eyes: motion
+                #                                                   onset captures attention, Abrams & Christ 2003)
+            elif f is not None and sal > 0.1 and bearing(f, self.world.pose) is not None:
+                self.gaze = (float(max(-1.0, min(1.0, -bearing(f, self.world.pose) / 0.8))), 0.2)
             elif f is None:
                 self.gaze = self._glance()
         return self.face_expr, self.gaze, s

@@ -316,6 +316,7 @@ class ReactTouch(Activity):
     state, max_s = "social", 60.0
     name, interruptible, min_s, quiet_ok = "react_touch", False, 1.0, True
     closes = False                                         # (a reaction, not an exchange)
+    wakes_itself = True                                    # (woken: its own sleepy face, see run)
 
     @staticmethod
     def touch_state(m):

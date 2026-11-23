@@ -11,7 +11,8 @@ words and touches at random moments. Measured on the sequence of activities:
                 touch, a word or a scare in between is not flicker, nor a short activity that finished) < 5 %
   dwell         median time in an activity it chose itself, s                                         20 - 90
   switches      activity switches per minute                                                           <= 3
-  next_entropy  how unpredictable the next activity is given the current one, bits                    1.0 - 2.0
+  next_entropy  how unpredictable its next own choice is given the current one (reactions to its person
+                left out, as for flicker; the all-switch figure is printed too), bits                    1.0 - 2.0
   repeat4       share of 4-activity runs seen earlier the same day                                     < 50 %
   day14/day1    the day's activity entropy on the last days against the first                           >= 0.85
 Thresholds: docs/research/v2_1/longterm/notes.md (Blumberg's level of interest; ethogram structure; long-term HRI:
@@ -114,7 +115,7 @@ def _reactive(name):
 def measures(days):
     flick = sw = own_sw = 0
     dwell, minutes, nxt, rep4, ent = [], 0.0, Counter(), [], []
-    pair = Counter()
+    pair, pair_all, nxt_all = Counter(), Counter(), Counter()
     for seq in days:
         names = [r[0] for r in seq]
         minutes += (seq[-1][2] - seq[0][1]) / 60.0
@@ -128,6 +129,10 @@ def measures(days):
                 flick += 1                                   # (B cut short and straight back: dithering)
         dwell += [r[2] - r[1] for r in seq if not _reactive(r[0])]
         for i in range(1, len(seq)):
+            pair_all[(names[i - 1], names[i])] += 1
+            nxt_all[names[i - 1]] += 1
+            if _reactive(names[i - 1]) or _reactive(names[i]):
+                continue                                     # (a reaction: the stimulus's timing, not a habit)
             pair[(names[i - 1], names[i])] += 1
             nxt[names[i - 1]] += 1
         grams = [tuple(names[i:i + 4]) for i in range(len(names) - 3)]
@@ -137,10 +142,12 @@ def measures(days):
             seen.add(g)
         rep4.append(r / max(1, len(grams)))
         ent.append(entropy(Counter(names)))
-    tot = sum(pair.values())
-    h_next = -sum(c / tot * math.log2(c / nxt[a]) for (a, _), c in pair.items()) if tot else 0.0
+    def h_cond(pairs, firsts):
+        tot = sum(pairs.values())
+        return -sum(c / tot * math.log2(c / firsts[a]) for (a, _), c in pairs.items()) if tot else 0.0
+    h_next, h_all = h_cond(pair, nxt), h_cond(pair_all, nxt_all)
     return dict(flicker=flick / max(1, own_sw), dwell=float(np.median(dwell)), switches=sw / max(1e-6, minutes),
-                next_entropy=h_next, repeat4=float(np.mean(rep4)), ent=ent)
+                next_entropy=h_next, next_entropy_all=h_all, repeat4=float(np.mean(rep4)), ent=ent)
 
 
 def main():
@@ -160,7 +167,7 @@ def main():
     rows = [("flicker", f"{100 * r['flicker']:.1f} % of switches", r["flicker"] < 0.05),
             ("dwell", f"median {r['dwell']:.0f} s", 20 <= r["dwell"] <= 90),
             ("switches", f"{r['switches']:.2f} per minute", r["switches"] <= 3),
-            ("next_entropy", f"{r['next_entropy']:.2f} bits", 1.0 <= r["next_entropy"] <= 2.0),
+            ("next_entropy", f"{r['next_entropy']:.3f} bits (all switches {r.get('next_entropy_all', float('nan')):.3f})", 1.0 <= r["next_entropy"] <= 2.0),
             ("repeat4", f"{100 * r['repeat4']:.0f} % of 4-activity runs seen earlier that day", r["repeat4"] < 0.5),
             ("day14/day1", f"{trend:.2f} (activity entropy, last 3 days / first 2)", trend >= 0.85 or trend != trend)]
     ok = True

@@ -10,7 +10,7 @@ just move? Real stimuli go in through its senses in the twin; what it does back 
   3 meaningful gaze       share of looking time spent on something real - what it attends to, a voice it just
                           heard, a moving thing, the goal of what it is doing, its person, the things on the desk -
                           when one is in the eyes' reach (>= 70 %, and >= 25 points above eyes pointed at random)
-  4 forethought           goal-directed moves (walk to, push, pick) start with the eyes already on the goal (hazard
+  4 forethought           goal-directed moves (walk to, turn to, push, pick) start with the eyes already on the goal (hazard
                           moves - guarding an edge, fleeing - go at once by design and are not judged here)
                           (>= 95 %, the eyes there >= 0.1 s before the legs move)
   5 outcome reaction      a face or sound change within 1 s after a pick, push or drop, or a failed walk, in a task, play,
@@ -115,6 +115,7 @@ def session(seed, seconds=360.0, tidy=False):
     from collections import Counter
     off_by_act = Counter()
     chance, chance_rng = 0, np.random.default_rng(seed)
+    seen_targets = []                         # (eye, targets in reach) per sample: the time-shifted control
     last_status, last_task = "", None
     face_t, sound_t = [], []
     face0, n_sounds = m.face_expr, 0
@@ -156,6 +157,7 @@ def session(seed, seconds=360.0, tidy=False):
         targets = [a for a in targets if abs(a) < 1.0]                  # within the eyes' reach
         if targets:
             with_target += 1
+            seen_targets.append((eye, targets))
             hit = any(abs(eye - eye_dir(a)) < GAZE_TOL for a in targets)
             rnd = float(chance_rng.uniform(-1, 1))                          # control: eyes pointed at random
             chance += any(abs(rnd - eye_dir(a)) < GAZE_TOL for a in targets)
@@ -166,7 +168,7 @@ def session(seed, seconds=360.0, tidy=False):
         task = sim.body.task
         if task is not None and task is not last_task:
             task_act = m.activity.name if m.activity else ""
-        if task is not None and task is not last_task and sim.body.status in ("goto", "push", "pick", "drop"):
+        if task is not None and task is not last_task and sim.body.status in ("goto", "push", "pick", "drop", "turn_to"):
             step = sim.motions[-1][1] if sim.motions else ()
             goal = None
             if len(step) > 1 and isinstance(step[1], (tuple, list)) and len(step[1]) >= 2:
@@ -196,7 +198,10 @@ def session(seed, seconds=360.0, tidy=False):
         print("goal starts", [(i, g) for i, g in zip(ahead_info, goal_starts)])
     life = sim.body.life
     gaps = np.diff([t for t, _ in life.events]) if len(life.events) > 3 else np.array([1.0])
-    return dict(gaze=on_target / max(1, with_target), gaze_chance=chance / max(1, with_target), forethought=float(np.mean(goal_starts)) if goal_starts else None,
+    n_s = len(seen_targets)                   # control 2: the same eye trace shifted half a session in time (keeps
+    shifted = sum(any(abs(seen_targets[(i + n_s // 2) % n_s][0] - eye_dir(a)) < GAZE_TOL for a in tg)   # where the
+                  for i, (_, tg) in enumerate(seen_targets)) / max(1, n_s)   # eyes tend to point, breaks the link)
+    return dict(gaze=on_target / max(1, with_target), gaze_chance=chance / max(1, with_target), gaze_shift=shifted, forethought=float(np.mean(goal_starts)) if goal_starts else None,
                 n_goal=len(goal_starts), outcome=float(np.mean(reacted)) if reacted else None, n_out=len(reacted),
                 fidget_cv=float(np.std(gaps) / max(1e-6, np.mean(gaps))))
 
@@ -249,7 +254,8 @@ def main():
         ("2 eyes before body", "n/a (no body turn)" if eyes_first is None else f"{100 * eyes_first:.0f} % of {len(order)}",
          eyes_first is not None and eyes_first >= 0.9),
         ("3 meaningful gaze", f"{100 * np.mean([s['gaze'] for s in sess]):.0f} % of looking time on a target "
-         f"(eyes pointed at random: {100 * np.mean([s['gaze_chance'] for s in sess]):.0f} %)",
+         f"(eyes pointed at random: {100 * np.mean([s['gaze_chance'] for s in sess]):.0f} %; the same eyes shifted in "
+         f"time: {100 * np.mean([s['gaze_shift'] for s in sess]):.0f} %)",
          np.mean([s["gaze"] for s in sess]) >= 0.7
          and np.mean([s["gaze"] for s in sess]) >= np.mean([s["gaze_chance"] for s in sess]) + 0.25),
         ("4 forethought", f"{100 * pooled('forethought', 'n_goal'):.0f} % of {sum(s['n_goal'] for s in sess)} "

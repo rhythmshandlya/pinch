@@ -5,6 +5,9 @@ lining up a pick, "happy" when a game starts), which shows for intent_hold_s onl
 feeling now ([shows] table); otherwise, and afterwards, the feeling's own face shows. Asleep shows asleep.
 Research: Kismet blends one affect state into the face; Loyall/Oz: emotion shown through all behaviour, the
 activity never overrides what the character feels (docs/research/v2_1/expression, believable).
+Display rules: when the feeling's own face doesn't fit the state (heart eyes while tidying), the first face of the
+feeling's [shows] list that fits the state shows instead (Ekman & Friesen 1969: context shapes how a felt emotion is
+shown); if none fits, the feeling's own face (honest over tidy).
 """
 
 from pinch.settings import load
@@ -23,7 +26,7 @@ def fits(face, feeling):
 def face_now(mind):
     """The face to draw now."""
     if mind.state == "sleep":
-        return "asleep"
+        return "sleepy" if mind.phase == "wake" else "asleep"
     feeling = mind.affect.feeling()
     out = mind.outcome_intent       # how the move it just made went: shown first, briefly
     fresh = out is not None and out[2] == mind.started and mind.t - out[1] <= EXPR["face"]["outcome_hold_s"]
@@ -36,7 +39,11 @@ def face_now(mind):
             return face
         if mind.t - t0 <= EXPR["face"]["intent_hold_s"] and fits(face, feeling):
             return face
-    return FEELING_FACE.get(feeling, feeling)
+    own = FEELING_FACE.get(feeling, feeling)
+    fit = STATE_FACES.get(mind.state)
+    if fit is None or own in fit:
+        return own
+    return next((f for f in EXPR["shows"].get(feeling, ()) if f in fit), own)    # display rule (see the docstring)
 
 
 STATE_FACES = {k: set(v) | {"neutral"} for k, v in EXPR["state_faces"].items()}   # faces that fit each state

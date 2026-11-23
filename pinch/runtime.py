@@ -18,7 +18,10 @@ def mind_step(mind, body, dt, t, recorder=None, on_motion=None, on_sound=None):
         if on_motion is not None:
             on_motion(motion)
         if recorder is not None:
-            recorder.step_started(t, motion, "mind")
+            if body.pending is not None and body.pending[0] is motion:   # (waits behind a running reflex)
+                recorder.step_queued(t, motion, "mind")
+            else:
+                recorder.step_started(t, motion, "mind")
     for s in mind.outputs()[2]:
         if on_sound is not None:
             on_sound(s)

@@ -271,7 +271,7 @@ class Selection:
         or "sleep" while a resting activity is in its asleep phase."""
         if self.activity is None:
             return "idle"
-        if self.activity.state == "rest" and self.phase == "asleep":
+        if self.activity.state == "rest" and self.phase == "asleep" or self.t < self.waking_until:
             return "sleep"
         return self.activity.state
 
@@ -314,6 +314,21 @@ class Selection:
             self.resume_stack = (self.resume_stack + [self.suspended])[-self.RESUME_DEPTH:]
         self.suspended = (name, self.t)
 
+    waking_until = -1e9
+    WAKE_MAX_S = 8.0                     # (the wake sub-state ends with its stretch, or after this at the latest)
+    WAKE_UP_RANK = 4                     # woken for something of this rank or calmer (not a hazard): wake up first
+
+    def _wake_up(self, gen):
+        """The sleep state's wake sub-state, before what woke it: a sleepy face and a stretch (a yawn when still
+        tired), then the activity with an awake face. A sleeping animal comes round before it greets you; the face
+        and the body agree (no sleepy face over a lively wave)."""
+        yield ("phase", "wake")
+        yield ("face", "sleepy")
+        yield ("emote", "yawn" if self.affect.needs.sleep > 0.5 else "stretch")
+        self.waking_until = -1e9
+        yield ("phase", "")
+        yield from gen
+
     def _start(self, name, reason=""):
         if self.suspended and self.suspended[0] == name:
             reason += " (resumed)"
@@ -331,12 +346,17 @@ class Selection:
         self._record_decision(name, reason)
         self._open_episode(self.decisions[-1])
         a = next(x for x in LIBRARY if x.name == name)
+        woke = self.state == "sleep" and rank(name) >= self.WAKE_UP_RANK and not a.wakes_itself \
+            and not (name == "obey" and (self.request or ("",))[0] == "wake")   # (asked to wake: it stretches itself)
         self.phase = ""
         if self.activity is not None:
             self.learner.ended(self.t, self.activity.name)            # (it can still be praised for it a moment)
 
         self.start_score = self.scores.get(name, 0.0)
         self.activity, self.gen, self.started = a, a.run(self), self.t
+        self.waking_until = -1e9                       # (a wake-up cut short by something else ends with it)
+        if woke:
+            self.waking_until, self.gen = self.t + self.WAKE_MAX_S, self._wake_up(self.gen)
         self.waiting_motion, self.wait_until, self._lead_step, self._motion_kind = False, -1.0, None, None
         self._say("activity", name)
 
@@ -465,7 +485,7 @@ class Selection:
     def _goal_xy(self, step):
         """Where a goal-directed motion step is headed (None for other steps)."""
         kind = step[0]
-        if kind not in ("goto", "push", "pick", "drop") or len(step) < 2:
+        if kind not in ("goto", "push", "pick", "drop", "turn_to") or len(step) < 2:   # (turning to face it: eyes first)
             return None
         a = step[1]
         if isinstance(a, str):

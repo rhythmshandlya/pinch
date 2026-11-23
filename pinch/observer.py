@@ -203,6 +203,7 @@ TARGETED = {"investigate", "watch", "orient", "startle", "tidy", "play", "greet"
 # thresholds (see the module docstring)
 EXPRESSION_HOLD_S = 6.0        # a face against the feeling for this long
 GAZE_ERR, GAZE_HOLD_S = 0.5, 3.0
+GAZE_FREE_PHASES = {"disengage"}   # sub-states whose eyes leave the target on purpose
 GAZE_WALK_HOLD_S = 4.0         # walking: the eyes may glance about a little longer before it counts
 IDLE_JITTER_RAD_S = 1.0        # rms joint-target speed while idle (the breathing layer is far below)
 IDLE_SLIDE_M_S, IDLE_SLIDE_S = 0.01, 2.0
@@ -494,6 +495,8 @@ def gaze_judged(sm, walking=False):
     want = sm["gaze_want"].astype(float)
     moving = np.isin(_strs(sm, "status"), list(LOCOMOTION))
     judged = np.isfinite(want) & (moving if walking else ~moving) & np.isin(_strs(sm, "activity"), list(TARGETED))
+    if "phase" in sm:                                  # (a closing looks away from the person on purpose)
+        judged &= ~np.isin(_strs(sm, "phase"), list(GAZE_FREE_PHASES))
     if walking:
         judged &= np.abs(np.nan_to_num(want, nan=9.0)) < 1.0
     return judged, np.abs(np.nan_to_num(sm["gaze_x"].astype(float) - want))

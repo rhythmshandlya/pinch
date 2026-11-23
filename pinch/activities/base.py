@@ -24,6 +24,7 @@ class Activity:
     min_s = 2.0
     max_s = 300.0
     quiet_ok = False
+    wakes_itself = False       # True: it handles being woken out of sleep itself (else the mind wakes up first)
     closes = True              # ends in its state's closing sub-state when it finishes (states.toml close), if any
     own_jitter = False         # True: its tie-break jitter comes from its own random stream (Selection._own_jitter)
 
@@ -46,7 +47,7 @@ def disengage(m):
     x, y, h = m.world.pose
     ox, oy = m.world.desk.owner_xy
     to_owner = math.atan2(oy - y, ox - x)
-    off = to_owner + (0.9 if math.sin(to_owner - h) <= 0 else -0.9)     # away to the side it isn't already facing
+    off = to_owner + (0.6 if math.sin(to_owner - h) <= 0 else -0.6)     # a little away, to the side it isn't already facing
     yield ("look_at", (x + 0.25 * math.cos(off), y + 0.25 * math.sin(off)))
     yield ("pose", "stand", 0.8)
 

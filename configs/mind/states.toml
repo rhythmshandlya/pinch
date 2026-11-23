@@ -6,6 +6,8 @@
 # activity's own step names ("phase" steps in pinch/activities) -> the sub-state they belong to ("x_*" matches any
 # name starting "x_"; a name that is itself a sub-state needs no entry); close: the sub-state an exchange ends in
 # when it finishes on its own (the observer flags one that just stops, OBS-005).
+# gaze_hold: while the activity has aimed the eyes at its target (the thing, the toy, the person), a stimulus needs
+# this much salience (pinch/attention.py) to pull them away after its first glance; without it attention is free.
 # allow: the motion steps the state may run; any other is refused and logged (the step counts as failed).
 # intent: what each body part is for in this state (the body-part owners of phase 4 follow it).
 # interrupt: the lowest priority rank that may cut it short when urgent (1 = physical safety .. 8 = idle).
@@ -13,7 +15,7 @@
 # (pinch/mind/selection.py _timeout): resume_ok (an activity it was pulled away from may come back), wake_slowly
 # (calm, low arousal), ask_help (a plea and a memory: it couldn't manage), drop_object (leave that thing alone a while).
 
-version = "4.5"
+version = "4.6"
 
 [idle]
 sub = ["observe", "micro_adjust", "settle"]
@@ -30,6 +32,7 @@ phases = { notice = "select_target", go_look = "approach", approach = "approach"
 allow = ["goto", "walk", "turn_to", "emote", "pose"]
 intent = { legs = "cautious approach", claws = "ready, low", gaze = "on the target", face = "curious", sound = "small curious chirps" }
 interrupt = 6
+gaze_hold = 0.5
 on_timeout = "choose again; the interrupted activity may resume"
 timeout_do = ["resume_ok"]
 
@@ -40,6 +43,7 @@ phases = { greet = "greet", remember = "interact", interact = "interact", diseng
 allow = ["goto", "walk", "turn_to", "emote", "pose"]
 intent = { legs = "face the person", claws = "gesture", gaze = "on the person", face = "the feeling toward them", sound = "chirps and purrs" }
 interrupt = 4
+gaze_hold = 0.5
 on_timeout = "choose again"
 timeout_do = []
 
@@ -49,6 +53,7 @@ phases = { push_to = "engage", carry_to = "engage", show = "engage", sneeze = "e
 allow = ["goto", "walk", "turn_to", "emote", "pose", "pick", "push", "drop", "release"]
 intent = { legs = "bouncy", claws = "handle the toy", gaze = "on the toy or the person", face = "playful", sound = "giggles" }
 interrupt = 6
+gaze_hold = 0.5
 on_timeout = "choose again"
 timeout_do = []
 
@@ -103,5 +108,6 @@ phases = { pick = "act", carry = "act", push = "act", ask_help = "report" }
 allow = ["goto", "walk", "turn_to", "emote", "pose", "pick", "push", "drop", "release"]
 intent = { legs = "position for the job", claws = "the job", gaze = "on the object", face = "focused", sound = "small effort sounds" }
 interrupt = 5
+gaze_hold = 0.5
 on_timeout = "choose again; give up on that object for a while"
 timeout_do = ["drop_object"]

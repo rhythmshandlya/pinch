@@ -111,7 +111,8 @@ class Senses:
             o.present = True
             if voice_dir is not None:
                 o.voice_dir = voice_dir
-                self.attention.notice("voice", self.t, strength=min(1.0, s.speech * 1.5), direction=voice_dir)
+                self.attention.notice("voice", self.t, strength=min(1.0, s.speech * 1.5), direction=voice_dir,
+                                      pose=self.world.pose)
         was = self.meeting.in_meeting
         now = self.meeting.update(s, call_cue=self.pending_call_cue, usual_time=self.memory.meeting_likely())
         self.pending_call_cue = False
@@ -125,7 +126,7 @@ class Senses:
         """A sound event. direction: its bearing (rad, + left) when the two microphones give one, else None (never
         the last voice's bearing: a bang from elsewhere would send the eyes the wrong way)."""
         if kind == "loud_noise":
-            self.attention.notice("loud", self.t, 1.0, direction=direction)
+            self.attention.notice("loud", self.t, 1.0, direction=direction, pose=self.world.pose)
             self.affect.feel("loud_noise")
         elif kind == "double_clap":
             self.affect.feel("name_called")
@@ -136,7 +137,8 @@ class Senses:
 
     def touch(self, gesture):
         if gesture in self.TOUCH_DIR:
-            self.attention.notice("touch", self.t, 1.0, direction=self.TOUCH_DIR[gesture], key=f"touch:{gesture}")
+            self.attention.notice("touch", self.t, 1.0, direction=self.TOUCH_DIR[gesture], key=f"touch:{gesture}",
+                                  pose=self.world.pose)
         if gesture in ("stuck", "unstuck"):                  # from StuckSense, not from a person
             self.stuck = gesture == "stuck"
             self.affect.feel(gesture)

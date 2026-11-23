@@ -15,6 +15,7 @@ import math
 from dataclasses import dataclass, field
 
 BASE = {"touch": 0.9, "loud": 0.85, "voice": 0.65, "person": 0.7, "new_thing": 0.5, "motion": 0.4}
+PLACE_M = 0.3              # a heard / felt stimulus is placed this far out along its bearing
 FADE_S = 3.0                # salience half-life
 HABITUATE_HALF_LIFE = 60.0  # how fast familiarity with a repeated stimulus wears off
 IOR_S, IOR_FACTOR = 20.0, 0.35
@@ -44,8 +45,12 @@ class Attention:
         lvl, t0 = self.familiarity.get(key, (0.0, t))
         return lvl * 0.5 ** ((t - t0) / HABITUATE_HALF_LIFE)
 
-    def notice(self, kind, t, strength=1.0, direction=None, xy=None, key=None):
-        """A stimulus arrived. Returns its starting salience."""
+    def notice(self, kind, t, strength=1.0, direction=None, xy=None, key=None, pose=None):
+        """A stimulus arrived. Returns its starting salience. With the pose it was heard or felt from, a bearing
+        is also placed in the room (PLACE_M out), so it stays where it was as the body turns."""
+        if xy is None and direction is not None and pose is not None:
+            x, y, h = pose
+            xy = (x + PLACE_M * math.cos(h + direction), y + PLACE_M * math.sin(h + direction))
         if key is None:
             side = "" if direction is None else ("left" if direction > 0.4 else "right" if direction < -0.4 else "front")
             key = f"{kind}:{side}"
@@ -88,6 +93,15 @@ class Attention:
         self.inhibited[s.key] = t + IOR_S
         if self.focus is s:
             self.focus = None
+
+
+def bearing(s, pose):
+    """A stimulus's direction from where Pinch stands now (rad, + left), or None if it has no direction."""
+    if s is None:
+        return None
+    if s.xy is not None:
+        return direction_of(s.xy, pose)
+    return s.direction
 
 
 def direction_of(xy, pose):

@@ -6,6 +6,7 @@ from pinch.activities.base import (  # noqa: F401
     Activity,
 )
 from pinch.affect import EMO
+from pinch.attention import bearing
 
 FEAR = EMO["fear_threshold"]                 # configs/mind/expression.toml: one line for fear
 
@@ -23,7 +24,8 @@ class Startle(Activity):
             yield ("sound", "startled_squeak")
         yield ("emote", "scared")
         f = m.attention.focus                                 # where the fright came from, if it knows
-        d = f.direction if f is not None and m.t - f.t < 3.0 and f.direction is not None else 0.0
+        d = bearing(f, m.world.pose) if f is not None and m.t - f.t < 3.0 else None
+        d = 0.0 if d is None else d
         yield ("walk", -0.04 * np.cos(d), -0.04 * np.sin(d), 0.0, 1.0)   # away from it (straight back if unknown)
 
 
@@ -36,17 +38,18 @@ class Orient(Activity):
 
     def utility(self, m):
         f, sal = m.attention.update(m.t)
-        if f is None or f.direction is None or abs(f.direction) < 0.4 or m.t - f.t > 2.0:
+        d = bearing(f, m.world.pose)
+        if d is None or abs(d) < 0.4 or m.t - f.t > 2.0:
             return 0.0
         return 0.15 + 0.9 * sal
 
     def run(self, m):
         f, _ = m.attention.update(m.t)
-        if f is None or f.direction is None:
+        d = bearing(f, m.world.pose)
+        if d is None:
             return
         x, y, h = m.world.pose
-        a = h + f.direction
-        target = (x + 0.3 * np.cos(a), y + 0.3 * np.sin(a))
+        target = tuple(f.xy) if f.xy is not None else (x + 0.3 * np.cos(h + d), y + 0.3 * np.sin(h + d))
         yield ("phase", f"orient_{f.kind}")
         yield ("face", "surprised" if f.kind == "loud" else "curious")
         yield ("look_at", target)

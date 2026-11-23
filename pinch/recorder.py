@@ -34,6 +34,8 @@ from pathlib import Path
 
 import numpy as np
 
+from pinch.attention import bearing
+
 SCHEMA = 1
 LOCOMOTION = {"goto", "walk", "push", "turn_to", "recover"}
 CURIOUS = {"investigate", "watch", "orient", "startle"}
@@ -97,8 +99,8 @@ def gaze_target(mind, last_target=None):
                 th = near[0] if near else None
             if th is not None:
                 xy, what = th.xy, f"thing{th.id}"
-        elif f is not None and f.direction is not None:
-            return f.key or f.kind, gaze_for(f.direction)
+        elif f is not None and bearing(f, pose) is not None:
+            return f.key or f.kind, gaze_for(bearing(f, pose))
     elif act in OBJECT_TASKS and last_target is not None:
         kind, val = last_target
         if kind == "obj":
@@ -182,6 +184,7 @@ class SessionRecorder:
         self._gaze_t = None
         self._mind_t = None
         self._task, self._pending, self._step = None, None, None
+        self._queued = None                                # a step the body queued behind a reflex
         self._end_why = None
         self.target = None                                 # ("obj", name) or ("xy", (x, y)): the last step's target
         self.goal = None                                   # the running step's goal, the same way
@@ -203,8 +206,14 @@ class SessionRecorder:
         """The caller started a body step (the mind's, or a reflex): tick() matches it to the new body task."""
         self._pending = (step, source)
 
+    def step_queued(self, t, step, source="mind"):
+        """The body queued the caller's step behind a running reflex (pinch/body/core.py start): it is recorded
+        when the body starts it, not now (else the reflex looks cut short and the step looks unasked-for)."""
+        self._queued = (step, source)
+
     def step_cancelled(self, t, why="mind"):
         self._end_why = f"cancelled ({why})"
+        self._queued = None                                # (the body drops what waited behind a reflex too)
 
     # -- every control tick --------------------------------------------------------------------------------------
     def _mind_start(self, t, mind, body):
@@ -314,6 +323,12 @@ class SessionRecorder:
 
     def _poll_body(self, t, body):
         task = body.task
+        q = self._queued
+        if q is not None and self._pending is None and task is not None and task is not self._task \
+                and body.pending is None and body.status == q[0][0] \
+                and (body.claim is None or body.claim.layer != "reflex"):
+            self._pending, self._queued = q, None          # the reflex is over: the queued step starts now
+            self._end_why = self._end_why or "done"      # (the reflex ran its course: it wasn't cut short)
         if self._pending is None:                          # this tick's trace is the running (or just ended) step's
             self._poll_trace(t, body)
         if task is self._task and self._pending is None:

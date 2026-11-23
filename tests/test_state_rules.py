@@ -114,3 +114,32 @@ def test_the_mind_reports_its_sub_state_and_social_exchanges_close():
             dict(t=9.0, prev="celebrate", to="idle", reason="previous activity finished")]
     assert _no_closing(decs, [(8.0, "celebrate", "disengage")]) == []
     assert [f.kind for f in _no_closing(decs, [])] == ["no_closing"]
+
+
+def test_woken_it_wakes_up_before_it_greets():
+    """Woken out of sleep for something calm (a hello), it comes round first - the sleep state's wake sub-state: a
+    sleepy face and a stretch - and only then greets with an awake face; asked to wake, or startled, it doesn't."""
+    from pinch.mind.expression import face_now
+
+    def asleep(request=None):
+        m = Mind(memory=Memory(path=None), llm=False, seed=0, clock=lambda: 1.8e9)
+        m._start("rest", "test")
+        m.phase = "asleep"
+        assert m.state == "sleep"
+        m.request = request
+        return m
+
+    m = asleep(("greet", ""))
+    m._start("obey", "test")
+    first = [next(m.gen) for _ in range(3)]
+    assert first == [("phase", "wake"), ("face", "sleepy"), ("emote", "stretch")], first
+    m.phase = "wake"
+    assert m.state == "sleep" and m.substate == "wake" and face_now(m) == "sleepy"
+    rest = list(m.gen)
+    assert ("emote", "wave") in rest and m.state == "social"
+    m = asleep(("wake", ""))
+    m._start("obey", "test")
+    assert next(m.gen) != ("phase", "wake")              # (asked to wake: its own stretch, not two)
+    m = asleep()
+    m._start("startle", "test")
+    assert next(m.gen) != ("phase", "wake")              # (a fright: no time to stretch)

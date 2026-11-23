@@ -153,3 +153,33 @@ def test_a_recording_can_be_filmed():
         sim.stop_recording()
         out = render(Path(tmp) / "f", Path(tmp) / "f.gif", gif=True, speed=2)
         assert out.exists() and out.stat().st_size > 1000
+
+
+def test_a_step_queued_behind_a_reflex_is_recorded_when_it_runs():
+    """A touch during an edge reflex: the body queues the reaction behind the reflex (pinch/body/core.py), and the
+    recording shows the reflex running its course, then the reaction - not the reflex cut short and a motion
+    nobody asked for (the observer's conflicting_movement / unnecessary_movement false alarms)."""
+    import tempfile
+    from pathlib import Path
+
+    from pinch.memory import Memory
+    from pinch.observer import observe_session
+    from pinch.recorder import load_session
+    from pinch.twin import PinchSim
+    with tempfile.TemporaryDirectory() as tmp:
+        sim = PinchSim(memory=Memory(path=None), seed=1, record_dir=Path(tmp) / "s", record=dict(state=False))
+        sim.run(3.0)
+        back = ("walk", -0.02, 0.0, 0.0, 1.5)
+        sim.body.reflex(back)
+        sim.recorder.step_started(sim.t, back, "cliff reflex")
+        sim.touch("stroke")
+        sim.run(4.0)
+        sim.stop_recording()
+        s = load_session(Path(tmp) / "s")
+    ev = s["events"]
+    walk_end = next(e for e in ev if e["kind"] == "step_end" and e["source"] == "cliff reflex")
+    after = [e for e in ev if e["kind"] == "step_start" and e["t"] >= walk_end["t"] and e["source"] == "mind"]
+    assert walk_end["end"] == "done" and walk_end["dur"] > 1.3, walk_end
+    assert after and after[0]["t"] - walk_end["t"] < 0.05, after[:1]
+    bad = [f for f in observe_session(s) if f.kind in ("conflicting_movement", "unnecessary_movement")]
+    assert not bad, [f.evidence for f in bad]
