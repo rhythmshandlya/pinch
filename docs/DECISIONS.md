@@ -1675,3 +1675,28 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Change:** weight target 2.2 -> 2.64 kg; parts, prints and tools INR 1,06,000 -> 1,27,200 (`hardware/bom.py`
       LIMIT, `hardware/BOM.md` regenerated, `tests/test_bom.py`; the comment in `tests/test_v2.py`).
     - **Measured:** 2.273 kg (86 % of the new target); the list INR 99,912 (margin INR 27,288).
+
+118. **The arms swing slowly out and back so the camera sees past them (owner's choice).**
+    - **Why:** standing, the v2.1 arms hide 67 % of the band 20-50 deg above level in the 160 deg lens, where the
+      face of someone sitting at the desk appears (26 % of the model's 102 deg pinhole view, 53 % of its upper half).
+      About 70 % of it is the shoulder blocks beside the lens, which the lift joint does not move. Rendered with the
+      arms drawn, Pinch's face detector finds 3 % of seated people 20 deg off its heading (89 % straight ahead).
+    - **Evidence:** active perception: move what blocks the view rather than redesign around it (Bajcsy, "Active
+      perception", Proc. IEEE 76(8), 1988; Bajcsy, Aloimonos & Tsotsos, "Revisiting active perception", Autonomous
+      Robots 42, 2018); visibility kept a soft term, because over-optimising it costs the task (He et al.,
+      "Visibility Maximization Controller for Robotic Manipulation", RA-L 2022). No pet or companion robot found
+      with arms this close beside its camera.
+    - **Change:** `pinch/body/life.py` `look()`: when the arms are free, both shoulders swing out to 13 deg asked
+      (about 12 reached) and back every 7 s (raised cosine: it dwells at both ends); still when asleep, damped by
+      fear like the rest of idle life; `pinch/body/core.py` adds it with the posture, so it fades in 0.4 s when a
+      step takes the arms. `configs/mind/ambient.toml` [look], version 4.2. Bench `sim/benches/arm_view.py`, tests
+      `tests/test_arm_view.py`. Golden trace re-recorded (the arms move).
+    - **Measured:** face detector on the phase 5 fisheye, 97 held-out worlds with a seated person, Pinch turned
+      0/20/35/50 deg from them: still 89/3/22/20 %; over one swing 90/90/22/23 % (all 34 -> 56 %, children 57 -> 77 %,
+      people 1 m+ 40 -> 62 %). Desk sight lines 15-60 cm ahead 0/63 blocked at both ends; 3.8 mm between the arms
+      and the front legs over the gait's hip range (-25..28 deg); legs' and arms' torque unchanged (the swing axis
+      is vertical; 22/22 emotes in limits). People 35-50 deg off still need Pinch to turn toward them.
+    - **Rejected:** a wider rest pose (moves the blind sector from 20 to 35 deg, and the shoulder meets the front hip
+      bracket at 18 deg); lifting or lowering the arms (the shoulder blocks stay); tilting the camera (what is hidden
+      depends on where the lens is, not where it points); the camera 25 mm higher in place of the 8x8 ToF (clears
+      the seated faces but the arms then hide the horizon: children 57 -> 30 %, people 1 m+ 40 -> 31 %).
