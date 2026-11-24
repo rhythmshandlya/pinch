@@ -215,6 +215,15 @@ def _cube_cameras(spec):
 NEAR, FAR = 0.002, 40.0             # m: the camera sees from 2 mm (its own arms are 4-5 cm away) to across a house
 
 
+def _hide_desk_top(spec):
+    """The desk top box stays for contacts and the cliff beams, but is not drawn (a model is drawn instead): it goes
+    to geom group 3, which renderers leave out. Not by making it transparent - MuJoCo's rangefinders skip
+    geoms with alpha 0, so the cliff beams saw the floor through it and the edge guard held Pinch still."""
+    for g in spec.geoms:
+        if g.name == "desk_top":
+            g.group = 3
+
+
 def decorate(spec, w, things=True, people=True, visual=True, fisheye=True, models=None):
     """Add world w to the twin's spec (sim/desk.py has already made the desk top, the tray and Pinch's things)."""
     H = w.surface["height"]
@@ -259,10 +268,7 @@ def decorate(spec, w, things=True, people=True, visual=True, fisheye=True, model
         if visual:
             procthor.add(spec, dict(asset=mo["asset"], x=0.0, y=0.0, z=mo["z"], off=mo["off"], yaw=mo["yaw"]), H,
                          collide=False)
-        for g in spec.geoms:
-            if g.name == "desk_top":
-                g.rgba = [1, 1, 1, 0]
-                g.material = ""
+            _hide_desk_top(spec)
         own = mo
     elif w.kind != "floor" and models:                     # Pinch's desk/table as a real model with a flat top
         from sim.worlds import furniture as F
@@ -270,10 +276,7 @@ def decorate(spec, w, things=True, people=True, visual=True, fisheye=True, model
         own = F.choose(w.surface["furniture"], 2 * hx, 2 * hy, H, _seed(hx, hy, H), surface=True)
         if own is not None:
             F.add(spec, spec.worldbody.add_body(pos=[0, 0, -H]), own, 2 * hx, 2 * hy, H, "own")
-            for g in spec.geoms:
-                if g.name == "desk_top":                   # contacts as before, the model's top is what is seen
-                    g.rgba = [1, 1, 1, 0]
-                    g.material = ""
+            _hide_desk_top(spec)                       # contacts as before, the model's top is what is seen
     if w.kind != "floor" and own is None:                  # Pinch's desk/table: legs under the desk top
         hx, hy = w.surface["half_x"], w.surface["half_y"]
         leg = mats("wood", tuple(np.array(w.surface["rgb"]) * 0.8), (1, 1))

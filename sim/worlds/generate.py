@@ -403,9 +403,11 @@ def _try_world(rng, split, index, kind):
             on.append((f["x"], f["y"], f["yaw"], f["w"] / 2, f["d"] / 2))
     if kind == "floor":
         tray = _spot(rng, on, hx, hy, TRAY_HALF[0] + 0.03, TRAY_HALF[1] + 0.05, margin=0.05, yaw=0.0)
-    else:
+    else:                                                # at the back, as on a real desk and the twin's own (0.15 m
+        # behind the middle of a 0.60 m desk): one in the middle stopped v2.1 (feet 17 cm out) reaching its person
+        # - 21 cm short on the twin's desk with only the tray moved there, 5 cm with it at the back
         tray = _spot(rng, on, hx, hy, TRAY_HALF[0] + 0.03, TRAY_HALF[1] + 0.05, margin=0.02, yaw=0.0,
-                     region=(-hx + 0.12, hx - 0.12, max(0.0, hy * 0.15), hy - 0.06))
+                     region=(-hx + 0.12, hx - 0.12, max(0.0, hy - 0.15), hy - 0.06))
     if tray is None:
         return None
     crab = _spot(rng, on, hx, hy, CRAB_CLEAR, CRAB_CLEAR, margin=CRAB_EDGE, gap=0.0, yaw=0.0)
