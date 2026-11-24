@@ -63,6 +63,21 @@ def test_worlds_vary_in_what_matters():
             assert abs(x) < hx and abs(y) < hy
 
 
+def test_cliff_beams_see_a_drawn_desk_top_headless():
+    # a ready-made desk drawn instead of the twin's desk top: headless, the top must still be there for the cliff
+    # beams (it was made transparent, and rangefinders skip alpha-0 geoms: the edge guard then held Pinch still)
+    import copy
+
+    from pinch.memory import Memory
+    from pinch.twin import PinchSim
+    w = copy.deepcopy(next(world("test", i) for i in range(200) if world("test", i).kind == "desk"))
+    w.surface["model"] = dict(asset="none", z=0.0, off=[0.0, 0.0], yaw=0.0)     # (not drawn headless: no fetch needed)
+    sim = PinchSim(memory=Memory(path=None), world=w, world_opts=dict(visual=False, people=False, fisheye=False))
+    sim.run(0.5)
+    front = [v for k, v in sim.cliff_mm().items() if k.startswith("front")]
+    assert all(v < 150 for v in front), f"the front cliff beams see no desk under them: {front} mm"
+
+
 def test_a_world_runs_in_the_twin():
     from pinch.memory import Memory
     from pinch.twin import PinchSim
