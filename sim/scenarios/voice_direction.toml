@@ -1,0 +1,20 @@
+# New in phase 5: someone walking through the room talks; their voice reaches Pinch's two microphones from
+# where they are, and its own hearing (GCC-PHAT, pinch/hearing.py) should tell which way the voice came from.
+[scenario]
+name = "voice_direction"
+title = "someone talks from across the room: it hears which way the voice comes from"
+seconds = 12
+people = true
+require_people = ["walker"]
+
+[[event]]
+name = "talk"
+at = [1.0, 3.0]
+do = "speak"
+args = { role = "walker", seconds = [3.0, 5.0] }
+
+[[assert]]
+name = "hears the voice's direction (within 35 degrees)"
+eventually = { hears_direction = { within = 35.0 } }
+after = "talk"
+within = 7

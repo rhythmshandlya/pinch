@@ -1,0 +1,42 @@
+# New in phase 5: a simulated person sitting with Pinch calls it over, reaches out and strokes its shell;
+# it should come, purr, and have seen them (their face, through the camera's geometry).
+[scenario]
+name = "person_strokes"
+title = "someone sitting with it reaches out and strokes it: it purrs, and it has seen them"
+seconds = 35
+kinds = ["desk", "table"]
+people = true
+require_people = ["sitter"]
+
+[[event]]
+name = "call"
+at = [1.0, 3.0]
+do = "say"
+args = { text = "pinch, come here" }
+
+[[event]]
+name = "reach"
+after = "call"
+delay = [12.0, 16.0]
+do = "reach"
+args = { role = "sitter", gesture = "stroke" }
+
+[[assert]]
+name = "the hand reaches it"
+eventually = { touched_by_person = { count = 1 } }
+after = "reach"
+within = 15
+
+[[assert]]
+name = "purrs"
+eventually = { sound = "purr" }
+after = "reach"
+within = 17
+
+[[assert]]
+name = "has seen the person"
+eventually = { person_seen = true }
+
+[[assert]]
+name = "never falls"
+always = { no_fall = true }

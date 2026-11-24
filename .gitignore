@@ -14,6 +14,10 @@ cad/out/*.log
 *.log
 /training/modal_runs/
 models/faces/
+models/objects/
+models/humans/
+models/furniture/
+models/procthor/
 # the owner's PRD and the traceability matrix quoting it: private, kept locally
 docs/PRD.md
 docs/PLAN.md
@@ -29,6 +33,7 @@ media/
 
 # local working notes and research dumps (kept on the owner's machine, not published)
 docs/MORNING_REPORT.md
+docs/research/PHASE5_*
 docs/TODO.md
 docs/LIFE_PLAN.md
 docs/PET_MIND.md

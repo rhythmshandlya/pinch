@@ -1,0 +1,43 @@
+# Converted from touch(): purrs when stroked, giggles when tickled, startles when lifted.
+[scenario]
+name = "touch"
+title = "touch: purrs when stroked, giggles when tickled, startles when lifted"
+seconds = 16
+
+[[event]]
+name = "stroke"
+at = [0.0, 1.0]
+do = "touch"
+args = { gesture = "stroke" }
+
+[[event]]
+name = "tickle"
+after = "stroke"
+delay = [3.5, 5.0]
+do = "touch"
+args = { gesture = "tickle" }
+
+[[event]]
+name = "lift"
+after = "tickle"
+delay = [3.5, 5.0]
+do = "touch"
+args = { gesture = "lifted" }
+
+[[assert]]
+name = "purrs when stroked"
+eventually = { sound = "purr" }
+after = "stroke"
+until = "tickle"
+
+[[assert]]
+name = "giggles when tickled"
+eventually = { sound = "giggle" }
+after = "tickle"
+until = "lift"
+
+[[assert]]
+name = "startles when lifted"
+eventually = { sound = "startled_squeak" }
+after = "lift"
+within = 4

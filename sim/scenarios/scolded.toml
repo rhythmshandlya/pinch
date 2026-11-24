@@ -1,0 +1,28 @@
+# Converted from scolded(): it sulks, and stops liking the trick you scolded.
+[scenario]
+name = "scolded"
+title = "scolded: sulks, and stops doing the trick you didn't like"
+seconds = 16
+
+[[event]]
+name = "dance"
+at = [0.0, 1.0]
+do = "say"
+args = { text = "dance" }
+
+[[event]]
+name = "scold"
+after = "dance"
+delay = [7.0, 9.0]
+do = "say"
+args = { text = "no! bad crab" }
+
+[[assert]]
+name = "sulks"
+eventually = { activity = "sulk" }
+after = "scold"
+within = 6
+
+[[assert]]
+name = "likes dancing less"
+at_end = { likes_below = { thing = "dance", value = 0.0 } }

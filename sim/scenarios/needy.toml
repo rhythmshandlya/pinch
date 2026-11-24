@@ -1,0 +1,23 @@
+# Converted from needy(): you're at your desk but ignore it, so it seeks your attention.
+[scenario]
+name = "needy"
+title = "a bit needy: ignored while you're there, it seeks attention"
+seconds = 240
+
+[[event]]
+at = 0.0
+do = "set"
+args = { path = "user_active", value = true }
+
+[[event]]
+at = 0.0
+do = "set"
+args = { path = "mind.affect.needs.social", value = 0.6 }
+
+[[assert]]
+name = "seeks attention"
+eventually = { activity = "seek_attention" }
+
+[[assert]]
+name = "chirps for attention"
+eventually = { sound = { sound = "attention_chirp", count = 1 } }

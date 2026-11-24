@@ -12,6 +12,8 @@ pinch/                 the pet: mind, body, face, senses, memory, routine (runs 
 crab/                  the robot itself: geometry, kinematics, gait, emotes, policy I/O (no dependencies above it)
 robot/                 firmware: drivers, servo bus, supervisor, HTTP API, selftest (runs on the Radxa)
 sim/                   MuJoCo models, the desk world, benches (sim/benches/), clips, CAD checks
+  worlds/ scenarios/   seeded homes, desks, tables and floors with people (1,000 training, 200 held-out test
+                       worlds), the fisheye camera, behaviour scenarios as data (section 8)
 training/              learning: MJX environments, the environment registry, the trainer, export to numpy
 configs/               data, not code: training presets (configs/train/presets.toml) and experiments
   train/ experiments/  (configs/experiments/*.toml): what to train, on what compute, judged by which bench
@@ -144,5 +146,32 @@ Every tool is an established, actively maintained project (GitHub stars and last
 | Configs | **TOML** files read with Python's standard `tomllib` | PEP 680; no dependency on every worker | Hydra (10.8k stars): powerful, but adds a dependency and indirection the current configs don't need |
 | Run records | `run.json` per run (commit, host, config, metrics) | the minimum MLflow/W&B track; importable into MLflow (29k stars) later | a tracking server reachable from every worker |
 | Training stack | Brax PPO on MJX today; **mjlab** (MuJoCo Warp + RSL-RL) for new environments | mujocolab/mjlab 3.4k stars (arXiv 2601.22074), with two templates on it: pollen-robotics/microduck_rl (2.9k, a small servo robot) and KingKongRobotics/jumper (3.2k, a crab). Brax's README says only its training code is still maintained, and MuJoCo Playground 1.0 (November 2026) moved to PyTorch + MuJoCo Warp + RSL-RL (checked 2026-11-21, [the audit](research/PROJECT_AUDIT.md)) | Isaac Lab 3.0 as the main stack: a heavier install. It now ships Newton with a MuJoCo-Warp solver, so it stays the fallback |
+| Training and test worlds | **ProcTHOR-10K's ready-made homes** (allenai/procthor-10k, Apache-2.0, arXiv 2206.06994: 12,000 houses of 1-10 rooms) furnished with **AI2-THOR's own models** (Apache-2.0, read from the Habitat glb mirror haosulab/AI2THOR one range request at a time), converted once to MuJoCo (`sim/worlds/procthor.py`: coloured parts, 5 cm voxel boxes for contacts); our seeded generator (`sim/worlds/generate.py`) picks the house and Pinch's surface and adds everything else, and builds its own simple homes when the download is absent; held-out splits as in Procgen (arXiv 1912.01588), our test worlds drawn only from ProcTHOR's test houses | the only source tried that has whole furnished homes under an open licence and loads without Unity or Blender: ReplicaCAD and HSSD (non-commercial), RoboCasa and NVlabs scene_synthesizer (kitchens only), Infinigen Indoors and BEHAVIOR-1K (Blender / Isaac Sim) |
+| Everyday things, people, furniture looks | Google Scanned Objects in MuJoCo (kevinzakka/mujoco_scanned_objects, MIT; scans CC-BY 4.0, arXiv 2204.11918); Microsoft Rocketbox avatars (MIT, 42 rigged photo-textured people, 4 of them children) as MuJoCo skins, MakeHuman bodies (CC0) as the fallback; SFHQ synthetic faces (CC0/MIT) | all fetched on demand into `models/` (not in git) except 29 small face crops; checked by `tests/test_worlds.py` without them | SMPL / SMPL-X (non-commercial licence), Mixamo (no redistribution), Microsoft Face Synthetics (research-only) |
+| Training terrains | mjlab's terrain generator in curriculum mode, families at Pinch's scale, Rudin et al.'s promotion rule (arXiv 2109.11978) | arXiv 2610.40364 (14 curricula, 5 quadrupeds): the success-driven terrain curriculum is most often in the top group, uniform sampling never | PAIRED / ACCEL (unsupervised environment design): rarely better in that comparison, and ACCEL's level edits don't fit batched GPU worlds |
+| Behaviour scenarios | TOML files with sampled worlds, timelines and assertions (`sim/worlds/scenario.py`), Scenic's semantics (arXiv 1809.09310: require by rejection) and CARLA ScenarioRunner's criteria, temporal checks (eventually / always / never) | BerkeleyLearnVerify/Scenic 389 stars, carla-simulator/scenario_runner 687 stars, both active | rtamt / stlpy (signal temporal logic, < 100 stars): more than these checks need |
 | Bench statistics | Wilson range, Fisher's exact and McNemar tests in `sim/benches/stats.py` | pure Python (so it runs in CI and on the robot), pinned to SciPy's values in `tests/test_stats.py`; scipy/scipy 15k stars is the reference | rliable (google-research, archived since 2024): built for many tasks with few seeds, not one yes/no rate |
 | Agent instructions | **AGENTS.md** + CLAUDE.md, skills in `.claude/skills/` | the format used by mjlab, MuJoCo Playground and MuJoCo Warp; anthropics/skills (198k stars) | - |
+
+## 8. Worlds, people and scenarios (phase 5)
+
+```
+world(split, i) -> World (plain data)          sim/worlds/generate.py: a home of 1-3 rooms with doorways and
+   |                                            furniture; Pinch's surface (desk, table or floor) centred at the
+   |                                            origin; tray, its things, 0-10 everyday things, rug or desk mat,
+   |                                            lights, people with a style. The home is a ready-made ProcTHOR-10K
+   |                                            house when fetched (procthor.py), else generate.py's own
+   +-> PinchSim(world=w)                        the twin builds it in (sim/worlds/build.py) and the mind gets the
+   |     + Life(sim, camera=True)               surface; people move and touch (people.py, humans.py); the eye
+   |                                            camera's 160-degree fisheye view is rendered (fisheye.py) and the
+   |                                            robot's own face pipeline runs on it (pinch/faces.py)
+   +-> scenario files (sim/scenarios/*.toml)    each seed: a held-out world, sampled event times, words and
+   |     sim/benches/worlds.py                  places, temporal assertions; pass rates with 95 % ranges
+   +-> training/mjlab_pinch/terrains.py         the walking task on indoor terrain families with a curriculum
+```
+
+Splits: training worlds 0-999, validation 0-99, held-out test 0-199, each world's random stream seeded by
+(split, index) and the test layouts checked disjoint from the training ones. Benches judge on test worlds only;
+nothing is tuned on them. The heavy assets (scanned objects, ProcTHOR homes, Rocketbox people) are fetched with
+`python -m sim.worlds.assets fetch`, `python -m sim.worlds.procthor fetch` and `python -m sim.worlds.rocketbox fetch`; without them worlds use their own simple homes, boxes and
+capsule people, so every test and CI run works from a fresh checkout.

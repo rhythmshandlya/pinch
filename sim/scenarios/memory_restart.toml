@@ -1,0 +1,31 @@
+# Converted from memory_restart(): it hears your name, and still knows it when its memory is reloaded.
+[scenario]
+name = "memory_restart"
+title = "learns your name and remembers it after a restart"
+seconds = 6
+memory = "file"
+
+[vars]
+name = { choice = ["Sam", "Priya", "Arjun", "Maya", "Leo", "Ana"] }
+drink = { choice = ["green tea", "coffee", "mango juice"] }
+
+[[event]]
+name = "intro"
+at = [0.0, 1.0]
+do = "say"
+args = { text = "hi! my name is {name}" }
+
+[[event]]
+after = "intro"
+delay = [0.5, 1.5]
+do = "say"
+args = { text = "I love {drink}" }
+
+[[event]]
+name = "saved"
+at = 5.5
+do = "save_memory"
+
+[[assert]]
+name = "remembers the name after a restart"
+at_end = { remembers_name = "{name}" }

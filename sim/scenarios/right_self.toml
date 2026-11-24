@@ -1,0 +1,24 @@
+# Converted from right_self(): put on its back, it rolls itself over.
+[scenario]
+name = "right_self"
+title = "falls on its back: rolls itself back over"
+seconds = 22
+
+[[event]]
+name = "flip"
+at = [0.0, 2.0]
+do = "flip"
+
+[[assert]]
+name = "tries righting"
+eventually = { motion = "right_self" }
+after = "flip"
+
+[[assert]]
+name = "upright again"
+eventually = { upright = true }
+after = "flip"
+
+[[assert]]
+name = "still on its surface"
+at_end = { on_surface = true }

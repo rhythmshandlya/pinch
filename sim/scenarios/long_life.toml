@@ -1,0 +1,25 @@
+# Converted from long_life(): ten minutes of pet life on its own: never falls, never leaves its surface.
+[scenario]
+name = "long_life"
+title = "ten minutes of pet life on its own: never falls, never leaves the desk"
+seconds = 600
+
+[[event]]
+name = "play"
+at = [150.0, 250.0]
+do = "say"
+args = { text = "let's play!" }
+
+[[event]]
+name = "stroke"
+at = [350.0, 450.0]
+do = "touch"
+args = { gesture = "stroke" }
+
+[[assert]]
+name = "never falls"
+always = { no_fall = true }
+
+[[assert]]
+name = "never leaves its surface"
+always = { on_surface = true }

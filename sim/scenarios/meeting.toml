@@ -1,0 +1,42 @@
+# Converted from meeting(): a video call heard from the sound alone; it goes quiet (shh, no tones), then celebrates.
+[scenario]
+name = "meeting"
+title = "meeting from the sound alone: goes quiet (shh, no tones), then celebrates"
+seconds = 180
+
+[[event]]
+name = "call"
+at = [18.0, 22.0]
+do = "meeting"
+args = { seconds = [115.0, 145.0], talk = [0.5, 0.6] }
+
+[[event]]
+name = "over"
+after = "call"
+delay = 150.0
+do = "say"
+args = { text = "ok, the meeting is over" }
+
+[[assert]]
+name = "goes quiet"
+eventually = { quiet = true }
+after = "call"
+until = "over"
+
+[[assert]]
+name = "shushes"
+eventually = { emote = "shh" }
+after = "call"
+until = "over"
+
+[[assert]]
+name = "no tones during the call"
+always = { sounds_while_quiet = { max = 0 } }
+after = "call"
+until = "over"
+
+[[assert]]
+name = "celebrates after"
+eventually = { activity = "after_meeting" }
+after = "over"
+within = 10

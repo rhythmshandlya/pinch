@@ -1,0 +1,27 @@
+# Converted from ask_help(): the cap is too close to the back edge to reach, so it asks you for help.
+[scenario]
+name = "ask_help"
+title = "can't reach it (too close to the desk's back edge): asks you for help"
+seconds = 90
+kinds = ["desk", "table"]
+
+[[event]]
+at = 0.0
+do = "place"
+args = { thing = "cap", where = { edge = "back", inset = [0.06, 0.07], along = [-0.6, 0.6] }, home = "tray" }
+
+[[event]]
+name = "ask"
+at = [0.0, 1.0]
+do = "say"
+args = { text = "pinch, put the cap away" }
+
+[[assert]]
+name = "asks for help"
+eventually = { help_asked = true }
+after = "ask"
+
+[[assert]]
+name = "begs"
+eventually = { emote = "beg" }
+after = "ask"

@@ -1,0 +1,25 @@
+# Converted from curious_new_thing(): a new box; it looks from a distance, comes closer each time, gets used to it.
+[scenario]
+name = "curious_new_thing"
+title = "a new thing on the desk: looks carefully from a distance, comes closer each time, gets used to it"
+seconds = 330                   # (v2.1: each look and retreat walks further; the desk test allows 320 s)
+props = ["box"]
+
+[[event]]
+at = 0.0
+do = "forget_homes"
+
+[[event]]
+name = "show"
+at = [0.0, 2.0]
+do = "show_prop"
+args = { prop = "box", where = { near = "crab", dist = [0.14, 0.18], bearing = [-35, 35], clear = 0.05 } }
+
+[[assert]]
+name = "gets used to it, closer each time"
+eventually = { novelty_familiar_closer = true }
+after = "show"
+
+[[assert]]
+name = "never falls"
+always = { no_fall = true }
