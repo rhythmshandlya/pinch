@@ -11,6 +11,9 @@ properties checked on the run - `eventually` (at some point in a window), `alway
 the state every MONITOR_DT seconds (enough for behaviour that unfolds over seconds). Each seed picks a held-out
 test world (sim/worlds/generate.py) and its own event times, so a pass is not one lucky layout or timing.
 
+Distances measured from Pinch (a "near" placement, a moving prop's path) are in the first body's units and scale
+with pinch.world.BODY_SCALE, as the mind's own do; distances from desk edges and the owner's spot are metres.
+
 A scenario file (TOML):
 
     [scenario]
@@ -47,6 +50,7 @@ from pathlib import Path
 
 import numpy as np
 
+from pinch.world import BODY_SCALE
 from sim.worlds.catalogue import THINGS
 from sim.worlds.generate import SPLITS, world
 
@@ -157,8 +161,10 @@ def place_xy(sim, spec, rng, tries=200):
     x, y, h = sim.pose()
     desk = sim.desk
     for _ in range(tries):
-        if "near" in spec:                               # near Pinch: distance and bearing (deg, from its heading)
-            d, b = _sample(spec["dist"], rng), np.radians(_sample(spec.get("bearing", [-180, 180]), rng))
+        if "near" in spec:                               # near Pinch: distance and bearing (deg, from its heading);
+            # the distance is in the first body's units, like the mind's own (pinch/world.py BODY_SCALE)
+            d = _sample(spec["dist"], rng) * BODY_SCALE
+            b = np.radians(_sample(spec.get("bearing", [-180, 180]), rng))
             p = (x + d * np.cos(h + b), y + d * np.sin(h + b))
         elif "edge" in spec:                             # along an edge, inset from it
             inset, along = _sample(spec["inset"], rng), _sample(spec.get("along", [-0.8, 0.8]), rng)
@@ -219,10 +225,10 @@ def _act(sim, life, ev, rng, ctx):
     elif a == "hide_prop":
         sim.hide_prop(k["prop"])
     elif a == "move_prop":                               # a path relative to Pinch: [dist, bearing deg] points
-        x, y, h = sim.pose()
+        x, y, h = sim.pose()                             # (dist in the first body's units, as for "near")
         pts = []
         for d, b in k["path"]:
-            d, b = _sample(d, rng), np.radians(_sample(b, rng))
+            d, b = _sample(d, rng) * BODY_SCALE, np.radians(_sample(b, rng))
             pts.append(sim.desk.clamp((x + d * np.cos(h + b), y + d * np.sin(h + b)), 0.03))
         sim.move_prop(k["prop"], pts, speed=_sample(k["speed"], rng))
     elif a == "flip":                                    # put it on its back

@@ -46,7 +46,8 @@ STYLES = {"indifferent": 0.4, "curious": 0.35, "fearful": 0.15, "playful": 0.10}
 WALL_T, WALL_H = 0.10, 2.4
 TRAY_HALF = (0.08, 0.035)
 NAMED = {"pen": 0.07, "eraser": 0.012, "cap": 0.015, "ball": 0.016}  # Pinch's own desk things: half-size to keep clear
-CRAB_CLEAR = 0.14                    # free radius around Pinch's start
+CRAB_CLEAR = 0.19                    # free half-size around Pinch's start: its feet stand 17.4 cm out (v2.1)
+CRAB_EDGE = 0.05                     # and that square this far inside the edge: the side cliff beams look 21-23 cm out
 
 
 @dataclass
@@ -407,7 +408,7 @@ def _try_world(rng, split, index, kind):
                      region=(-hx + 0.12, hx - 0.12, max(0.0, hy * 0.15), hy - 0.06))
     if tray is None:
         return None
-    crab = _spot(rng, on, hx, hy, CRAB_CLEAR, CRAB_CLEAR, margin=0.05, gap=0.0)
+    crab = _spot(rng, on, hx, hy, CRAB_CLEAR, CRAB_CLEAR, margin=CRAB_EDGE, gap=0.0, yaw=0.0)
     if crab is None:
         return None
     crab_yaw = float(rng.uniform(-np.pi, np.pi))

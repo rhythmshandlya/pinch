@@ -66,7 +66,10 @@ class TwinCore:
             x, y, yaw = world.crab
             q = self.d.qpos
             q[0], q[1] = x, y
-            q[2] += world.mat["thick"] if world.mat is not None and abs(x - world.mat["xy"][0]) < world.mat["half"][0] + 0.12                 and abs(y - world.mat["xy"][1]) < world.mat["half"][1] + 0.12 else 0.0
+            mt = world.mat                                 # (its feet stand 17.4 cm out: within 0.19 of the rug, on it)
+            on_mat = (mt is not None and abs(x - mt["xy"][0]) < mt["half"][0] + 0.19
+                      and abs(y - mt["xy"][1]) < mt["half"][1] + 0.19)
+            q[2] += mt["thick"] if on_mat else 0.0
             q[3:7] = (np.cos(yaw / 2), 0.0, 0.0, np.sin(yaw / 2))
             mujoco.mj_forward(self.m, self.d)
         self.crab = Crab(self.hw, calibration=Calibration())

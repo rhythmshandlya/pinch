@@ -56,10 +56,15 @@ THINGS = {
 }
 
 # room furniture (boxes): name: (width, depth, height) ranges as ((lo, hi), ...), against a wall?
+# the smallest surface Pinch is put on (long, short side, m): the v2.1 stance puts its feet 17.4 cm from the body
+# centre and the side cliff beams see the desk 21-23 cm out, so standing in the middle of the short side needs
+# ~0.5 m; 0.55 leaves it a few cm to turn in. Real desks are 50-80 cm deep (the owner's 60).
+SURFACE_MIN = (0.8, 0.55)
+
 FURNITURE = {
-    "desk":      (((0.6, 1.6), (0.4, 0.8), (0.70, 0.78)), True),
+    "desk":      (((0.8, 1.6), (0.55, 0.8), (0.70, 0.78)), True),     # >= SURFACE_MIN: room for Pinch's stance
     "table":     (((0.8, 1.8), (0.6, 1.0), (0.70, 0.76)), False),
-    "coffee":    (((0.8, 1.2), (0.45, 0.7), (0.38, 0.46)), False),
+    "coffee":    (((0.8, 1.2), (0.55, 0.7), (0.38, 0.46)), False),
     "sofa":      (((1.6, 2.2), (0.8, 0.95), (0.80, 0.90)), True),
     "bed":       (((1.4, 1.9), (1.9, 2.1), (0.45, 0.60)), True),
     "wardrobe":  (((0.8, 1.6), (0.55, 0.62), (1.8, 2.1)), True),

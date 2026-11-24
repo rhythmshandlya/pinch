@@ -48,9 +48,16 @@ def test_worlds_vary_in_what_matters():
     assert any(p["child"] for w in ws for p in w.people)
     levels = [w.extra["level"] for w in ws]
     assert min(levels) < 0.45 and max(levels) > 1.1, "dim evenings and bright days"
+    from pinch.world import Desk
+    from sim.worlds.catalogue import SURFACE_MIN
+    stance = Desk.body_radius()
     for w in ws:                                        # Pinch's start, the tray and its things fit on its surface
         hx, hy = w.surface["half_x"], w.surface["half_y"]
-        assert abs(w.crab[0]) < hx - 0.05 and abs(w.crab[1]) < hy - 0.05
+        if w.kind != "floor":                           # room for the stance, the cliff beams clear of the edge
+            assert 2 * min(hx, hy) >= SURFACE_MIN[1] - 1e-6 and 2 * max(hx, hy) >= SURFACE_MIN[0] - 1e-6
+        assert abs(w.crab[0]) < hx - stance - 0.05 and abs(w.crab[1]) < hy - stance - 0.05
+        for x, y, _ in w.named.values():                # its desk things not under its legs
+            assert np.hypot(x - w.crab[0], y - w.crab[1]) > stance
         assert abs(w.tray_xy[0]) + TRAY_HALF[0] < hx and abs(w.tray_xy[1]) + TRAY_HALF[1] < hy
         for x, y, _ in w.named.values():
             assert abs(x) < hx and abs(y) < hy

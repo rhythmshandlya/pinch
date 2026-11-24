@@ -34,6 +34,8 @@ from pathlib import Path
 
 import numpy as np
 
+from sim.worlds.catalogue import SURFACE_MIN
+
 ROOT = Path(__file__).resolve().parents[2]
 DIR = ROOT / "models" / "procthor"
 HOUSES = ("allenai/procthor-10k", "439193522244720b86d8c81cde2e51e3a4d150cf")
@@ -277,7 +279,9 @@ def _item(o):
 
 
 def _surface_ok(it):
-    return 0.35 <= it["h"] <= 1.1 and it["flat"] >= 0.55 and it["w"] >= 0.4 and it["d"] >= 0.3 and it["base"] < 0.1
+    lo, sh = max(it["w"], it["d"]), min(it["w"], it["d"])
+    return (0.35 <= it["h"] <= 1.1 and it["flat"] >= 0.55 and lo >= SURFACE_MIN[0] and sh >= SURFACE_MIN[1]
+            and it["base"] < 0.1)
 
 
 @lru_cache(maxsize=3)
