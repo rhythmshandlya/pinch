@@ -90,6 +90,10 @@ def check_world(index, split="test", save=None):
     return out
 
 
+def _job(i, save=None):
+    return (check_world(i, save=save),)                # (None,): no one to look for; None: the worker was lost
+
+
 def main():
     from pinch.faces import MATCH
     ap = argparse.ArgumentParser()
@@ -99,8 +103,16 @@ def main():
     ap.add_argument("--workers", type=int, default=2)
     a = ap.parse_args()
     from functools import partial
-    rs_all = [r for r in run_parallel(partial(check_world, save=a.save), range(a.n), workers=a.workers, fresh_every=8)
-              if r is not None]
+    todo, got = list(range(a.n)), {}
+    for _ in range(2):                                # a world lost to its worker (out of memory) is tried again
+        res = run_parallel(partial(_job, save=a.save), todo, workers=a.workers, fresh_every=8, keep_going=True)
+        got.update({i: r[0] for i, r in zip(todo, res) if r is not None})
+        todo = [i for i, r in zip(todo, res) if r is None]
+        if not todo:
+            break
+    if todo:
+        print(f"{len(todo)} worlds lost twice and left out: {todo}")
+    rs_all = [got[i] for i in sorted(got) if got[i] is not None]
     rs = [r for r in rs_all if r["in_view"]]
     k, n = sum(r["found"] for r in rs), len(rs)
     lo, hi = wilson(k, n)
