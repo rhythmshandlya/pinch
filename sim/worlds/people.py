@@ -95,7 +95,7 @@ def _quat_z_to(v):
     """Quaternion rotating +z onto v."""
     v = np.asarray(v, float)
     v = v / (np.linalg.norm(v) + 1e-12)
-    a = np.cross([0, 0, 1.0], v)
+    a = np.array([-v[1], v[0], 0.0])                      # z x v
     c = v[2]
     if np.linalg.norm(a) < 1e-9:
         return np.array([1.0, 0, 0, 0]) if c > 0 else np.array([0, 1.0, 0, 0])

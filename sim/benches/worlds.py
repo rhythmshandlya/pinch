@@ -2,7 +2,8 @@
 
     python sim/benches/worlds.py                    # every scenario on 24 seeds (its own world and timeline each)
     python sim/benches/worlds.py touch tricks -n 48 # some scenarios, more seeds
-    python sim/benches/worlds.py --json out.json
+    python sim/benches/worlds.py --json out.json  # runs are also saved as they finish (out.json.runs.jsonl): run
+                                                  # the same command again after a crash and it carries on
 
 Each run picks a held-out test world (sim/worlds: homes, desks, tables, floors, clutter, light), samples the
 scenario's event times and words, runs the full pet (mind + body + robot runtime + physics) and checks the
@@ -12,6 +13,7 @@ A run whose situation doesn't fit its world (no room to place a thing) is counte
 """
 
 import argparse
+import json
 import sys
 import time
 from collections import Counter
@@ -72,7 +74,32 @@ def main():
                   key=lambda j: -next(s.seconds for s in scs if s.path == j[0]))
     t0 = time.time()
     print(f"{len(scs)} scenarios x {a.seeds} seeds = {len(jobs)} runs on held-out test worlds")
-    results = run_parallel(_job, jobs, workers=a.workers, fresh_every=20)
+    log = Path(a.json + ".runs.jsonl") if a.json else None
+    done = {}
+    if log is not None and log.exists():               # carry on after a crash: keep the runs already finished
+        for line in log.read_text(encoding="utf-8").splitlines():
+            r = json.loads(line)
+            done[(r["scenario"], r["seed"])] = r
+        print(f"{len(done)} runs already done ({log})")
+    name = {s.path: s.name for s in scs}
+    todo = [j for j in jobs if (name[j[0]], j[1]) not in done]
+
+    def keep(job, r):
+        if log is not None:
+            with log.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(r, default=str) + "\n")
+
+    for _ in range(2):                                 # a run lost to the machine (out of memory) is tried again
+        res = run_parallel(_job, todo, workers=a.workers, fresh_every=5, on_result=keep, keep_going=True)
+        for j, r in zip(todo, res):
+            if r is not None:
+                done[(name[j[0]], j[1])] = r
+        todo = [j for j, r in zip(todo, res) if r is None]
+        if not todo:
+            break
+    if todo:
+        print(f"{len(todo)} runs lost twice and left out: {[(name[p], sd) for p, sd in todo]}")
+    results = [done[(name[p], sd)] for p, sd in jobs if (name[p], sd) in done]
     summary = summarise(results)
     print(table(summary))
     print(f"\n{sum(s['passed'] for s in summary.values())}/{sum(s['runs'] for s in summary.values())} runs passed "

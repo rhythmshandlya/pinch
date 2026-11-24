@@ -401,12 +401,20 @@ def add(spec, i, p, others=()):
 
 
 # ------------------------------------------------------------------------------------------------------- posing
+def cross3(a, b):
+    """a x b for two 3-vectors. np.cross handles any shapes and costs ~0.1 ms a call: posing people with it was
+    half of a world run's time (56,000 calls per 8 s of a world with people)."""
+    a0, a1, a2 = a
+    b0, b1, b2 = b
+    return np.array([a1 * b2 - a2 * b1, a2 * b0 - a0 * b2, a0 * b1 - a1 * b0])
+
+
 def _q_between(a, b):
     a, b = a / np.linalg.norm(a), b / np.linalg.norm(b)
-    c = np.cross(a, b)
+    c = cross3(a, b)
     w = 1.0 + float(a @ b)
     if w < 1e-8:                                                           # opposite: any perpendicular axis
-        ax = np.cross(a, [1.0, 0, 0]) if abs(a[0]) < 0.9 else np.cross(a, [0, 1.0, 0])
+        ax = cross3(a, [1.0, 0, 0]) if abs(a[0]) < 0.9 else cross3(a, [0, 1.0, 0])
         return np.array([0.0, *(ax / np.linalg.norm(ax))])
     q = np.array([w, *c])
     return q / np.linalg.norm(q)
@@ -421,7 +429,7 @@ def _qmul(a, b):
 
 def _rot(q, v):
     u = np.array(q[1:])
-    return v + 2 * np.cross(u, np.cross(u, v) + q[0] * v)
+    return v + 2 * cross3(u, cross3(u, v) + q[0] * v)
 
 
 def _qz(a):
