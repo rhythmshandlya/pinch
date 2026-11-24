@@ -72,7 +72,7 @@ def main():
                   key=lambda j: -next(s.seconds for s in scs if s.path == j[0]))
     t0 = time.time()
     print(f"{len(scs)} scenarios x {a.seeds} seeds = {len(jobs)} runs on held-out test worlds")
-    results = run_parallel(_job, jobs, workers=a.workers)
+    results = run_parallel(_job, jobs, workers=a.workers, fresh_every=20)
     summary = summarise(results)
     print(table(summary))
     print(f"\n{sum(s['passed'] for s in summary.values())}/{sum(s['runs'] for s in summary.values())} runs passed "

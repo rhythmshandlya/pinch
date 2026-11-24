@@ -17,6 +17,7 @@ models/faces/
 models/objects/
 models/humans/
 models/furniture/
+models/procthor/
 # the owner's PRD and the traceability matrix quoting it: private, kept locally
 docs/PRD.md
 docs/PLAN.md

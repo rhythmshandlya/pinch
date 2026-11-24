@@ -42,6 +42,21 @@ def available():
     return all((DIR / f).exists() for f in FILES) and all((DIR / "targets" / t).exists() for t in _targets())
 
 
+def ready():
+    """Real bodies of some kind: ready-made Rocketbox avatars (rocketbox.py) first, else MakeHuman bodies."""
+    from sim.worlds import rocketbox
+    return rocketbox.available() or available()
+
+
+def body(p, others=()):
+    """A world person's rest-pose body geometry (what add() builds and pose() moves), or None for capsule people.
+    others: the people before it in its world (no two people share an avatar)."""
+    from sim.worlds import rocketbox
+    if rocketbox.available():
+        return rocketbox.geometry(rocketbox.choose(p, others), round(p["height"], 2))
+    return geometry(*params(p), round(p["height"], 2)) if available() else None
+
+
 def fetch():
     import concurrent.futures as cf
     jobs = [(f"https://raw.githubusercontent.com/{MPFB[0]}/{MPFB[1]}/{MPFB[2]}/{src}", DIR / dst) for dst, src in FILES.items()]
@@ -321,10 +336,14 @@ def lengths(g):
                 torso=float(h["upperarm_l"][2] - h["pelvis"][2]), head_up=float(h["head"][2] - h["upperarm_l"][2]))
 
 
-def add(spec, i, p):
-    """Person i as skinned MakeHuman meshes on mocap bones (person{i}_<bone>), with a photo face. Returns the
-    geometry."""
+def add(spec, i, p, others=()):
+    """Person i as skinned meshes on mocap bones (person{i}_<bone>): a Rocketbox avatar when fetched, else a
+    MakeHuman body with a photo face. Returns the geometry."""
     import mujoco
+
+    from sim.worlds import rocketbox
+    if rocketbox.available():
+        return rocketbox.add(spec, i, p, others)
     age, male, eth = params(p)
     g = geometry(age, male, eth, round(p["height"], 2))
     P, W = g["P"], g["W"]

@@ -35,13 +35,15 @@ def test_test_worlds_are_held_out():
 
 
 def test_worlds_vary_in_what_matters():
+    from sim.worlds.generate import use_procthor
     ws = [world("train", i) for i in range(120)]
     kinds = {w.kind for w in ws}
     assert kinds == {"desk", "table", "floor"}, kinds
-    assert {len(w.rooms) for w in ws} == {1, 2, 3}
+    assert {1, 2, 3} <= {len(w.rooms) for w in ws}       # (ready-made ProcTHOR homes: up to 10 rooms)
     things = [len(w.things) for w in ws]
     assert min(things) == 0 and max(things) >= 8
-    assert len({round(w.surface["half_x"], 2) for w in ws if w.kind == "desk"}) > 20, "desks of many sizes"
+    sizes = {round(w.surface["half_x"], 2) for w in ws if w.kind == "desk"}
+    assert len(sizes) > (8 if use_procthor() else 20), f"desks of many sizes: {sorted(sizes)}"
     assert {p["style"] for w in ws for p in w.people} == {"indifferent", "curious", "fearful", "playful"}
     assert any(p["child"] for w in ws for p in w.people)
     levels = [w.extra["level"] for w in ws]
@@ -126,3 +128,42 @@ def test_training_terrains_are_pinch_sized():
     assert T.FAMILIES["thresholds"][2]["step_height_range"][1] <= 0.04, "thresholds a 15 cm robot can step"
     assert T.FAMILIES["slopes"][2]["slope_range"][1] <= 0.4, "ramps up to ~20 degrees"
     assert T.TILE[0] / 2 <= 0.06 * 20, "half a tile is walkable in one episode at top speed"
+
+
+def test_ready_made_people_fit_the_posing():
+    """Rocketbox's Biped skeleton folds into the bones the people's motion drives (humans.pose / lengths)."""
+    from sim.worlds import rocketbox as R
+    assert set(R.NAMES.values()) == set(R.PARENT) and all(v is None or v in R.PARENT for v in R.PARENT.values())
+    for b in ("thigh_l", "calf_l", "foot_l", "upperarm_r", "lowerarm_r", "hand_r", "neck_01", "head", "pelvis"):
+        assert b in R.PARENT
+    assert R._fold("Bip01 L Finger21") == "hand_l" and R._fold("Bip01 R Toe0") == "foot_r"
+    assert R._fold("Bip01 MJaw") == "head" and R._fold("Bip01 Footsteps") is None and R._fold("Bip01") is None
+    if R.available():                                   # (when fetched) left is +x, facing -y, scaled to height
+        g = R.geometry(R.ADULTS[0], 1.6)
+        assert g["head"]["upperarm_l"][0] > 0 > g["head"]["upperarm_r"][0]
+        top = max(m["V"][:, 2].max() for m in g["meshes"])
+        assert abs(top - 1.6) < 0.01 and 0.05 < g["face_up"] < 0.2
+
+
+def test_ready_made_homes_convert():
+    """ProcTHOR houses -> rooms, walls (each once, doors and windows along it), Pinch's frame; no download needed."""
+    from sim.worlds import procthor as P
+    pt = lambda x, z, y=0.0: {"x": x, "y": y, "z": z}
+    L = [pt(0, 0), pt(4, 0), pt(4, 2), pt(2, 2), pt(2, 4), pt(0, 4)]           # an L-shaped room (Unity x, z)
+    h = dict(rooms=[dict(roomType="Kitchen", floorPolygon=L)],
+             walls=[dict(id="w1", polygon=[pt(0, 0), pt(4, 0), pt(0, 0, 2.5), pt(4, 0, 2.5)]),
+                    dict(id="w1b", polygon=[pt(4, 0), pt(0, 0), pt(4, 0, 2.5), pt(0, 0, 2.5)])],
+             doors=[dict(wall0="w1", holePolygon=[pt(1.0, 0, 0), pt(2.0, 0, 2.0)])],
+             windows=[dict(wall0="w1b", holePolygon=[pt(0.5, 0, 0.9), pt(1.5, 0, 2.0)])],
+             objects=[dict(id="Desk|1|0", assetId="Desk_1", position=pt(1, 3, 0.4), rotation={"x": 0, "y": 90, "z": 0})])
+    c = P._compact(h)
+    o = c["objects"][0]
+    assert (o["type"], o["x"], o["y"], o["z"]) == ("Desk", 1, 3, 0.4) and abs(o["yaw"] + np.pi / 2) < 1e-4
+    walls = P._walls(c)
+    assert len(walls) == 1, "a wall listed from both sides is built once"
+    (door,), (win,) = walls[0]["doors"], walls[0]["windows"]
+    assert abs(door[0] - 1.5) < 1e-6 and abs(door[1] - 1.0) < 1e-6
+    assert abs(win[0] - 3.0) < 1e-6 and win[2:] == (0.9, 2.0), "the window, seen from the other side, is at 3 m"
+    cells, rect = P._cells(c["rooms"][0]["poly"])
+    assert abs(sum((x1 - x0) * (y1 - y0) for x0, y0, x1, y1 in cells) - 12.0) < 1e-6
+    assert rect in ((0, 0, 4, 2), (0, 0, 2, 4)), "the largest rectangle of the L"

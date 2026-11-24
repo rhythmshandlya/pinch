@@ -20,7 +20,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from sim.benches.common import save_json  # noqa: E402
+from sim.benches.common import run_parallel, save_json  # noqa: E402
 from sim.benches.stats import wilson  # noqa: E402
 
 
@@ -96,8 +96,11 @@ def main():
     ap.add_argument("-n", type=int, default=60, help="test worlds to try (those with a person at Pinch's surface)")
     ap.add_argument("--save", help="a folder for the frames")
     ap.add_argument("--json")
+    ap.add_argument("--workers", type=int, default=2)
     a = ap.parse_args()
-    rs_all = [r for r in (check_world(i, save=a.save) for i in range(a.n)) if r is not None]
+    from functools import partial
+    rs_all = [r for r in run_parallel(partial(check_world, save=a.save), range(a.n), workers=a.workers, fresh_every=8)
+              if r is not None]
     rs = [r for r in rs_all if r["in_view"]]
     k, n = sum(r["found"] for r in rs), len(rs)
     lo, hi = wilson(k, n)

@@ -169,7 +169,14 @@ class Person:
             if room is None:
                 return q
             return np.array([np.clip(q[0], room["x0"] + 0.35, room["x1"] - 0.35), np.clip(q[1], room["y0"] + 0.35, room["y1"] - 0.35)])
-        obstacles = [(f["x"], f["y"], f["yaw"], f["w"] / 2 + 0.3, f["d"] / 2 + 0.3) for f in self.w.furniture]
+        obstacles = [(f["x"], f["y"], f["yaw"], f["w"] / 2 + 0.3, f["d"] / 2 + 0.3) for f in self.w.furniture
+                     if not f.get("small")]
+        within = None
+        if room is not None and "poly" in room:            # a ready-made room need not be a rectangle
+            from shapely import prepared
+            from shapely.geometry import Point, Polygon
+            area = prepared.prep(Polygon(room["poly"]).buffer(-0.35))
+            within = lambda q: area.contains(Point(float(q[0]), float(q[1])))
         if self.w.kind != "floor":                         # Pinch's own desk or table, and the seat in front of it
             s_ = self.w.surface
             obstacles.append((0.0, -0.25, 0.0, s_["half_x"] + 0.3, s_["half_y"] + 0.55))
@@ -178,6 +185,8 @@ class Person:
             for a, b in zip(path, path[1:]):
                 for u in np.linspace(0, 1, max(2, int(np.linalg.norm(b - a) / 0.1))):
                     q = a + (b - a) * u
+                    if within is not None and not within(q):
+                        return False
                     for x, y, yaw, hw, hd in obstacles:
                         c, sn = np.cos(-yaw), np.sin(-yaw)
                         lx, ly = c * (q[0] - x) - sn * (q[1] - y), sn * (q[0] - x) + c * (q[1] - y)
@@ -401,7 +410,8 @@ class Person:
             if self.hand_state in ("reach", "touch"):
                 self.targets["lean"] = 0.2
             pos = humans.pose(m, d, self.i, self.body, self.targets)
-            self.pose["head"] = (pos["head"] + np.array([0, 0, 0.09 * self.D["s"]]), self.pose["head"][1])
+            up = self.body.get("face_up", 0.09 * self.D["s"])              # head joint -> the middle of the face
+            self.pose["head"] = (pos["head"] + np.array([0, 0, up]), self.pose["head"][1])
             return
         for part in PARTS:
             mid = m.body(f"person{self.i}_{part}").mocapid[0]

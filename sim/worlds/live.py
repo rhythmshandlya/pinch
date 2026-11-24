@@ -35,8 +35,8 @@ class Life:
             from sim.worlds import humans
             for i, p in enumerate(self.w.people):
                 body = None
-                if _has(sim.m, f"person{i}_pelvis"):     # built as a MakeHuman body
-                    body = humans.geometry(*humans.params(p), round(p["height"], 2))
+                if _has(sim.m, f"person{i}_pelvis"):     # built as a skinned body (humans.add)
+                    body = humans.body(p, self.w.people[:i])
                 self.people.append(Person(i, p, self.w, body=body))
         self.touches = []                 # (t, person index, gesture)
         self.seen = []                    # (t, pid, confidence)

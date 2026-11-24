@@ -11,11 +11,13 @@ for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
 
 
-def run_parallel(fn, jobs, workers=None, chunksize=1):
-    """fn over jobs in worker processes, results in job order. workers defaults to the CPU count minus one."""
+def run_parallel(fn, jobs, workers=None, chunksize=1, fresh_every=None):
+    """fn over jobs in worker processes, results in job order. workers defaults to the CPU count minus one.
+    fresh_every: replace each worker after that many jobs (rendering benches: GL drivers keep some memory per
+    closed context, which adds up over hundreds of worlds)."""
     jobs = list(jobs)
     workers = max(1, min(len(jobs), workers or (os.cpu_count() or 2) - 1))
-    with ProcessPoolExecutor(workers) as ex:
+    with ProcessPoolExecutor(workers, max_tasks_per_child=fresh_every) as ex:
         return list(ex.map(fn, jobs, chunksize=chunksize))
 
 

@@ -138,18 +138,25 @@ def _walls(spec, w, H, mat):
         L = float(np.linalg.norm(p1 - p0))
         u = (p1 - p0) / L
         yaw = float(np.arctan2(u[1], u[0]))
-        cuts = sorted((c - dw / 2, c + dw / 2) for c, dw in wl["doors"])
+        cuts = sorted([(c - dw / 2, c + dw / 2, 0.0, 2.05) for c, dw in wl["doors"]] +
+                      [(c - dw / 2, c + dw / 2, z0, min(z1, WALL_H - 0.05)) for c, dw, z0, z1 in wl.get("windows", [])])
         a, pieces = 0.0, []
-        for lo, hi in cuts:
+        for lo, hi, z0, z1 in cuts:                       # doorways (open to the floor) and windows
+            lo, hi = max(lo, a), min(hi, L)
+            if hi <= lo:
+                continue
             pieces.append((a, lo, 0.0, WALL_H))
-            pieces.append((lo, hi, 2.05, WALL_H))          # above the doorway
+            if z0 > 0.01:
+                pieces.append((lo, hi, 0.0, z0))          # under the window
+            pieces.append((lo, hi, z1, WALL_H))           # above the doorway or window
             a = hi
         pieces.append((a, L, 0.0, WALL_H))
+        t = wl.get("t", WALL_T)
         for s0, s1, z0, z1 in pieces:
             if s1 - s0 < 1e-3:
                 continue
             c = p0 + u * (s0 + s1) / 2
-            _box(spec.worldbody, (c[0], c[1], -H + (z0 + z1) / 2), ((s1 - s0) / 2 + WALL_T / 2, WALL_T / 2, (z1 - z0) / 2),
+            _box(spec.worldbody, (c[0], c[1], -H + (z0 + z1) / 2), ((s1 - s0) / 2 + t / 2, t / 2, (z1 - z0) / 2),
                  material=mat, euler=(0, 0, yaw))
 
 
@@ -224,12 +231,18 @@ def decorate(spec, w, things=True, people=True, visual=True, fisheye=True, model
             g.rgba = [1, 1, 1, 1]
             g.friction = [w.surface["friction"], 0.02, 0.001]
     for r in w.rooms:                                      # each room's floor (Pinch's own floor is the desk top)
+        fl = r["floor"]
+        mat = mats(fl["pattern"], fl["rgb"], (4, 4))
+        if "cells" in r:                                   # a ready-made room: its outline in rectangles, a touch
+            low = 0.002 if w.kind == "floor" else 0.0      # below Pinch's patch of floor when it is on the floor
+            for x0, y0, x1, y1 in r["cells"]:
+                _box(spec.worldbody, ((x0 + x1) / 2, (y0 + y1) / 2, -H - 0.01 - low), ((x1 - x0) / 2, (y1 - y0) / 2, 0.01),
+                     material=mat, friction=fl["friction"])
+            continue
         if w.kind == "floor" and r["x0"] < 0 < r["x1"] and r["y0"] < 0 < r["y1"]:
             continue
-        fl = r["floor"]
         _box(spec.worldbody, ((r["x0"] + r["x1"]) / 2, (r["y0"] + r["y1"]) / 2, -H - 0.01),
-             ((r["x1"] - r["x0"]) / 2, (r["y1"] - r["y0"]) / 2, 0.01), material=mats(fl["pattern"], fl["rgb"], (4, 4)),
-             friction=fl["friction"])
+             ((r["x1"] - r["x0"]) / 2, (r["y1"] - r["y0"]) / 2, 0.01), material=mat, friction=fl["friction"])
     _walls(spec, w, H, mats("noise", w.wall_rgb, (2, 2)))
     xs = [v for r in w.rooms for v in (r["x0"], r["x1"])]
     ys = [v for r in w.rooms for v in (r["y0"], r["y1"])]
@@ -240,7 +253,18 @@ def decorate(spec, w, things=True, people=True, visual=True, fisheye=True, model
     # eye camera 4.6 cm above it. 0.0005 x extent (a few mm) keeps close things in view.
     spec.visual.map.znear = 0.0005
     own = None
-    if w.kind != "floor" and models:                       # Pinch's desk/table as a real model with a flat top
+    if w.kind != "floor" and "model" in w.surface:         # the house's own desk/table: drawn, its top is the desk top
+        from sim.worlds import procthor
+        mo = w.surface["model"]
+        if visual:
+            procthor.add(spec, dict(asset=mo["asset"], x=0.0, y=0.0, z=mo["z"], off=mo["off"], yaw=mo["yaw"]), H,
+                         collide=False)
+        for g in spec.geoms:
+            if g.name == "desk_top":
+                g.rgba = [1, 1, 1, 0]
+                g.material = ""
+        own = mo
+    elif w.kind != "floor" and models:                     # Pinch's desk/table as a real model with a flat top
         from sim.worlds import furniture as F
         hx, hy = w.surface["half_x"], w.surface["half_y"]
         own = F.choose(w.surface["furniture"], 2 * hx, 2 * hy, H, _seed(hx, hy, H), surface=True)
@@ -261,7 +285,11 @@ def decorate(spec, w, things=True, people=True, visual=True, fisheye=True, model
             _box(spec.worldbody, (0, hy - 0.02, (-H - 0.03) / 2 + 0.15), (hx - 0.06, 0.01, (H - 0.33) / 2), material=leg,
                  kw=VISUAL)
     for f in w.furniture:
-        furniture(spec, f, H, mats, models)
+        if "asset" in f:                                   # ready-made (ProcTHOR): contacts only near Pinch
+            from sim.worlds import procthor
+            procthor.add(spec, f, H, collide=np.hypot(f["x"], f["y"]) < 3.0 + max(f["w"], f["d"]) / 2, visual=visual)
+        else:
+            furniture(spec, f, H, mats, models)
     if w.mat is not None:
         mt = w.mat
         _box(spec.worldbody, (mt["xy"][0], mt["xy"][1], mt["thick"] / 2), (mt["half"][0], mt["half"][1], mt["thick"] / 2),
@@ -297,8 +325,8 @@ def decorate(spec, w, things=True, people=True, visual=True, fisheye=True, model
             furniture(spec, dict(kind=what, x=sx, y=sy - (0.08 if what == "chair" else 0.15), yaw=np.pi, w=dims[0],
                                  d=dims[1], h=dims[2], rgb=(0.4, 0.3, 0.25)), H, mats, models)
         for i, p in enumerate(w.people):
-            if humans.available():                       # real bodies (MakeHuman, CC0) when fetched
-                humans.add(spec, i, p)
+            if humans.ready():                           # real bodies (Rocketbox / MakeHuman) when fetched
+                humans.add(spec, i, p, w.people[:i])
                 continue
             img = imgs[p["face"] % len(imgs)] if imgs else np.full((64, 64, 3), [200, 160, 130], np.uint8)
             tname = f"face_tex{i}"

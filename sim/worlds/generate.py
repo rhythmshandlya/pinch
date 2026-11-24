@@ -278,6 +278,18 @@ def _transform(items, c, yaw):
                 it[kx], it[ky] = (float(v) for v in R @ (np.array([it[kx], it[ky]]) - c))
         if "yaw" in it:
             it["yaw"] = float((it["yaw"] - yaw + np.pi) % (2 * np.pi) - np.pi)
+        if "poly" in it:                                  # (ready-made rooms: their outline and floor rectangles)
+            it["poly"] = [tuple(float(v) for v in R @ (np.array(p) - c)) for p in it["poly"]]
+        for k in ("cells", "rect"):
+            rects = it.get(k)
+            if rects is None:
+                continue
+            many = k == "cells"
+            new = []
+            for x0, y0, x1, y1 in (rects if many else [rects]):
+                a, b = R @ (np.array([x0, y0]) - c), R @ (np.array([x1, y1]) - c)
+                new.append((float(min(a[0], b[0])), float(min(a[1], b[1])), float(max(a[0], b[0])), float(max(a[1], b[1]))))
+            it[k] = new if many else new[0]
         out.append(it)
     return out
 
@@ -296,15 +308,27 @@ def _kelvin(t):
     return tuple(float(x) for x in v / v.max())
 
 
-def _try_world(rng, split, index, kind):
-    W, D, rooms, walls = _rooms(rng)
-    floor_mat = {}
+def _floors(rng, rooms):
     for r in rooms:
         fk = str(rng.choice(list(FLOORS)))
         pat, cols, fr = FLOORS[fk]
         r["floor"] = dict(material=fk, pattern=pat, rgb=_colour(rng, cols[rng.integers(len(cols))]),
                           friction=float(rng.uniform(*fr)))
-        floor_mat[id(r)] = r["floor"]
+
+
+def use_procthor():
+    """Ready-made ProcTHOR homes when fetched (sim/worlds/procthor.py), unless PINCH_WORLDS=own."""
+    import os
+
+    from sim.worlds import procthor
+    return os.environ.get("PINCH_WORLDS", "") != "own" and procthor.available()
+
+
+def _own_home(rng, kind):
+    """generate.py's own home (the fallback): rooms, walls, furniture, Pinch's surface item (None on the floor),
+    Pinch's room."""
+    W, D, rooms, walls = _rooms(rng)
+    _floors(rng, rooms)
     taken = list(_door_zones(walls))
     home_room = rooms[int(rng.integers(len(rooms)))]
     furniture, surf_item = [], None
@@ -327,6 +351,20 @@ def _try_world(rng, split, index, kind):
                     furniture.append(f)
     for f in furniture:
         f["rgb"] = _colour(rng, SURFACES[str(rng.choice(["oak", "walnut", "white_lam", "grey_lam"]))][1][0], 0.15)
+    return rooms, walls, furniture, surf_item, home_room, dict(house=(float(W), float(D)))
+
+
+def _try_world(rng, split, index, kind):
+    if use_procthor():
+        from sim.worlds import procthor
+        home = procthor.home(rng, split, kind)
+        if home is not None:
+            _floors(rng, home[0])
+    else:
+        home = _own_home(rng, kind)
+    if home is None:
+        return None
+    rooms, walls, furniture, surf_item, home_room, extra = home
 
     # -- Pinch's surface and the frame centred on it
     if kind == "floor":
@@ -344,6 +382,10 @@ def _try_world(rng, split, index, kind):
         surface = dict(half_x=surf_item["w"] / 2, half_y=surf_item["d"] / 2, height=surf_item["h"], material=mk,
                        pattern=pat, rgb=surf_item["rgb"], friction=float(rng.uniform(*fr)),
                        furniture=surf_item["kind"])
+        if "asset" in surf_item:                         # a ready-made model: drawn as it is, the top as contacts
+            mo = surf_item
+            surface["model"] = dict(asset=mo["asset"], z=mo["z"], off=list(mo["off"]),
+                                    yaw=float((mo["model_yaw"] - yaw + np.pi) % (2 * np.pi) - np.pi))
         height = surf_item["h"]
     rooms_f = _transform(rooms, c, yaw)
     for r in rooms_f:                                    # a rotation by 90 degrees swaps corners: keep x0 < x1
@@ -446,7 +488,7 @@ def _try_world(rng, split, index, kind):
                  walls=walls_f, furniture=[f for f in furn_f if f is not None and f is not _skip(furn_f, surf_item, c, yaw)],
                  lights=lights, ambient=float(rng.uniform(0.15, 0.4) * min(1.0, level)),
                  wall_rgb=_colour(rng, WALLS[int(rng.integers(len(WALLS)))], 0.05), people=people,
-                 tex_seed=int(rng.integers(2**31)), extra=dict(level=level, house=(float(W), float(D))))
+                 tex_seed=int(rng.integers(2**31)), extra=dict(level=level, **extra))
 
 
 def _skip(furn_f, surf_item, c, yaw):
