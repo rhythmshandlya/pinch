@@ -28,7 +28,8 @@ duration_s = [0.5, 1.2]
                          # straight, they hide people 15-30 deg to the side; 12 deg out, people 30-45 deg to the side;
                          # one view or the other sees every bearing (active perception: move what blocks the view)
 period_s = 7.0           # one swing out and back
-arm_yaw_rad = 0.21       # 12 deg out: the front legs leave 4.6 mm while walking (their hips touch the arms at 18 deg)
+arm_yaw_rad = 0.23       # 13 deg asked, about 12 reached (posture filter, servo lag); the front legs leave 4 mm while
+                         # walking (their hips touch the arms at 18 deg)
 
 [posture]                # how it holds itself follows the mood (Laban weight; fear and sadness lower and
                          # contract the body, joy lifts it: docs/research/v2_1/expression/notes.md)
