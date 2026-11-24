@@ -94,8 +94,8 @@
       <geom name="part_tof_fl" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0.05191 0.01761 -0.04524" quat="0.2011 0.6016 0.6779 0.3716" mass="0.0014" material="pcb"/>
       <geom name="part_tof_fr" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0.05191 -0.01761 -0.04524" quat="0.2011 -0.6016 0.6779 -0.3716" mass="0.0014" material="pcb"/>
       <geom name="part_tof_rear" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="-0.06652 0 -0.03207" quat="-0.2988 0.6409 0.6409 -0.2988" mass="0.0014" material="pcb"/>
-      <geom name="part_tof_left" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0 0.09722 -0.02991" quat="0.5 -0.866 0 0" mass="0.0014" material="pcb"/>
-      <geom name="part_tof_right" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0 -0.09722 -0.02991" quat="0.5 0.866 0 0" mass="0.0014" material="pcb"/>
+      <geom name="part_tof_left" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0 0.09722 -0.02991" quat="0.3536 -0.6124 0.6124 0.3536" mass="0.0014" material="pcb"/>
+      <geom name="part_tof_right" class="visual" type="box" size="0.0125 0.00535 0.00175" pos="0 -0.09722 -0.02991" quat="0.3536 0.6124 -0.6124 0.3536" mass="0.0014" material="pcb"/>
       <geom name="part_oled" class="visual" type="box" size="0.038 0.079 0.004" pos="0.04962 0 0.08889" quat="0.8194 0 0.5732 0" mass="0.3" rgba="0 0 0 0"/>
       <geom name="part_visor" class="visual" type="box" size="0.041 0.0825 0.005" pos="0.04962 0 0.08889" quat="0.8194 0 0.5732 0" mass="0.061" rgba="0 0 0 0"/>
       <geom name="part_mic_l" class="visual" type="box" size="0.009 0.00625 0.0015" pos="-0.01991 0.03493 0.0477" quat="0.9992 -0.02494 -0.03123 -0.0007795" mass="0.0015" material="pcb"/>
@@ -109,8 +109,8 @@
       <geom name="part_pad_head" class="visual" type="box" size="0.007 0.005 0.0001" pos="0.004 0 0.0502" quat="1 0 -0.0003491 0" mass="0.0003" material="pcb"/>
       <geom name="part_pad_back_left" class="visual" type="box" size="0.007 0.005 0.0001" pos="-0.045 0.038 0.04537" quat="0.9887 -0.02995 -0.1466 -0.004441" mass="0.0003" material="pcb"/>
       <geom name="part_pad_back_right" class="visual" type="box" size="0.007 0.005 0.0001" pos="-0.045 -0.038 0.04537" quat="0.9887 0.02995 -0.1466 0.004441" mass="0.0003" material="pcb"/>
-      <geom name="part_pad_side_left" class="visual" type="box" size="0.007 0.005 0.0001" pos="0 0.1059 0.005" quat="0.7063 -0.6957 -0.09324 -0.09184" mass="0.0003" material="pcb"/>
-      <geom name="part_pad_side_right" class="visual" type="box" size="0.007 0.005 0.0001" pos="0 -0.1059 0.005" quat="0.7063 0.6957 -0.09324 0.09184" mass="0.0003" material="pcb"/>
+      <geom name="part_pad_side_left" class="visual" type="box" size="0.007 0.005 0.0001" pos="0 0.09452 0.034" quat="0.9392 -0.3432 -0.001589 0.0005343" mass="0.0003" material="pcb"/>
+      <geom name="part_pad_side_right" class="visual" type="box" size="0.007 0.005 0.0001" pos="0 -0.09452 0.034" quat="0.9392 0.3432 -0.001589 -0.0005343" mass="0.0003" material="pcb"/>
       <geom name="part_pad_face" class="visual" type="box" size="0.007 0.005 0.0001" pos="0.046 0 0.04854" quat="0.9973 0 0.07333 0" mass="0.0003" material="pcb"/>
       <geom class="visual" type="cylinder" size="0.011 0.0015" pos="0.08676 0 -0.0195" euler="0 1.5708 0" material="servo" mass="0"/>
       <geom class="visual" type="sphere" size="0.0055" pos="0.08746 0 -0.0195" rgba="0.05 0.10 0.25 1" mass="0"/>
