@@ -163,7 +163,7 @@ class BodyCore:
                 self.ambient_amp = float(np.abs(off).max())
                 q = q + off
             # posture from the mood on the free parts; when a step takes a part it fades out over fade_s, not a jump
-            target = self.life.posture(DT) * mask
+            target = (self.life.posture(DT) + self.life.look(self.t)) * mask   # look: the arms clear the camera's view
             post = getattr(self, "_posture", None)
             post = np.zeros(len(q)) if post is None else post
             if self.claim is not None and self.claim.layer == "reflex":

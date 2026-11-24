@@ -9,6 +9,11 @@ switched off (decision 74). Following the research plan (APPROACH_PLAN.md, idle 
 
 Small by construction (legs <= 0.03 rad, arms <= 0.15 rad) and seeded, so runs replay exactly. Body adds the
 offsets on top of the held pose only while idle; the moment a step starts they are gone.
+
+Apart from them, look(): the arms swing slowly out and back so the camera sees past them. Held straight they hide
+people sitting 15-30 deg to the side, swung 12 deg out those 30-45 deg to the side; over one swing the camera sees
+every bearing (sim/benches/arm_view.py; active perception, Bajcsy 1988: move what blocks the view). The body adds it
+with the posture, so it fades out when a step takes the arms.
 """
 
 import math
@@ -20,7 +25,7 @@ from pinch.settings import load
 
 A = load("ambient")                                   # configs/mind/ambient.toml
 BR, SW, FI = A["breath"], A["sway"], A["fidget"]
-PO = A["posture"]
+PO, LK = A["posture"], A["look"]
 
 J = {n: i for i, n in enumerate(JOINT_NAMES)}
 LEGS = ("FL", "FR", "RL", "RR")
@@ -62,6 +67,19 @@ class IdleLife:
         for side in "LR":
             q[J[f"{side}_shoulder_pitch"]] -= PO["claws_low_sad"] * s
             q[J[f"{side}_claw"]] -= PO["claws_in_fear"] * f
+        return q
+
+    def look(self, t):
+        """Joint offsets (18): both arms swing out together, 0 .. look.arm_yaw_rad and back once a period, so the
+        camera sees past them in turn (a raised cosine dwells at both ends, where each view is clear). Still when
+        asleep; afraid, it freezes as the rest of its idle motion does."""
+        q = np.zeros(len(JOINT_NAMES))
+        if self.asleep:
+            return q
+        k = max(0.15, 1.0 - 1.5 * float(self._mood[0]))
+        y = LK["arm_yaw_rad"] * k * 0.5 * (1.0 - math.cos(2 * math.pi * t / LK["period_s"]))
+        for side in "LR":
+            q[J[f"{side}_shoulder_yaw"]] = y
         return q
 
     def offsets(self, t, dt):
