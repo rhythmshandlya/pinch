@@ -2,7 +2,7 @@
 [scenario]
 name = "curious_new_thing"
 title = "a new thing on the desk: looks carefully from a distance, comes closer each time, gets used to it"
-seconds = 240
+seconds = 330                   # (v2.1: each look and retreat walks further; the desk test allows 320 s)
 props = ["box"]
 
 [[event]]

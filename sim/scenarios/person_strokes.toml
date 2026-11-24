@@ -1,4 +1,4 @@
-# New in phase 5 (SIM-003): a simulated person sitting with Pinch calls it over, reaches out and strokes its shell;
+# New in phase 5: a simulated person sitting with Pinch calls it over, reaches out and strokes its shell;
 # it should come, purr, and have seen them (their face, through the camera's geometry).
 [scenario]
 name = "person_strokes"

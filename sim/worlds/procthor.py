@@ -299,12 +299,20 @@ def _candidates(split):
     return out
 
 
+def _inside(poly, p):
+    """Whether point p is inside the polygon (even-odd rule; rooms are simple polygons, points never on an edge here)."""
+    x, y, n, inside = p[0], p[1], len(poly), False
+    for k in range(n):
+        (x0, y0), (x1, y1) = poly[k], poly[k - 1]
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            inside = not inside
+    return inside
+
+
 def _cells(poly):
     xs = sorted({round(p[0], 3) for p in poly})
     ys = sorted({round(p[1], 3) for p in poly})
-    from shapely.geometry import Point, Polygon
-    P = Polygon(poly)
-    grid = [[P.contains(Point((xs[i] + xs[i + 1]) / 2, (ys[j] + ys[j + 1]) / 2)) for j in range(len(ys) - 1)]
+    grid = [[_inside(poly, ((xs[i] + xs[i + 1]) / 2, (ys[j] + ys[j + 1]) / 2)) for j in range(len(ys) - 1)]
             for i in range(len(xs) - 1)]
     cells = [(xs[i], ys[j], xs[i + 1], ys[j + 1]) for i in range(len(xs) - 1) for j in range(len(ys) - 1) if grid[i][j]]
     best, rect = 0.0, None                                         # the largest rectangle made of whole cells
@@ -358,7 +366,6 @@ def _front_zone(it, k, depth=0.9):
 def home(rng, split, kind):
     """A ProcTHOR house for one world, in generate.py's house form: (rooms, walls, furniture, surface item or None,
     Pinch's room, extra), or None when this draw doesn't work (the caller draws again)."""
-    from shapely.geometry import Point, Polygon
 
     from sim.worlds.generate import _overlap
     cands = _candidates(split)[kind]
@@ -393,14 +400,13 @@ def home(rng, split, kind):
         home_room = dict(home_room, x0=x0, y0=y0, x1=x1, y1=y1)
         rooms = [home_room if r["poly"] == home_room["poly"] else r for r in rooms]
         return rooms, walls, furniture, None, home_room, dict(house=f"{split}-{hi_}", source="procthor")
-    room = next((r for r in rooms if Polygon(r["poly"]).contains(Point(surf["x"], surf["y"]))), rooms[0])
-    P = Polygon(room["poly"])
+    room = next((r for r in rooms if _inside(r["poly"], (surf["x"], surf["y"]))), rooms[0])
     best = None                                                    # the side someone sits at: free floor in front
     for k in rng.permutation(4):
         zone, yaw, hw, hd = _front_zone(surf, int(k))
         zx, zy = zone[0], zone[1]
         corners = [(zx + a, zy + b) for a, b in [_rot(yaw, sx * zone[3], sy * zone[4]) for sx in (-1, 1) for sy in (-1, 1)]]
-        inside = sum(P.contains(Point(c)) for c in corners) + P.contains(Point(zx, zy))
+        inside = sum(_inside(room["poly"], c) for c in corners) + _inside(room["poly"], (zx, zy))
         blocked = sum(1 for f in furniture if not f.get("small") and f["kind"] not in [s.lower() for s in SEATS]
                       and _overlap(zone, (f["x"], f["y"], f["yaw"], f["w"] / 2, f["d"] / 2), 0.0))
         score = inside - 3 * blocked

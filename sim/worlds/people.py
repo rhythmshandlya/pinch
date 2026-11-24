@@ -273,7 +273,9 @@ class Person:
             target = crab_top + np.array([0, 0, 0.0 if self.insist else self.st["hover"]])
             if crab_moving_toward and self.p["style"] == "fearful":
                 self.hand_state = "withdraw"
-            elif np.linalg.norm(self.hand - target) < 0.012 or self.hand_t > (15.0 if self.insist else 8.0):
+            elif np.linalg.norm(self.hand - target) < 0.04 or self.hand_t > (15.0 if self.insist else 8.0):
+                # (within 4 cm of the top of a 20 cm shell is on it: a seated person leaning as far as they can stops
+                # ~3 cm short of the v2.1 body where it waits for them, and used to wait out the 15 s timeout)
                 self.hand_state, self.hand_t = "touch", 0.0
         elif self.hand_state == "touch":
             self.hand_t += dt

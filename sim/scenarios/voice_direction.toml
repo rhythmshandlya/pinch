@@ -1,4 +1,4 @@
-# New in phase 5 (SIM-005): someone walking through the room talks; their voice reaches Pinch's two microphones from
+# New in phase 5: someone walking through the room talks; their voice reaches Pinch's two microphones from
 # where they are, and its own hearing (GCC-PHAT, pinch/hearing.py) should tell which way the voice came from.
 [scenario]
 name = "voice_direction"

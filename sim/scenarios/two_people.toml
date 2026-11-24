@@ -1,4 +1,4 @@
-# New in phase 5 (SIM-017): two people around Pinch - one sitting with it, one walking through. It should tell them
+# New in phase 5: two people around Pinch - one sitting with it, one walking through. It should tell them
 # apart (two people in its memory) and greet someone.
 [scenario]
 name = "two_people"
