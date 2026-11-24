@@ -131,7 +131,11 @@ def claw_meet(arm="L", tol=0.004):
     def touching(q):
         P = poser.poses(f"{arm}_claw", q)
         d = P[dac] * g[dac][0][1]
-        return any(((P[up] * s) & d).volume >= 1.0 for _, s, _, _ in g[up])
+        for _, s, _, _ in g[up]:
+            r = (P[up] * s) & d                          # (None when the two don't meet)
+            if r is not None and r.volume >= 1.0:
+                return True
+        return False
     lo, hi = 0.0, 0.3
     if not touching(lo):
         return 0.0

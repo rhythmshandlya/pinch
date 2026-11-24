@@ -148,12 +148,31 @@ def main():
     ap.add_argument("--workers", type=int, default=min(len(JOBS), max(2, (os.cpu_count() or 4) - 2)))
     ap.add_argument("--keep", default=None, help="keep the built parts in this folder (stage 1 manifest.json)")
     ap.add_argument("--stage1-only", action="store_true", help="build the features and parts, then stop")
+    ap.add_argument("--reuse", action="store_true",
+                    help="skip building: take the parts a finished run left in --keep (retry the export step)")
     a = ap.parse_args()
     outdir = Path(a.keep) if a.keep else Path(tempfile.mkdtemp(prefix="pinch_cad_"))
     outdir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     results, feats = {}, {}
     shell = ("tray", "cover")
+    import json
+    if a.reuse:
+        if not a.keep or not (outdir / "parts.json").exists():
+            raise SystemExit("--reuse needs --keep <folder> from a run that built every part (parts.json)")
+        m = json.loads((outdir / "parts.json").read_text())
+        feats, results = m["feats"], m["parts"]
+    else:
+        feats, results = _build_all(a, outdir, shell)
+    _install_features(outdir, feats)
+    _export(outdir, results, t0)
+
+
+def _build_all(a, outdir, shell):
+    """Build every feature group and part side by side; returns (feats, results) and saves them in parts.json."""
+    import json
+    t0 = time.time()
+    results, feats = {}, {}
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
         # stage 1: the body's feature groups and every part that does not need them, side by side
         futs = [ex.submit(_features, g, str(outdir)) for g in FEATURE_GROUPS]
@@ -166,18 +185,21 @@ def main():
             (feats if job in FEATURE_GROUPS else results)[job] = manifest
             print(f"  built {job:15s} {secs:6.0f} s", flush=True)
         print(f"stage 1 in {time.time() - t0:.0f} s", flush=True)
-        import json
         (outdir / "manifest.json").write_text(json.dumps({"feats": feats, "parts": results}))
         if a.stage1_only:
-            return
+            raise SystemExit(0)
         # stage 2: the tray and the cover from those features, side by side
         for f in as_completed([ex.submit(_build, j, str(outdir), feats) for j in shell]):
             job, secs, manifest = f.result()
             results[job] = manifest
             print(f"  built {job:15s} {secs:6.0f} s", flush=True)
     print(f"parts built in parallel in {time.time() - t0:.0f} s ({a.workers} processes)", flush=True)
-    _install_features(outdir, feats)
+    (outdir / "parts.json").write_text(json.dumps({"feats": feats, "parts": results}))
+    return feats, results
 
+
+def _export(outdir, results, t0):
+    """Hand the built parts to the export (meshes, masses, JSON) in place of rebuilding them."""
     # hand the built parts to the export in place of rebuilding them
     import functools
 

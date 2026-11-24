@@ -1488,7 +1488,7 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       - **Observer:** new checks for no_closing, late_reaction, dragging_step, face against state and gaze while
         walking; a step the body queues behind a reflex is now recorded when it starts.
       - **Benches:** `sim/benches/` gains congruence, liveliness, learning and rhythm.
-    - **Measured:**
+    - **Measured** (on the v1 body, before decision 111 made v2.1 the only body; re-measured there under 111):
       - **Congruence, review scene:** the face hid the feeling 31 % -> 0 % of awake time, and showed the opposite of
         it 0.3 % -> 0.0 %. All congruence checks are 0 % on three scenarios.
       - **Liveliness:** 6/7.
@@ -1512,3 +1512,133 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       - A behaviour-tree library (py_trees): utility selection with states as data already covers what it would add.
       - A stricter liveliness rule passed by changing the bench: the uniform-random baseline is kept, and a
         time-shifted control is only reported next to it.
+
+109. **The v2.1 body: a boxed body with a nose and chin, real parts and routed cables; four findings of a papers audit
+     adopted.**
+    - **Why:** the owner's audit of v2: jagged notches where the legs swept through the pill, no room or mounts for the
+      real parts, and a short list of training and hardware lessons from recent small-robot papers not yet applied.
+    - **Evidence:** SPINDER (Sci. Rep. 16:26147, 2026) on printed-link stiffness; Tan et al. (RSS 2018): policies
+      trained without command latency failed on hardware; Chen et al. (Bioinspir. Biomim. 17 046001, 2022): sideways
+      walking costs 40 % less on a 3-joint-leg robot; LeRobot's SO-101 gripper (huggingface/lerobot, 29k stars) for
+      the claw's overload setting; Pollen's rustypot STS3215 register table.
+    - **Change:**
+      - **Body** (`cad/v2`, `configs/layout_v2.toml` chassis.plan): the pill cut to a rounded box between the leg
+        bays, a nose for the face plate and a chin under the arms; six M2.5 heat-set cover screws; battery bay and
+        door; a printed electronics deck; vents; makers' STEP models where they exist (`cad/vendor/fetch.py`);
+        cables path-found (`cad/v2/routing.py`); print, closure and fit checks.
+      - **Stance:** thighs level and hips 12.5 deg forward (ground clearance 34.7 -> 39.6 mm).
+      - **Training:** Brax environments apply each command 0-20 ms late (mjlab already did).
+      - **Servos:** claw servos get Overload_Torque 25 at setup.
+      - **Print:** legs and arms at 60 % infill, 4 walls (SPINDER: 40 % less link flex than 40 % infill, +3 g a leg).
+      - **Gait:** sideways stride cap 0.5 -> 0.6.
+      - **Fixes:** the fuse moved clear of the limb liners (closure 2.1 -> 1.0 %); 29 estimated part sizes checked
+        against the products bought (IMU board 21 mm wide; room for the wider ToF clones).
+    - **Measured:** 2,275 g; fit and wiring checks pass; closure 1.0 % (limit 2 %); 22/22 moves within the torque
+      limits; sideways 6.1 cm/s with the hottest joint at 67-69 % of rated RMS (sideways 17 % less energy per metre
+      than forward); mixed hour 57 % of rated (limit 70 %); stand margin 76.9 mm inside the support polygon.
+    - **Rejected:** keeping the pill with notches for the leg sweeps (the owner's "jagged cuts"); a full cover over
+      the servos (the owner's DIY look: servos may show).
+
+110. **Heat-aware rest: every bus servo has a thermal model, and a hot leg makes Pinch sit down.**
+    - **Why:** an hour of walking can heat a leg servo past its protection; nothing in the twin or the mind knew.
+    - **Evidence:** a one-node thermal model (copper loss of the motor torque, gear friction, idle draw) with the
+      STS3215's 10 K/W and 240 s from SO-ARM100 hold tests (TheRobotStudio/SO-ARM100, 8.2k stars); a smaller servo
+      scaled by case area.
+    - **Change:**
+      - **Model:** `crab/servo_model.py` (heat), with `fit_heat` to fit it to a bench log.
+      - **Mind:** the hottest leg servo feeds a heat need that floors tiredness, a cool-down drive (sit down where it
+        is from about 45 C, urgent near 55 C) and a walking cost on activities ranked human and below.
+      - **Body:** walking slows from 55 C and stops at 60 C; the firmware cuts torque at 65 C.
+      - **Benches:** `sim/benches/heat.py` (an hour of walking on demand, three heat conditions); `sim/mixed_hour.py`
+        reports peak and final temperature per joint.
+    - **Measured:** the twin's mixed hour on v2.1 stays far below the 43 C at which cool-down ends; the bench's
+      worst case (40 C room, pessimistic thermal resistance) is what exercises the drive. The heat bench ran on v1
+      (the desk was too small for v2): it is to be re-run on v2.1 with the 1.20 m desk (decision 111).
+    - **Rejected:** a lumped "fatigue = heat" shortcut (heat and tiredness recover at different rates).
+
+111. **v2.1 is the only body: the v1 robot, its design switch, CAD, models and policies are gone, and everything
+     that was sized for v1 is fitted to v2.1.**
+    - **Why:** phases 2-4 were built side by side. The twin always loaded the v1 model (`sim/desk.py` hard-coded
+      `crab.xml`), so the pet mind, its benches and the golden trace had only ever run the old body, and the owner
+      asked for one cohesive system. On the real v2.1 model the robot hardly moved: it spent 177 of 240 s trying to
+      get unstuck.
+    - **Evidence:** measured on the v2.1 model: standing body height 92 mm (v1: 49), feet 15-17 cm from the body
+      centre (v1: 10), side cliff beams looking 21-23 cm out; the owner's desk is 100-140 cm wide.
+    - **Change:**
+      - **One body:** `crab/params.py` has no `CRAB_DESIGN`; 165 v1 files deleted (model, meshes, CAD, sizing study,
+        policies); the model builder's v1 branches removed (the generated model is byte-identical).
+      - **Robot code:** the PWM arm path removed (every servo is on the bus).
+      - **Desk:** the twin's desk is 1.20 x 0.60 m, with its places and objects moved clear of the v2.1 legs.
+      - **Cliff ring:** reads from the v2.1 standing height, with at least 25 mm of slack over a flat desk.
+      - **Personal space:** distances the mind keeps from things scale with the body (`BODY_SCALE` 1.73, from the
+        foot reach): curiosity standoffs, the startle radius, the step back, in-view habituation.
+      - **Startle:** flinches back first and cowers after (v2.1's scared move lasts 3.6 s).
+      - **Habituation:** a fright arriving in steps within 2 s is one episode (one rushing toy used to dull itself
+        below the startle line).
+      - **Firmware:** servo voltage limits per servo, legs 5.5-8.6 V and arms 4.5-6.0 V (the old 6.5 V cap would
+        have refused the 7.4-8.4 V leg rail; Feetech register table and product pages); each servo's supply checked
+        against its own rail.
+    - **Measured:** on v2.1 Pinch walks about 1.4 m in 4 minutes, with no edge stops and no getting stuck (was 0.34 m,
+      177 s unsticking); the generated model is byte-identical after the builder cleanup; electronics, circuit and
+      mjlab tests pass.
+    - **Rejected:** keeping v1 behind the switch (noise, and tests passing on the wrong body); scaling only the tests
+      (the mind would keep things inside its own legs).
+
+112. **The v2.1 get-up policy adopted (righting-v21-lag).**
+    - **Why:** the v1 policy stands the v2.1 body up from 38 % of falls (45 % with realistic servos); the scripted
+      swing manages 24 %.
+    - **Evidence:** trained on the v2.1 body with 0-20 ms command latency (Tan et al. 2018); the 200-start righting
+      bench.
+    - **Change:** `policies/righting.npz` and the registry (v1 slots retired).
+    - **Measured:** 200 random falls on its back: 175/200 = 88 % (82-91) ideal, mean 1.92 s; 191/200 = 96 % (92-98)
+      with datasheet realism, mean 1.42 s. Commanded joint speed p95 11.6-13 rad/s against the 5.1 rad/s servo limit
+      (the servos clip it; the numbers include the clipping).
+    - **Rejected:** the older righting-v21e (about 80 %).
+
+113. **The v2.1 walking policy adopted for straight walking (terrain-v21-lag); turns use the scripted trot.**
+    - **Why:** the scripted trot clears only 8 mm bars and 10 deg ramps walking forward.
+    - **Evidence:** 60 M steps on msi-1, corrections on the scripted trot, trained on the hard-terrain curriculum
+      with command latency.
+    - **Change:** `policies/gait.npz`. In `pinch/body/locomotion.py` the policy fades out (over 0.25 s) above
+      0.08 rad/s of turning: it holds the body nearly still in yaw (0.14 of 1.6 rad asked in 4 s; the trot 1.19).
+    - **Measured:**
+      - **Robustness** (24 episodes a world, paired): falls 0/0/0/0 on desk, rough, stuck and terrain (scripted
+        0/0/0/0); speed tracking 81/80/79/77 % (scripted 73/70/71/62 %).
+      - **Hurdles forward:** 18 mm bars 3/3, 20 mm 2/3 (scripted: 8 mm 3/3, 10 mm 1/3).
+      - **Ramps forward:** 15 deg 3/3, 20 deg 2/3 (scripted 15 deg 2/3, 20 deg 0/3).
+      - **One loss:** sideways up a 20 deg ramp, 0/3 (scripted 3/3).
+    - **Rejected:** the policy on every walk (turning suppressed); waiting for a retrain with turning commands
+      weighted up (a later improvement).
+
+114. **Firmware on the v2.1 body: gated camera fixes, a bigger tray marker, a fixed test clock.**
+    - **Why:** on v2.1 the firmware self-test failed 7 checks. A small marker seen from across the 1.2 m desk has a
+      second, mirrored pose solution, and one such fix jumped the position estimate 30 cm, so the robot guarded the
+      wrong edge. Position error was 24-34 mm with the 40 mm marker. The camera assumed a 45 mm standing height. The
+      self-test's results depended on the hour it ran (asleep at night). "Stuck" used a fixed 8 mm, inside a far fix's
+      jitter.
+    - **Change:**
+      - **Fix gating** (`robot/localizer.py`): a fix further than max(5 cm, 3 sigma) or 0.5 rad from the estimate is
+        believed only when 3 in a row agree within 3 cm.
+      - **Marker:** 60 mm.
+      - **Camera height:** `robot/vision.py` projects from the v2.1 standing height.
+      - **Test clock:** `PinchFirmware(clock=)`, and the self-test runs at 13:00.
+      - **Stuck:** a walk covering under a fifth of its expected distance.
+      - **Purr while busy:** a stroke during an activity it won't drop gets a purr at once.
+    - **Measured:** position error 34 -> 13 mm; self-test 37/44 -> 43/44 (the one left is the camera seeing desk
+      things, decision 115); no fall off the desk in three full runs after the gating.
+    - **Rejected:** a filter on the marker's reprojection error alone (both mirrored solutions reproject well).
+
+115. **A notch in the chin in front of the camera (owner's choice).**
+    - **Why:** standing, the chin hid the desk 15-45 cm ahead from the camera: 33 of 63 sight lines to the desk
+      15-60 cm ahead (+-40 deg) were blocked, and the firmware self-test's "sees desk things" check failed on v2.1.
+    - **Evidence:** measured on the model (`mj_ray` from `eye_cam` against the visible geometry, standing); the
+      owner chose a notch over moving the camera or lowering the chin.
+    - **Change:** `configs/layout_v2.toml` chassis.plan `notch` (|y| < 28 mm, from the face plate forward, above a
+      plane falling at 35 deg from the lens's lower edge); `crab/shapes.py` BodyPlan subtracts it; `cad/v2/body.py`
+      cuts it from the body (the wall follows it); `tests/test_v2.py` checks the sight lines. The CAD export also got
+      fixes found on the way: an empty bay-liner half is skipped (the arm liners lie wholly in the tray), the claw's
+      jaw-meeting search treats no contact as no contact, and `export_parallel.py --reuse` re-runs the export step
+      from parts already built.
+    - **Measured:** blocked sight lines 33/63 -> 0/63; body 1308 -> 1306 g, robot 2.275 -> 2.273 kg.
+    - **Rejected:** the other options put to the owner (moving the camera, reshaping the whole chin): each changes
+      more of the body than a local cut.

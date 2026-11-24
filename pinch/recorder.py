@@ -295,10 +295,11 @@ class SessionRecorder:
     def _poll_trace(self, t, body):
         """The body's own trace (BodyCore.trace: lined up, missed, lifted it or not, detours ...)."""
         log = body.log
-        if not log:
-            return
         if self._last.get("trace", self._UNSET) is self._UNSET:
-            self._last["trace"] = log[-1]                  # (what was there before the recording isn't ours)
+            # (what was there before the recording isn't ours; an empty log means everything after is)
+            self._last["trace"] = log[-1] if log else None
+            return
+        if not log:
             return
         for _, what, kw in self._new("trace", log):
             self.event(t, "body", what=what, step=self._step["label"] if self._step else None, info=kw)

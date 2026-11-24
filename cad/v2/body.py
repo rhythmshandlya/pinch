@@ -1202,8 +1202,10 @@ def bay_liners():
         liner = sweep(key, CLEAR + LINER_T) & core
         if liner is None or volume(liner) < 1.0:
             continue
-        feats.append(Feature(f"liner_{key}_low", "", "tray", "add", liner & below(SPLIT_Z + LIP_H), clip=False))
-        feats.append(Feature(f"liner_{key}_high", "", "cover", "add", liner & above(SPLIT_Z), clip=False))
+        for half, part in (("low", liner & below(SPLIT_Z + LIP_H)), ("high", liner & above(SPLIT_Z))):
+            if not _empty(part):                         # (an arm's liner lies wholly in the tray: no cover half)
+                feats.append(Feature(f"liner_{key}_{half}", "", "tray" if half == "low" else "cover", "add", part,
+                                     clip=False))
     return feats
 
 @cache

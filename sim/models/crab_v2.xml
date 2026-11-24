@@ -300,7 +300,7 @@
       <camera name="track" mode="trackcom" pos="0.336 -0.4 0.24" xyaxes="0.7657 0.6432 -0 -0.2685 0.3197 0.9087"/>
       <camera name="eye_cam" pos="0.0611 0 -0.0195" xyaxes="0 -1 0 -0 0 1" fovy="102"/>
       <site name="imu" pos="-0.02 0 0.01" quat="1 0 0 0" size="0.0080" rgba="0 0 0 0"/>
-      <inertial pos="1.394637e-02 -3.339470e-03 2.107739e-02" mass="1.308145" fullinertia="6.387385e-03 5.180672e-03 4.615860e-03 -8.627162e-05 -1.131321e-03 -1.499973e-04"/>
+      <inertial pos="1.307034e-02 -3.321252e-03 2.108819e-02" mass="1.306379" fullinertia="6.346946e-03 5.238877e-03 4.618133e-03 -9.731283e-05 -1.153893e-03 -1.906861e-04"/>
         <geom class="visual" type="mesh" mesh="v2_body_tray" material="shell"/>
         <geom class="visual" type="mesh" mesh="v2_body_cover" material="shell"/>
         <geom class="visual" type="mesh" mesh="v2_body_battery_door" material="shell"/>
