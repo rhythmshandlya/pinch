@@ -16,7 +16,7 @@ def _qty(word, order=None):
 
 def test_the_whole_list_fits_the_owners_limit_with_the_orders_adding_up():
     total = bom.tot(ROWS)
-    assert total <= bom.LIMIT == 106000, total
+    assert total <= bom.LIMIT == 127200, total
     by_order = [bom.tot([x for x in ROWS if x["order"] == n]) for n in bom.ORDER_NAMES.values()]
     assert abs(sum(by_order) - total) < 0.01 and all(0 < o < bom.LIMIT for o in by_order)
     assert bom.tot(ROWS, ("required",)) <= total

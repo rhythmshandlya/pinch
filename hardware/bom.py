@@ -27,7 +27,7 @@ HERE = Path(__file__).resolve().parent
 EV, RB, AZ, TR, RC = "Evelta", "robu.in", "Amazon.in", "ThinkRobotics", "Robocraze"
 MO, LO = "Mouser India / DigiKey India", "local hardware store / print service"
 RD, QZ, IH, FB = "Robodo", "Quartz Components", "Indian Hobby Center", "Fab.to.Lab"
-LIMIT = 106000                    # the owner's limit (2026-11-21) for ALL parts, prints and tools
+LIMIT = 127200                    # the owner's limit for ALL parts, prints and tools (2026-11-24: +20 % on 106,000)
 PRINTS_MID, PRINTS_LOW, PRINTS_HIGH = 7000, 4250, 10200
 T, D, U = "2026-11-21", "2026-11-18", "UNVERIFIED"
 N = "2026-11-24"                  # the price round of 2026-11-24: pages opened in a browser
@@ -376,7 +376,7 @@ def main():
            "The battery and charger are in order 1, not order 2: the bench test needs a 7.4 V supply, and the bench "
            "supply sold by robu (Yihua 30 V 5 A, INR 3,339-4,029) is out of stock today. The same pack then becomes "
            "the robot's first battery.", "",
-           "## Budget (owner's limit INR 1,06,000 for parts, prints and tools)", "",
+           f"## Budget (owner's limit INR {LIMIT:,} for parts, prints and tools)", "",
            f"Total INR {grand:,.0f} with the 3D prints at their mid estimate of INR {PRINTS_MID:,} (range INR {PRINTS_LOW:,} to {PRINTS_HIGH:,}: "
            f"the total is INR {grand - PRINTS_MID + PRINTS_LOW:,.0f} at the low end and INR {grand - PRINTS_MID + PRINTS_HIGH:,.0f} at the high end). "
            f"**The margin at the mid estimate is INR {LIMIT - grand:,.0f}**, and shipping (not counted) comes out of it; the high print "

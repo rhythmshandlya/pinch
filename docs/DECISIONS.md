@@ -1668,3 +1668,10 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
       camera now sees desk things, decision 115).
     - **Rejected:** a longer flinch (the reflex, not the distance, stopped it); fewer tidy retries without waiting for
       the person (Pinch would just give up silently).
+
+117. **The owner raised the weight and cost budgets by 20 %.**
+    - **Why:** v2.1 with the chin notch weighs 2.273 kg against the 2.2 kg target; the owner chose to raise the
+      budgets rather than cut the body.
+    - **Change:** weight target 2.2 -> 2.64 kg; parts, prints and tools INR 1,06,000 -> 1,27,200 (`hardware/bom.py`
+      LIMIT, `hardware/BOM.md` regenerated, `tests/test_bom.py`; the comment in `tests/test_v2.py`).
+    - **Measured:** 2.273 kg (86 % of the new target); the list INR 99,912 (margin INR 27,288).
