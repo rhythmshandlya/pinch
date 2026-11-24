@@ -344,6 +344,7 @@ class CliffReflex:
     `blocked` (unit vectors) goes to Body.cliff_blocked; its edge guard removes any motion toward them."""
 
     SPEED, BACK_S = 0.03, 1.0
+    TOWARD = 0.005           # m/s toward a beam's side that counts as walking that way (the gait's own 'going')
 
     def __init__(self, beams=None, stale_s=0.3, clear_s=0.2):
         self.beams = cliff_beams() if beams is None else beams
@@ -387,7 +388,10 @@ class CliffReflex:
                 self.clear_since = None
             return None
         v = np.asarray(cmd_vel[:2], float)
-        fired = [(n, np.array(g)) for n, g, _, _ in self.beams if self.states[n] == "cliff" and v @ g > 1e-4]
+        # "walking toward" a side: at least TOWARD of the walk heads that way (a straight step back carrying a
+        # rounding 0.4 mm/s sideways fired the side beam's back-off on one rolled reading); slower drift toward a
+        # cliff the beam's block stops anyway (blocked -> the body's edge guard)
+        fired = [(n, np.array(g)) for n, g, _, _ in self.beams if self.states[n] == "cliff" and v @ g > self.TOWARD]
         if not fired:
             return None
         self.latched, self.clear_since = {n for n, _ in fired}, None

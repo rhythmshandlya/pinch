@@ -274,7 +274,10 @@ def test_realism_metrics():
 # Real problems this session shows today, which the observer must keep finding until they are fixed (then remove
 # them here): wedged against the tray for 20 s while lining up to pick the eraser, walking further from it, until a
 # foot goes over the edge (the owner saw it in the review videos, 2026-11-20; pinch/body/manipulation.py).
-KNOWN_PROBLEMS = set()             # ("stuck" was here: a pick walking into a blocked stance; fixed in phase 4 part 3)
+# failed_grasp: the v2.1 claw holds thin things poorly (sim/grip_check.py: pen 38 %, eraser 52 %, 5 mm rod 2 %; balls and
+# cubes 100 %): the tips-first claw is still to be designed for the locked arm geometry. ("stuck" was here: a pick
+# walking into a blocked stance; fixed in phase 4 part 3.)
+KNOWN_PROBLEMS = {"failed_grasp"}
 
 
 def test_recorded_pet_life_has_few_findings():

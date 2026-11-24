@@ -19,7 +19,7 @@ null,
 "urgent than greet (after an interrupt)"
 ],
 [
-24.2,
+24.4,
 "obey",
 "tidy",
 "previous activity finished"
@@ -37,14 +37,14 @@ null,
 "previous activity finished (resumed)"
 ],
 [
-67.8,
+70.1,
 "tidy",
-"unstick",
+"react_touch",
 "urgent than tidy (after an interrupt)"
 ],
 [
-78.5,
-"unstick",
+76.7,
+"react_touch",
 "tidy",
 "previous activity finished (resumed)"
 ],
@@ -55,29 +55,23 @@ null,
 "clearly better than tidy"
 ],
 [
-108.0,
+107.6,
 "comfort",
 "tidy",
 "previous activity finished (resumed)"
-],
-[
-109.4,
-"tidy",
-"idle",
-"previous activity finished"
 ]
 ],
 "motions": [
 [
 3.6,
-"('turn_to', (0.0, -0.3))"
+"('turn_to', (0.0, -0.375))"
 ],
 [
-7.3,
+8.0,
 "('emote', 'wave')"
 ],
 [
-10.7,
+11.5,
 "('emote', 'excited')"
 ],
 [
@@ -85,56 +79,52 @@ null,
 "('emote', 'dance')"
 ],
 [
-22.5,
+22.7,
 "('pose', 'stand', 0.8)"
 ],
 [
-24.6,
+24.8,
 "('pick', 'pen')"
 ],
 [
 31.2,
-"('push', 'cap', (0.18, 0.08))"
+"('push', 'cap', (0.35, 0.15))"
 ],
 [
-67.8,
-"('recover',)"
+70.1,
+"('emote', 'fidget', {'gain': 1.0, 'arousal': 0.1901432547799768, 'valence': 0.8228333356038978, 'sleepy': 0.10974999999999568})"
 ],
 [
-79.0,
+74.8,
+"('pose', 'low', 1.0)"
+],
+[
+77.2,
 "('pick', 'pen')"
 ],
 [
 91.6,
-"('goto', (0.0, 0.044999999999999984), 0.05)"
+"('goto', (0.0, -0.030000000000000027), 0.05)"
 ],
 [
-93.8,
-"('turn_to', (0.0, -0.3))"
+94.5,
+"('turn_to', (0.0, -0.375))"
 ],
 [
-95.8,
+95.2,
 "('emote', 'handshake')"
 ],
 [
-99.6,
+99.2,
 "('pose', 'low', 6.0)"
 ],
 [
-106.3,
+105.9,
 "('pose', 'stand', 0.8)"
 ],
 [
-108.5,
-"('pick', 'eraser')"
-],
-[
-109.1,
-"('push', 'eraser', (0.14, 0.08))"
-],
-[
-109.4,
-"('emote', np.str_('stretch'))"
+108.1,
+"('pick', 'pen')"
 ]
 ],
 "sounds": [
@@ -143,46 +133,30 @@ null,
 "greeting_beep"
 ],
 [
-67.8,
-"angry_buzz"
-],
-[
-78.3,
-"happy_trill"
-],
-[
-93.3,
-"happy_trill"
-],
-[
-95.8,
+70.1,
 "purr"
 ],
 [
-108.6,
-"uh_oh"
+95.2,
+"purr"
 ],
 [
-109.2,
-"uh_oh"
-],
-[
-109.2,
+120.0,
 "uh_oh"
 ]
 ],
 "pose": [
-0.036692051,
-0.032644303,
-0.046710086,
--0.611793271,
--0.005319598,
--0.002853143,
-0.790994662
+-0.203093639,
+0.147483094,
+0.092060503,
+0.734741595,
+-5.4178e-05,
+0.001165929,
+-0.678346096
 ],
 "cap": [
-0.148691136,
-0.033552076
+-0.060000011,
+-2.8e-08
 ],
 "platform": "Windows"
 }

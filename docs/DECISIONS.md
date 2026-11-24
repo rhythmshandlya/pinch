@@ -1642,3 +1642,29 @@ has a check in `robot/firmware_test.py` (now 30 checks) or `robot/selftest.py` (
     - **Measured:** blocked sight lines 33/63 -> 0/63; body 1308 -> 1306 g, robot 2.275 -> 2.273 kg.
     - **Rejected:** the other options put to the owner (moving the camera, reshaping the whole chin): each changes
       more of the body than a local cut.
+
+116. **Fixes found fitting the mind to v2.1: no false cliff back-offs, waiting for help after asking, one call at a
+     time; the golden trace re-recorded.**
+    - **Why:** on the notched v2.1 body three things showed in the tests. A startled flinch back carried a rounding
+      0.4 mm/s sideways; one rolled side-beam reading then counted as "walking toward a cliff" 27 cm from the edge,
+      and the reflex cancelled the flinch. Pet life spent 47 % of its awake time tidying: it retried things it
+      couldn't reach every 30 s and asked for help each time (the owner's rule: a pet, not a tidy robot). One failed
+      tidy said "uh oh" five times in 1.7 s.
+    - **Evidence:** the twin traces (the cliff ring's states during the flinch; the body's pick and push traces); the
+      observer's findings on the recorded 3-minute pet life.
+    - **Change:**
+      - **Cliff ring** (`pinch/touch.py`): a beam's back-off needs at least 5 mm/s toward its side (the gait's own
+        "going" speed); a beam reading cliff still blocks every motion toward its side.
+      - **Asking for help** (`pinch/mind/core.py` `wait_for_help`, `pinch/activities/tasks.py`): once Pinch asks its
+        person for help with a thing, it leaves it alone until someone moves it (3 cm) or 10 minutes pass; "right by
+        an edge, hopeless" scales with the body (0.08 m x BODY_SCALE).
+      - **Sounds** (`Mind.sound`): the same call is not repeated within 3 s.
+      - **Known problem:** the observer test lists failed_grasp as known: the v2.1 claw holds thin things poorly
+        (`sim/grip_check.py`: pen 38 %, eraser 52 %, 5 mm rod 2 %; balls and cubes 100 %) until the tips-first claw is
+        designed; the test fails when grasps work, so the entry comes off.
+      - **Golden trace** re-recorded for decisions 111-116 (v2.1 body, notch, these fixes).
+    - **Measured:** the startle test backs away again; pet life tidying 47 % -> 30 % of awake time, "uh oh" 9 -> 4 in
+      3 minutes, warnings 7 -> 4 (not counting the known claw); full suite 273/273; firmware self-test 44/44 (the
+      camera now sees desk things, decision 115).
+    - **Rejected:** a longer flinch (the reflex, not the distance, stopped it); fewer tidy retries without waiting for
+      the person (Pinch would just give up silently).

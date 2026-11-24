@@ -5,6 +5,7 @@ from pinch.activities.base import (  # noqa: F401
     Activity,
     np,
 )
+from pinch.world import BODY_SCALE
 
 
 class Tidy(Activity):
@@ -60,8 +61,9 @@ class Tidy(Activity):
                 yield ("phase", "push")
                 yield ("push", name, goal)              # ... and pushing when it can't get hold of it
             ok = m.last_step_ok
-            # (right by an edge it can't get behind it - no point trying again)
-            hopeless = m.world.desk.edge_distance(ob.xy) < 0.08
+            asked = False
+            # (right by an edge it can't get behind it - no point trying again; a bigger crab needs more room)
+            hopeless = m.world.desk.edge_distance(ob.xy) < 0.08 * BODY_SCALE
             if not ok and (hopeless or len([1 for t, k in m.tidy_tries.get(name, []) if not k and m.t - t < 600]) >= 1):
                 # second failure (or out of reach): ask my person for help instead of thrashing about
                 yield ("phase", "ask_help")
@@ -73,9 +75,11 @@ class Tidy(Activity):
                 yield ("turn_to", m.world.desk.owner_xy)
                 yield ("emote", "beg")
                 m.memory.remember("help", f"asked for help with the {name}")
+                m.wait_for_help(name, ob.xy)            # asked: now it's my person's turn, not another try
+                asked = True
             m.tidy_attempt(name, ok)
             yield ("face", "proud" if ok else "sad")
-            if not m.affect.quiet:
+            if not m.affect.quiet and not asked:                # (asking for help already said "uh oh")
                 yield ("sound", "fanfare" if ok else "uh_oh")
             if ok:
                 m.affect.feel("tidied")

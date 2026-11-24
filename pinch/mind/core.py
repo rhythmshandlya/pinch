@@ -95,6 +95,8 @@ class MindCore:
         self._danger_saved_t = -1e9
         self.tidy_current = None                           # the thing a tidy job is working on
         self.tidy_hold = {}                                # thing -> until when it is left alone (a timed-out job)
+        self._sound_last = {}                              # sound -> when it was last played
+        self.help_asked = {}                               # thing -> where it was when Pinch asked for help with it
         self.next_choice = 0.0
         self.log = []                        # (t, kind, text) for the app's diary and tests
         self._was_present = False
@@ -119,12 +121,27 @@ class MindCore:
 
     def tidy_ok(self, name):
         """Not right after trying it, and not after failing three times recently (can't reach it?)."""
+        if name in self.help_asked:                        # it asked for help with this: leave it until someone
+            ob = self.world.objects.get(name)              # moves it (or the hold runs out)
+            moved = ob is None or np.hypot(*(np.asarray(ob.xy) - self.help_asked[name])) > self.HELP_MOVED_M
+            if moved or self.t >= self.tidy_hold.get(name, -1e9):
+                del self.help_asked[name]
+                self.tidy_hold.pop(name, None)
+                if moved:
+                    self.tidy_tries.pop(name, None)        # (a fresh start where it is now)
         if self.t < self.tidy_hold.get(name, -1e9):
-            return False                                   # (a job on it timed out: left alone a while)
+            return False                                   # (a job on it timed out, or it waits for help: left alone)
         tries = [(t, ok) for t, ok in self.tidy_tries.get(name, []) if self.t - t < 600]
         if tries and self.t - tries[-1][0] < 30:
             return False
         return sum(1 for _, ok in tries if not ok) < 3
+
+    HELP_WAIT_S, HELP_MOVED_M = 600.0, 0.03
+
+    def wait_for_help(self, name, xy):
+        """Pinch asked its person for help with a thing: leave it alone until it is moved, or for HELP_WAIT_S."""
+        self.help_asked[name] = np.asarray(xy, float)
+        self.tidy_hold[name] = self.t + self.HELP_WAIT_S
 
     def tidy_attempt(self, name, ok):
         self.tidy_tries.setdefault(name, []).append((self.t, ok))
@@ -269,15 +286,18 @@ class MindCore:
         ex[key] = round(p + EXPECT["rate"] * (o - p), 4)
         return o - p
 
+    SAME_SOUND_GAP_S = 3.0    # the same call not again within this (one failed tidy said "uh oh" 5 times in 1.7 s)
+    _sound_last = None
+
     def sound(self, name):
         """Play a sound that fits the feeling: one that says the opposite becomes the feeling's own sound
         (configs/mind/expression.toml [sound]); nothing in quiet mode."""
         if self.affect.quiet:
             return
         s = sound_for(name, self.affect.feeling())
-        if s:
+        if s and self.t - self._sound_last.get(s, -1e9) >= self.SAME_SOUND_GAP_S:
             self.sounds.append(s)
-            self.sound_set_t = self.t
+            self.sound_set_t = self._sound_last[s] = self.t
 
     def outputs(self):
         """Face expression (the feeling unless an activity set one recently), gaze, sounds to play. Gaze: where
