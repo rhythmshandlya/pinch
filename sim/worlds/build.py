@@ -212,6 +212,9 @@ def _cube_cameras(spec):
         cam.parent.add_camera(name=f"eye_{name}", pos=list(cam.pos), quat=list(q), fovy=90.0)
 
 
+NEAR, FAR = 0.002, 40.0             # m: the camera sees from 2 mm (its own arms are 4-5 cm away) to across a house
+
+
 def decorate(spec, w, things=True, people=True, visual=True, fisheye=True, models=None):
     """Add world w to the twin's spec (sim/desk.py has already made the desk top, the tray and Pinch's things)."""
     H = w.surface["height"]
@@ -249,9 +252,6 @@ def decorate(spec, w, things=True, people=True, visual=True, fisheye=True, model
     _box(spec.worldbody, ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2, -H + WALL_H + 0.02),     # the ceiling
          ((max(xs) - min(xs)) / 2 + WALL_T, (max(ys) - min(ys)) / 2 + WALL_T, 0.02),
          rgba=tuple(min(1.0, c * 1.05) for c in w.wall_rgb), kw=VISUAL, name="ceiling")
-    # near clipping: MuJoCo scales it with the model's extent (a whole house), which clipped the desk away from the
-    # eye camera 4.6 cm above it. 0.0005 x extent (a few mm) keeps close things in view.
-    spec.visual.map.znear = 0.0005
     own = None
     if w.kind != "floor" and "model" in w.surface:         # the house's own desk/table: drawn, its top is the desk top
         from sim.worlds import procthor
@@ -340,5 +340,9 @@ def decorate(spec, w, things=True, people=True, visual=True, fisheye=True, model
         _cube_cameras(spec)
 
     def post(m):
-        pass
+        # clipping in metres: MuJoCo's znear and zfar are fractions of the model's extent, which in a house (or with
+        # people parked far off) is over 100 m - a fixed fraction there clipped everything within 6.6 cm of the lens,
+        # Pinch's own arms included (found by the arm-occlusion session), and before that the desk under the camera
+        m.vis.map.znear = NEAR / m.stat.extent
+        m.vis.map.zfar = FAR / m.stat.extent
     return post
